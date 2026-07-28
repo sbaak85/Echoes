@@ -1,0 +1,338 @@
+:root {
+  --ink: #eef6f7;
+  --muted: #95a7ab;
+  --panel: rgba(10, 18, 21, 0.9);
+  --panel-border: rgba(145, 221, 214, 0.18);
+  --accent: #7be0d4;
+  --accent-deep: #173f40;
+  --danger: #ff7b7b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #080d0f;
+  color: var(--ink);
+  font-family:
+    "Segoe UI", "Noto Sans TC", system-ui, -apple-system, BlinkMacSystemFont,
+    sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+.game-shell {
+  position: relative;
+  width: 100vw;
+  height: 100dvh;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(68, 126, 124, 0.11), transparent 48%),
+    #080d0f;
+}
+
+.game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+.top-left-hud {
+  position: absolute;
+  z-index: 3;
+  top: 22px;
+  left: 24px;
+  pointer-events: none;
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.7);
+}
+
+.eyebrow {
+  margin: 0 0 5px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
+}
+
+.top-left-hud h1 {
+  margin: 0;
+  font-size: clamp(18px, 2.1vw, 26px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.status-row {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(123, 224, 212, 0.9);
+}
+
+.debug-wrap {
+  position: absolute;
+  z-index: 5;
+  top: 20px;
+  right: 22px;
+}
+
+.debug-trigger {
+  display: flex;
+  min-width: 108px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 13px 10px 15px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: rgba(9, 15, 18, 0.78);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(16px);
+  cursor: pointer;
+}
+
+.debug-trigger:hover,
+.debug-trigger[aria-expanded="true"] {
+  border-color: rgba(123, 224, 212, 0.45);
+  background: rgba(14, 26, 29, 0.92);
+}
+
+.debug-chevron {
+  color: var(--accent);
+  font-size: 12px;
+  transition: transform 160ms ease;
+}
+
+.debug-trigger[aria-expanded="true"] .debug-chevron {
+  transform: rotate(180deg);
+}
+
+.debug-panel {
+  width: min(286px, calc(100vw - 44px));
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(20px);
+}
+
+.debug-section-label {
+  margin: 4px 5px 8px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.toggle-button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.toggle-button:hover {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.toggle-pill {
+  width: 33px;
+  height: 18px;
+  padding: 2px;
+  border-radius: 999px;
+  background: #293438;
+  transition: background 150ms ease;
+}
+
+.toggle-pill::after {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #849397;
+  content: "";
+  transition:
+    transform 150ms ease,
+    background 150ms ease;
+}
+
+.toggle-button[aria-pressed="true"] .toggle-pill {
+  background: var(--accent-deep);
+}
+
+.toggle-button[aria-pressed="true"] .toggle-pill::after {
+  transform: translateX(15px);
+  background: var(--accent);
+}
+
+.debug-divider {
+  height: 1px;
+  margin: 9px 5px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.slider-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px 12px;
+  padding: 8px 10px;
+}
+
+.slider-row label {
+  color: #dbe6e7;
+  font-size: 13px;
+}
+
+.slider-value {
+  color: var(--accent);
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 12px;
+}
+
+.slider-row input {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.controls-card {
+  position: absolute;
+  z-index: 3;
+  bottom: 22px;
+  left: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9px;
+  background: rgba(7, 13, 15, 0.72);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: none;
+  backdrop-filter: blur(14px);
+}
+
+.key-group {
+  display: grid;
+  grid-template-columns: repeat(3, 25px);
+  grid-template-rows: repeat(2, 24px);
+  gap: 3px;
+}
+
+.keycap {
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-bottom-color: rgba(255, 255, 255, 0.23);
+  border-radius: 4px;
+  background: #172024;
+  color: #dce6e7;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+}
+
+.keycap.w {
+  grid-column: 2;
+}
+
+.keycap.a {
+  grid-column: 1;
+}
+
+.keycap.s {
+  grid-column: 2;
+}
+
+.keycap.d {
+  grid-column: 3;
+}
+
+.direction-readout {
+  position: absolute;
+  z-index: 3;
+  right: 22px;
+  bottom: 22px;
+  min-width: 150px;
+  padding: 10px 13px;
+  border-left: 2px solid var(--accent);
+  background: linear-gradient(90deg, rgba(10, 20, 22, 0.84), transparent);
+  text-align: right;
+  pointer-events: none;
+}
+
+.direction-readout span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.direction-readout strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+@media (max-width: 680px) {
+  .top-left-hud {
+    top: 15px;
+    left: 15px;
+  }
+
+  .debug-wrap {
+    top: 14px;
+    right: 14px;
+  }
+
+  .controls-card {
+    bottom: 14px;
+    left: 14px;
+  }
+
+  .direction-readout {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .status-row {
+    max-width: 170px;
+  }
+}
