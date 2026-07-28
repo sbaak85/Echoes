@@ -6,6 +6,11 @@ $runtimeDirectory = Join-Path $projectRoot ".runtime"
 $standardOutputLog = Join-Path $runtimeDirectory "game-server.log"
 $standardErrorLog = Join-Path $runtimeDirectory "game-server-error.log"
 $processIdFile = Join-Path $runtimeDirectory "game-server.pid"
+$gamepadBridgeUrl = "http://127.0.0.1:3001/state"
+$gamepadBridgeScript = Join-Path $PSScriptRoot "gamepad-bridge.ps1"
+$gamepadBridgeOutputLog = Join-Path $runtimeDirectory "gamepad-bridge.log"
+$gamepadBridgeErrorLog = Join-Path $runtimeDirectory "gamepad-bridge-error.log"
+$gamepadBridgeProcessIdFile = Join-Path $runtimeDirectory "gamepad-bridge.pid"
 
 function ConvertFrom-LauncherText {
     param(
@@ -51,7 +56,107 @@ function Test-GameReady {
     }
 }
 
+function Test-GamepadBridgeReady {
+    try {
+        $response = Invoke-WebRequest `
+            -Uri $gamepadBridgeUrl `
+            -UseBasicParsing `
+            -TimeoutSec 1
+
+        return $response.StatusCode -eq 200
+    }
+    catch {
+        return $false
+    }
+}
+
+function Start-GamepadBridge {
+    if (Test-GamepadBridgeReady) {
+        return $true
+    }
+
+    if (-not (Test-Path -LiteralPath $gamepadBridgeScript)) {
+        return $false
+    }
+
+    $bridgeArguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-WindowStyle",
+        "Hidden",
+        "-File",
+        "`"$gamepadBridgeScript`""
+    )
+
+    $bridgeProcess = Start-Process `
+        -FilePath "powershell.exe" `
+        -ArgumentList $bridgeArguments `
+        -WorkingDirectory $projectRoot `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput $gamepadBridgeOutputLog `
+        -RedirectStandardError $gamepadBridgeErrorLog `
+        -PassThru
+
+    Set-Content -LiteralPath $gamepadBridgeProcessIdFile -Value $bridgeProcess.Id
+
+    $deadline = (Get-Date).AddSeconds(5)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-GamepadBridgeReady) {
+            return $true
+        }
+
+        if ($bridgeProcess.HasExited) {
+            return $false
+        }
+
+        Start-Sleep -Milliseconds 150
+    }
+
+    return $false
+}
+
+function Install-GameDependencies {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$NodeExecutable
+    )
+
+    $bundledPnpmCli = Join-Path `
+        $env:USERPROFILE `
+        ".cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules\pnpm\bin\pnpm.mjs"
+
+    Show-LauncherMessage (ConvertFrom-LauncherText "6aaW5qyh5ZWf5YuV5q2j5Zyo5rqW5YKZ6YGK5oiy5omA6ZyA5YWD5Lu277yM5a6M5oiQ5b6M5pyD6Ieq5YuV6ZaL5ZWf6YGK5oiy44CC6YCZ5Y+v6IO96ZyA6KaB5bm+5YiG6ZCY44CC")
+
+    if (Test-Path -LiteralPath $bundledPnpmCli) {
+        & $NodeExecutable $bundledPnpmCli "install" "--frozen-lockfile" `
+            "--reporter" "append-only" *>> $standardOutputLog
+    }
+    else {
+        $pnpmCommand = Get-Command "pnpm.cmd" -ErrorAction SilentlyContinue
+        if ($null -eq $pnpmCommand) {
+            $pnpmCommand = Get-Command "pnpm" -ErrorAction SilentlyContinue
+        }
+
+        if ($null -eq $pnpmCommand) {
+            Show-LauncherMessage (ConvertFrom-LauncherText "5om+5LiN5Yiw5aWX5Lu25rqW5YKZ5bel5YW344CC6KuL5a6J6KOdIHBucG0g5b6M5YaN6Kmm5LiA5qyh44CC")
+            exit 1
+        }
+
+        & $pnpmCommand.Source "install" "--frozen-lockfile" `
+            "--reporter" "append-only" *>> $standardOutputLog
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        Show-LauncherMessage (ConvertFrom-LauncherText "54Sh5rOV6Ieq5YuV5rqW5YKZ6YGK5oiy44CC6KuL56K66KqN57ay6Lev6YCj57ea5b6M5YaN6Kmm5LiA5qyh44CC")
+        exit 1
+    }
+}
+
 try {
+    New-Item -ItemType Directory -Path $runtimeDirectory -Force | Out-Null
+    [void](Start-GamepadBridge)
+
     if (Test-GameReady) {
         Start-Process $gameUrl
         exit 0
@@ -79,11 +184,13 @@ try {
 
     $vinextCli = Join-Path $projectRoot "node_modules\vinext\dist\cli.js"
     if (-not (Test-Path -LiteralPath $vinextCli)) {
-        Show-LauncherMessage (ConvertFrom-LauncherText "6YGK5oiy5omA6ZyA55qE5qqU5qGI5bCa5pyq5rqW5YKZ5a6M5oiQ44CC6KuL5Zue5YiwIENvZGV477yM6KuL5oiR5Y2U5Yqp5a6J6KOd5bCI5qGI5aWX5Lu244CC")
-        exit 1
-    }
+        Install-GameDependencies -NodeExecutable $nodeExecutable
 
-    New-Item -ItemType Directory -Path $runtimeDirectory -Force | Out-Null
+        if (-not (Test-Path -LiteralPath $vinextCli)) {
+            Show-LauncherMessage (ConvertFrom-LauncherText "6YGK5oiy5omA6ZyA55qE5qqU5qGI5bCa5pyq5rqW5YKZ5a6M5oiQ44CC6KuL5Zue5YiwIENvZGV477yM6KuL5oiR5Y2U5Yqp5a6J6KOd5bCI5qGI5aWX5Lu244CC")
+            exit 1
+        }
+    }
 
     $serverArguments = @(
         "`"$vinextCli`"",
