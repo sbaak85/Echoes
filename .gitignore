@@ -43,6 +43,7 @@ next-env.d.ts
 /outputs/
 /work/
 /.runtime/
-/tools/MapEditor/bin/
-/tools/MapEditor/obj/
-/tools/MapEditor/publish/
+/MapEditor/bin/
+/MapEditor/obj/
+/MapEditor/publish/
+/MapEditor/runtime/

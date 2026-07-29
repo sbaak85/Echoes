@@ -8,9 +8,8 @@ internal static class EditorDiagnostics
     private static readonly object SyncRoot = new();
 
     public static string LogPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Echoes",
-        "MapEditor",
+        AppContext.BaseDirectory,
+        "runtime",
         "MapEditor.log");
 
     public static void Log(string context, Exception exception)

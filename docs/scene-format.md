@@ -1,7 +1,7 @@
 # Echoes scene format v1
 
 Each scene is stored as `public/maps/<scene-id>.scene.json`. The browser game
-and `MapEditor.exe` read the same file so NavMesh, collision debug overlays,
+and `MapEditor/MapEditor.exe` read the same file so NavMesh, collision debug overlays,
 spawn position, and runtime movement cannot drift apart.
 
 Version 1 fields:

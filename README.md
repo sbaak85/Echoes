@@ -21,3 +21,9 @@
 
 - GitHub Pages：<https://sbaak85.github.io/Echoes/>
 - 推送到 `main` 後，GitHub Actions 會自動重新建立並更新網頁。
+
+## 地圖編輯器
+
+- 執行檔與所有編輯器相關檔案集中於 `MapEditor/`。
+- 使用 `MapEditor/MapEditor.exe` 啟動 Windows 地圖編輯器。
+- 編輯器與遊戲共用 `public/maps` 內的場景圖片及 JSON。

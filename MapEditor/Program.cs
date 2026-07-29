@@ -102,7 +102,7 @@ internal static class Program
             {
                 MessageBox.Show(
                     "編輯器已攔截一個錯誤並取消這次拖曳，場景仍可繼續編輯。\r\n\r\n" +
-                    "若問題再次發生，請把 MapEditor.log 交給 Codex 檢查。",
+                    "若問題再次發生，請把 MapEditor\\runtime\\MapEditor.log 交給 Codex 檢查。",
                     "MapEditor 已恢復",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
