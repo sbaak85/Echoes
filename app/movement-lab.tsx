@@ -444,14 +444,14 @@ const SPRITE_SOURCES: Record<Direction, string> = {
 };
 
 const DIRECTION_NAMES: Record<Direction, string> = {
-  N: "N — 背面",
-  NE: "NE — 右後",
-  E: "E — 右側",
-  SE: "SE — 右前",
-  S: "S — 正面",
-  SW: "SW — 左前",
-  W: "W — 左側",
-  NW: "NW — 左後",
+  N: "N - 背面",
+  NE: "NE - 右後",
+  E: "E - 右側",
+  SE: "SE - 右前",
+  S: "S - 正面",
+  SW: "SW - 左前",
+  W: "W - 左側",
+  NW: "NW - 左後",
 };
 
 const MOVEMENT_KEYS = new Set([
@@ -479,17 +479,131 @@ const POINTER_HOLD_INDICATOR_DELAY_SECONDS = 0.18;
 const GAMEPAD_MENU_REPEAT_DELAY_SECONDS = 0.32;
 const GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS = 0.12;
 
-const DEBUG_MENU_ITEMS = [
-  "player-collision",
-  "scene-collision",
+const OPTIONS_MENU_ITEMS = [
+  "dialogue-text-size",
+  "character-size",
   "bgm-enabled",
   "bgm-volume",
+  "virtual-cursor-controls",
   "movement-speed",
-  "character-size",
+  "player-collision",
+  "scene-collision",
   "collision-slide-tolerance",
 ] as const;
 
-type DebugMenuItem = (typeof DEBUG_MENU_ITEMS)[number];
+type OptionsMenuItem = (typeof OPTIONS_MENU_ITEMS)[number];
+type OptionsTab = "display" | "audio" | "controls" | "advanced";
+type DialogueTextSize = "small" | "medium" | "large";
+
+const OPTIONS_TABS: Array<{ id: OptionsTab; label: string }> = [
+  { id: "display", label: "畫面" },
+  { id: "audio", label: "音效" },
+  { id: "controls", label: "操作" },
+  { id: "advanced", label: "進階" },
+];
+
+const OPTIONS_TAB_ITEMS: Record<OptionsTab, OptionsMenuItem[]> = {
+  display: ["dialogue-text-size", "character-size"],
+  audio: ["bgm-enabled", "bgm-volume"],
+  controls: ["virtual-cursor-controls", "movement-speed"],
+  advanced: [
+    "player-collision",
+    "scene-collision",
+    "collision-slide-tolerance",
+  ],
+};
+
+const COMPASS_DIRECTIONS: Direction[] = [
+  "N",
+  "NW",
+  "W",
+  "SW",
+  "S",
+  "SE",
+  "E",
+  "NE",
+];
+
+const COMPASS_MINOR_TICK_POSITIONS = [
+  15, 20, 25, 35, 40, 45, 55, 60, 65, 75, 80, 85,
+];
+
+const GAME_DAY_REAL_DURATION_MS = 60 * 60 * 1000;
+const GAME_START_TIME_MINUTES = 6 * 60;
+const SURVIVAL_STATS = [
+  { id: "stamina", label: "體力", symbol: "♥", value: 100 },
+  { id: "hunger", label: "飢餓", symbol: "♨", value: 100 },
+  { id: "thirst", label: "口渴", symbol: "◒", value: 100 },
+  { id: "spirit", label: "精神", symbol: "✦", value: 100 },
+] as const;
+
+const HOTBAR_ITEMS = [
+  { id: "medkit", name: "醫療包", symbol: "+", count: 2 },
+  { id: "water", name: "純淨水", symbol: "◉", count: 3 },
+  { id: "ration", name: "能量棒", symbol: "▰", count: 4 },
+  { id: "flare", name: "照明棒", symbol: "✦", count: 2 },
+  { id: "crystal", name: "結晶碎片", symbol: "◆", count: 12 },
+  { id: "rope", name: "工具繩", symbol: "∞", count: 1 },
+  { id: "datapad", name: "資料板", symbol: "▤", count: 1 },
+] as const;
+
+type InventoryCategory = "all" | "resource" | "tool" | "quest" | "main";
+
+const INVENTORY_CATEGORIES: Array<{ id: InventoryCategory; label: string }> = [
+  { id: "all", label: "全部" },
+  { id: "resource", label: "資源" },
+  { id: "tool", label: "道具" },
+  { id: "quest", label: "任務道具" },
+  { id: "main", label: "主線道具" },
+];
+
+const INVENTORY_ITEMS = [
+  { id: "crystal-shard", name: "藍色晶體碎片", symbol: "◆", count: 12, weight: 0.2, category: "resource", description: "帶有微弱共振反應的晶體碎片，可作為能源與精密裝置的材料。" },
+  { id: "metal-parts", name: "金屬零件", symbol: "⚙", count: 24, weight: 0.4, category: "resource", description: "從舊設備拆下的通用機械零件。" },
+  { id: "fiber-bundle", name: "纖維束", symbol: "≋", count: 15, weight: 0.15, category: "resource", description: "耐磨且富有韌性的植物纖維。" },
+  { id: "water-bottle", name: "淨水瓶", symbol: "◉", count: 5, weight: 0.8, category: "resource", description: "經過濾的飲用水，可恢復口渴數值。" },
+  { id: "emergency-ration", name: "緊急口糧", symbol: "▰", count: 8, weight: 0.35, category: "resource", description: "便於攜帶的高熱量壓縮食品。" },
+  { id: "alien-spore", name: "外星種子", symbol: "✺", count: 3, weight: 0.1, category: "resource", description: "來源不明的活性種子，仍在緩慢脈動。" },
+  { id: "utility-rope", name: "繩索", symbol: "∞", count: 6, weight: 0.7, category: "tool", description: "可用於攀爬、固定與臨時修繕。" },
+  { id: "scanner-parts", name: "掃描器零件", symbol: "◫", count: 7, weight: 0.3, category: "tool", description: "適用於便攜掃描器的替換模組。" },
+  { id: "repair-kit", name: "修理工具", symbol: "⌘", count: 1, weight: 1.8, category: "tool", description: "維修野外設備使用的基礎工具組。" },
+  { id: "tracking-module", name: "訊號模組", symbol: "◈", count: 4, weight: 0.25, category: "tool", description: "能夠標定近距離異常訊號來源。" },
+  { id: "time-crystal", name: "時間定位晶體", symbol: "♢", count: 1, weight: 0.8, category: "main", description: "內部封存著扭曲的時間共振頻率，似乎能標記並導引過去的特定位置。" },
+  { id: "navigation-data", name: "飛船導航資料", symbol: "▤", count: 1, weight: 0.2, category: "quest", description: "從墜落飛船中取出的導航資料。" },
+  { id: "memory-charm", name: "遺留下的記憶物", symbol: "◍", count: 2, weight: 0.1, category: "quest", description: "一件承載著陌生記憶的隨身物品。" },
+  { id: "ancient-plate", name: "古代符號板", symbol: "▥", count: 1, weight: 0.6, category: "quest", description: "刻著尚未解讀符號的古老金屬板。" },
+  { id: "medkit", name: "醫療包", symbol: "+", count: 3, weight: 1.1, category: "tool", description: "包含基礎止血與傷口處理用品。" },
+  { id: "lantern", name: "照明燈", symbol: "✦", count: 2, weight: 0.9, category: "tool", description: "適合遺跡探索的耐用照明設備。" },
+  { id: "battery", name: "電池組", symbol: "▣", count: 6, weight: 0.5, category: "resource", description: "可為小型電子設備供電。" },
+  { id: "energy-cell", name: "能量單元", symbol: "●", count: 4, weight: 0.45, category: "resource", description: "具高密度儲能能力的標準單元。" },
+  { id: "metal-scrap", name: "金屬碎片", symbol: "⬟", count: 18, weight: 0.2, category: "resource", description: "可重新熔製利用的金屬廢料。" },
+  { id: "synthetic-cloth", name: "合成布料", symbol: "▧", count: 9, weight: 0.18, category: "resource", description: "輕薄且防水的合成纖維布。" },
+] as const;
+
+function getCompassWindow(facing: Direction) {
+  const currentIndex = COMPASS_DIRECTIONS.indexOf(facing);
+  return [-2, -1, 0, 1, 2].map((offset) => ({
+    direction:
+      COMPASS_DIRECTIONS[
+        (currentIndex + offset + COMPASS_DIRECTIONS.length) %
+          COMPASS_DIRECTIONS.length
+      ],
+    offset,
+  }));
+}
+
+function getOptionsTabForItem(item: OptionsMenuItem): OptionsTab {
+  return (Object.keys(OPTIONS_TAB_ITEMS) as OptionsTab[]).find((tab) =>
+    OPTIONS_TAB_ITEMS[tab].includes(item),
+  ) ?? "display";
+}
+
+function getDefaultDialogueTextSize(): DialogueTextSize {
+  if (typeof window === "undefined") return "small";
+  return window.matchMedia("(max-width: 680px), (pointer: coarse)").matches
+    ? "large"
+    : "small";
+}
 
 type GamepadInput = {
   actionPressed: boolean;
@@ -502,7 +616,10 @@ type GamepadInput = {
   dpadY: number;
   diagnostic: string | null;
   gamepad: Gamepad | null;
+  hotbarUsePressed: boolean;
   label: string | null;
+  leftBumperPressed: boolean;
+  rightBumperPressed: boolean;
   secondaryActionPressed: boolean;
   startPressed: boolean;
   stickX: number;
@@ -544,9 +661,12 @@ const XINPUT_DPAD_DOWN = 0x0002;
 const XINPUT_DPAD_LEFT = 0x0004;
 const XINPUT_DPAD_RIGHT = 0x0008;
 const XINPUT_BUTTON_START = 0x0010;
+const XINPUT_BUTTON_LEFT_BUMPER = 0x0100;
+const XINPUT_BUTTON_RIGHT_BUMPER = 0x0200;
 const XINPUT_BUTTON_A = 0x1000;
 const XINPUT_BUTTON_B = 0x2000;
 const XINPUT_BUTTON_X = 0x4000;
+const XINPUT_BUTTON_Y = 0x8000;
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.max(minimum, Math.min(maximum, value));
@@ -579,7 +699,10 @@ function getNativeGamepadInput(state: NativeGamepadState): GamepadInput {
       dpadY: 0,
       diagnostic: null,
       gamepad: null,
+      hotbarUsePressed: false,
       label: null,
+      leftBumperPressed: false,
+      rightBumperPressed: false,
       secondaryActionPressed: false,
       startPressed: false,
       stickX: 0,
@@ -613,13 +736,16 @@ function getNativeGamepadInput(state: NativeGamepadState): GamepadInput {
     dpadY,
     diagnostic: `XInput · L ${leftX.toFixed(2)}, ${leftY.toFixed(2)} · R ${rightX.toFixed(2)}, ${rightY.toFixed(2)} · A/X ${actionPressed ? "ON" : "OFF"}`,
     gamepad: null,
+    hotbarUsePressed: (state.buttons & XINPUT_BUTTON_Y) !== 0,
     label: `Windows XInput Controller ${state.index + 1}`,
+    leftBumperPressed: (state.buttons & XINPUT_BUTTON_LEFT_BUMPER) !== 0,
+    rightBumperPressed: (state.buttons & XINPUT_BUTTON_RIGHT_BUMPER) !== 0,
     secondaryActionPressed: (state.buttons & XINPUT_BUTTON_X) !== 0,
     startPressed: (state.buttons & XINPUT_BUTTON_START) !== 0,
     stickX: leftX,
     stickY: leftY,
-    x: dpadX || leftX,
-    y: dpadY || leftY,
+    x: leftX,
+    y: leftY,
   };
 }
 
@@ -636,7 +762,10 @@ function getGamepadInput(): GamepadInput {
       dpadY: 0,
       diagnostic: null,
       gamepad: null,
+      hotbarUsePressed: false,
       label: null,
+      leftBumperPressed: false,
+      rightBumperPressed: false,
       secondaryActionPressed: false,
       startPressed: false,
       stickX: 0,
@@ -663,7 +792,10 @@ function getGamepadInput(): GamepadInput {
       dpadY: 0,
       diagnostic: null,
       gamepad: null,
+      hotbarUsePressed: false,
       label: null,
+      leftBumperPressed: false,
+      rightBumperPressed: false,
       secondaryActionPressed: false,
       startPressed: false,
       stickX: 0,
@@ -691,13 +823,16 @@ function getGamepadInput(): GamepadInput {
     dpadY,
     diagnostic: null,
     gamepad,
+    hotbarUsePressed: Boolean(gamepad.buttons[3]?.pressed),
     label: gamepad.id || `Gamepad ${gamepad.index + 1}`,
+    leftBumperPressed: Boolean(gamepad.buttons[4]?.pressed),
+    rightBumperPressed: Boolean(gamepad.buttons[5]?.pressed),
     secondaryActionPressed: Boolean(gamepad.buttons[2]?.pressed),
     startPressed: Boolean(gamepad.buttons[9]?.pressed),
     stickX: applyGamepadDeadZone(gamepad.axes[0] ?? 0),
     stickY: applyGamepadDeadZone(gamepad.axes[1] ?? 0),
-    x: dpadX || applyGamepadDeadZone(gamepad.axes[0] ?? 0),
-    y: dpadY || applyGamepadDeadZone(gamepad.axes[1] ?? 0),
+    x: applyGamepadDeadZone(gamepad.axes[0] ?? 0),
+    y: applyGamepadDeadZone(gamepad.axes[1] ?? 0),
   };
 }
 
@@ -1508,6 +1643,7 @@ function tracePolygon(
 
 export function MovementLab() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const cursorCanvasRef = useRef<HTMLCanvasElement>(null);
   const nativeGamepadRef = useRef<NativeGamepadState>(
     EMPTY_NATIVE_GAMEPAD_STATE,
   );
@@ -1518,18 +1654,28 @@ export function MovementLab() {
   const showSceneCollisionRef = useRef(false);
   const bgmEnabledRef = useRef(true);
   const bgmVolumeRef = useRef(AUDIO_EVENT_CONFIG.bgm.volume);
+  const virtualCursorControlsEnabledRef = useRef(true);
   const audioEventManagerRef = useRef<AudioEventManager | null>(null);
   const requestBgmPlaybackRef = useRef<() => void>(() => {});
-  const debugOpenRef = useRef(false);
-  const debugMenuSelectionRef = useRef<DebugMenuItem>(
-    DEBUG_MENU_ITEMS[0],
+  const optionsOpenRef = useRef(false);
+  const inventoryOpenRef = useRef(false);
+  const optionsTabRef = useRef<OptionsTab>("display");
+  const optionsMenuSelectionRef = useRef<OptionsMenuItem>(
+    OPTIONS_MENU_ITEMS[0],
   );
   const dialoguePlaybackRef = useRef<DialoguePlayback | null>(null);
   const dialogueTypingRef = useRef<DialogueTyping | null>(null);
+  const hotbarFeedbackTimerRef = useRef<number | null>(null);
+  const hotbarUseSequenceRef = useRef(0);
+  const activeHotbarSlotRef = useRef(0);
+  const selectedInventoryIndexRef = useRef(10);
+  const inventoryGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
 
-  const [debugOpen, setDebugOpen] = useState(false);
-  const [debugMenuSelection, setDebugMenuSelection] =
-    useState<DebugMenuItem>(DEBUG_MENU_ITEMS[0]);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [optionsTab, setOptionsTab] = useState<OptionsTab>("display");
+  const [optionsMenuSelection, setOptionsMenuSelection] =
+    useState<OptionsMenuItem>(OPTIONS_MENU_ITEMS[0]);
   const [showPlayerCollision, setShowPlayerCollision] = useState(false);
   const [showSceneCollision, setShowSceneCollision] = useState(false);
   const [speed, setSpeed] = useState(210);
@@ -1539,6 +1685,10 @@ export function MovementLab() {
   const [bgmVolume, setBgmVolume] = useState(
     Math.round(AUDIO_EVENT_CONFIG.bgm.volume * 100),
   );
+  const [virtualCursorControlsEnabled, setVirtualCursorControlsEnabled] =
+    useState(true);
+  const [dialogueTextSize, setDialogueTextSize] =
+    useState<DialogueTextSize>(getDefaultDialogueTextSize);
   const [facing, setFacing] = useState<Direction>(SCENE_START_FACING);
   const [moving, setMoving] = useState(false);
   const [gamepadConnected, setGamepadConnected] = useState(false);
@@ -1546,7 +1696,147 @@ export function MovementLab() {
   const [gamepadDiagnostic, setGamepadDiagnostic] = useState(
     "等待手把輸入…",
   );
+  const [activeKeyboardKeys, setActiveKeyboardKeys] = useState<string[]>([]);
+  const [interactionJustTriggered, setInteractionJustTriggered] = useState(false);
+  const [gameClock, setGameClock] = useState({ day: 1, hour: 6, minute: 0 });
+  const [questCollapsed, setQuestCollapsed] = useState(false);
+  const [activeHotbarSlot, setActiveHotbarSlot] = useState(0);
+  const [inventoryCategory, setInventoryCategory] = useState<InventoryCategory>("all");
+  const [selectedInventoryIndex, setSelectedInventoryIndex] = useState(10);
+  const [hotbarFeedback, setHotbarFeedback] = useState<{
+    message: string;
+    sequence: number;
+    slotIndex: number;
+  } | null>(null);
   const [dialogueView, setDialogueView] = useState<DialogueView>(null);
+
+  useEffect(() => {
+    const startedAt = performance.now();
+
+    const updateGameClock = () => {
+      const elapsedRealMilliseconds = performance.now() - startedAt;
+      const elapsedGameMinutes = Math.floor(
+        (elapsedRealMilliseconds / GAME_DAY_REAL_DURATION_MS) * 24 * 60,
+      );
+      const totalMinutes = GAME_START_TIME_MINUTES + elapsedGameMinutes;
+      const day = Math.floor(totalMinutes / (24 * 60)) + 1;
+      const minutesInDay = totalMinutes % (24 * 60);
+      const hour = Math.floor(minutesInDay / 60);
+      const minute = minutesInDay % 60;
+
+      setGameClock((current) =>
+        current.day === day && current.hour === hour && current.minute === minute
+          ? current
+          : { day, hour, minute },
+      );
+    };
+
+    updateGameClock();
+    const timer = window.setInterval(updateGameClock, 500);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => () => {
+    if (hotbarFeedbackTimerRef.current !== null) {
+      window.clearTimeout(hotbarFeedbackTimerRef.current);
+    }
+  }, []);
+
+  const activateHotbarItem = (slotIndex: number) => {
+    if (optionsOpenRef.current || inventoryOpenRef.current || dialoguePlaybackRef.current) return;
+    const item = HOTBAR_ITEMS[slotIndex];
+    if (!item) return;
+
+    hotbarUseSequenceRef.current += 1;
+    activeHotbarSlotRef.current = slotIndex;
+    setActiveHotbarSlot(slotIndex);
+    setHotbarFeedback({
+      message: `嘗試使用「${item.name}」· 功能尚未開放`,
+      sequence: hotbarUseSequenceRef.current,
+      slotIndex,
+    });
+
+    if (hotbarFeedbackTimerRef.current !== null) {
+      window.clearTimeout(hotbarFeedbackTimerRef.current);
+    }
+    hotbarFeedbackTimerRef.current = window.setTimeout(() => {
+      setHotbarFeedback(null);
+      hotbarFeedbackTimerRef.current = null;
+    }, 1100);
+  };
+
+  const selectHotbarSlot = (offset: number) => {
+    setActiveHotbarSlot((current) => {
+      const next = (current + offset + HOTBAR_ITEMS.length) % HOTBAR_ITEMS.length;
+      activeHotbarSlotRef.current = next;
+      return next;
+    });
+  };
+
+  const selectInventoryItem = (slotIndex: number) => {
+    if (!INVENTORY_ITEMS[slotIndex]) return;
+    selectedInventoryIndexRef.current = slotIndex;
+    setSelectedInventoryIndex(slotIndex);
+  };
+
+  const activateInventoryItem = (slotIndex: number) => {
+    const item = INVENTORY_ITEMS[slotIndex];
+    if (!item) return;
+    selectInventoryItem(slotIndex);
+    hotbarUseSequenceRef.current += 1;
+    setHotbarFeedback({
+      message: `嘗試使用「${item.name}」· 功能尚未開放`,
+      sequence: hotbarUseSequenceRef.current,
+      slotIndex: -1,
+    });
+    if (hotbarFeedbackTimerRef.current !== null) {
+      window.clearTimeout(hotbarFeedbackTimerRef.current);
+    }
+    hotbarFeedbackTimerRef.current = window.setTimeout(() => {
+      setHotbarFeedback(null);
+      hotbarFeedbackTimerRef.current = null;
+    }, 1100);
+  };
+
+  const changeInventoryCategory = (category: InventoryCategory) => {
+    setInventoryCategory(category);
+    const currentItem = INVENTORY_ITEMS[selectedInventoryIndexRef.current];
+    if (category !== "all" && currentItem.category !== category) {
+      const nextIndex = INVENTORY_ITEMS.findIndex((item) => item.category === category);
+      if (nextIndex >= 0) selectInventoryItem(nextIndex);
+    }
+  };
+
+  const moveInventorySelection = (horizontal: number, vertical: number) => {
+    const buttons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(".inventory-item[data-inventory-index]"),
+    );
+    if (buttons.length === 0) return;
+    const currentPosition = Math.max(
+      0,
+      buttons.findIndex(
+        (button) => Number(button.dataset.inventoryIndex) === selectedInventoryIndexRef.current,
+      ),
+    );
+    let nextPosition = currentPosition;
+
+    if (horizontal !== 0) {
+      nextPosition = (currentPosition + horizontal + buttons.length) % buttons.length;
+    } else if (vertical !== 0) {
+      const grid = document.querySelector<HTMLElement>(".inventory-items");
+      const columnCount = grid
+        ? Math.max(
+            1,
+            window.getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+          )
+        : 4;
+      const candidate = currentPosition + vertical * columnCount;
+      if (candidate >= 0 && candidate < buttons.length) nextPosition = candidate;
+    }
+
+    const nextIndex = Number(buttons[nextPosition]?.dataset.inventoryIndex);
+    if (Number.isInteger(nextIndex)) selectInventoryItem(nextIndex);
+  };
 
   const playOneShotAudio = (eventName: AudioEventName) => {
     const audioEvents = audioEventManagerRef.current;
@@ -1708,18 +1998,29 @@ export function MovementLab() {
     return true;
   };
 
-  const setDebugPanelOpen = (open: boolean) => {
-    debugOpenRef.current = open;
-    setDebugOpen(open);
+  const setOptionsPanelOpen = (open: boolean) => {
+    if (open) {
+      inventoryOpenRef.current = false;
+      setInventoryOpen(false);
+    }
+    optionsOpenRef.current = open;
+    setOptionsOpen(open);
 
     if (open) {
-      debugMenuSelectionRef.current = DEBUG_MENU_ITEMS[0];
-      setDebugMenuSelection(DEBUG_MENU_ITEMS[0]);
+      optionsMenuSelectionRef.current = OPTIONS_MENU_ITEMS[0];
+      setOptionsMenuSelection(OPTIONS_MENU_ITEMS[0]);
+      optionsTabRef.current = "display";
+      setOptionsTab("display");
     }
   };
 
-  const toggleDebugPanel = () => {
-    setDebugPanelOpen(!debugOpenRef.current);
+  const toggleOptionsPanel = () => {
+    setOptionsPanelOpen(!optionsOpenRef.current);
+  };
+
+  const setInventoryPanelOpen = (open: boolean) => {
+    inventoryOpenRef.current = open;
+    setInventoryOpen(open);
   };
 
   const setSpeedValue = (value: number) => {
@@ -1754,21 +2055,55 @@ export function MovementLab() {
     setBgmVolume(nextValue);
   };
 
-  const setDebugMenuSelectionValue = (item: DebugMenuItem) => {
-    debugMenuSelectionRef.current = item;
-    setDebugMenuSelection(item);
+  const setVirtualCursorControlsEnabledValue = (enabled: boolean) => {
+    virtualCursorControlsEnabledRef.current = enabled;
+    setVirtualCursorControlsEnabled(enabled);
   };
 
-  const moveDebugMenuSelection = (direction: number) => {
-    const currentIndex = DEBUG_MENU_ITEMS.indexOf(debugMenuSelectionRef.current);
-    const nextIndex =
-      (currentIndex + Math.sign(direction) + DEBUG_MENU_ITEMS.length) %
-      DEBUG_MENU_ITEMS.length;
-    setDebugMenuSelectionValue(DEBUG_MENU_ITEMS[nextIndex]);
+  const setOptionsMenuSelectionValue = (item: OptionsMenuItem) => {
+    optionsMenuSelectionRef.current = item;
+    setOptionsMenuSelection(item);
+    const tab = getOptionsTabForItem(item);
+    optionsTabRef.current = tab;
+    setOptionsTab(tab);
   };
 
-  const activateDebugMenuSelection = () => {
-    switch (debugMenuSelectionRef.current) {
+  const moveOptionsMenuSelection = (direction: number) => {
+    const items = OPTIONS_TAB_ITEMS[optionsTabRef.current];
+    const currentIndex = items.indexOf(optionsMenuSelectionRef.current);
+    const nextIndex = currentIndex + Math.sign(direction);
+    if (nextIndex < 0 || nextIndex >= items.length) return;
+    setOptionsMenuSelectionValue(items[nextIndex]);
+  };
+
+  const changeOptionsTab = (direction: number) => {
+    const currentIndex = OPTIONS_TABS.findIndex(
+      (tab) => tab.id === optionsTabRef.current,
+    );
+    const nextIndex = clamp(
+      currentIndex + Math.sign(direction),
+      0,
+      OPTIONS_TABS.length - 1,
+    );
+    if (nextIndex === currentIndex) return;
+    const nextTab = OPTIONS_TABS[nextIndex].id;
+    optionsTabRef.current = nextTab;
+    setOptionsTab(nextTab);
+    setOptionsMenuSelectionValue(OPTIONS_TAB_ITEMS[nextTab][0]);
+  };
+
+  const activateOptionsMenuSelection = () => {
+    switch (optionsMenuSelectionRef.current) {
+      case "dialogue-text-size":
+        setDialogueTextSize((current) =>
+          current === "small" ? "medium" : current === "medium" ? "large" : "small",
+        );
+        break;
+      case "virtual-cursor-controls":
+        setVirtualCursorControlsEnabledValue(
+          !virtualCursorControlsEnabledRef.current,
+        );
+        break;
       case "player-collision":
         showPlayerCollisionRef.current = !showPlayerCollisionRef.current;
         setShowPlayerCollision(showPlayerCollisionRef.current);
@@ -1783,8 +2118,16 @@ export function MovementLab() {
     }
   };
 
-  const adjustDebugMenuSelection = (direction: number) => {
-    switch (debugMenuSelectionRef.current) {
+  const adjustOptionsMenuSelection = (direction: number) => {
+    switch (optionsMenuSelectionRef.current) {
+      case "dialogue-text-size": {
+        const sizes: DialogueTextSize[] = ["small", "medium", "large"];
+        const currentIndex = sizes.indexOf(dialogueTextSize);
+        const nextIndex =
+          (currentIndex + Math.sign(direction) + sizes.length) % sizes.length;
+        setDialogueTextSize(sizes[nextIndex]);
+        break;
+      }
       case "bgm-volume":
         if (bgmEnabledRef.current) setBgmVolumeValue(bgmVolumeRef.current * 100 + direction * 5);
         break;
@@ -1878,10 +2221,12 @@ export function MovementLab() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const cursorCanvas = cursorCanvasRef.current;
+    if (!canvas || !cursorCanvas) return;
 
     const context = canvas.getContext("2d");
-    if (!context) return;
+    const cursorContext = cursorCanvas.getContext("2d");
+    if (!context || !cursorContext) return;
 
     const pressedKeys = new Set<string>();
     const sprites = new Map<Direction, HTMLCanvasElement>();
@@ -1914,15 +2259,28 @@ export function MovementLab() {
     let wasGamepadBackPressed = false;
     let wasGamepadConfirmPressed = false;
     let wasGamepadSecondaryActionPressed = false;
+    let wasGamepadHotbarUsePressed = false;
     let wasGamepadStartPressed = false;
+    let wasGamepadLeftBumperPressed = false;
+    let wasGamepadRightBumperPressed = false;
     let heldGamepadDpadX = 0;
     let heldGamepadDpadY = 0;
     let gamepadDpadXRepeatSeconds = 0;
     let gamepadDpadYRepeatSeconds = 0;
+    let gameplayHotbarDpadX = 0;
     const virtualCursor = { x: 0, y: 0 };
     let virtualCursorPositioned = false;
     let virtualCursorVisible = false;
     let gamepadCursorActive = false;
+    let gamepadInputCursorHidden = false;
+    const touchJoystick = {
+      input: { x: 0, y: 0 },
+      inputOrigin: { x: 0, y: 0 },
+      knob: { x: 0, y: 0 },
+      origin: { x: 0, y: 0 },
+    };
+    let touchJoystickPointerId: number | null = null;
+    let touchJoystickVisible = false;
     let heldPointerId: number | null = null;
     let heldPointerScreen: Point | null = null;
     let heldPointerRetargetElapsed = 0;
@@ -1937,6 +2295,7 @@ export function MovementLab() {
     let bgmPlayPending = false;
     let bgmPlayBlocked = false;
     let bgmDisposed = false;
+    let interactionFeedbackTimer: number | null = null;
     let lastMovementGuideSign = 1;
     let lockedAutoMovementGuideId: string | null = null;
     let bypassedAutoMovementGuideId: string | null = null;
@@ -1965,6 +2324,12 @@ export function MovementLab() {
       if (!gamepadCursorActive) return;
       gamepadCursorActive = false;
       document.documentElement.classList.remove("gamepad-cursor-active");
+    };
+
+    const setGamepadInputCursorHidden = (hidden: boolean) => {
+      if (gamepadInputCursorHidden === hidden) return;
+      gamepadInputCursorHidden = hidden;
+      document.documentElement.classList.toggle("gamepad-input-active", hidden);
     };
 
     const requestFootstepPlayback = () => {
@@ -2047,7 +2412,10 @@ export function MovementLab() {
       viewportHeight = Math.max(1, bounds.height);
       canvas.width = Math.round(viewportWidth * ratio);
       canvas.height = Math.round(viewportHeight * ratio);
+      cursorCanvas.width = Math.round(viewportWidth * ratio);
+      cursorCanvas.height = Math.round(viewportHeight * ratio);
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      cursorContext.setTransform(ratio, 0, 0, ratio, 0, 0);
 
       const marginX = Math.min(16, viewportWidth / 2);
       const marginY = Math.min(16, viewportHeight / 2);
@@ -2079,7 +2447,40 @@ export function MovementLab() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
+      if (
+        key === "tab" &&
+        !optionsOpenRef.current &&
+        !dialoguePlaybackRef.current
+      ) {
+        event.preventDefault();
+        if (!event.repeat) setInventoryPanelOpen(!inventoryOpenRef.current);
+        return;
+      }
+      const eventTarget = event.target;
+      if (
+        eventTarget instanceof HTMLInputElement ||
+        eventTarget instanceof HTMLTextAreaElement ||
+        eventTarget instanceof HTMLSelectElement ||
+        (eventTarget instanceof HTMLElement && eventTarget.isContentEditable)
+      ) {
+        return;
+      }
       activeInputMode = "keyboard-mouse";
+      if (key === "escape" && optionsOpenRef.current) {
+        event.preventDefault();
+        setOptionsPanelOpen(false);
+        return;
+      }
+      if (
+        key === "q" &&
+        !optionsOpenRef.current &&
+        !inventoryOpenRef.current &&
+        !dialoguePlaybackRef.current
+      ) {
+        event.preventDefault();
+        if (!event.repeat) setQuestCollapsed((current) => !current);
+        return;
+      }
       if (event.code === "Space" && dialoguePlaybackRef.current) {
         event.preventDefault();
         if (!event.repeat) advanceDialogue();
@@ -2092,9 +2493,20 @@ export function MovementLab() {
         }
         return;
       }
+      if (
+        /^[1-7]$/.test(key) &&
+        !optionsOpenRef.current &&
+        !inventoryOpenRef.current &&
+        !dialoguePlaybackRef.current
+      ) {
+        event.preventDefault();
+        if (!event.repeat) activateHotbarItem(Number(key) - 1);
+        return;
+      }
       if (!MOVEMENT_KEYS.has(key)) return;
       event.preventDefault();
       pressedKeys.add(key);
+      setActiveKeyboardKeys(Array.from(pressedKeys));
     };
 
     const onKeyUp = (event: KeyboardEvent) => {
@@ -2102,11 +2514,14 @@ export function MovementLab() {
       if (!MOVEMENT_KEYS.has(key)) return;
       event.preventDefault();
       pressedKeys.delete(key);
+      setActiveKeyboardKeys(Array.from(pressedKeys));
     };
 
     const onWindowBlur = () => {
       pressedKeys.clear();
+      setActiveKeyboardKeys([]);
       deactivateGamepadCursor();
+      setGamepadInputCursorHidden(false);
       virtualCursorVisible = false;
       stopFootsteps();
       audioEvents.stop("dialogueTyping", { reset: false });
@@ -2136,6 +2551,14 @@ export function MovementLab() {
       interactable: SceneInteractable,
       source: PendingInteraction["source"],
     ) => {
+      if (interactionFeedbackTimer !== null) {
+        window.clearTimeout(interactionFeedbackTimer);
+      }
+      setInteractionJustTriggered(true);
+      interactionFeedbackTimer = window.setTimeout(() => {
+        interactionFeedbackTimer = null;
+        setInteractionJustTriggered(false);
+      }, 800);
       window.dispatchEvent(
         new CustomEvent("echoes:interaction", {
           detail: {
@@ -2279,7 +2702,9 @@ export function MovementLab() {
         advanceDialogue();
         return;
       }
-      const cursorTarget = virtualCursorVisible
+      const canUseCursorForSource =
+        source !== "gamepad" || virtualCursorControlsEnabledRef.current;
+      const cursorTarget = canUseCursorForSource && virtualCursorVisible
         ? findInteractableAt(screenToWorld(virtualCursor))
         : null;
       const playerTarget = findInteractableTouching(player, sizeRef.current * 0.14);
@@ -2303,7 +2728,11 @@ export function MovementLab() {
             ? "player"
             : null;
       if (!target) {
-        if (source !== "keyboard" && virtualCursorVisible) {
+        if (
+          source !== "keyboard" &&
+          canUseCursorForSource &&
+          virtualCursorVisible
+        ) {
           assignScreenAction(virtualCursor, source);
         }
         return;
@@ -2327,6 +2756,57 @@ export function MovementLab() {
         target,
         source === "gamepad",
       );
+    };
+
+    const activateVirtualCursorUi = (): "activated" | "blocked" | "none" => {
+      if (!virtualCursorControlsEnabledRef.current || !virtualCursorVisible) {
+        return "none";
+      }
+
+      const bounds = canvas.getBoundingClientRect();
+      const element = document.elementFromPoint(
+        bounds.left + virtualCursor.x,
+        bounds.top + virtualCursor.y,
+      );
+      if (!(element instanceof HTMLElement) || !element.closest(".game-shell")) {
+        return "none";
+      }
+
+      const interactive = element.closest<HTMLElement>(
+        "button:not(:disabled), input:not(:disabled), select:not(:disabled), [role='button']",
+      );
+      if (interactive) {
+        interactive.focus({ preventScroll: true });
+        if (
+          interactive instanceof HTMLButtonElement ||
+          interactive.getAttribute("role") === "button"
+        ) {
+          interactive.click();
+        }
+        return "activated";
+      }
+
+      return element.closest(
+        ".inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .dialogue-box, .quest-hud",
+      )
+        ? "blocked"
+        : "none";
+    };
+
+    const getVirtualCursorInventoryIndex = () => {
+      if (!virtualCursorControlsEnabledRef.current || !virtualCursorVisible) {
+        return null;
+      }
+      const bounds = canvas.getBoundingClientRect();
+      const element = document.elementFromPoint(
+        bounds.left + virtualCursor.x,
+        bounds.top + virtualCursor.y,
+      );
+      const inventoryItem = element instanceof HTMLElement
+        ? element.closest<HTMLElement>(".inventory-item[data-inventory-index]")
+        : null;
+      const index = Number(inventoryItem?.dataset.inventoryIndex);
+      return Number.isInteger(index) && INVENTORY_ITEMS[index] ? index : null;
     };
 
     const assignHeldPointerAction = (force: boolean) => {
@@ -2354,6 +2834,49 @@ export function MovementLab() {
       );
     };
 
+    const updateTouchJoystick = (screenPoint: Point) => {
+      const deltaX = screenPoint.x - touchJoystick.inputOrigin.x;
+      const deltaY = screenPoint.y - touchJoystick.inputOrigin.y;
+      const distance = Math.hypot(deltaX, deltaY);
+      const maximumRadius = 58;
+      const directionX = distance > 0 ? deltaX / distance : 0;
+      const directionY = distance > 0 ? deltaY / distance : 0;
+      const visualDistance = Math.min(distance, maximumRadius);
+      const inputStrength = clamp((distance - 8) / (maximumRadius - 8), 0, 1);
+
+      touchJoystick.knob.x = touchJoystick.origin.x + directionX * visualDistance;
+      touchJoystick.knob.y = touchJoystick.origin.y + directionY * visualDistance;
+      touchJoystick.input.x = directionX * inputStrength;
+      touchJoystick.input.y = directionY * inputStrength;
+    };
+
+    const beginTouchJoystick = (event: PointerEvent, screenPoint: Point) => {
+      const visualMargin = 72;
+      touchJoystickPointerId = event.pointerId;
+      touchJoystickVisible = true;
+      touchJoystick.inputOrigin.x = screenPoint.x;
+      touchJoystick.inputOrigin.y = screenPoint.y;
+      touchJoystick.origin.x = clamp(viewportWidth * 0.13, visualMargin, viewportWidth - visualMargin);
+      touchJoystick.origin.y = clamp(viewportHeight * 0.7, visualMargin, viewportHeight - visualMargin);
+      touchJoystick.knob.x = touchJoystick.origin.x;
+      touchJoystick.knob.y = touchJoystick.origin.y;
+      touchJoystick.input.x = 0;
+      touchJoystick.input.y = 0;
+      canvas.setPointerCapture(event.pointerId);
+    };
+
+    const endTouchJoystick = (event: PointerEvent) => {
+      if (event.pointerId !== touchJoystickPointerId) return false;
+      if (canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+      touchJoystickPointerId = null;
+      touchJoystickVisible = false;
+      touchJoystick.input.x = 0;
+      touchJoystick.input.y = 0;
+      return true;
+    };
+
     const onPointerDown = (event: PointerEvent) => {
       if (!event.isPrimary) return;
       if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -2361,9 +2884,22 @@ export function MovementLab() {
       event.preventDefault();
       activeInputMode = "keyboard-mouse";
       deactivateGamepadCursor();
+      setGamepadInputCursorHidden(false);
       const bounds = canvas.getBoundingClientRect();
-      virtualCursor.x = clamp(event.clientX - bounds.left, 0, viewportWidth);
-      virtualCursor.y = clamp(event.clientY - bounds.top, 0, viewportHeight);
+      const screenPoint = {
+        x: clamp(event.clientX - bounds.left, 0, viewportWidth),
+        y: clamp(event.clientY - bounds.top, 0, viewportHeight),
+      };
+      if (
+        event.pointerType === "touch" &&
+        screenPoint.y >= viewportHeight * 0.5
+      ) {
+        beginTouchJoystick(event, screenPoint);
+        canvas.focus({ preventScroll: true });
+        return;
+      }
+      virtualCursor.x = screenPoint.x;
+      virtualCursor.y = screenPoint.y;
       virtualCursorVisible = event.pointerType === "mouse";
       heldPointerId = event.pointerId;
       heldPointerScreen = {
@@ -2397,6 +2933,15 @@ export function MovementLab() {
     };
 
     const onPointerMove = (event: PointerEvent) => {
+      if (event.pointerId === touchJoystickPointerId) {
+        event.preventDefault();
+        const bounds = canvas.getBoundingClientRect();
+        updateTouchJoystick({
+          x: clamp(event.clientX - bounds.left, 0, viewportWidth),
+          y: clamp(event.clientY - bounds.top, 0, viewportHeight),
+        });
+        return;
+      }
       if (event.pointerId !== heldPointerId) return;
       event.preventDefault();
       const bounds = canvas.getBoundingClientRect();
@@ -2411,6 +2956,7 @@ export function MovementLab() {
 
       activeInputMode = "keyboard-mouse";
       deactivateGamepadCursor();
+      setGamepadInputCursorHidden(false);
       if (dialoguePlaybackRef.current) {
         const overDialogue =
           event.target instanceof Element &&
@@ -2458,6 +3004,7 @@ export function MovementLab() {
     };
 
     const onPointerUp = (event: PointerEvent) => {
+      if (endTouchJoystick(event)) return;
       if (event.pointerId === heldPointerId) {
         const bounds = canvas.getBoundingClientRect();
         heldPointerScreen = {
@@ -2469,6 +3016,7 @@ export function MovementLab() {
     };
 
     const onPointerCancel = (event: PointerEvent) => {
+      if (endTouchJoystick(event)) return;
       endHeldPointer(event, false);
     };
 
@@ -2496,6 +3044,7 @@ export function MovementLab() {
         deactivateGamepadCursor();
         virtualCursorVisible = false;
       }
+      setGamepadInputCursorHidden(false);
       setGamepadConnected(false);
       setGamepadLabel(null);
       setGamepadDiagnostic("手把已中斷，請重新連線並按任一按鈕");
@@ -2723,86 +3272,148 @@ export function MovementLab() {
       context.restore();
     };
 
+    const drawTouchJoystick = (time: number) => {
+      if (!touchJoystickVisible) return;
+
+      const deltaX = touchJoystick.knob.x - touchJoystick.origin.x;
+      const deltaY = touchJoystick.knob.y - touchJoystick.origin.y;
+      const distance = Math.hypot(deltaX, deltaY);
+      const angle = distance > 0.5 ? Math.atan2(deltaY, deltaX) : -Math.PI / 2;
+      const pulse = 1 + Math.sin(time / 180) * 0.025;
+
+      context.save();
+      context.translate(touchJoystick.origin.x, touchJoystick.origin.y);
+      context.scale(pulse, pulse);
+      context.lineWidth = 2;
+      context.strokeStyle = "rgba(162, 249, 238, 0.78)";
+      context.fillStyle = "rgba(10, 31, 35, 0.3)";
+      context.shadowColor = "rgba(89, 231, 216, 0.52)";
+      context.shadowBlur = 12;
+      context.beginPath();
+      context.arc(0, 0, 58, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+
+      context.shadowBlur = 0;
+      context.strokeStyle = "rgba(162, 249, 238, 0.27)";
+      context.beginPath();
+      context.arc(0, 0, 35, 0, Math.PI * 2);
+      context.stroke();
+      context.beginPath();
+      context.moveTo(-58, 0);
+      context.lineTo(58, 0);
+      context.moveTo(0, -58);
+      context.lineTo(0, 58);
+      context.stroke();
+
+      context.save();
+      context.rotate(angle);
+      context.fillStyle = "rgba(121, 244, 229, 0.9)";
+      context.strokeStyle = "rgba(228, 255, 250, 0.9)";
+      context.lineWidth = 1.4;
+      context.beginPath();
+      context.moveTo(42, 0);
+      context.lineTo(25, -9);
+      context.lineTo(28, 0);
+      context.lineTo(25, 9);
+      context.closePath();
+      context.fill();
+      context.stroke();
+      context.restore();
+
+      context.translate(deltaX, deltaY);
+      context.fillStyle = "rgba(80, 224, 210, 0.82)";
+      context.strokeStyle = "rgba(224, 255, 250, 0.94)";
+      context.lineWidth = 2;
+      context.shadowColor = "rgba(84, 223, 208, 0.72)";
+      context.shadowBlur = 12;
+      context.beginPath();
+      context.arc(0, 0, 18, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.restore();
+    };
+
     const drawPointerCursor = (time: number) => {
-      if (!virtualCursorVisible) return;
+      if (!virtualCursorControlsEnabledRef.current || !virtualCursorVisible) return;
 
       if (dialoguePlaybackRef.current) {
         const pulse = 1 + Math.sin(time / 190) * 0.035;
-        context.save();
-        context.translate(virtualCursor.x, virtualCursor.y);
-        context.scale(pulse, pulse);
-        context.lineWidth = 2;
-        context.lineJoin = "round";
-        context.strokeStyle = "#e9f4ed";
-        context.fillStyle = "rgba(23, 32, 29, 0.92)";
-        context.shadowColor = "#61ead8";
-        context.shadowBlur = 9;
+        cursorContext.save();
+        cursorContext.translate(virtualCursor.x, virtualCursor.y);
+        cursorContext.scale(pulse, pulse);
+        cursorContext.lineWidth = 2;
+        cursorContext.lineJoin = "round";
+        cursorContext.strokeStyle = "#e9f4ed";
+        cursorContext.fillStyle = "rgba(23, 32, 29, 0.92)";
+        cursorContext.shadowColor = "#61ead8";
+        cursorContext.shadowBlur = 9;
 
-        context.beginPath();
-        context.moveTo(0, -11);
-        context.quadraticCurveTo(-8, -16, -18, -13);
-        context.lineTo(-18, 8);
-        context.quadraticCurveTo(-8, 7, 0, 13);
-        context.closePath();
-        context.fill();
-        context.stroke();
+        cursorContext.beginPath();
+        cursorContext.moveTo(0, -11);
+        cursorContext.quadraticCurveTo(-8, -16, -18, -13);
+        cursorContext.lineTo(-18, 8);
+        cursorContext.quadraticCurveTo(-8, 7, 0, 13);
+        cursorContext.closePath();
+        cursorContext.fill();
+        cursorContext.stroke();
 
-        context.beginPath();
-        context.moveTo(0, -11);
-        context.quadraticCurveTo(8, -16, 18, -13);
-        context.lineTo(18, 8);
-        context.quadraticCurveTo(8, 7, 0, 13);
-        context.closePath();
-        context.fill();
-        context.stroke();
+        cursorContext.beginPath();
+        cursorContext.moveTo(0, -11);
+        cursorContext.quadraticCurveTo(8, -16, 18, -13);
+        cursorContext.lineTo(18, 8);
+        cursorContext.quadraticCurveTo(8, 7, 0, 13);
+        cursorContext.closePath();
+        cursorContext.fill();
+        cursorContext.stroke();
 
-        context.shadowBlur = 0;
-        context.beginPath();
-        context.moveTo(0, -11);
-        context.lineTo(0, 13);
-        context.stroke();
-        context.fillStyle = "#61ead8";
+        cursorContext.shadowBlur = 0;
+        cursorContext.beginPath();
+        cursorContext.moveTo(0, -11);
+        cursorContext.lineTo(0, 13);
+        cursorContext.stroke();
+        cursorContext.fillStyle = "#61ead8";
         for (const x of [25, 31, 37]) {
-          context.beginPath();
-          context.arc(x, 4, 1.7, 0, Math.PI * 2);
-          context.fill();
+          cursorContext.beginPath();
+          cursorContext.arc(x, 4, 1.7, 0, Math.PI * 2);
+          cursorContext.fill();
         }
-        context.restore();
+        cursorContext.restore();
         return;
       }
 
       const pulse = 1 + Math.sin(time / 150) * 0.07;
       const radius = 13 * pulse;
-      context.save();
-      context.translate(virtualCursor.x, virtualCursor.y);
-      context.strokeStyle = "#80f5e7";
-      context.fillStyle = "rgba(9, 25, 30, 0.86)";
-      context.lineWidth = 2.2;
-      context.shadowColor = "#54dfd0";
-      context.shadowBlur = 11;
+      cursorContext.save();
+      cursorContext.translate(virtualCursor.x, virtualCursor.y);
+      cursorContext.strokeStyle = "#80f5e7";
+      cursorContext.fillStyle = "rgba(9, 25, 30, 0.86)";
+      cursorContext.lineWidth = 2.2;
+      cursorContext.shadowColor = "#54dfd0";
+      cursorContext.shadowBlur = 11;
 
-      context.beginPath();
-      context.arc(0, 0, radius, 0, Math.PI * 2);
-      context.fill();
-      context.stroke();
+      cursorContext.beginPath();
+      cursorContext.arc(0, 0, radius, 0, Math.PI * 2);
+      cursorContext.fill();
+      cursorContext.stroke();
 
-      context.shadowBlur = 0;
-      context.beginPath();
-      context.moveTo(-radius - 7, 0);
-      context.lineTo(-radius + 2, 0);
-      context.moveTo(radius - 2, 0);
-      context.lineTo(radius + 7, 0);
-      context.moveTo(0, -radius - 7);
-      context.lineTo(0, -radius + 2);
-      context.moveTo(0, radius - 2);
-      context.lineTo(0, radius + 7);
-      context.stroke();
+      cursorContext.shadowBlur = 0;
+      cursorContext.beginPath();
+      cursorContext.moveTo(-radius - 7, 0);
+      cursorContext.lineTo(-radius + 2, 0);
+      cursorContext.moveTo(radius - 2, 0);
+      cursorContext.lineTo(radius + 7, 0);
+      cursorContext.moveTo(0, -radius - 7);
+      cursorContext.lineTo(0, -radius + 2);
+      cursorContext.moveTo(0, radius - 2);
+      cursorContext.lineTo(0, radius + 7);
+      cursorContext.stroke();
 
-      context.fillStyle = "#d9fffa";
-      context.beginPath();
-      context.arc(0, 0, 2.6, 0, Math.PI * 2);
-      context.fill();
-      context.restore();
+      cursorContext.fillStyle = "#d9fffa";
+      cursorContext.beginPath();
+      cursorContext.arc(0, 0, 2.6, 0, Math.PI * 2);
+      cursorContext.fill();
+      cursorContext.restore();
     };
 
     const drawHeldPointerIndicator = (time: number) => {
@@ -3031,11 +3642,23 @@ export function MovementLab() {
         gamepadInput.actionPressed ||
         gamepadInput.confirmPressed ||
         gamepadInput.secondaryActionPressed ||
+        gamepadInput.hotbarUsePressed ||
         gamepadInput.backPressed ||
-        gamepadInput.startPressed;
+        gamepadInput.startPressed ||
+        gamepadInput.leftBumperPressed ||
+        gamepadInput.rightBumperPressed;
       if (gamepadInput.connected && hasGamepadActivity) {
         activeInputMode = "gamepad";
       }
+      if (!virtualCursorControlsEnabledRef.current && gamepadCursorActive) {
+        deactivateGamepadCursor();
+        virtualCursorVisible = false;
+      }
+      setGamepadInputCursorHidden(
+        !virtualCursorControlsEnabledRef.current &&
+          gamepadInput.connected &&
+          hasGamepadActivity,
+      );
       activeInteractionKeyLabel =
         activeInputMode === "gamepad" ? "A" : keyboardInteractionLabel;
 
@@ -3046,11 +3669,15 @@ export function MovementLab() {
           wasGamepadBackPressed = false;
           wasGamepadConfirmPressed = false;
           wasGamepadSecondaryActionPressed = false;
+          wasGamepadHotbarUsePressed = false;
           wasGamepadStartPressed = false;
+          wasGamepadLeftBumperPressed = false;
+          wasGamepadRightBumperPressed = false;
           heldGamepadDpadX = 0;
           heldGamepadDpadY = 0;
           gamepadDpadXRepeatSeconds = 0;
           gamepadDpadYRepeatSeconds = 0;
+          gameplayHotbarDpadX = 0;
         }
         setGamepadConnected(gamepadInput.connected);
         setGamepadLabel(gamepadInput.label);
@@ -3060,6 +3687,7 @@ export function MovementLab() {
             deactivateGamepadCursor();
             virtualCursorVisible = false;
           }
+          setGamepadInputCursorHidden(false);
           lastGamepadDiagnostic = "";
           setGamepadDiagnostic("等待手把輸入…");
         }
@@ -3069,7 +3697,12 @@ export function MovementLab() {
         gamepadInput.cursorX,
         gamepadInput.cursorY,
       );
-      if (gamepadInput.connected && cursorInputLength > 0) {
+      if (
+        virtualCursorControlsEnabledRef.current &&
+        gamepadInput.connected &&
+        cursorInputLength > 0
+      ) {
+        if (inventoryOpenRef.current) inventoryGamepadModeRef.current = "cursor";
         activateGamepadCursor();
         const marginX = Math.min(16, viewportWidth / 2);
         const marginY = Math.min(16, viewportHeight / 2);
@@ -3091,26 +3724,41 @@ export function MovementLab() {
         gamepadInput.connected &&
         gamepadInput.startPressed &&
         !wasGamepadStartPressed;
-      if (startJustPressed) toggleDebugPanel();
+      if (startJustPressed) toggleOptionsPanel();
       wasGamepadStartPressed = gamepadInput.startPressed;
 
       const backJustPressed =
         gamepadInput.connected &&
         gamepadInput.backPressed &&
         !wasGamepadBackPressed;
-      let debugMenuOpen = debugOpenRef.current;
-      if (debugMenuOpen && backJustPressed) {
-        setDebugPanelOpen(false);
-        debugMenuOpen = false;
+      const leftBumperJustPressed =
+        gamepadInput.connected &&
+        gamepadInput.leftBumperPressed &&
+        !wasGamepadLeftBumperPressed;
+      const rightBumperJustPressed =
+        gamepadInput.connected &&
+        gamepadInput.rightBumperPressed &&
+        !wasGamepadRightBumperPressed;
+      let optionsMenuOpen = optionsOpenRef.current;
+      if (optionsMenuOpen && backJustPressed) {
+        setOptionsPanelOpen(false);
+        optionsMenuOpen = false;
+      } else if (backJustPressed && !dialoguePlaybackRef.current) {
+        setInventoryPanelOpen(!inventoryOpenRef.current);
       }
+      const inventoryMenuOpen = inventoryOpenRef.current;
 
-      if (!debugMenuOpen) {
+      if (!optionsMenuOpen && !inventoryMenuOpen) {
         heldGamepadDpadX = 0;
         heldGamepadDpadY = 0;
         gamepadDpadXRepeatSeconds = 0;
         gamepadDpadYRepeatSeconds = 0;
       }
-      if (debugMenuOpen) {
+      if (optionsMenuOpen) {
+        gameplayHotbarDpadX = 0;
+        if (leftBumperJustPressed) changeOptionsTab(-1);
+        if (rightBumperJustPressed) changeOptionsTab(1);
+
         const dpadVertical = Math.sign(gamepadInput.dpadY);
         if (dpadVertical === 0) {
           heldGamepadDpadY = 0;
@@ -3118,11 +3766,11 @@ export function MovementLab() {
         } else if (dpadVertical !== heldGamepadDpadY) {
           heldGamepadDpadY = dpadVertical;
           gamepadDpadYRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
-          moveDebugMenuSelection(dpadVertical);
+          moveOptionsMenuSelection(dpadVertical);
         } else {
           gamepadDpadYRepeatSeconds -= deltaTime;
           if (gamepadDpadYRepeatSeconds <= 0) {
-            moveDebugMenuSelection(dpadVertical);
+            moveOptionsMenuSelection(dpadVertical);
             gamepadDpadYRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
           }
         }
@@ -3134,11 +3782,11 @@ export function MovementLab() {
         } else if (dpadHorizontal !== heldGamepadDpadX) {
           heldGamepadDpadX = dpadHorizontal;
           gamepadDpadXRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
-          adjustDebugMenuSelection(dpadHorizontal);
+          adjustOptionsMenuSelection(dpadHorizontal);
         } else {
           gamepadDpadXRepeatSeconds -= deltaTime;
           if (gamepadDpadXRepeatSeconds <= 0) {
-            adjustDebugMenuSelection(dpadHorizontal);
+            adjustOptionsMenuSelection(dpadHorizontal);
             gamepadDpadXRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
           }
         }
@@ -3147,7 +3795,8 @@ export function MovementLab() {
           gamepadInput.confirmPressed &&
           !wasGamepadConfirmPressed
         ) {
-          activateDebugMenuSelection();
+          const uiResult = activateVirtualCursorUi();
+          if (uiResult !== "activated") activateOptionsMenuSelection();
         }
 
         if (
@@ -3155,22 +3804,102 @@ export function MovementLab() {
           gamepadInput.secondaryActionPressed &&
           !wasGamepadSecondaryActionPressed
         ) {
-          activateGamepadCursor();
-          activateBestInteraction("gamepad");
+          activateVirtualCursorUi();
         }
-      } else if (
-        !startJustPressed &&
-        gamepadInput.connected &&
-        gamepadInput.actionPressed &&
-        !wasGamepadActionPressed
-      ) {
-        activateGamepadCursor();
-        activateBestInteraction("gamepad");
+      } else if (inventoryMenuOpen) {
+        gameplayHotbarDpadX = 0;
+
+        const dpadVertical = Math.sign(gamepadInput.dpadY);
+        if (dpadVertical === 0) {
+          heldGamepadDpadY = 0;
+          gamepadDpadYRepeatSeconds = 0;
+        } else if (dpadVertical !== heldGamepadDpadY) {
+          inventoryGamepadModeRef.current = "dpad";
+          virtualCursorVisible = false;
+          deactivateGamepadCursor();
+          heldGamepadDpadY = dpadVertical;
+          gamepadDpadYRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
+          moveInventorySelection(0, dpadVertical);
+        } else {
+          gamepadDpadYRepeatSeconds -= deltaTime;
+          if (gamepadDpadYRepeatSeconds <= 0) {
+            inventoryGamepadModeRef.current = "dpad";
+            moveInventorySelection(0, dpadVertical);
+            gamepadDpadYRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
+          }
+        }
+
+        const dpadHorizontal = Math.sign(gamepadInput.dpadX);
+        if (dpadHorizontal === 0) {
+          heldGamepadDpadX = 0;
+          gamepadDpadXRepeatSeconds = 0;
+        } else if (dpadHorizontal !== heldGamepadDpadX) {
+          inventoryGamepadModeRef.current = "dpad";
+          virtualCursorVisible = false;
+          deactivateGamepadCursor();
+          heldGamepadDpadX = dpadHorizontal;
+          gamepadDpadXRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
+          moveInventorySelection(dpadHorizontal, 0);
+        } else {
+          gamepadDpadXRepeatSeconds -= deltaTime;
+          if (gamepadDpadXRepeatSeconds <= 0) {
+            inventoryGamepadModeRef.current = "dpad";
+            moveInventorySelection(dpadHorizontal, 0);
+            gamepadDpadXRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
+          }
+        }
+
+        if (
+          gamepadInput.connected &&
+          gamepadInput.confirmPressed &&
+          !wasGamepadConfirmPressed
+        ) {
+          if (inventoryGamepadModeRef.current === "cursor") {
+            const hoveredInventoryIndex = getVirtualCursorInventoryIndex();
+            if (hoveredInventoryIndex !== null) {
+              activateInventoryItem(hoveredInventoryIndex);
+            } else {
+              activateVirtualCursorUi();
+            }
+          } else {
+            activateInventoryItem(selectedInventoryIndexRef.current);
+          }
+        }
+      } else {
+        const hotbarDpadHorizontal = Math.sign(gamepadInput.dpadX);
+        if (hotbarDpadHorizontal !== 0 && gameplayHotbarDpadX === 0) {
+          selectHotbarSlot(hotbarDpadHorizontal);
+        }
+        gameplayHotbarDpadX = hotbarDpadHorizontal;
+
+        if (
+          gamepadInput.connected &&
+          gamepadInput.hotbarUsePressed &&
+          !wasGamepadHotbarUsePressed
+        ) {
+          activateHotbarItem(activeHotbarSlotRef.current);
+        }
+
+        if (
+          !startJustPressed &&
+          gamepadInput.connected &&
+          gamepadInput.actionPressed &&
+          !wasGamepadActionPressed
+        ) {
+          const uiResult = activateVirtualCursorUi();
+          if (uiResult === "none") {
+            if (virtualCursorControlsEnabledRef.current) activateGamepadCursor();
+            activateBestInteraction("gamepad");
+          }
+        }
       }
 
       wasGamepadConfirmPressed = gamepadInput.confirmPressed;
       wasGamepadBackPressed = gamepadInput.backPressed;
+      wasGamepadLeftBumperPressed = gamepadInput.leftBumperPressed;
+      wasGamepadRightBumperPressed = gamepadInput.rightBumperPressed;
       wasGamepadSecondaryActionPressed = gamepadInput.secondaryActionPressed;
+      wasGamepadHotbarUsePressed = gamepadInput.hotbarUsePressed;
       wasGamepadActionPressed = gamepadInput.actionPressed;
 
       gamepadDiagnosticElapsed += deltaTime;
@@ -3186,15 +3915,19 @@ export function MovementLab() {
         }
       }
 
-      const gamepadMovementX = debugMenuOpen
-        ? gamepadInput.stickX
-        : gamepadInput.x;
-      const gamepadMovementY = debugMenuOpen
-        ? gamepadInput.stickY
-        : gamepadInput.y;
-      let horizontal = clamp(keyboardHorizontal + gamepadMovementX, -1, 1);
-      let vertical = clamp(keyboardVertical + gamepadMovementY, -1, 1);
-      if (dialoguePlaybackRef.current) {
+      const gamepadMovementX = gamepadInput.stickX;
+      const gamepadMovementY = gamepadInput.stickY;
+      let horizontal = clamp(
+        keyboardHorizontal + gamepadMovementX + touchJoystick.input.x,
+        -1,
+        1,
+      );
+      let vertical = clamp(
+        keyboardVertical + gamepadMovementY + touchJoystick.input.y,
+        -1,
+        1,
+      );
+      if (dialoguePlaybackRef.current || inventoryOpenRef.current) {
         horizontal = 0;
         vertical = 0;
         autoPath = [];
@@ -3482,6 +4215,8 @@ export function MovementLab() {
       const ratio = Math.min(window.devicePixelRatio || 1, 2);
       const zoom = getSceneZoom(viewportWidth, viewportHeight);
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      cursorContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+      cursorContext.clearRect(0, 0, viewportWidth, viewportHeight);
       context.clearRect(0, 0, viewportWidth, viewportHeight);
       context.fillStyle = "#06101b";
       context.fillRect(0, 0, viewportWidth, viewportHeight);
@@ -3496,6 +4231,7 @@ export function MovementLab() {
       drawTouchEffect(time);
       context.restore();
       drawHeldPointerIndicator(time);
+      drawTouchJoystick(time);
       drawPointerCursor(time);
       drawInteractionPrompts();
     };
@@ -3533,29 +4269,69 @@ export function MovementLab() {
       requestBgmPlaybackRef.current = () => {};
       stopFootsteps();
       stopDialogueTyping();
+      if (interactionFeedbackTimer !== null) {
+        window.clearTimeout(interactionFeedbackTimer);
+      }
+      setInteractionJustTriggered(false);
       audioEvents.dispose();
       if (audioEventManagerRef.current === audioEvents) {
         audioEventManagerRef.current = null;
       }
       document.documentElement.classList.remove("gamepad-cursor-active");
+      document.documentElement.classList.remove("gamepad-input-active");
       document.documentElement.classList.remove("dialogue-cursor-active");
     };
     // The canvas simulation must be initialized once; gamepad actions use refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const visibleInventoryItems = INVENTORY_ITEMS
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => inventoryCategory === "all" || item.category === inventoryCategory);
+  const selectedInventoryItem = INVENTORY_ITEMS[selectedInventoryIndex] ?? INVENTORY_ITEMS[0];
+
   return (
-    <main className="game-shell">
+    <div
+      className="game-viewport"
+      onContextMenu={(event) => event.preventDefault()}
+    >
+      <div
+        className="game-backdrop"
+        style={{ backgroundImage: `url(${MAP_SOURCE})` }}
+        aria-hidden="true"
+      />
+      <main className="game-shell">
       <canvas
         ref={canvasRef}
-        className="game-canvas"
+        className={`game-canvas${virtualCursorControlsEnabled ? "" : " physical-cursor-enabled"}`}
         aria-label="八方向角色移動地圖測試場景"
         tabIndex={0}
       />
 
+      <section
+        className="compass-strip"
+        aria-label={`角色目前面向：${DIRECTION_NAMES[facing]}`}
+      >
+        <div className="compass-minor-ticks" aria-hidden="true">
+          {COMPASS_MINOR_TICK_POSITIONS.map((position) => (
+            <i key={position} style={{ left: `${position}%` }} />
+          ))}
+        </div>
+        <div className="compass-directions">
+          {getCompassWindow(facing).map(({ direction, offset }) => (
+            <span
+              key={`${direction}-${offset}`}
+              className={`compass-direction${offset === 0 ? " is-current" : ""}${["N", "S", "E", "W"].includes(direction) ? " is-cardinal" : ""}`}
+            >
+              {direction}
+            </span>
+          ))}
+        </div>
+      </section>
+
       {dialogueView ? (
         <button
-          className="dialogue-box"
+          className={`dialogue-box dialogue-size-${dialogueTextSize}`}
           type="button"
           aria-label="對話；按下顯示下一頁"
           onClick={advanceDialogue}
@@ -3575,218 +4351,447 @@ export function MovementLab() {
           <i className="status-dot" aria-hidden="true" />
           <span>map_test01 · NavMesh ready</span>
         </div>
+        <p className={`hud-gamepad-status${gamepadConnected ? " is-connected" : ""}`}>
+          🎮 {gamepadConnected ? "手把已連線" : "請按手把任一按鈕啟用"}
+        </p>
       </section>
 
-      <aside className="debug-wrap">
-        <button
-          className="debug-trigger"
-          type="button"
-          aria-expanded={debugOpen}
-          aria-controls="debug-panel"
-          onClick={toggleDebugPanel}
-        >
-          <span>Debug</span>
-          <span className="debug-chevron" aria-hidden="true">
-            ⌄
+      <aside className={`survival-hud${inventoryOpen ? " is-inventory-open" : ""}`} aria-label="生存狀態指示表">
+        <header className="survival-clock">
+          <span>
+            Day <strong>{gameClock.day}</strong>
           </span>
-        </button>
-
-        {debugOpen ? (
-          <div className="debug-panel" id="debug-panel">
-            <p className="debug-section-label">Collision Draw</p>
-            <button
-              className="toggle-button"
-              type="button"
-              data-gamepad-selected={
-                debugMenuSelection === "player-collision" || undefined
-              }
-              aria-pressed={showPlayerCollision}
-              onFocus={() => setDebugMenuSelectionValue("player-collision")}
-              onClick={() => {
-                setDebugMenuSelectionValue("player-collision");
-                activateDebugMenuSelection();
-              }}
-            >
-              <span>角色 Collision 描繪</span>
-              <span className="toggle-pill" aria-hidden="true" />
-            </button>
-            <button
-              className="toggle-button"
-              type="button"
-              data-gamepad-selected={
-                debugMenuSelection === "scene-collision" || undefined
-              }
-              aria-pressed={showSceneCollision}
-              onFocus={() => setDebugMenuSelectionValue("scene-collision")}
-              onClick={() => {
-                setDebugMenuSelectionValue("scene-collision");
-                activateDebugMenuSelection();
-              }}
-            >
-              <span>場景 Collision 描繪</span>
-              <span className="toggle-pill" aria-hidden="true" />
-            </button>
-
-            <div className="debug-divider" />
-            <p className="debug-section-label">Audio</p>
-            <button
-              className="toggle-button"
-              type="button"
-              data-gamepad-selected={
-                debugMenuSelection === "bgm-enabled" || undefined
-              }
-              aria-pressed={bgmEnabled}
-              onFocus={() => setDebugMenuSelectionValue("bgm-enabled")}
-              onClick={() => {
-                setDebugMenuSelectionValue("bgm-enabled");
-                activateDebugMenuSelection();
-              }}
-            >
-              <span>BGM</span>
-              <span className="toggle-pill" aria-hidden="true" />
-            </button>
-            <div
-              className="slider-row"
-              data-gamepad-selected={
-                debugMenuSelection === "bgm-volume" || undefined
-              }
-            >
-              <label htmlFor="bgm-volume">BGM 音量</label>
-              <output className="slider-value" htmlFor="bgm-volume">
-                {bgmVolume}%
-              </output>
-              <input
-                id="bgm-volume"
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                value={bgmVolume}
-                disabled={!bgmEnabled}
-                onFocus={() => setDebugMenuSelectionValue("bgm-volume")}
-                onChange={(event) => setBgmVolumeValue(Number(event.target.value))}
-              />
-            </div>
-
-            <div className="debug-divider" />
-            <p className="debug-section-label">Gamepad</p>
-            <div className="gamepad-debug" aria-live="polite">
-              <strong>
-                {gamepadConnected
-                  ? gamepadLabel || "Gamepad 已連線"
-                  : "Chrome 尚未回報手把"}
-              </strong>
-              <span>{gamepadDiagnostic}</span>
-              <span className="gamepad-menu-hint">
-                START：開啟／關閉 · 十字鍵：選擇／調整 · A：確認 ·
-                B：關閉 · 左搖桿：角色移動 · X：游標點擊
+          <span>
+            <i aria-hidden="true">{gameClock.hour >= 6 && gameClock.hour < 18 ? "☀" : "☾"}</i>
+            <strong>{String(gameClock.hour).padStart(2, "0")}:{String(gameClock.minute).padStart(2, "0")}</strong>
+          </span>
+        </header>
+        <div className="survival-panel">
+          {SURVIVAL_STATS.map((stat) => (
+            <div className={`survival-stat is-${stat.id}`} key={stat.id}>
+              <span className="survival-stat-icon" aria-hidden="true">{stat.symbol}</span>
+              <span className="survival-stat-label">{stat.label}</span>
+              <output>{stat.value}/100</output>
+              <span className="survival-meter" aria-hidden="true">
+                <i style={{ width: `${stat.value}%` }} />
               </span>
             </div>
+          ))}
+        </div>
+      </aside>
 
-            <div className="debug-divider" />
-            <p className="debug-section-label">Character Tuning</p>
-
-            <div
-              className="slider-row"
-              data-gamepad-selected={
-                debugMenuSelection === "movement-speed" || undefined
-              }
-            >
-              <label htmlFor="movement-speed">移動速度</label>
-              <output className="slider-value" htmlFor="movement-speed">
-                {speed}
-              </output>
-              <input
-                id="movement-speed"
-                type="range"
-                min="100"
-                max="380"
-                step="10"
-                value={speed}
-                onFocus={() => setDebugMenuSelectionValue("movement-speed")}
-                onChange={(event) => setSpeedValue(Number(event.target.value))}
-              />
+      <aside
+        className={`quest-hud${questCollapsed ? " is-collapsed" : ""}`}
+        aria-label="目前任務目標"
+      >
+        <header className="quest-header">
+          <span className="quest-type-icon" aria-hidden="true">⌂</span>
+          <div className="quest-title">
+            <small>MAIN OBJECTIVE</small>
+            <strong>主線目標：調查未知訊號</strong>
+          </div>
+          <output className="quest-summary-progress" aria-label="任務總進度">
+            0/2
+          </output>
+          <button
+            className="quest-collapse"
+            type="button"
+            aria-label={questCollapsed ? "展開任務提示" : "收折任務提示"}
+            aria-expanded={!questCollapsed}
+            onClick={() => setQuestCollapsed((current) => !current)}
+          >
+            <span aria-hidden="true" />
+          </button>
+        </header>
+        {!questCollapsed ? (
+          <div className="quest-objectives">
+            <div className="quest-objective">
+              <span>前往訊號來源</span>
+              <output>0/1</output>
+              <i aria-hidden="true"><b style={{ width: "0%" }} /></i>
             </div>
-
-            <div
-              className="slider-row"
-              data-gamepad-selected={
-                debugMenuSelection === "character-size" || undefined
-              }
-            >
-              <label htmlFor="character-size">角色尺寸</label>
-              <output className="slider-value" htmlFor="character-size">
-                {size}
-              </output>
-              <input
-                id="character-size"
-                type="range"
-                min="90"
-                max="220"
-                step="4"
-                value={size}
-                onFocus={() => setDebugMenuSelectionValue("character-size")}
-                onChange={(event) => setSizeValue(Number(event.target.value))}
-              />
-            </div>
-
-            <div
-              className="slider-row"
-              data-gamepad-selected={
-                debugMenuSelection === "collision-slide-tolerance" || undefined
-              }
-            >
-              <label htmlFor="collision-slide-tolerance">
-                碰撞滑動輔助
-              </label>
-              <output
-                className="slider-value"
-                htmlFor="collision-slide-tolerance"
-              >
-                {collisionSlideTolerance}%
-              </output>
-              <input
-                id="collision-slide-tolerance"
-                type="range"
-                min="20"
-                max="100"
-                step="5"
-                value={collisionSlideTolerance}
-                onFocus={() =>
-                  setDebugMenuSelectionValue("collision-slide-tolerance")
-                }
-                onChange={(event) =>
-                  setCollisionSlideToleranceValue(Number(event.target.value))
-                }
-              />
+            <div className="quest-objective">
+              <span>收集必要物資</span>
+              <output>0/3</output>
+              <i aria-hidden="true"><b style={{ width: "0%" }} /></i>
             </div>
           </div>
         ) : null}
       </aside>
 
-      <section className="controls-card" aria-label="操作方式">
-        <div className="key-group" aria-hidden="true">
-          <span className="keycap w">W</span>
-          <span className="keycap a">A</span>
-          <span className="keycap s">S</span>
-          <span className="keycap d">D</span>
+      <button
+        className="options-trigger"
+        type="button"
+        aria-label="開啟選項"
+        aria-expanded={optionsOpen}
+        aria-controls="options-dialog"
+        onClick={toggleOptionsPanel}
+      >
+        <span aria-hidden="true">⚙</span>
+      </button>
+
+      <section className={`inventory-hotbar${inventoryOpen ? " is-inventory-open" : ""}`} aria-label="背包道具快捷工具列">
+        {hotbarFeedback ? (
+          <p className="hotbar-feedback" key={hotbarFeedback.sequence} aria-live="polite">
+            {hotbarFeedback.message}
+          </p>
+        ) : null}
+        <div className="hotbar-slots">
+          {HOTBAR_ITEMS.map((item, index) => {
+            const isUsing = hotbarFeedback?.slotIndex === index;
+            return (
+              <button
+                className={`hotbar-slot${activeHotbarSlot === index ? " is-selected" : ""}${isUsing ? " is-using" : ""}`}
+                key={`${item.id}-${isUsing ? hotbarFeedback.sequence : 0}`}
+                type="button"
+                aria-label={`${index + 1}：使用${item.name}，持有 ${item.count}`}
+                title={`${index + 1} · ${item.name}`}
+                onClick={() => {
+                  if (inventoryOpenRef.current) {
+                    activeHotbarSlotRef.current = index;
+                    setActiveHotbarSlot(index);
+                    return;
+                  }
+                  activateHotbarItem(index);
+                }}
+              >
+                <span className="hotbar-key" aria-hidden="true">{index + 1}</span>
+                <span className="hotbar-item-icon" aria-hidden="true">{item.symbol}</span>
+                <span className="hotbar-count" aria-hidden="true">{item.count}</span>
+              </button>
+            );
+          })}
         </div>
-        <span
-          className={`gamepad-status${gamepadConnected ? " is-connected" : ""}`}
-        >
-          🎮 {gamepadConnected ? "手把已連線" : "請按手把任一按鈕啟用"}
-        </span>
-        <span>WASD／左搖桿移動 · 右搖桿游標 · A/X／點擊／長按指派</span>
-        <span>
-          START：DEBUG · 十字鍵選擇／調整 · A：確認 · B：關閉 ·
-          左搖桿仍可移動
-        </span>
       </section>
 
-      <section className="direction-readout" aria-live="polite">
-        <span>{moving ? "Moving" : "Facing"}</span>
-        <strong>{DIRECTION_NAMES[facing]}</strong>
+      {inventoryOpen ? (
+        <div className="inventory-overlay">
+          <section
+            className="inventory-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="背包"
+          >
+            <header className="inventory-header">
+              <div className="inventory-title-ornament" aria-hidden="true" />
+              <h2>背包</h2>
+              <p>Inventory</p>
+              <button
+                className="inventory-close"
+                type="button"
+                aria-label="關閉背包"
+                onClick={() => setInventoryPanelOpen(false)}
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="inventory-body">
+              <aside className="inventory-summary-panel">
+                <h3>生存背包</h3>
+                <div className="inventory-bag-art" aria-hidden="true">
+                  <svg viewBox="0 0 180 190">
+                    <path d="M57 48c3-25 18-36 33-36s30 11 33 36" />
+                    <path d="M42 55c12-12 84-12 96 0l9 106c-17 18-97 18-114 0z" />
+                    <path d="M51 85h78v62H51z" />
+                    <path d="M68 43v112M112 43v112M35 77l-16 20 7 51M145 77l16 20-7 51" />
+                    <path d="M60 92h60M73 118h34M81 75h18" />
+                  </svg>
+                </div>
+                <div className="inventory-weight">
+                  <span>▣</span><strong>32.6 / 60.0 kg</strong>
+                  <i><b style={{ width: "54%" }} /></i>
+                </div>
+                <section className="inventory-category-stats">
+                  <h4>分類統計</h4>
+                  <p><span>♣　資源</span><strong>22</strong></p>
+                  <p><span>⌘　道具</span><strong>15</strong></p>
+                  <p><span>⚑　任務道具</span><strong>7</strong></p>
+                  <p><span>♔　主線道具</span><strong>5</strong></p>
+                </section>
+              </aside>
+
+              <article className="inventory-selected-panel">
+                <header><span>選中道具</span><small>SELECTED ITEM</small></header>
+                <div className="inventory-feature-art">
+                  <span aria-hidden="true">{selectedInventoryItem.symbol}</span>
+                </div>
+                <section className="inventory-selected-copy">
+                  <h3>{selectedInventoryItem.name}</h3>
+                  <strong>{selectedInventoryItem.category === "main" ? "♔ 主線道具" : selectedInventoryItem.category === "quest" ? "⚑ 任務道具" : selectedInventoryItem.category === "tool" ? "⌘ 道具" : "♣ 資源"}</strong>
+                  <p>{selectedInventoryItem.description}</p>
+                  <output>重量　{selectedInventoryItem.weight.toFixed(2)} kg　　持有 ×{selectedInventoryItem.count}</output>
+                </section>
+                <div className="inventory-selected-actions">
+                  <button type="button" onClick={() => activateInventoryItem(selectedInventoryIndex)}>使用</button>
+                  <button type="button">查看</button>
+                  <button type="button">標記</button>
+                  <button className="is-danger" type="button">丟棄</button>
+                </div>
+              </article>
+
+              <section className="inventory-catalog">
+                <nav className="inventory-categories" aria-label="背包分類">
+                  {INVENTORY_CATEGORIES.map((category) => (
+                    <button
+                      className={inventoryCategory === category.id ? "is-active" : undefined}
+                      type="button"
+                      key={category.id}
+                      onClick={() => changeInventoryCategory(category.id)}
+                    >
+                      {category.label}
+                    </button>
+                  ))}
+                </nav>
+                <div className="inventory-catalog-tools">
+                  <button type="button">排序：預設排序　▼</button>
+                  <button type="button">篩選：全部顯示　▼</button>
+                  <label>
+                    <input type="search" placeholder="搜尋道具…" aria-label="搜尋道具" />
+                    <span aria-hidden="true">⌕</span>
+                  </label>
+                </div>
+                <div className="inventory-items" aria-label="背包道具">
+                  {visibleInventoryItems.map(({ item, index }) => (
+                    <button
+                      className={`inventory-item is-${item.category}${selectedInventoryIndex === index ? " is-selected" : ""}`}
+                      type="button"
+                      key={item.id}
+                      data-inventory-index={index}
+                      aria-label={`${item.name}，持有 ${item.count}`}
+                      onClick={() => selectInventoryItem(index)}
+                    >
+                      <span className="inventory-item-kind" aria-hidden="true">{item.category === "main" ? "♔" : item.category === "quest" ? "⚑" : item.category === "tool" ? "⌘" : "♣"}</span>
+                      <span className="inventory-item-icon" aria-hidden="true">{item.symbol}</span>
+                      <strong>{item.name}</strong>
+                      <small>×{item.count}</small>
+                    </button>
+                  ))}
+                </div>
+                <footer className="inventory-pages"><span>◀</span><strong>1 / 2</strong><span>▶</span></footer>
+              </section>
+            </div>
+          </section>
+
+          <footer className="inventory-screen-footer">
+            <strong>Tab / B　關閉背包</strong>
+            <div className="inventory-currency"><span>◉　23,450</span><span>▣　32.6 / 60.0 kg</span></div>
+          </footer>
+        </div>
+      ) : null}
+
+      {optionsOpen ? (
+        <div
+          className="options-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setOptionsPanelOpen(false);
+          }}
+        >
+          <section
+            className="options-dialog"
+            id="options-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="遊戲選項"
+          >
+            <header className="options-header">
+              <div>
+                <p>OPTIONS</p>
+                <h2>選項</h2>
+              </div>
+              <button
+                className="options-close"
+                type="button"
+                aria-label="關閉選項"
+                onClick={() => setOptionsPanelOpen(false)}
+              >
+                ×
+              </button>
+            </header>
+
+            <nav className="options-tabs" aria-label="選項分類">
+              {OPTIONS_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  className={optionsTab === tab.id ? "is-active" : undefined}
+                  type="button"
+                  aria-selected={optionsTab === tab.id}
+                  onClick={() => {
+                    optionsTabRef.current = tab.id;
+                    setOptionsTab(tab.id);
+                    setOptionsMenuSelectionValue(OPTIONS_TAB_ITEMS[tab.id][0]);
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+
+            <div className="options-content">
+              {optionsTab === "display" ? (
+                <>
+                  <div className="options-section-heading">
+                    <span>畫面</span>
+                    <small>調整對話與角色的閱讀／顯示比例</small>
+                  </div>
+                  <div
+                    className="choice-row"
+                    data-gamepad-selected={
+                      optionsMenuSelection === "dialogue-text-size" || undefined
+                    }
+                  >
+                    <div>
+                      <strong>對話框文字大小</strong>
+                      <span>行動裝置預設為「大」</span>
+                    </div>
+                    <div className="choice-buttons" aria-label="對話框文字大小">
+                      {(["small", "medium", "large"] as DialogueTextSize[]).map((value) => (
+                        <button
+                          key={value}
+                          className={dialogueTextSize === value ? "is-active" : undefined}
+                          type="button"
+                          onFocus={() => setOptionsMenuSelectionValue("dialogue-text-size")}
+                          onClick={() => {
+                            setOptionsMenuSelectionValue("dialogue-text-size");
+                            setDialogueTextSize(value);
+                          }}
+                        >
+                          {{ small: "小", medium: "中", large: "大" }[value]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div
+                    className="slider-row"
+                    data-gamepad-selected={
+                      optionsMenuSelection === "character-size" || undefined
+                    }
+                  >
+                    <label htmlFor="character-size">角色顯示尺寸</label>
+                    <output className="slider-value" htmlFor="character-size">{size}</output>
+                    <input id="character-size" type="range" min="90" max="220" step="4" value={size} onFocus={() => setOptionsMenuSelectionValue("character-size")} onChange={(event) => setSizeValue(Number(event.target.value))} />
+                  </div>
+                </>
+              ) : null}
+
+              {optionsTab === "audio" ? (
+                <>
+                  <div className="options-section-heading">
+                    <span>音效</span>
+                    <small>管理背景音樂與播放音量</small>
+                  </div>
+                  <button
+                    className="toggle-button"
+                    type="button"
+                    data-gamepad-selected={optionsMenuSelection === "bgm-enabled" || undefined}
+                    aria-pressed={bgmEnabled}
+                    onFocus={() => setOptionsMenuSelectionValue("bgm-enabled")}
+                    onClick={() => {
+                      setOptionsMenuSelectionValue("bgm-enabled");
+                      activateOptionsMenuSelection();
+                    }}
+                  >
+                    <span>BGM</span><span className="toggle-pill" aria-hidden="true" />
+                  </button>
+                  <div className="slider-row" data-gamepad-selected={optionsMenuSelection === "bgm-volume" || undefined}>
+                    <label htmlFor="bgm-volume">BGM 音量</label>
+                    <output className="slider-value" htmlFor="bgm-volume">{bgmVolume}%</output>
+                    <input id="bgm-volume" type="range" min="0" max="100" step="5" value={bgmVolume} disabled={!bgmEnabled} onFocus={() => setOptionsMenuSelectionValue("bgm-volume")} onChange={(event) => setBgmVolumeValue(Number(event.target.value))} />
+                  </div>
+                </>
+              ) : null}
+
+              {optionsTab === "controls" ? (
+                <>
+                  <div className="options-section-heading">
+                    <span>操作</span>
+                    <small>移動手感與目前輸入裝置狀態</small>
+                  </div>
+                  <button
+                    className="toggle-button"
+                    type="button"
+                    data-gamepad-selected={optionsMenuSelection === "virtual-cursor-controls" || undefined}
+                    aria-pressed={virtualCursorControlsEnabled}
+                    onFocus={() => setOptionsMenuSelectionValue("virtual-cursor-controls")}
+                    onClick={() => {
+                      setOptionsMenuSelectionValue("virtual-cursor-controls");
+                      activateOptionsMenuSelection();
+                    }}
+                  >
+                    <span>
+                      <strong>開啟虛擬游標控制</strong>
+                      <small>關閉後右搖桿不再控制遊戲內游標；實體滑鼠仍可使用</small>
+                    </span>
+                    <span className="toggle-pill" aria-hidden="true" />
+                  </button>
+                  <div className="slider-row" data-gamepad-selected={optionsMenuSelection === "movement-speed" || undefined}>
+                    <label htmlFor="movement-speed">移動速度</label>
+                    <output className="slider-value" htmlFor="movement-speed">{speed}</output>
+                    <input id="movement-speed" type="range" min="100" max="380" step="10" value={speed} onFocus={() => setOptionsMenuSelectionValue("movement-speed")} onChange={(event) => setSpeedValue(Number(event.target.value))} />
+                  </div>
+                  <div className="gamepad-debug" aria-live="polite">
+                    <strong>{gamepadConnected ? gamepadLabel || "手把已連線" : "尚未偵測到手把"}</strong>
+                    <span>{gamepadDiagnostic}</span>
+                    <span className="gamepad-menu-hint">START：開啟／關閉 · LB／RB：切換頁籤 · 十字鍵上下：選擇 · 左右：調整 · A：確認 · B：關閉 · 左搖桿：角色移動</span>
+                  </div>
+                </>
+              ) : null}
+
+              {optionsTab === "advanced" ? (
+                <>
+                  <div className="options-section-heading">
+                    <span>進階</span>
+                    <small>測試場景碰撞與移動輔助設定</small>
+                  </div>
+                  <button className="toggle-button" type="button" data-gamepad-selected={optionsMenuSelection === "player-collision" || undefined} aria-pressed={showPlayerCollision} onFocus={() => setOptionsMenuSelectionValue("player-collision")} onClick={() => { setOptionsMenuSelectionValue("player-collision"); activateOptionsMenuSelection(); }}>
+                    <span>角色 Collision 描繪</span><span className="toggle-pill" aria-hidden="true" />
+                  </button>
+                  <button className="toggle-button" type="button" data-gamepad-selected={optionsMenuSelection === "scene-collision" || undefined} aria-pressed={showSceneCollision} onFocus={() => setOptionsMenuSelectionValue("scene-collision")} onClick={() => { setOptionsMenuSelectionValue("scene-collision"); activateOptionsMenuSelection(); }}>
+                    <span>場景 Collision 描繪</span><span className="toggle-pill" aria-hidden="true" />
+                  </button>
+                  <div className="slider-row" data-gamepad-selected={optionsMenuSelection === "collision-slide-tolerance" || undefined}>
+                    <label htmlFor="collision-slide-tolerance">碰撞滑動輔助</label>
+                    <output className="slider-value" htmlFor="collision-slide-tolerance">{collisionSlideTolerance}%</output>
+                    <input id="collision-slide-tolerance" type="range" min="20" max="100" step="5" value={collisionSlideTolerance} onFocus={() => setOptionsMenuSelectionValue("collision-slide-tolerance")} onChange={(event) => setCollisionSlideToleranceValue(Number(event.target.value))} />
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <footer className="options-footer">
+              <span>START／齒輪：關閉</span><span>LB／RB：切換頁籤 · 十字鍵：選擇／調整 · A：確認 · B：關閉</span>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+
+      {activeKeyboardKeys.length > 0 ? (
+        <section className="keyboard-input-hint" aria-label="目前鍵盤移動輸入">
+          <div className="key-group" aria-hidden="true">
+            <span className={`keycap w${activeKeyboardKeys.includes("w") || activeKeyboardKeys.includes("arrowup") ? " is-active" : ""}`}>W</span>
+            <span className={`keycap a${activeKeyboardKeys.includes("a") || activeKeyboardKeys.includes("arrowleft") ? " is-active" : ""}`}>A</span>
+            <span className={`keycap s${activeKeyboardKeys.includes("s") || activeKeyboardKeys.includes("arrowdown") ? " is-active" : ""}`}>S</span>
+            <span className={`keycap d${activeKeyboardKeys.includes("d") || activeKeyboardKeys.includes("arrowright") ? " is-active" : ""}`}>D</span>
+          </div>
+        </section>
+      ) : null}
+
+      <p className="controls-subtitle" aria-label="操作提示">
+        <span className="controls-subtitle-desktop">WASD／方向鍵、滑鼠點擊、左搖桿移動 · 右搖桿游標 · START：選項</span>
+        <span className="controls-subtitle-touch">上半部點擊前往 · 下半部按住移動 · START：選項</span>
+      </p>
+
+      <section className="movement-status" aria-live="polite">
+        {interactionJustTriggered ? "INTERACTIVE" : moving ? "MOVING" : "FACING"}
       </section>
-    </main>
+
+      <canvas
+        ref={cursorCanvasRef}
+        className="cursor-layer"
+        aria-hidden="true"
+      />
+      <div className="game-entry-fade" aria-hidden="true" />
+      </main>
+    </div>
   );
 }

@@ -13,8 +13,8 @@
   },
   "grid": {
     "size": 5,
-    "visible": true,
-    "snap": true
+    "visible": false,
+    "snap": false
   },
   "playerSpawn": {
     "x": 648,
@@ -1018,8 +1018,8 @@
       "interactionPoints": [
         {
           "facing": "NW",
-          "x": 1091.3508,
-          "y": 559.84247
+          "x": 1092.1777,
+          "y": 572.5066
         }
       ],
       "activationDistance": 52,
