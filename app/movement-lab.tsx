@@ -1702,6 +1702,7 @@ export function MovementLab() {
   const [questCollapsed, setQuestCollapsed] = useState(false);
   const [activeHotbarSlot, setActiveHotbarSlot] = useState(0);
   const [inventoryCategory, setInventoryCategory] = useState<InventoryCategory>("all");
+  const [inventoryPage, setInventoryPage] = useState(0);
   const [selectedInventoryIndex, setSelectedInventoryIndex] = useState(10);
   const [hotbarFeedback, setHotbarFeedback] = useState<{
     message: string;
@@ -1800,6 +1801,7 @@ export function MovementLab() {
 
   const changeInventoryCategory = (category: InventoryCategory) => {
     setInventoryCategory(category);
+    setInventoryPage(0);
     const currentItem = INVENTORY_ITEMS[selectedInventoryIndexRef.current];
     if (category !== "all" && currentItem.category !== category) {
       const nextIndex = INVENTORY_ITEMS.findIndex((item) => item.category === category);
@@ -4285,10 +4287,23 @@ export function MovementLab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const visibleInventoryItems = INVENTORY_ITEMS
+  const filteredInventoryItems = INVENTORY_ITEMS
     .map((item, index) => ({ item, index }))
     .filter(({ item }) => inventoryCategory === "all" || item.category === inventoryCategory);
+  const inventoryPageCount = Math.max(1, Math.ceil(filteredInventoryItems.length / 16));
+  const currentInventoryPage = Math.min(inventoryPage, inventoryPageCount - 1);
+  const visibleInventoryItems = filteredInventoryItems.slice(
+    currentInventoryPage * 16,
+    currentInventoryPage * 16 + 16,
+  );
   const selectedInventoryItem = INVENTORY_ITEMS[selectedInventoryIndex] ?? INVENTORY_ITEMS[0];
+
+  const changeInventoryPage = (offset: number) => {
+    const nextPage = (currentInventoryPage + offset + inventoryPageCount) % inventoryPageCount;
+    setInventoryPage(nextPage);
+    const firstItem = filteredInventoryItems[nextPage * 16];
+    if (firstItem) selectInventoryItem(firstItem.index);
+  };
 
   return (
     <div
@@ -4568,7 +4583,11 @@ export function MovementLab() {
                     </button>
                   ))}
                 </div>
-                <footer className="inventory-pages"><span>◀</span><strong>1 / 2</strong><span>▶</span></footer>
+                <footer className="inventory-pages">
+                  <button type="button" disabled={inventoryPageCount <= 1} onClick={() => changeInventoryPage(-1)} aria-label="上一頁">◀</button>
+                  <strong>{currentInventoryPage + 1} / {inventoryPageCount}</strong>
+                  <button type="button" disabled={inventoryPageCount <= 1} onClick={() => changeInventoryPage(1)} aria-label="下一頁">▶</button>
+                </footer>
               </section>
             </div>
           </section>
