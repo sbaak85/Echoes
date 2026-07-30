@@ -47,3 +47,7 @@ next-env.d.ts
 /MapEditor/obj/
 /MapEditor/publish/
 /MapEditor/runtime/
+/AudioEventManager/bin/
+/AudioEventManager/obj/
+/AudioEventManager/publish/
+/AudioEventManager/runtime/

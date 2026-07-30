@@ -30,6 +30,18 @@ Included in version 1:
   Polygons always retain at least three nodes and close automatically.
 - View zoom, fit, pan, rulers, grid visibility, grid spacing, and snapping.
 - Player spawn position and eight-direction facing.
+- Multiple interaction Points per interaction polygon. Right-click inside a
+  selected interaction polygon to add another Point and choose its facing.
+  Right-click near an existing Point to change or delete that Point. At runtime,
+  the Point nearest to the player is chosen once when interaction begins.
+- Lightweight `Audio 音效` manager window for event labels, trigger notes,
+  original/runtime MP3 paths, volume, delay, and Loop. Saving rewrites only the
+  marked configuration block in `app/audio-event-manager.ts`; the previous file
+  is backed up to
+  `../AudioEventManager/runtime/audio-event-manager.ts.bak`. The same shared
+  window can also run independently from
+  `../AudioEventManager/AudioEventManager.exe`. Original asset paths are
+  optional, and the button beside the game MP3 paths previews the first file.
 - Export of the image and `<image-name>.scene.json` to `public/maps`.
 
 Polygon drawing is completed with double-click, right-click, or Enter. Escape

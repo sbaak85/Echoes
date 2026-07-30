@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.IO;
+using Echoes.AudioEventTools;
 
 namespace Echoes.MapEditor;
 
@@ -163,7 +164,13 @@ public sealed class MainForm : Form
         viewMenu.DropDownItems.Add(CreateMenuItem("放大", Keys.Control | Keys.Add, (_, _) => _canvas.ZoomBy(1.2f)));
         viewMenu.DropDownItems.Add(CreateMenuItem("縮小", Keys.Control | Keys.Subtract, (_, _) => _canvas.ZoomBy(1f / 1.2f)));
 
-        menu.Items.AddRange(new ToolStripItem[] { fileMenu, editMenu, viewMenu });
+        var toolsMenu = new ToolStripMenuItem("工具(&T)");
+        toolsMenu.DropDownItems.Add(CreateMenuItem(
+            "Audio Event 音效管理…",
+            Keys.None,
+            (_, _) => OpenAudioEventEditor()));
+
+        menu.Items.AddRange(new ToolStripItem[] { fileMenu, editMenu, viewMenu, toolsMenu });
         return menu;
     }
 
@@ -184,6 +191,10 @@ public sealed class MainForm : Form
         toolbar.Items.Add(CreateToolbarButton("開啟圖片", "從 Windows 選擇 PNG、JPG、WebP 等場景圖片", (_, _) => OpenImage()));
         toolbar.Items.Add(CreateToolbarButton("儲存", "儲存目前場景 JSON", (_, _) => SaveDocument()));
         toolbar.Items.Add(CreateToolbarButton("匯出遊戲", "複製圖片並輸出到 public/maps，遊戲會讀取同一份資料", (_, _) => ExportToGame()));
+        toolbar.Items.Add(CreateToolbarButton(
+            "Audio 音效",
+            "開啟 Audio Event 音效設定管理視窗",
+            (_, _) => OpenAudioEventEditor()));
         toolbar.Items.Add(new ToolStripSeparator());
 
         AddToolButton(toolbar, "選取", EditorTool.Select, "選取、拖曳圖形或頂點");
@@ -860,6 +871,30 @@ public sealed class MainForm : Form
             editor.Speakers,
             editor.CharacterDelaySeconds);
         RefreshSelectionUi();
+    }
+
+    private void OpenAudioEventEditor()
+    {
+        if (_projectRoot is null)
+        {
+            MessageBox.Show(
+                this,
+                "找不到 Echoes 專案根目錄，無法定位 app/audio-event-manager.ts。",
+                "無法開啟 Audio Event",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return;
+        }
+
+        try
+        {
+            using var editor = new AudioEventEditorForm(_projectRoot);
+            editor.ShowDialog(this);
+        }
+        catch (Exception exception)
+        {
+            ShowError("無法開啟 Audio Event", exception);
+        }
     }
 
     private void RefreshCommandState()

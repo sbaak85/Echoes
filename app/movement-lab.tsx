@@ -2,6 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import mapTest01Scene from "../public/maps/map_test01.scene.json";
+import {
+  AUDIO_EVENT_CONFIG,
+  AudioEventManager,
+  type AudioEventName,
+} from "./audio-event-manager";
 
 type Direction = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
 type Point = { x: number; y: number };
@@ -23,13 +28,15 @@ type CircleCollider = {
   radius: number;
 };
 type SceneCollider = PolygonCollider | CircleCollider;
+type InteractionPoint = Point & { facing?: Direction };
 type SceneInteractable = {
   id: string;
   label: string;
   shape?: "polygon";
   points?: Point[];
   position?: Point;
-  interactionPoint?: Point & { facing?: Direction };
+  interactionPoints?: InteractionPoint[];
+  interactionPoint?: InteractionPoint;
   pickRadius?: number;
   activationDistance?: number;
   action?: string;
@@ -43,6 +50,7 @@ type SceneInteractable = {
 };
 type PendingInteraction = {
   interactable: SceneInteractable;
+  interactionPoint?: InteractionPoint;
   source: "gamepad" | "pointer" | "keyboard";
 };
 type DialoguePlayback = {
@@ -461,11 +469,6 @@ const NATIVE_GAMEPAD_BRIDGE_URL = "http://127.0.0.1:3001/state";
 const PATHFINDING_GRID_SIZE = 18;
 const TOUCH_EFFECT_DURATION_MS = 900;
 const GAMEPAD_CURSOR_SPEED = 720;
-const FOOTSTEP_AUDIO_SOURCE = "./audio/grass-footsteps.mp3";
-const BGM_SOURCES = [
-  "./audio/alien-night-1.mp3",
-  "./audio/alien-night-2.mp3",
-] as const;
 const FOOTSTEP_REFERENCE_SPEED = 210;
 const FOOTSTEP_REFERENCE_PLAYBACK_RATE = 1.7;
 const FOOTSTEP_MIN_MOVEMENT_SPEED = 6;
@@ -807,6 +810,36 @@ function getInteractableCenter(interactable: SceneInteractable): Point {
     };
   }
   return interactable.position ?? { x: 0, y: 0 };
+}
+
+function getInteractionPoints(
+  interactable: SceneInteractable,
+): readonly InteractionPoint[] {
+  if (interactable.interactionPoints?.length) {
+    return interactable.interactionPoints;
+  }
+  return interactable.interactionPoint ? [interactable.interactionPoint] : [];
+}
+
+function findNearestInteractionPoint(
+  interactable: SceneInteractable,
+  origin: Point,
+): InteractionPoint | undefined {
+  const points = getInteractionPoints(interactable);
+  let nearest = points[0];
+  let nearestDistanceSquared = Number.POSITIVE_INFINITY;
+
+  for (const point of points) {
+    const deltaX = point.x - origin.x;
+    const deltaY = point.y - origin.y;
+    const distanceSquared = deltaX * deltaX + deltaY * deltaY;
+    if (distanceSquared < nearestDistanceSquared) {
+      nearest = point;
+      nearestDistanceSquared = distanceSquared;
+    }
+  }
+
+  return nearest;
 }
 
 function splitDialoguePages(text: string, maximumCharacters = 96) {
@@ -1484,8 +1517,8 @@ export function MovementLab() {
   const showPlayerCollisionRef = useRef(false);
   const showSceneCollisionRef = useRef(false);
   const bgmEnabledRef = useRef(true);
-  const bgmVolumeRef = useRef(0.35);
-  const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
+  const bgmVolumeRef = useRef(AUDIO_EVENT_CONFIG.bgm.volume);
+  const audioEventManagerRef = useRef<AudioEventManager | null>(null);
   const requestBgmPlaybackRef = useRef<() => void>(() => {});
   const debugOpenRef = useRef(false);
   const debugMenuSelectionRef = useRef<DebugMenuItem>(
@@ -1503,7 +1536,9 @@ export function MovementLab() {
   const [size, setSize] = useState(142);
   const [collisionSlideTolerance, setCollisionSlideTolerance] = useState(55);
   const [bgmEnabled, setBgmEnabled] = useState(true);
-  const [bgmVolume, setBgmVolume] = useState(35);
+  const [bgmVolume, setBgmVolume] = useState(
+    Math.round(AUDIO_EVENT_CONFIG.bgm.volume * 100),
+  );
   const [facing, setFacing] = useState<Direction>(SCENE_START_FACING);
   const [moving, setMoving] = useState(false);
   const [gamepadConnected, setGamepadConnected] = useState(false);
@@ -1513,11 +1548,42 @@ export function MovementLab() {
   );
   const [dialogueView, setDialogueView] = useState<DialogueView>(null);
 
+  const playOneShotAudio = (eventName: AudioEventName) => {
+    const audioEvents = audioEventManagerRef.current;
+    if (!audioEvents) return;
+    void audioEvents.play(eventName, { restart: true }).catch(() => {
+      // A later interaction can retry from the beginning if browser autoplay
+      // policy blocks this one-shot request.
+    });
+  };
+
+  const stopDialogueTypingAudio = () => {
+    audioEventManagerRef.current?.stop("dialogueTyping");
+  };
+
+  const requestDialogueTypingAudioPlayback = (restart: boolean) => {
+    const typing = dialogueTypingRef.current;
+    const audioEvents = audioEventManagerRef.current;
+    if (
+      !audioEvents ||
+      !typing ||
+      typing.visibleCount >= typing.characters.length ||
+      document.hidden
+    ) {
+      return;
+    }
+    void audioEvents.play("dialogueTyping", { restart }).catch(() => {
+      // Browsers may wait for the next keyboard or pointer gesture before
+      // allowing audio. The shared input retry handler requests playback again.
+    });
+  };
+
   const stopDialogueTyping = () => {
     const typing = dialogueTypingRef.current;
     if (typing?.timerId !== null && typing?.timerId !== undefined) {
       window.clearTimeout(typing.timerId);
     }
+    stopDialogueTypingAudio();
     dialogueTypingRef.current = null;
   };
 
@@ -1571,6 +1637,7 @@ export function MovementLab() {
         );
       } else {
         typing.timerId = null;
+        stopDialogueTypingAudio();
       }
     };
 
@@ -1578,6 +1645,7 @@ export function MovementLab() {
       typing.visibleCount = characters.length;
       setDialogueView({ speaker, text: characters.join("") });
     } else {
+      requestDialogueTypingAudioPlayback(true);
       revealNextCharacter();
     }
   };
@@ -1604,6 +1672,7 @@ export function MovementLab() {
     };
     dialoguePlaybackRef.current = playback;
     document.documentElement.classList.add("dialogue-cursor-active");
+    playOneShotAudio("dialogueOpened");
     showDialoguePage(playback);
   };
 
@@ -1615,6 +1684,7 @@ export function MovementLab() {
       if (typing.timerId !== null) window.clearTimeout(typing.timerId);
       typing.visibleCount = typing.characters.length;
       typing.timerId = null;
+      stopDialogueTypingAudio();
       setDialogueView({
         speaker: typing.speaker,
         text: typing.characters.join(""),
@@ -1674,13 +1744,13 @@ export function MovementLab() {
     bgmEnabledRef.current = enabled;
     setBgmEnabled(enabled);
     if (enabled) requestBgmPlaybackRef.current();
-    else bgmAudioRef.current?.pause();
+    else audioEventManagerRef.current?.stop("bgm", { reset: false });
   };
 
   const setBgmVolumeValue = (value: number) => {
     const nextValue = clamp(Math.round(value / 5) * 5, 0, 100);
     bgmVolumeRef.current = nextValue / 100;
-    if (bgmAudioRef.current) bgmAudioRef.current.volume = bgmVolumeRef.current;
+    audioEventManagerRef.current?.setVolume("bgm", bgmVolumeRef.current);
     setBgmVolume(nextValue);
   };
 
@@ -1794,18 +1864,16 @@ export function MovementLab() {
 
   useEffect(() => {
     bgmEnabledRef.current = bgmEnabled;
-    const audio = bgmAudioRef.current;
-    if (!audio) return;
+    const audioEvents = audioEventManagerRef.current;
+    if (!audioEvents) return;
 
     if (bgmEnabled) requestBgmPlaybackRef.current();
-    else audio.pause();
+    else audioEvents.stop("bgm", { reset: false });
   }, [bgmEnabled]);
 
   useEffect(() => {
     bgmVolumeRef.current = bgmVolume / 100;
-    if (bgmAudioRef.current) {
-      bgmAudioRef.current.volume = bgmVolumeRef.current;
-    }
+    audioEventManagerRef.current?.setVolume("bgm", bgmVolumeRef.current);
   }, [bgmVolume]);
 
   useEffect(() => {
@@ -1822,14 +1890,11 @@ export function MovementLab() {
     const sceneImage = new Image();
     sceneImage.decoding = "async";
     sceneImage.src = MAP_SOURCE;
-    const footstepAudio = new Audio(FOOTSTEP_AUDIO_SOURCE);
-    footstepAudio.loop = true;
-    footstepAudio.preload = "auto";
-    footstepAudio.volume = 0.5;
-    const bgmAudio = new Audio(BGM_SOURCES[0]);
-    bgmAudio.preload = "auto";
-    bgmAudio.volume = bgmVolumeRef.current;
-    bgmAudioRef.current = bgmAudio;
+    const audioEvents = new AudioEventManager();
+    audioEventManagerRef.current = audioEvents;
+    audioEvents.setVolume("bgm", bgmVolumeRef.current);
+    const footstepAudio = audioEvents.getAudio("footsteps");
+    const bgmAudio = audioEvents.getAudio("bgm");
 
     let currentFacing: Direction = SCENE_START_FACING;
     let wasMoving = false;
@@ -1869,7 +1934,6 @@ export function MovementLab() {
     let footstepPlayPending = false;
     let footstepPlayBlocked = false;
     let footstepShouldPlay = false;
-    let bgmTrackIndex = 0;
     let bgmPlayPending = false;
     let bgmPlayBlocked = false;
     let bgmDisposed = false;
@@ -1879,6 +1943,7 @@ export function MovementLab() {
     let activeInteractionKeyLabel = "E";
     let activeInputMode: "keyboard-mouse" | "gamepad" = "keyboard-mouse";
     let activePromptOwner: "player" | "cursor" | null = null;
+    let activePromptTargetId: string | null = null;
     let previousPlayerPromptTargetId: string | null = null;
     let previousCursorPromptTargetId: string | null = null;
     let keyboardInteractionKey = (localStorage.getItem("echoes:interaction-key") ?? "e").toLowerCase();
@@ -1913,14 +1978,16 @@ export function MovementLab() {
       }
 
       footstepPlayPending = true;
-      void footstepAudio
-        .play()
+      void audioEvents
+        .play("footsteps")
         .catch(() => {
           footstepPlayBlocked = true;
         })
         .finally(() => {
           footstepPlayPending = false;
-          if (!footstepShouldPlay) footstepAudio.pause();
+          if (!footstepShouldPlay) {
+            audioEvents.stop("footsteps", { reset: false });
+          }
         });
     };
 
@@ -1937,39 +2004,31 @@ export function MovementLab() {
       }
 
       bgmPlayPending = true;
-      void bgmAudio
-        .play()
+      void audioEvents
+        .play("bgm")
         .catch(() => {
           bgmPlayBlocked = true;
         })
         .finally(() => {
           bgmPlayPending = false;
           if (bgmDisposed || !bgmEnabledRef.current || document.hidden) {
-            bgmAudio.pause();
+            audioEvents.stop("bgm", { reset: false });
           }
         });
     };
     requestBgmPlaybackRef.current = requestBgmPlayback;
-
-    const onBgmEnded = () => {
-      bgmTrackIndex = (bgmTrackIndex + 1) % BGM_SOURCES.length;
-      bgmAudio.src = BGM_SOURCES[bgmTrackIndex];
-      bgmAudio.load();
-      bgmPlayBlocked = false;
-      requestBgmPlayback();
-    };
-    bgmAudio.addEventListener("ended", onBgmEnded);
 
     const allowAudioPlaybackRetry = () => {
       footstepPlayBlocked = false;
       bgmPlayBlocked = false;
       requestFootstepPlayback();
       requestBgmPlayback();
+      requestDialogueTypingAudioPlayback(false);
     };
 
     const stopFootsteps = () => {
       footstepShouldPlay = false;
-      footstepAudio.pause();
+      audioEvents.stop("footsteps", { reset: false });
     };
 
     Object.entries(SPRITE_SOURCES).forEach(([direction, source]) => {
@@ -2050,15 +2109,18 @@ export function MovementLab() {
       deactivateGamepadCursor();
       virtualCursorVisible = false;
       stopFootsteps();
+      audioEvents.stop("dialogueTyping", { reset: false });
     };
 
     const onVisibilityChange = () => {
       if (document.hidden) {
         stopFootsteps();
-        bgmAudio.pause();
+        audioEvents.stop("bgm", { reset: false });
+        audioEvents.stop("dialogueTyping", { reset: false });
       } else {
         bgmPlayBlocked = false;
         requestBgmPlayback();
+        requestDialogueTypingAudioPlayback(false);
       }
     };
 
@@ -2130,8 +2192,11 @@ export function MovementLab() {
       requestedDestination: Point,
       source: PendingInteraction["source"],
       showTouchEffect = true,
+      forcedInteractable?: SceneInteractable,
+      playAcceptedInteractionSound = false,
     ) => {
-      const interactable = findInteractableAt(requestedDestination);
+      const interactable =
+        forcedInteractable ?? findInteractableAt(requestedDestination);
       if (
         source === "pointer" &&
         interactable &&
@@ -2139,9 +2204,12 @@ export function MovementLab() {
       ) {
         return;
       }
-      const destination = interactable?.interactionPoint ?? requestedDestination;
+      const interactionPoint = interactable
+        ? findNearestInteractionPoint(interactable, player)
+        : undefined;
+      const destination = interactionPoint ?? requestedDestination;
       const path = interactable
-        ? interactable.interactionPoint
+        ? interactionPoint
           ? findReachableInteractionPath(destination)
           : findPath(player, requestedDestination, sizeRef.current * 0.14)
         : findPath(player, destination, sizeRef.current * 0.14);
@@ -2149,7 +2217,16 @@ export function MovementLab() {
       autoPath = path ?? [];
       autoDestination = path !== null ? destination : null;
       pendingInteraction =
-        interactable && path !== null ? { interactable, source } : null;
+        interactable && path !== null
+          ? { interactable, interactionPoint, source }
+          : null;
+      if (
+        interactable &&
+        path !== null &&
+        playAcceptedInteractionSound
+      ) {
+        playOneShotAudio("interactionAccepted");
+      }
       movementGuideSuppressedForPendingInteraction = false;
       lockedAutoMovementGuideId = null;
       bypassedAutoMovementGuideId = null;
@@ -2175,8 +2252,7 @@ export function MovementLab() {
         return;
       }
 
-      const { interactable, source } = pendingInteraction;
-      const interactionPoint = interactable.interactionPoint;
+      const { interactable, interactionPoint, source } = pendingInteraction;
       const closeEnough = interactionPoint
         ? Math.hypot(
             player.x - interactionPoint.x,
@@ -2185,8 +2261,8 @@ export function MovementLab() {
         : isTouchingInteractable(player, sizeRef.current * 0.14, interactable);
 
       if (closeEnough) {
-        if (interactable.interactionPoint?.facing) {
-          currentFacing = interactable.interactionPoint.facing;
+        if (interactionPoint?.facing) {
+          currentFacing = interactionPoint.facing;
         }
         triggerInteraction(interactable, source);
       }
@@ -2207,20 +2283,49 @@ export function MovementLab() {
         ? findInteractableAt(screenToWorld(virtualCursor))
         : null;
       const playerTarget = findInteractableTouching(player, sizeRef.current * 0.14);
-      const target = cursorTarget ?? playerTarget;
+      const lockedPlayerTarget =
+        activePromptOwner === "player" &&
+        playerTarget?.id === activePromptTargetId
+          ? playerTarget
+          : null;
+      const lockedCursorTarget =
+        activePromptOwner === "cursor" &&
+        cursorTarget?.id === activePromptTargetId
+          ? cursorTarget
+          : null;
+      const lockedTarget = lockedPlayerTarget ?? lockedCursorTarget;
+      const target = lockedTarget ?? cursorTarget ?? playerTarget;
+      const targetOwner = lockedTarget
+        ? activePromptOwner
+        : cursorTarget
+          ? "cursor"
+          : playerTarget
+            ? "player"
+            : null;
       if (!target) {
         if (source !== "keyboard" && virtualCursorVisible) {
           assignScreenAction(virtualCursor, source);
         }
         return;
       }
-      if (!cursorTarget && playerTarget && !target.interactionPoint) {
+      if (
+        targetOwner === "player" &&
+        getInteractionPoints(target).length === 0
+      ) {
+        if (source === "gamepad") {
+          playOneShotAudio("interactionAccepted");
+        }
         triggerInteraction(target, source);
         return;
       }
       assignWorldAction(
-        cursorTarget ? screenToWorld(virtualCursor) : getInteractableCenter(target),
+        targetOwner === "cursor"
+          ? screenToWorld(virtualCursor)
+          : getInteractableCenter(target),
         source,
+        true,
+        target,
+        source === "gamepad",
       );
     };
 
@@ -2240,7 +2345,13 @@ export function MovementLab() {
       }
 
       lastHeldPointerWorldTarget = worldTarget;
-      assignWorldAction(worldTarget, "pointer", false);
+      assignWorldAction(
+        worldTarget,
+        "pointer",
+        false,
+        undefined,
+        force,
+      );
     };
 
     const onPointerDown = (event: PointerEvent) => {
@@ -2465,12 +2576,12 @@ export function MovementLab() {
         tracePolygon(context, interactable.points);
         context.fill();
         context.stroke();
-        if (interactable.interactionPoint) {
+        getInteractionPoints(interactable).forEach((interactionPoint) => {
           context.beginPath();
-          context.arc(interactable.interactionPoint.x, interactable.interactionPoint.y, 8, 0, Math.PI * 2);
+          context.arc(interactionPoint.x, interactionPoint.y, 8, 0, Math.PI * 2);
           context.fill();
           context.stroke();
-        }
+        });
       });
 
       SCENE_MOVEMENT_GUIDES.forEach((guide) => {
@@ -2815,6 +2926,12 @@ export function MovementLab() {
 
       previousPlayerPromptTargetId = playerTargetId;
       previousCursorPromptTargetId = cursorTargetId;
+      activePromptTargetId =
+        activePromptOwner === "player"
+          ? playerTargetId
+          : activePromptOwner === "cursor"
+            ? cursorTargetId
+            : null;
       if (dialoguePlaybackRef.current) return;
 
       if (activePromptOwner === "player" && playerTarget) {
@@ -3129,8 +3246,7 @@ export function MovementLab() {
 
       if (inputLength > 0) {
         const guideRadius = sizeRef.current * 0.14;
-        const pendingInteractionPoint =
-          pendingInteraction?.interactable.interactionPoint;
+        const pendingInteractionPoint = pendingInteraction?.interactionPoint;
         if (
           pendingInteractionPoint &&
           Math.hypot(
@@ -3218,7 +3334,7 @@ export function MovementLab() {
               Math.min(18, guideRadius * 0.6),
             );
             if (exitDistance <= exitReleaseDistance) {
-              const replannedPath = pendingInteraction?.interactable.interactionPoint
+              const replannedPath = pendingInteraction?.interactionPoint
                 ? findReachableInteractionPath(autoDestination)
                 : findPath(player, autoDestination, guideRadius);
               autoPath = replannedPath ?? [];
@@ -3414,14 +3530,13 @@ export function MovementLab() {
       canvas.removeEventListener("pointercancel", onPointerCancel);
       canvas.removeEventListener("lostpointercapture", onPointerCancel);
       bgmDisposed = true;
-      bgmAudio.removeEventListener("ended", onBgmEnded);
-      bgmAudio.pause();
-      bgmAudio.currentTime = 0;
-      if (bgmAudioRef.current === bgmAudio) bgmAudioRef.current = null;
       requestBgmPlaybackRef.current = () => {};
       stopFootsteps();
-      footstepAudio.currentTime = 0;
       stopDialogueTyping();
+      audioEvents.dispose();
+      if (audioEventManagerRef.current === audioEvents) {
+        audioEventManagerRef.current = null;
+      }
       document.documentElement.classList.remove("gamepad-cursor-active");
       document.documentElement.classList.remove("dialogue-cursor-active");
     };

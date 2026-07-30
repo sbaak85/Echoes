@@ -926,11 +926,28 @@
       ],
       "type": "dialogue",
       "verb": "\u4E92\u52D5",
-      "interactionPoint": {
-        "facing": "NW",
-        "x": 859.1975,
-        "y": 636.9398
-      },
+      "interactionPoints": [
+        {
+          "facing": "NW",
+          "x": 859.1975,
+          "y": 636.9398
+        },
+        {
+          "facing": "SW",
+          "x": 860.23456,
+          "y": 578.30255
+        },
+        {
+          "facing": "SE",
+          "x": 781.5827,
+          "y": 581.5348
+        },
+        {
+          "facing": "NE",
+          "x": 780.5053,
+          "y": 640.793
+        }
+      ],
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -998,11 +1015,13 @@
       ],
       "type": "dialogue",
       "verb": "\u64CD\u4F5C",
-      "interactionPoint": {
-        "facing": "NW",
-        "x": 1091.3508,
-        "y": 559.84247
-      },
+      "interactionPoints": [
+        {
+          "facing": "NW",
+          "x": 1091.3508,
+          "y": 559.84247
+        }
+      ],
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -1110,12 +1129,12 @@
       "shape": "polygon",
       "points": [
         {
-          "x": 870,
-          "y": 430
+          "x": 885,
+          "y": 450
         },
         {
-          "x": 935,
-          "y": 385
+          "x": 950,
+          "y": 400
         },
         {
           "x": 920,
@@ -1152,11 +1171,13 @@
       ],
       "type": "dialogue",
       "verb": "\u79FB\u52D5",
-      "interactionPoint": {
-        "facing": "NW",
-        "x": 881.20026,
-        "y": 394.72168
-      },
+      "interactionPoints": [
+        {
+          "facing": "NW",
+          "x": 903.72327,
+          "y": 427.42697
+        }
+      ],
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -1212,6 +1233,23 @@
       ],
       "type": "dialogue",
       "verb": "\u63A1\u96C6",
+      "interactionPoints": [
+        {
+          "facing": "N",
+          "x": 530.5433,
+          "y": 443.08603
+        },
+        {
+          "facing": "NW",
+          "x": 566.0982,
+          "y": 424.23114
+        },
+        {
+          "facing": "W",
+          "x": 587.64667,
+          "y": 402.68268
+        }
+      ],
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -1233,40 +1271,71 @@
       "shape": "polygon",
       "points": [
         {
-          "x": 300,
-          "y": 595
+          "x": 305,
+          "y": 615
         },
         {
           "x": 400,
-          "y": 595
+          "y": 615
         },
         {
-          "x": 425,
-          "y": 560
+          "x": 465,
+          "y": 570
         },
         {
-          "x": 425,
-          "y": 505
+          "x": 465,
+          "y": 515
         },
         {
-          "x": 365,
-          "y": 470
+          "x": 435,
+          "y": 485
+        },
+        {
+          "x": 390,
+          "y": 475
         },
         {
           "x": 305,
-          "y": 470
+          "y": 475
         },
         {
-          "x": 265,
-          "y": 510
+          "x": 250,
+          "y": 530
         },
         {
-          "x": 265,
-          "y": 565
+          "x": 250,
+          "y": 580
         }
       ],
       "type": "dialogue",
       "verb": "\u63A1\u96C6",
+      "interactionPoints": [
+        {
+          "facing": "NW",
+          "x": 419.5688,
+          "y": 586.38324
+        },
+        {
+          "facing": "W",
+          "x": 445.96564,
+          "y": 558.90894
+        },
+        {
+          "facing": "N",
+          "x": 354.92343,
+          "y": 613.8575
+        },
+        {
+          "facing": "NE",
+          "x": 277.88773,
+          "y": 595.0026
+        },
+        {
+          "facing": "E",
+          "x": 251.49088,
+          "y": 569.68317
+        }
+      ],
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -1297,8 +1366,8 @@
           "y": 455
         },
         {
-          "x": 890,
-          "y": 400
+          "x": 905,
+          "y": 410
         }
       ],
       "width": 50,

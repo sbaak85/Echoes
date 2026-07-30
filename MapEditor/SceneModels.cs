@@ -129,10 +129,49 @@ public sealed class SceneInteractable
     public string Verb { get; set; } = "對話";
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<InteractionPoint>? InteractionPoints { get; set; }
+
+    // Legacy schema support. Validation migrates this single point into
+    // InteractionPoints so all newly saved scenes use the array format.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public InteractionPoint? InteractionPoint { get; set; }
 
     public float ActivationDistance { get; set; } = 52;
     public DialogueScript Dialogue { get; set; } = DialogueScript.CreateDefault();
+
+    [JsonIgnore]
+    public IReadOnlyList<InteractionPoint> EffectiveInteractionPoints
+    {
+        get
+        {
+            if (InteractionPoints is { Count: > 0 } points) return points;
+            if (InteractionPoint is { } legacyPoint) return new[] { legacyPoint };
+            return Array.Empty<InteractionPoint>();
+        }
+    }
+
+    public List<InteractionPoint> EnsureInteractionPoints()
+    {
+        InteractionPoints ??= new List<InteractionPoint>();
+        if (InteractionPoint is not null)
+        {
+            InteractionPoints.Add(InteractionPoint);
+            InteractionPoint = null;
+        }
+        return InteractionPoints;
+    }
+
+    public void NormalizeInteractionPoints()
+    {
+        if (InteractionPoint is not null)
+        {
+            EnsureInteractionPoints();
+        }
+        if (InteractionPoints is { Count: 0 })
+        {
+            InteractionPoints = null;
+        }
+    }
 }
 
 public sealed class InteractionPoint : ScenePoint
@@ -259,6 +298,7 @@ public static class SceneJson
                 throw new InvalidDataException($"互動多邊形 {interactable.Id} 至少需要 3 個 Node。");
             }
 
+            interactable.NormalizeInteractionPoints();
             interactable.Dialogue ??= DialogueScript.CreateDefault();
             interactable.Dialogue.Speakers = interactable.Dialogue.Speakers
                 .Where(speaker => !string.IsNullOrWhiteSpace(speaker))

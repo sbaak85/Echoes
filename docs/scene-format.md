@@ -13,8 +13,12 @@ Version 1 fields:
 - `collisions`: polygon, rectangle, or circle blocking shapes.
 - `interactables`: bright-yellow, non-blocking interaction polygons. Each
   record stores polygon `points`, interaction `type`, prompt `verb`, optional
-  `interactionPoint` (`x`, `y`, eight-direction `facing`), and a dialogue
-  script. `dialogue.characterDelaySeconds` controls the left-to-right typing
+  `interactionPoints` (one or more `x`, `y`, eight-direction `facing` records),
+  and a dialogue script. When more than one point exists, the runtime chooses
+  the point nearest to the player once when the interaction is triggered, then
+  keeps that point for pathfinding, arrival, and facing. The legacy singular
+  `interactionPoint` field is still accepted when older scenes are loaded.
+  `dialogue.characterDelaySeconds` controls the left-to-right typing
   rate and defaults to `0.02`. `dialogue.speakers` stores the selectable speaker
   list (default `Sbaak`, `Echo`). A blank speaker on any line after the first
   inherits the previous line's speaker. Dialogue lines keep their speaker and

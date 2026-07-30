@@ -17,6 +17,22 @@
 - 中央平台與兩側入口相連的 NavMesh
 - 平滑鏡頭跟隨及世界邊界限制
 
+## Audio Event 管理
+
+- 所有遊戲音效事件集中在 `app/audio-event-manager.ts` 的
+  `AUDIO_EVENT_CONFIG`。
+- 每個事件會記錄觸發時機、原始素材路徑、瀏覽器播放路徑、音量、
+  延遲秒數與是否循環；`loop` 省略時預設為單次播放。
+- 可由 `MapEditor/MapEditor.exe` 上方的「Audio 音效」開啟管理視窗，
+  直接輸入後按「儲存到 TS」，不需要手動編輯 TypeScript。
+- 也可直接執行 `AudioEventManager/AudioEventManager.exe`，不需要先開啟
+  MapEditor；兩個入口共用相同管理視窗與設定。
+- 原始素材路徑可留空；「遊戲 MP3 路徑」右側的 `▶` 可直接試聽第一個
+  MP3，播放中再次按下即可停止。
+- 「原始素材」右側也有 `▶` 試聽按鈕；未填原始素材時按鈕會自動停用。
+- 更換素材時，將瀏覽器需要的 MP3 放入 `public/audio/`，再修改該事件的
+  `sourceAssetPaths` 與 `sources`。BGM 可在 `sources` 依播放順序列出多首。
+
 ## 網頁版本
 
 - GitHub Pages：<https://sbaak85.github.io/Echoes/>

@@ -55,7 +55,7 @@ public sealed class EditorCanvas : Control
     private readonly ToolStripMenuItem _deleteNodeContextItem = new("刪除 Node");
     private readonly ToolStripMenuItem _interactionTypeContextItem = new("互動類型");
     private readonly ToolStripMenuItem _dialogueTypeContextItem = new("對話");
-    private readonly ToolStripMenuItem _interactionPointContextItem = new("新增／變更互動 Point");
+    private readonly ToolStripMenuItem _interactionPointContextItem = new("新增互動 Point");
     private readonly ToolStripMenuItem _deleteInteractionPointContextItem = new("刪除互動 Point");
 
     private Bitmap? _sceneImage;
@@ -74,6 +74,7 @@ public sealed class EditorCanvas : Control
     private int _selectedVertex = -1;
     private LayerSelection _contextSelection = LayerSelection.None;
     private int _contextEdgeIndex = -1;
+    private int _contextInteractionPointIndex = -1;
     private PointF _contextInsertPoint;
     private PointF _contextInteractionPoint;
     private bool _panning;
@@ -854,9 +855,9 @@ public sealed class EditorCanvas : Control
                 DrawSelectedOutline(graphics, points);
             }
 
-            if (interactable.InteractionPoint is not null)
+            foreach (var interactionPoint in interactable.EffectiveInteractionPoints)
             {
-                DrawInteractionPoint(graphics, interactable.InteractionPoint);
+                DrawInteractionPoint(graphics, interactionPoint);
             }
         }
     }
@@ -1439,10 +1440,10 @@ public sealed class EditorCanvas : Control
         {
             var interactable = _document.Interactables[_selection.Index];
             MovePoints(interactable.Points, deltaX, deltaY);
-            if (interactable.InteractionPoint is not null)
+            foreach (var interactionPoint in interactable.EffectiveInteractionPoints)
             {
-                interactable.InteractionPoint.X += deltaX;
-                interactable.InteractionPoint.Y += deltaY;
+                interactionPoint.X += deltaX;
+                interactionPoint.Y += deltaY;
             }
         }
         else
@@ -1684,9 +1685,12 @@ public sealed class EditorCanvas : Control
         var interactionSelected = _selection.Kind == SceneLayerKind.Interactable && IsValidSelection(_selection);
         _interactionTypeContextItem.Visible = interactionSelected;
         _interactionPointContextItem.Visible = interactionSelected;
-        _deleteInteractionPointContextItem.Visible = interactionSelected;
-        _deleteInteractionPointContextItem.Enabled = interactionSelected &&
-            _document.Interactables[_selection.Index].InteractionPoint is not null;
+        _interactionPointContextItem.Text =
+            _contextInteractionPointIndex >= 0 ? "變更此互動 Point" : "新增互動 Point";
+        _deleteInteractionPointContextItem.Visible =
+            interactionSelected && _contextInteractionPointIndex >= 0;
+        _deleteInteractionPointContextItem.Enabled =
+            interactionSelected && _contextInteractionPointIndex >= 0;
         _dialogueTypeContextItem.Checked = interactionSelected &&
             _document.Interactables[_selection.Index].Type.Equals("dialogue", StringComparison.OrdinalIgnoreCase);
         _nodeContextMenu.Show(this, screenLocation);
@@ -1697,6 +1701,17 @@ public sealed class EditorCanvas : Control
         var points = SelectedEditablePolygonPoints();
         if (points is null) return false;
         _contextInteractionPoint = ClampToWorld(world);
+        _contextInteractionPointIndex = FindInteractionPointAtContext(world);
+
+        if (_contextInteractionPointIndex >= 0)
+        {
+            SetSelectedVertex(-1);
+            _contextSelection = _selection;
+            _contextEdgeIndex = -1;
+            _insertNodeContextItem.Visible = false;
+            _deleteNodeContextItem.Visible = false;
+            return true;
+        }
 
         var handle = HitSelectedHandle(world);
         _contextSelection = _selection;
@@ -1748,23 +1763,73 @@ public sealed class EditorCanvas : Control
         var interactable = SelectedInteractable;
         if (interactable is null || _contextSelection != _selection) return;
         var point = _contextInteractionPoint;
-        PerformMutation(() => interactable.InteractionPoint = new InteractionPoint
+        var interactionPointIndex = _contextInteractionPointIndex;
+        PerformMutation(() =>
         {
-            X = point.X,
-            Y = point.Y,
-            Facing = facing,
+            var interactionPoints = interactable.EnsureInteractionPoints();
+            var interactionPoint = new InteractionPoint
+            {
+                X = point.X,
+                Y = point.Y,
+                Facing = facing,
+            };
+            if (interactionPointIndex >= 0 && interactionPointIndex < interactionPoints.Count)
+            {
+                interactionPoints[interactionPointIndex] = interactionPoint;
+            }
+            else
+            {
+                interactionPoints.Add(interactionPoint);
+            }
         });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
-        StatusChanged?.Invoke(this, $"已設定互動 Point，角色抵達後面向 {facing}。");
+        StatusChanged?.Invoke(
+            this,
+            $"已設定互動 Point {interactable.EffectiveInteractionPoints.Count}，角色抵達後面向 {facing}。");
     }
 
     private void DeleteSelectedInteractionPoint()
     {
         var interactable = SelectedInteractable;
-        if (interactable?.InteractionPoint is null) return;
-        PerformMutation(() => interactable.InteractionPoint = null);
+        var interactionPointIndex = _contextInteractionPointIndex;
+        if (
+            interactable is null ||
+            interactionPointIndex < 0 ||
+            interactionPointIndex >= interactable.EffectiveInteractionPoints.Count
+        ) return;
+        PerformMutation(() =>
+        {
+            var interactionPoints = interactable.EnsureInteractionPoints();
+            interactionPoints.RemoveAt(interactionPointIndex);
+            interactable.NormalizeInteractionPoints();
+        });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
-        StatusChanged?.Invoke(this, "已刪除互動 Point；觸發時將不自動移動角色。");
+        StatusChanged?.Invoke(
+            this,
+            interactable.EffectiveInteractionPoints.Count > 0
+                ? $"已刪除互動 Point；目前剩餘 {interactable.EffectiveInteractionPoints.Count} 個。"
+                : "已刪除最後一個互動 Point；觸發時將不自動移動角色。");
+    }
+
+    private int FindInteractionPointAtContext(PointF world)
+    {
+        var interactable = SelectedInteractable;
+        if (interactable is null) return -1;
+
+        var threshold = 12f / _zoom;
+        var interactionPoints = interactable.EffectiveInteractionPoints;
+        var nearestIndex = -1;
+        var nearestDistance = threshold;
+        for (var index = 0; index < interactionPoints.Count; index++)
+        {
+            var distance = Distance(world, ToPointF(interactionPoints[index]));
+            if (distance <= nearestDistance)
+            {
+                nearestIndex = index;
+                nearestDistance = distance;
+            }
+        }
+        return nearestIndex;
     }
 
     private void InsertNodeAtContextLocation()

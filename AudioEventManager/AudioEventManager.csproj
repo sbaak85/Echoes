@@ -6,9 +6,8 @@
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>MapEditor</AssemblyName>
-    <RootNamespace>Echoes.MapEditor</RootNamespace>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>AudioEventManager</AssemblyName>
+    <RootNamespace>Echoes.AudioEventTools</RootNamespace>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
@@ -16,9 +15,4 @@
     <DebugSymbols>false</DebugSymbols>
     <DefaultItemExcludes>$(DefaultItemExcludes);runtime\**</DefaultItemExcludes>
   </PropertyGroup>
-  <ItemGroup>
-    <Compile
-      Include="..\AudioEventManager\AudioEventEditorForm.cs"
-      Link="AudioEventEditorForm.cs" />
-  </ItemGroup>
 </Project>

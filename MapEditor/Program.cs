@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using System.IO;
+using Echoes.AudioEventTools;
 
 namespace Echoes.MapEditor;
 
@@ -65,13 +66,24 @@ internal static class Program
                 Opacity = 0,
                 SuppressUnsavedPrompt = true,
             };
+            var projectRoot = ProjectPaths.FindProjectRoot(AppContext.BaseDirectory);
+            using var audioEditor = projectRoot is null
+                ? null
+                : new AudioEventEditorForm(projectRoot)
+                {
+                    ShowInTaskbar = false,
+                    WindowState = FormWindowState.Minimized,
+                    Opacity = 0,
+                };
             using var timer = new System.Windows.Forms.Timer { Interval = 1800 };
             timer.Tick += (_, _) =>
             {
                 timer.Stop();
+                audioEditor?.Close();
                 form.Close();
                 System.Windows.Forms.Application.ExitThread();
             };
+            form.Shown += (_, _) => audioEditor?.Show(form);
             timer.Start();
             System.Windows.Forms.Application.Run(form);
             return 0;
@@ -198,11 +210,95 @@ internal static class EditorSelfTest
 
         var roundTrip = SceneJson.Deserialize(SceneJson.Serialize(scene));
         SceneJson.Validate(roundTrip);
+
+        var multiPointDocument = SceneJson.Deserialize(SceneJson.Serialize(roundTrip));
+        var multiPointInteractable = multiPointDocument.Interactables.FirstOrDefault()
+            ?? throw new InvalidDataException("Interaction Point self-test requires an interactable.");
+        var interactionPoints = multiPointInteractable.EnsureInteractionPoints();
+        if (interactionPoints.Count == 0)
+        {
+            interactionPoints.Add(new InteractionPoint { X = 100, Y = 100, Facing = "S" });
+        }
+        interactionPoints.Add(new InteractionPoint { X = 200, Y = 200, Facing = "N" });
+        var expectedInteractionPointCount = interactionPoints.Count;
+        var multiPointRoundTrip = SceneJson.Deserialize(SceneJson.Serialize(multiPointDocument));
+        SceneJson.Validate(multiPointRoundTrip);
+        if (
+            multiPointRoundTrip.Interactables[0].EffectiveInteractionPoints.Count !=
+            expectedInteractionPointCount
+        )
+        {
+            throw new InvalidDataException("Multiple Interaction Points did not survive JSON round-trip.");
+        }
+
+        var audioConfigPath = Path.Combine(projectRoot, "app", "audio-event-manager.ts");
+        var audioSource = File.ReadAllText(audioConfigPath, Encoding.UTF8);
+        var audioEvents = AudioEventConfigDocument.ParseEvents(audioSource);
+        var rewrittenAudioSource = AudioEventConfigDocument.RewriteSource(
+            audioSource,
+            audioEvents);
+        var roundTripAudioEvents = AudioEventConfigDocument.ParseEvents(rewrittenAudioSource);
+        if (
+            audioEvents.Count != roundTripAudioEvents.Count ||
+            !rewrittenAudioSource.Contains(
+                "export class AudioEventManager",
+                StringComparison.Ordinal)
+        )
+        {
+            throw new InvalidDataException(
+                "Audio Event config rewrite did not preserve the manager implementation.");
+        }
+
+        var audioSaveTestDirectory = Path.Combine(
+            projectRoot,
+            "MapEditor",
+            "runtime",
+            "audio-save-self-test");
+        var audioSaveTestPath = Path.Combine(
+            audioSaveTestDirectory,
+            "audio-event-manager.ts");
+        var audioSaveBackupPath = Path.Combine(
+            audioSaveTestDirectory,
+            "audio-event-manager.ts.bak");
+        Directory.CreateDirectory(audioSaveTestDirectory);
+        try
+        {
+            File.WriteAllText(audioSaveTestPath, audioSource, new UTF8Encoding(false));
+            var audioSaveDocument = AudioEventConfigDocument.Load(
+                audioSaveTestPath,
+                audioSaveBackupPath);
+            audioSaveDocument.Save();
+            if (
+                !File.Exists(audioSaveBackupPath) ||
+                AudioEventConfigDocument.ParseEvents(
+                    File.ReadAllText(audioSaveTestPath, Encoding.UTF8)).Count !=
+                    audioEvents.Count
+            )
+            {
+                throw new InvalidDataException(
+                    "Audio Event file save or backup self-test failed.");
+            }
+        }
+        finally
+        {
+            if (File.Exists(audioSaveTestPath)) File.Delete(audioSaveTestPath);
+            if (File.Exists(audioSaveBackupPath)) File.Delete(audioSaveBackupPath);
+            if (
+                Directory.Exists(audioSaveTestDirectory) &&
+                !Directory.EnumerateFileSystemEntries(audioSaveTestDirectory).Any()
+            )
+            {
+                Directory.Delete(audioSaveTestDirectory);
+            }
+        }
+
         using var canvas = new EditorCanvas();
         canvas.RunNodeEditingSelfTest(roundTrip);
         Console.WriteLine(
             $"MapEditor self-test OK | {image.Width}x{image.Height} | " +
-            $"NavMesh {roundTrip.NavMesh.Count} | Collision {roundTrip.Collisions.Count}");
+            $"NavMesh {roundTrip.NavMesh.Count} | Collision {roundTrip.Collisions.Count} | " +
+            $"InteractionPoints {expectedInteractionPointCount} | " +
+            $"AudioEvents {audioEvents.Count}");
         return 0;
     }
 }
