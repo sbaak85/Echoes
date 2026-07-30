@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="160" viewBox="0 0 520 160">
+  <rect width="520" height="160" rx="24" fill="#18211d"/>
+  <rect x="30" y="35" width="460" height="90" rx="28" fill="#334238" stroke="#e8eee6" stroke-width="2"/>
+
+  <g transform="translate(80 51)">
+    <path d="M6 0h36a6 6 0 0 1 6 6v46a6 6 0 0 1-6 6H6a6 6 0 0 1-6-6V6a6 6 0 0 1 6-6Z"
+          fill="#17201d" stroke="#f3f7ed" stroke-width="3"/>
+    <path d="M6 0h18v27H0V6a6 6 0 0 1 6-6Z" fill="#61ead8"/>
+    <path d="M24 0v27M0 27h48" fill="none" stroke="#f3f7ed" stroke-width="3"/>
+  </g>
+
+  <text x="158" y="92" fill="#f3f7ed"
+        font-family="Segoe UI, Noto Sans TC, sans-serif" font-size="28" font-weight="600">
+    進行互動
+  </text>
+</svg>

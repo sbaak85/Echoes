@@ -12,6 +12,8 @@ public enum EditorTool
     CollisionPolygon,
     CollisionRectangle,
     CollisionCircle,
+    InteractionPolygon,
+    MovementGuide,
     PlayerSpawn,
 }
 
@@ -20,6 +22,8 @@ public enum SceneLayerKind
     None,
     NavMesh,
     Collision,
+    Interactable,
+    MovementGuide,
 }
 
 public readonly record struct LayerSelection(SceneLayerKind Kind, int Index)
@@ -49,6 +53,10 @@ public sealed class EditorCanvas : Control
     private readonly ContextMenuStrip _nodeContextMenu = new();
     private readonly ToolStripMenuItem _insertNodeContextItem = new("新增 Node");
     private readonly ToolStripMenuItem _deleteNodeContextItem = new("刪除 Node");
+    private readonly ToolStripMenuItem _interactionTypeContextItem = new("互動類型");
+    private readonly ToolStripMenuItem _dialogueTypeContextItem = new("對話");
+    private readonly ToolStripMenuItem _interactionPointContextItem = new("新增／變更互動 Point");
+    private readonly ToolStripMenuItem _deleteInteractionPointContextItem = new("刪除互動 Point");
 
     private Bitmap? _sceneImage;
     private SceneDocument _document = new();
@@ -67,6 +75,7 @@ public sealed class EditorCanvas : Control
     private LayerSelection _contextSelection = LayerSelection.None;
     private int _contextEdgeIndex = -1;
     private PointF _contextInsertPoint;
+    private PointF _contextInteractionPoint;
     private bool _panning;
     private bool _spacePressed;
     private bool _endingCapture;
@@ -93,10 +102,28 @@ public sealed class EditorCanvas : Control
         };
         _insertNodeContextItem.Click += (_, _) => InsertNodeAtContextLocation();
         _deleteNodeContextItem.Click += (_, _) => DeleteSelectedNode();
+        _dialogueTypeContextItem.Click += (_, _) => SetSelectedInteractionType("dialogue", "對話");
+        foreach (var direction in new[] { "N", "NE", "E", "SE", "S", "SW", "W", "NW" })
+        {
+            var symbol = direction switch
+            {
+                "N" => "↑", "NE" => "↗", "E" => "→", "SE" => "↘",
+                "S" => "↓", "SW" => "↙", "W" => "←", _ => "↖",
+            };
+            var item = new ToolStripMenuItem($"{symbol} {direction}") { Tag = direction };
+            item.Click += (_, _) => SetInteractionPointAtContext((string)item.Tag!);
+            _interactionPointContextItem.DropDownItems.Add(item);
+        }
+        _interactionTypeContextItem.DropDownItems.Add(_dialogueTypeContextItem);
+        _deleteInteractionPointContextItem.Click += (_, _) => DeleteSelectedInteractionPoint();
         _nodeContextMenu.Items.AddRange(new ToolStripItem[]
         {
             _insertNodeContextItem,
             _deleteNodeContextItem,
+            new ToolStripSeparator(),
+            _interactionTypeContextItem,
+            _interactionPointContextItem,
+            _deleteInteractionPointContextItem,
         });
         _nodeContextMenu.BackColor = Color.FromArgb(35, 39, 47);
         _nodeContextMenu.ForeColor = Color.WhiteSmoke;
@@ -114,6 +141,14 @@ public sealed class EditorCanvas : Control
     public bool CanUndo => _undo.Count > 0;
     public bool CanRedo => _redo.Count > 0;
     public int SelectedVertexIndex => _selectedVertex;
+    public SceneInteractable? SelectedInteractable =>
+        _selection.Kind == SceneLayerKind.Interactable && IsValidSelection(_selection)
+            ? _document.Interactables[_selection.Index]
+            : null;
+    public MovementGuide? SelectedMovementGuide =>
+        _selection.Kind == SceneLayerKind.MovementGuide && IsValidSelection(_selection)
+            ? _document.MovementGuides[_selection.Index]
+            : null;
     public bool CanInsertNode => CanEditSelectedVertex(requireMoreThanThreePoints: false);
     public bool CanDeleteNode => CanEditSelectedVertex(requireMoreThanThreePoints: true);
 
@@ -229,7 +264,12 @@ public sealed class EditorCanvas : Control
             }
             else
             {
-                _document.Collisions[_selection.Index].Label = label;
+                if (_selection.Kind == SceneLayerKind.Collision)
+                    _document.Collisions[_selection.Index].Label = label;
+                else if (_selection.Kind == SceneLayerKind.Interactable)
+                    _document.Interactables[_selection.Index].Label = label;
+                else
+                    _document.MovementGuides[_selection.Index].Label = label;
             }
         });
     }
@@ -258,6 +298,14 @@ public sealed class EditorCanvas : Control
             {
                 _document.Collisions.RemoveAt(_selection.Index);
             }
+            else if (_selection.Kind == SceneLayerKind.Interactable)
+            {
+                _document.Interactables.RemoveAt(_selection.Index);
+            }
+            else if (_selection.Kind == SceneLayerKind.MovementGuide)
+            {
+                _document.MovementGuides.RemoveAt(_selection.Index);
+            }
 
             _selection = LayerSelection.None;
             _selectedVertex = -1;
@@ -285,11 +333,16 @@ public sealed class EditorCanvas : Control
             return;
         }
 
-        var nextIndex = (_selectedVertex + 1) % points.Count;
+        var edgeIndex = _selectedVertex;
+        if (_selection.Kind == SceneLayerKind.MovementGuide && edgeIndex == points.Count - 1)
+        {
+            edgeIndex -= 1;
+        }
+        var nextIndex = edgeIndex + 1;
         var midpoint = new PointF(
-            (points[_selectedVertex].X + points[nextIndex].X) / 2f,
-            (points[_selectedVertex].Y + points[nextIndex].Y) / 2f);
-        InsertNodeOnEdge(_selectedVertex, midpoint);
+            (points[edgeIndex].X + points[nextIndex].X) / 2f,
+            (points[edgeIndex].Y + points[nextIndex].Y) / 2f);
+        InsertNodeOnEdge(edgeIndex, midpoint);
     }
 
     public void DeleteSelectedNode()
@@ -301,9 +354,10 @@ public sealed class EditorCanvas : Control
             return;
         }
 
-        if (points.Count <= 3)
+        var minimumPoints = MinimumSelectedPointCount();
+        if (points.Count <= minimumPoints)
         {
-            StatusChanged?.Invoke(this, "多邊形至少需要保留 3 個 Node，無法繼續刪除。");
+            StatusChanged?.Invoke(this, $"目前圖形至少需要保留 {minimumPoints} 個 Node，無法繼續刪除。");
             return;
         }
 
@@ -334,11 +388,77 @@ public sealed class EditorCanvas : Control
 
                 ScalePoints(collision.Points, factor);
             }
+            else if (_selection.Kind is SceneLayerKind.NavMesh or SceneLayerKind.Interactable)
+            {
+                ScalePoints(
+                    _selection.Kind == SceneLayerKind.NavMesh
+                        ? _document.NavMesh[_selection.Index].Points
+                        : _document.Interactables[_selection.Index].Points,
+                    factor);
+            }
             else
             {
-                ScalePoints(_document.NavMesh[_selection.Index].Points, factor);
+                ScalePoints(_document.MovementGuides[_selection.Index].Points, factor);
             }
         });
+    }
+
+    public void UpdateSelectedMovementGuideWidth(float width)
+    {
+        var guide = SelectedMovementGuide;
+        if (guide is null) return;
+        width = Math.Clamp(width, 4, 240);
+        PerformMutation(() => guide.Width = width);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void UpdateSelectedInteractable(string type, string verb)
+    {
+        var interactable = SelectedInteractable;
+        if (interactable is null) return;
+        type = string.IsNullOrWhiteSpace(type) ? "dialogue" : type.Trim();
+        verb = string.IsNullOrWhiteSpace(verb) ? "對話" : verb.Trim();
+        PerformMutation(() =>
+        {
+            interactable.Type = type;
+            interactable.Verb = verb;
+        });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void UpdateSelectedDialogue(
+        IEnumerable<DialogueLine> lines,
+        IEnumerable<string> speakers,
+        float characterDelaySeconds)
+    {
+        var interactable = SelectedInteractable;
+        if (interactable is null) return;
+        var replacement = lines.Select(line => new DialogueLine
+        {
+            Speaker = line.Speaker,
+            Text = line.Text,
+        }).ToList();
+        var speakerList = speakers
+            .Where(speaker => !string.IsNullOrWhiteSpace(speaker))
+            .Select(speaker => speaker.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (speakerList.Count == 0) speakerList.AddRange(new[] { "Sbaak", "Echo" });
+        if (replacement.Count == 0)
+        {
+            replacement.Add(new DialogueLine { Speaker = speakerList[0], Text = "..." });
+        }
+        else if (string.IsNullOrWhiteSpace(replacement[0].Speaker))
+        {
+            replacement[0].Speaker = speakerList[0];
+        }
+        PerformMutation(() => interactable.Dialogue = new DialogueScript
+        {
+            CharacterDelaySeconds = Math.Clamp(characterDelaySeconds, 0, 2),
+            Speakers = speakerList,
+            Lines = replacement,
+        });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void Undo()
@@ -612,6 +732,8 @@ public sealed class EditorCanvas : Control
         DrawGrid(graphics);
         DrawNavMesh(graphics);
         DrawCollisions(graphics);
+        DrawInteractables(graphics);
+        DrawMovementGuides(graphics);
         DrawSpawn(graphics);
         DrawDraft(graphics);
         DrawSelectionHandles(graphics);
@@ -712,6 +834,92 @@ public sealed class EditorCanvas : Control
         }
     }
 
+    private void DrawInteractables(Graphics graphics)
+    {
+        using var fill = new SolidBrush(Color.FromArgb(70, 255, 225, 50));
+        using var outline = new Pen(Color.FromArgb(245, 255, 229, 71), 2.5f / _zoom)
+        {
+            DashStyle = DashStyle.Dash,
+        };
+
+        for (var index = 0; index < _document.Interactables.Count; index++)
+        {
+            var interactable = _document.Interactables[index];
+            var points = ToPointFArray(interactable.Points);
+            if (points.Length < 3) continue;
+            graphics.FillPolygon(fill, points);
+            graphics.DrawPolygon(outline, points);
+            if (_selection == new LayerSelection(SceneLayerKind.Interactable, index))
+            {
+                DrawSelectedOutline(graphics, points);
+            }
+
+            if (interactable.InteractionPoint is not null)
+            {
+                DrawInteractionPoint(graphics, interactable.InteractionPoint);
+            }
+        }
+    }
+
+    private void DrawInteractionPoint(Graphics graphics, InteractionPoint point)
+    {
+        var center = new PointF(point.X, point.Y);
+        var radius = 8f / _zoom;
+        using var fill = new SolidBrush(Color.FromArgb(238, 255, 232, 74));
+        using var outline = new Pen(Color.FromArgb(245, 45, 40, 18), 2f / _zoom);
+        graphics.FillEllipse(fill, center.X - radius, center.Y - radius, radius * 2, radius * 2);
+        graphics.DrawEllipse(outline, center.X - radius, center.Y - radius, radius * 2, radius * 2);
+
+        var direction = DirectionVector(point.Facing);
+        var length = 29f / _zoom;
+        using var arrow = new Pen(Color.FromArgb(255, 255, 244, 136), 3f / _zoom)
+        {
+            CustomEndCap = new AdjustableArrowCap(4f / _zoom, 5f / _zoom),
+        };
+        graphics.DrawLine(
+            arrow,
+            center.X,
+            center.Y,
+            center.X + direction.X * length,
+            center.Y + direction.Y * length);
+    }
+
+    private void DrawMovementGuides(Graphics graphics)
+    {
+        for (var index = 0; index < _document.MovementGuides.Count; index++)
+        {
+            var guide = _document.MovementGuides[index];
+            var points = ToPointFArray(guide.Points);
+            if (points.Length < 2) continue;
+
+            using var corridor = new Pen(Color.FromArgb(54, 92, 203, 255), Math.Max(4, guide.Width))
+            {
+                StartCap = LineCap.Round,
+                EndCap = LineCap.Round,
+                LineJoin = LineJoin.Round,
+            };
+            graphics.DrawLines(corridor, points);
+
+            using var arrow = new Pen(Color.FromArgb(245, 93, 218, 255), 3f / _zoom)
+            {
+                DashStyle = DashStyle.Dash,
+                LineJoin = LineJoin.Round,
+                CustomStartCap = new AdjustableArrowCap(4f / _zoom, 5f / _zoom),
+                CustomEndCap = new AdjustableArrowCap(4f / _zoom, 5f / _zoom),
+            };
+            graphics.DrawLines(arrow, points);
+
+            if (_selection == new LayerSelection(SceneLayerKind.MovementGuide, index))
+            {
+                using var selected = new Pen(Color.FromArgb(240, 255, 229, 72), 2f / _zoom)
+                {
+                    DashStyle = DashStyle.Dot,
+                };
+                graphics.DrawLines(selected, points);
+            }
+        }
+    }
+
     private void DrawSelectedOutline(Graphics graphics, PointF[] points)
     {
         using var selectedPen = CreateSelectionPen();
@@ -760,7 +968,7 @@ public sealed class EditorCanvas : Control
             if (points.Length >= 2) graphics.DrawLines(pen, points);
             var last = points[^1];
             graphics.DrawLine(pen, last, _draftCursor);
-            if (points.Length >= 3)
+            if (points.Length >= 3 && _tool != EditorTool.MovementGuide)
             {
                 var preview = points.Append(_draftCursor).ToArray();
                 graphics.FillPolygon(fill, preview);
@@ -824,7 +1032,12 @@ public sealed class EditorCanvas : Control
         }
         else
         {
-            var points = _document.NavMesh[_selection.Index].Points;
+            var points = _selection.Kind switch
+            {
+                SceneLayerKind.NavMesh => _document.NavMesh[_selection.Index].Points,
+                SceneLayerKind.Interactable => _document.Interactables[_selection.Index].Points,
+                _ => _document.MovementGuides[_selection.Index].Points,
+            };
             for (var index = 0; index < points.Count; index++)
             {
                 var point = points[index];
@@ -930,11 +1143,16 @@ public sealed class EditorCanvas : Control
         {
             case EditorTool.NavMeshPolygon:
             case EditorTool.CollisionPolygon:
+            case EditorTool.InteractionPolygon:
+            case EditorTool.MovementGuide:
                 if (e.Clicks >= 2)
                 {
                     FinishPolygon();
                 }
-                else if (_draftPoints.Count >= 3 && Distance(ToPointF(_draftPoints[0]), world) <= 9f / _zoom)
+                else if (
+                    _tool != EditorTool.MovementGuide &&
+                    _draftPoints.Count >= 3 &&
+                    Distance(ToPointF(_draftPoints[0]), world) <= 9f / _zoom)
                 {
                     FinishPolygon();
                 }
@@ -1213,9 +1431,23 @@ public sealed class EditorCanvas : Control
                 MovePoints(collision.Points, deltaX, deltaY);
             }
         }
-        else
+        else if (_selection.Kind == SceneLayerKind.NavMesh)
         {
             MovePoints(_document.NavMesh[_selection.Index].Points, deltaX, deltaY);
+        }
+        else if (_selection.Kind == SceneLayerKind.Interactable)
+        {
+            var interactable = _document.Interactables[_selection.Index];
+            MovePoints(interactable.Points, deltaX, deltaY);
+            if (interactable.InteractionPoint is not null)
+            {
+                interactable.InteractionPoint.X += deltaX;
+                interactable.InteractionPoint.Y += deltaY;
+            }
+        }
+        else
+        {
+            MovePoints(_document.MovementGuides[_selection.Index].Points, deltaX, deltaY);
         }
 
         return true;
@@ -1223,14 +1455,18 @@ public sealed class EditorCanvas : Control
 
     private void FinishPolygon()
     {
-        if (_draftPoints.Count < 3)
+        var minimumPoints = _tool == EditorTool.MovementGuide ? 2 : 3;
+        if (_draftPoints.Count < minimumPoints)
         {
             CancelDraft();
             return;
         }
 
         var points = _draftPoints.Select(point => point.Clone()).ToList();
-        if (points.Count > 3 && Distance(ToPointF(points[0]), ToPointF(points[^1])) < 0.5f)
+        if (
+            _tool != EditorTool.MovementGuide &&
+            points.Count > 3 &&
+            Distance(ToPointF(points[0]), ToPointF(points[^1])) < 0.5f)
         {
             points.RemoveAt(points.Count - 1);
         }
@@ -1249,7 +1485,7 @@ public sealed class EditorCanvas : Control
                 _selection = new LayerSelection(SceneLayerKind.NavMesh, index);
                 _selectedVertex = -1;
             }
-            else
+            else if (_tool == EditorTool.CollisionPolygon)
             {
                 var index = _document.Collisions.Count;
                 _document.Collisions.Add(new CollisionShape
@@ -1260,6 +1496,36 @@ public sealed class EditorCanvas : Control
                     Points = points,
                 });
                 _selection = new LayerSelection(SceneLayerKind.Collision, index);
+                _selectedVertex = -1;
+            }
+            else if (_tool == EditorTool.InteractionPolygon)
+            {
+                var index = _document.Interactables.Count;
+                _document.Interactables.Add(new SceneInteractable
+                {
+                    Id = NextId("interaction", _document.Interactables.Select(item => item.Id)),
+                    Label = $"互動區域 {index + 1}",
+                    Shape = "polygon",
+                    Points = points,
+                    Type = "dialogue",
+                    Verb = "對話",
+                    Dialogue = DialogueScript.CreateDefault(),
+                });
+                _selection = new LayerSelection(SceneLayerKind.Interactable, index);
+                _selectedVertex = -1;
+            }
+            else
+            {
+                var index = _document.MovementGuides.Count;
+                _document.MovementGuides.Add(new MovementGuide
+                {
+                    Id = NextId("guide", _document.MovementGuides.Select(item => item.Id)),
+                    Label = $"強制引導線 {index + 1}",
+                    Points = points,
+                    Width = 36,
+                    Bidirectional = true,
+                });
+                _selection = new LayerSelection(SceneLayerKind.MovementGuide, index);
                 _selectedVertex = -1;
             }
         });
@@ -1328,6 +1594,30 @@ public sealed class EditorCanvas : Control
 
     private LayerSelection HitTest(PointF point)
     {
+        for (var index = _document.MovementGuides.Count - 1; index >= 0; index--)
+        {
+            var guide = _document.MovementGuides[index];
+            for (var segment = 0; segment < guide.Points.Count - 1; segment++)
+            {
+                var nearest = ClosestPointOnSegment(
+                    point,
+                    ToPointF(guide.Points[segment]),
+                    ToPointF(guide.Points[segment + 1]));
+                if (Distance(point, nearest) <= guide.Width / 2f + 7f / _zoom)
+                {
+                    return new LayerSelection(SceneLayerKind.MovementGuide, index);
+                }
+            }
+        }
+
+        for (var index = _document.Interactables.Count - 1; index >= 0; index--)
+        {
+            if (PointInPolygon(point, _document.Interactables[index].Points))
+            {
+                return new LayerSelection(SceneLayerKind.Interactable, index);
+            }
+        }
+
         for (var index = _document.Collisions.Count - 1; index >= 0; index--)
         {
             var collision = _document.Collisions[index];
@@ -1391,6 +1681,14 @@ public sealed class EditorCanvas : Control
             }
         }
 
+        var interactionSelected = _selection.Kind == SceneLayerKind.Interactable && IsValidSelection(_selection);
+        _interactionTypeContextItem.Visible = interactionSelected;
+        _interactionPointContextItem.Visible = interactionSelected;
+        _deleteInteractionPointContextItem.Visible = interactionSelected;
+        _deleteInteractionPointContextItem.Enabled = interactionSelected &&
+            _document.Interactables[_selection.Index].InteractionPoint is not null;
+        _dialogueTypeContextItem.Checked = interactionSelected &&
+            _document.Interactables[_selection.Index].Type.Equals("dialogue", StringComparison.OrdinalIgnoreCase);
         _nodeContextMenu.Show(this, screenLocation);
     }
 
@@ -1398,6 +1696,7 @@ public sealed class EditorCanvas : Control
     {
         var points = SelectedEditablePolygonPoints();
         if (points is null) return false;
+        _contextInteractionPoint = ClampToWorld(world);
 
         var handle = HitSelectedHandle(world);
         _contextSelection = _selection;
@@ -1407,26 +1706,65 @@ public sealed class EditorCanvas : Control
             _contextEdgeIndex = -1;
             _insertNodeContextItem.Visible = false;
             _deleteNodeContextItem.Visible = true;
-            _deleteNodeContextItem.Enabled = points.Count > 3;
-            _deleteNodeContextItem.ToolTipText = points.Count > 3
+            var minimumPoints = MinimumSelectedPointCount();
+            _deleteNodeContextItem.Enabled = points.Count > minimumPoints;
+            _deleteNodeContextItem.ToolTipText = points.Count > minimumPoints
                 ? "刪除這個 Node，多邊形會自動重新封閉"
-                : "多邊形至少需要保留 3 個 Node";
+                : $"目前圖形至少需要保留 {minimumPoints} 個 Node";
             return true;
         }
 
         if (!TryFindNearestSelectedEdge(world, out var edgeIndex, out var insertionPoint))
         {
-            return false;
+            if (_selection.Kind != SceneLayerKind.Interactable || !PointInPolygon(world, points)) return false;
+            SetSelectedVertex(-1);
+            _contextSelection = _selection;
+            _contextEdgeIndex = -1;
+            _contextInteractionPoint = ClampToWorld(world);
+            _insertNodeContextItem.Visible = false;
+            _deleteNodeContextItem.Visible = false;
+            return true;
         }
 
         SetSelectedVertex(-1);
         _contextEdgeIndex = edgeIndex;
         _contextInsertPoint = insertionPoint;
+        _contextInteractionPoint = ClampToWorld(world);
         _insertNodeContextItem.Visible = true;
         _insertNodeContextItem.Enabled = true;
         _insertNodeContextItem.ToolTipText = "在目前游標對準的邊線位置插入 Node";
         _deleteNodeContextItem.Visible = false;
         return true;
+    }
+
+    private void SetSelectedInteractionType(string type, string verb)
+    {
+        UpdateSelectedInteractable(type, verb);
+        StatusChanged?.Invoke(this, $"互動類型已設定為「{verb}」。");
+    }
+
+    private void SetInteractionPointAtContext(string facing)
+    {
+        var interactable = SelectedInteractable;
+        if (interactable is null || _contextSelection != _selection) return;
+        var point = _contextInteractionPoint;
+        PerformMutation(() => interactable.InteractionPoint = new InteractionPoint
+        {
+            X = point.X,
+            Y = point.Y,
+            Facing = facing,
+        });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        StatusChanged?.Invoke(this, $"已設定互動 Point，角色抵達後面向 {facing}。");
+    }
+
+    private void DeleteSelectedInteractionPoint()
+    {
+        var interactable = SelectedInteractable;
+        if (interactable?.InteractionPoint is null) return;
+        PerformMutation(() => interactable.InteractionPoint = null);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        StatusChanged?.Invoke(this, "已刪除互動 Point；觸發時將不自動移動角色。");
     }
 
     private void InsertNodeAtContextLocation()
@@ -1469,12 +1807,16 @@ public sealed class EditorCanvas : Control
         edgeIndex = -1;
         insertionPoint = PointF.Empty;
         var points = SelectedEditablePolygonPoints();
-        if (points is null || points.Count < 3) return false;
+        if (points is null || points.Count < MinimumSelectedPointCount()) return false;
 
         var nearestDistance = float.MaxValue;
-        for (var index = 0; index < points.Count; index++)
+        var edgeCount = _selection.Kind == SceneLayerKind.MovementGuide
+            ? points.Count - 1
+            : points.Count;
+        for (var index = 0; index < edgeCount; index++)
         {
-            var nextIndex = (index + 1) % points.Count;
+            var nextIndex = index + 1;
+            if (nextIndex >= points.Count) nextIndex = 0;
             var closest = ClosestPointOnSegment(
                 world,
                 ToPointF(points[index]),
@@ -1502,6 +1844,8 @@ public sealed class EditorCanvas : Control
         {
             SceneLayerKind.NavMesh when IsValidSelection(_selection) => _document.NavMesh[_selection.Index].Points,
             SceneLayerKind.Collision when IsValidSelection(_selection) => _document.Collisions[_selection.Index].Points,
+            SceneLayerKind.Interactable when IsValidSelection(_selection) => _document.Interactables[_selection.Index].Points,
+            SceneLayerKind.MovementGuide when IsValidSelection(_selection) => _document.MovementGuides[_selection.Index].Points,
             _ => null,
         };
     }
@@ -1512,6 +1856,16 @@ public sealed class EditorCanvas : Control
         if (_selection.Kind == SceneLayerKind.NavMesh)
         {
             return _document.NavMesh[_selection.Index].Points;
+        }
+
+        if (_selection.Kind == SceneLayerKind.Interactable)
+        {
+            return _document.Interactables[_selection.Index].Points;
+        }
+
+        if (_selection.Kind == SceneLayerKind.MovementGuide)
+        {
+            return _document.MovementGuides[_selection.Index].Points;
         }
 
         var collision = _document.Collisions[_selection.Index];
@@ -1526,8 +1880,11 @@ public sealed class EditorCanvas : Control
         return points is not null &&
             _selectedVertex >= 0 &&
             _selectedVertex < points.Count &&
-            (!requireMoreThanThreePoints || points.Count > 3);
+            (!requireMoreThanThreePoints || points.Count > MinimumSelectedPointCount());
     }
+
+    private int MinimumSelectedPointCount() =>
+        _selection.Kind == SceneLayerKind.MovementGuide ? 2 : 3;
 
     private void SetSelectedVertex(int index)
     {
@@ -1545,6 +1902,8 @@ public sealed class EditorCanvas : Control
         {
             SceneLayerKind.NavMesh => selection.Index >= 0 && selection.Index < _document.NavMesh.Count,
             SceneLayerKind.Collision => selection.Index >= 0 && selection.Index < _document.Collisions.Count,
+            SceneLayerKind.Interactable => selection.Index >= 0 && selection.Index < _document.Interactables.Count,
+            SceneLayerKind.MovementGuide => selection.Index >= 0 && selection.Index < _document.MovementGuides.Count,
             _ => false,
         };
     }
@@ -1695,7 +2054,7 @@ public sealed class EditorCanvas : Control
 
     private static bool IsPolygonTool(EditorTool tool)
     {
-        return tool is EditorTool.NavMeshPolygon or EditorTool.CollisionPolygon;
+        return tool is EditorTool.NavMeshPolygon or EditorTool.CollisionPolygon or EditorTool.InteractionPolygon or EditorTool.MovementGuide;
     }
 
     private static void ScalePoints(List<ScenePoint>? points, float factor)

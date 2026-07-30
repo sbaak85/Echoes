@@ -54,9 +54,78 @@ button {
   user-select: none;
 }
 
+.dialogue-box {
+  position: absolute;
+  z-index: 8;
+  bottom: clamp(28px, 9.5vh, 98px);
+  left: 50%;
+  display: grid;
+  width: min(980px, calc(100vw - 36px));
+  min-height: 190px;
+  align-content: start;
+  gap: 10px;
+  padding: 22px 58px 28px 28px;
+  border: 1px solid rgba(230, 244, 225, 0.72);
+  border-radius: 13px;
+  background: linear-gradient(135deg, rgba(26, 36, 31, 0.7), rgba(12, 18, 18, 0.7));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+  color: #f3f7ed;
+  text-align: left;
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+  transform: translateX(-50%);
+}
+
+@media (max-height: 720px) {
+  .dialogue-box {
+    bottom: 22px;
+    min-height: 148px;
+  }
+}
+
+.dialogue-speaker {
+  color: #ffe36a;
+  font-size: clamp(15px, 1.5vw, 19px);
+  letter-spacing: 0.04em;
+}
+
+.dialogue-text {
+  font-size: clamp(17px, 1.75vw, 22px);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.dialogue-next {
+  position: absolute;
+  right: 24px;
+  bottom: 20px;
+  width: 0;
+  height: 0;
+  border-top: 11px solid #ffe36a;
+  border-right: 8px solid transparent;
+  border-left: 8px solid transparent;
+  filter: drop-shadow(0 0 7px rgba(255, 227, 106, 0.65));
+  animation: dialogue-breathe 950ms ease-in-out infinite;
+}
+
+@keyframes dialogue-breathe {
+  0%, 100% { opacity: 0.45; transform: translateY(-2px); }
+  50% { opacity: 1; transform: translateY(3px); }
+}
+
 html.gamepad-cursor-active,
 html.gamepad-cursor-active * {
   cursor: none !important;
+}
+
+html.dialogue-cursor-active,
+html.dialogue-cursor-active * {
+  cursor: none !important;
+}
+
+html.dialogue-cursor-active .dialogue-box,
+html.dialogue-cursor-active .dialogue-box * {
+  cursor: pointer !important;
 }
 
 .top-left-hud {
@@ -178,6 +247,14 @@ html.gamepad-cursor-active * {
   background: rgba(255, 255, 255, 0.045);
 }
 
+.toggle-button[data-gamepad-selected="true"],
+.slider-row[data-gamepad-selected="true"] {
+  outline: 1px solid rgba(123, 224, 212, 0.82);
+  outline-offset: -1px;
+  background: rgba(87, 187, 176, 0.12);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .toggle-pill {
   width: 33px;
   height: 18px;
@@ -235,6 +312,13 @@ html.gamepad-cursor-active * {
   font-family: Consolas, "SFMono-Regular", monospace;
   font-size: 10px;
   line-height: 1.5;
+}
+
+.gamepad-debug .gamepad-menu-hint {
+  margin-top: 2px;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 10px;
 }
 
 .slider-row {

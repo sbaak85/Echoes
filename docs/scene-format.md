@@ -11,17 +11,29 @@ Version 1 fields:
 - `playerSpawn`: player foot position and one of the eight directions.
 - `navMesh`: one or more walkable polygons.
 - `collisions`: polygon, rectangle, or circle blocking shapes.
-- `interactables`: reserved object targets for pointer/gamepad actions. Each
-  record can define its cursor hit radius, reachable interaction point,
-  activation distance, and action name.
+- `interactables`: bright-yellow, non-blocking interaction polygons. Each
+  record stores polygon `points`, interaction `type`, prompt `verb`, optional
+  `interactionPoint` (`x`, `y`, eight-direction `facing`), and a dialogue
+  script. `dialogue.characterDelaySeconds` controls the left-to-right typing
+  rate and defaults to `0.02`. `dialogue.speakers` stores the selectable speaker
+  list (default `Sbaak`, `Echo`). A blank speaker on any line after the first
+  inherits the previous line's speaker. Dialogue lines keep their speaker and
+  text as one utterance even when the runtime divides a long line into display
+  pages.
+- `movementGuides`: non-blocking bidirectional guide polylines for diagonal
+  stairs, slopes, and ladders. Each record stores editable `points`, an
+  activation `width`, and `bidirectional`. While the player touches the guide
+  corridor, movement input is projected onto the nearest segment and gently
+  corrected toward its center line.
 - `worldLayout`: reserved world-space placement for seamless map assembly.
 - `connections`: reserved scene entry/exit records. A future record will store
   its trigger area, target scene, target landing position and facing, and the
   relative placement of both scenes.
 
-When an interactable is reached, the runtime emits the window event
-`echoes:interaction` with the object id, label, action name, and input source.
-No interactable records are enabled in `map_test01` yet.
+When an interactable is activated, the runtime emits the window event
+`echoes:interaction` with the object id, label, interaction type, and input
+source. `map_test01` includes one campfire dialogue test region with the
+default single line `...`.
 
 The runtime currently loads `map_test01.scene.json`. Scene switching and the
 world-layout preview are intentionally reserved for a later editor version.

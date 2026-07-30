@@ -26,15 +26,45 @@ type SceneCollider = PolygonCollider | CircleCollider;
 type SceneInteractable = {
   id: string;
   label: string;
-  position: Point;
-  interactionPoint?: Point;
+  shape?: "polygon";
+  points?: Point[];
+  position?: Point;
+  interactionPoint?: Point & { facing?: Direction };
   pickRadius?: number;
   activationDistance?: number;
   action?: string;
+  type?: "dialogue";
+  verb?: string;
+  dialogue?: {
+    characterDelaySeconds?: number;
+    speakers?: string[];
+    lines: Array<{ speaker?: string; text: string }>;
+  };
 };
 type PendingInteraction = {
   interactable: SceneInteractable;
-  source: "gamepad" | "pointer";
+  source: "gamepad" | "pointer" | "keyboard";
+};
+type DialoguePlayback = {
+  interactable: SceneInteractable;
+  lineIndex: number;
+  pageIndex: number;
+  pages: string[];
+};
+type DialogueView = { speaker: string; text: string } | null;
+type DialogueTyping = {
+  characters: string[];
+  visibleCount: number;
+  speaker: string;
+  delayMilliseconds: number;
+  timerId: number | null;
+};
+type MovementGuide = {
+  id: string;
+  label: string;
+  points: Point[];
+  width?: number;
+  bidirectional?: boolean;
 };
 
 type SceneFile = {
@@ -51,6 +81,7 @@ type SceneFile = {
     radius?: number;
   }>;
   interactables?: SceneInteractable[];
+  movementGuides?: MovementGuide[];
 };
 
 const SCENE_DATA = mapTest01Scene as SceneFile;
@@ -391,6 +422,7 @@ const SCENE_COLLIDERS =
     };
   }) ?? DEFAULT_SCENE_COLLIDERS;
 const SCENE_INTERACTABLES = SCENE_DATA.interactables ?? [];
+const SCENE_MOVEMENT_GUIDES = SCENE_DATA.movementGuides ?? [];
 
 const SPRITE_SOURCES: Record<Direction, string> = {
   N: "./characters/01_N_Back.png",
@@ -441,15 +473,37 @@ const CARDINAL_DIRECTION_TOLERANCE = Math.tan((18 * Math.PI) / 180);
 const POINTER_RETARGET_INTERVAL_SECONDS = 0.12;
 const POINTER_RETARGET_MIN_WORLD_DISTANCE = 10;
 const POINTER_HOLD_INDICATOR_DELAY_SECONDS = 0.18;
+const GAMEPAD_MENU_REPEAT_DELAY_SECONDS = 0.32;
+const GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS = 0.12;
+
+const DEBUG_MENU_ITEMS = [
+  "player-collision",
+  "scene-collision",
+  "bgm-enabled",
+  "bgm-volume",
+  "movement-speed",
+  "character-size",
+  "collision-slide-tolerance",
+] as const;
+
+type DebugMenuItem = (typeof DEBUG_MENU_ITEMS)[number];
 
 type GamepadInput = {
   actionPressed: boolean;
+  backPressed: boolean;
+  confirmPressed: boolean;
   connected: boolean;
   cursorX: number;
   cursorY: number;
+  dpadX: number;
+  dpadY: number;
   diagnostic: string | null;
   gamepad: Gamepad | null;
   label: string | null;
+  secondaryActionPressed: boolean;
+  startPressed: boolean;
+  stickX: number;
+  stickY: number;
   x: number;
   y: number;
 };
@@ -486,7 +540,9 @@ const XINPUT_DPAD_UP = 0x0001;
 const XINPUT_DPAD_DOWN = 0x0002;
 const XINPUT_DPAD_LEFT = 0x0004;
 const XINPUT_DPAD_RIGHT = 0x0008;
+const XINPUT_BUTTON_START = 0x0010;
 const XINPUT_BUTTON_A = 0x1000;
+const XINPUT_BUTTON_B = 0x2000;
 const XINPUT_BUTTON_X = 0x4000;
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -511,12 +567,20 @@ function getNativeGamepadInput(state: NativeGamepadState): GamepadInput {
   if (!state.connected) {
     return {
       actionPressed: false,
+      backPressed: false,
+      confirmPressed: false,
       connected: false,
       cursorX: 0,
       cursorY: 0,
+      dpadX: 0,
+      dpadY: 0,
       diagnostic: null,
       gamepad: null,
       label: null,
+      secondaryActionPressed: false,
+      startPressed: false,
+      stickX: 0,
+      stickY: 0,
       x: 0,
       y: 0,
     };
@@ -537,12 +601,20 @@ function getNativeGamepadInput(state: NativeGamepadState): GamepadInput {
 
   return {
     actionPressed,
+    backPressed: (state.buttons & XINPUT_BUTTON_B) !== 0,
+    confirmPressed: (state.buttons & XINPUT_BUTTON_A) !== 0,
     connected: true,
     cursorX: rightX,
     cursorY: rightY,
+    dpadX,
+    dpadY,
     diagnostic: `XInput · L ${leftX.toFixed(2)}, ${leftY.toFixed(2)} · R ${rightX.toFixed(2)}, ${rightY.toFixed(2)} · A/X ${actionPressed ? "ON" : "OFF"}`,
     gamepad: null,
     label: `Windows XInput Controller ${state.index + 1}`,
+    secondaryActionPressed: (state.buttons & XINPUT_BUTTON_X) !== 0,
+    startPressed: (state.buttons & XINPUT_BUTTON_START) !== 0,
+    stickX: leftX,
+    stickY: leftY,
     x: dpadX || leftX,
     y: dpadY || leftY,
   };
@@ -552,12 +624,20 @@ function getGamepadInput(): GamepadInput {
   if (typeof navigator.getGamepads !== "function") {
     return {
       actionPressed: false,
+      backPressed: false,
+      confirmPressed: false,
       connected: false,
       cursorX: 0,
       cursorY: 0,
+      dpadX: 0,
+      dpadY: 0,
       diagnostic: null,
       gamepad: null,
       label: null,
+      secondaryActionPressed: false,
+      startPressed: false,
+      stickX: 0,
+      stickY: 0,
       x: 0,
       y: 0,
     };
@@ -571,12 +651,20 @@ function getGamepadInput(): GamepadInput {
   if (!gamepad) {
     return {
       actionPressed: false,
+      backPressed: false,
+      confirmPressed: false,
       connected: false,
       cursorX: 0,
       cursorY: 0,
+      dpadX: 0,
+      dpadY: 0,
       diagnostic: null,
       gamepad: null,
       label: null,
+      secondaryActionPressed: false,
+      startPressed: false,
+      stickX: 0,
+      stickY: 0,
       x: 0,
       y: 0,
     };
@@ -591,12 +679,20 @@ function getGamepadInput(): GamepadInput {
     actionPressed:
       Boolean(gamepad.buttons[0]?.pressed) ||
       Boolean(gamepad.buttons[2]?.pressed),
+    backPressed: Boolean(gamepad.buttons[1]?.pressed),
+    confirmPressed: Boolean(gamepad.buttons[0]?.pressed),
     connected: true,
     cursorX: applyGamepadDeadZone(gamepad.axes[2] ?? 0),
     cursorY: applyGamepadDeadZone(gamepad.axes[3] ?? 0),
+    dpadX,
+    dpadY,
     diagnostic: null,
     gamepad,
     label: gamepad.id || `Gamepad ${gamepad.index + 1}`,
+    secondaryActionPressed: Boolean(gamepad.buttons[2]?.pressed),
+    startPressed: Boolean(gamepad.buttons[9]?.pressed),
+    stickX: applyGamepadDeadZone(gamepad.axes[0] ?? 0),
+    stickY: applyGamepadDeadZone(gamepad.axes[1] ?? 0),
     x: dpadX || applyGamepadDeadZone(gamepad.axes[0] ?? 0),
     y: dpadY || applyGamepadDeadZone(gamepad.axes[1] ?? 0),
   };
@@ -616,15 +712,65 @@ function getDirection(x: number, y: number): Direction {
   return y < 0 ? "NW" : "SW";
 }
 
+function getDirectionVector(direction: Direction): Point {
+  const diagonal = Math.SQRT1_2;
+  return {
+    N: { x: 0, y: -1 },
+    NE: { x: diagonal, y: -diagonal },
+    E: { x: 1, y: 0 },
+    SE: { x: diagonal, y: diagonal },
+    S: { x: 0, y: 1 },
+    SW: { x: -diagonal, y: diagonal },
+    W: { x: -1, y: 0 },
+    NW: { x: -diagonal, y: -diagonal },
+  }[direction];
+}
+
+function getMovementGuideContact(point: Point, radius: number) {
+  let nearest:
+    | { guide: MovementGuide; nearest: Point; tangent: Point; distance: number }
+    | null = null;
+
+  for (const guide of SCENE_MOVEMENT_GUIDES) {
+    const activationRadius = (guide.width ?? 36) / 2 + radius;
+    for (let index = 0; index < guide.points.length - 1; index += 1) {
+      const start = guide.points[index];
+      const end = guide.points[index + 1];
+      const contact = distanceToSegment(point, start, end);
+      if (contact.distance > activationRadius) continue;
+      const segmentLength = Math.hypot(end.x - start.x, end.y - start.y);
+      if (segmentLength <= Number.EPSILON) continue;
+      if (!nearest || contact.distance < nearest.distance) {
+        nearest = {
+          guide,
+          nearest: contact.nearest,
+          tangent: {
+            x: (end.x - start.x) / segmentLength,
+            y: (end.y - start.y) / segmentLength,
+          },
+          distance: contact.distance,
+        };
+      }
+    }
+  }
+
+  return nearest;
+}
+
 function findInteractableAt(point: Point) {
   let nearest: SceneInteractable | null = null;
   let nearestDistance = Number.POSITIVE_INFINITY;
 
   SCENE_INTERACTABLES.forEach((interactable) => {
-    const distance = Math.hypot(
-      point.x - interactable.position.x,
-      point.y - interactable.position.y,
-    );
+    if (interactable.points && interactable.points.length >= 3) {
+      if (pointInPolygon(point, interactable.points)) {
+        nearest = interactable;
+        nearestDistance = 0;
+      }
+      return;
+    }
+    if (!interactable.position) return;
+    const distance = Math.hypot(point.x - interactable.position.x, point.y - interactable.position.y);
     if (distance <= (interactable.pickRadius ?? 32) && distance < nearestDistance) {
       nearest = interactable;
       nearestDistance = distance;
@@ -632,6 +778,106 @@ function findInteractableAt(point: Point) {
   });
 
   return nearest;
+}
+
+function findInteractableTouching(point: Point, radius: number) {
+  return SCENE_INTERACTABLES.find((interactable) =>
+    isTouchingInteractable(point, radius, interactable),
+  ) ?? null;
+}
+
+function isTouchingInteractable(
+  point: Point,
+  radius: number,
+  interactable: SceneInteractable,
+) {
+  if (interactable.points && interactable.points.length >= 3) {
+    return circleIntersectsPolygon(point, radius, interactable.points);
+  }
+  if (!interactable.position) return false;
+  return Math.hypot(point.x - interactable.position.x, point.y - interactable.position.y) <=
+    radius + (interactable.pickRadius ?? 32);
+}
+
+function getInteractableCenter(interactable: SceneInteractable): Point {
+  if (interactable.points && interactable.points.length > 0) {
+    return {
+      x: interactable.points.reduce((sum, point) => sum + point.x, 0) / interactable.points.length,
+      y: interactable.points.reduce((sum, point) => sum + point.y, 0) / interactable.points.length,
+    };
+  }
+  return interactable.position ?? { x: 0, y: 0 };
+}
+
+function splitDialoguePages(text: string, maximumCharacters = 96) {
+  const normalized = text.trim() || "...";
+  const pages: string[] = [];
+  let remainder = normalized;
+  while (remainder.length > maximumCharacters) {
+    const candidates = ["。", "！", "？", "，", "、", " "];
+    let cut = -1;
+    for (const marker of candidates) {
+      const index = remainder.lastIndexOf(marker, maximumCharacters);
+      if (index >= Math.floor(maximumCharacters * 0.55)) {
+        cut = index + 1;
+        break;
+      }
+    }
+    if (cut < 1) cut = maximumCharacters;
+    pages.push(remainder.slice(0, cut).trim());
+    remainder = remainder.slice(cut).trim();
+  }
+  if (remainder) pages.push(remainder);
+  return pages.length > 0 ? pages : ["..."];
+}
+
+function splitDialogueRevealUnits(text: string) {
+  const characters = Array.from(text);
+  const units: string[] = [];
+  let pendingWhitespace = "";
+
+  for (let index = 0; index < characters.length; index += 1) {
+    const character = characters[index];
+    if (/\s/u.test(character)) {
+      pendingWhitespace += character;
+      continue;
+    }
+
+    if (/\p{P}/u.test(character)) {
+      let punctuation = character;
+      while (
+        index + 1 < characters.length &&
+        /\p{P}/u.test(characters[index + 1])
+      ) {
+        punctuation += characters[index + 1];
+        index += 1;
+      }
+      units.push(pendingWhitespace + punctuation);
+      pendingWhitespace = "";
+      continue;
+    }
+
+    units.push(pendingWhitespace + character);
+    pendingWhitespace = "";
+  }
+
+  if (pendingWhitespace) {
+    if (units.length > 0) units[units.length - 1] += pendingWhitespace;
+    else units.push(pendingWhitespace);
+  }
+  return units.length > 0 ? units : ["..."];
+}
+
+function resolveDialogueSpeaker(
+  interactable: SceneInteractable,
+  lineIndex: number,
+) {
+  const lines = interactable.dialogue?.lines ?? [];
+  for (let index = lineIndex; index >= 0; index -= 1) {
+    const speaker = lines[index]?.speaker?.trim();
+    if (speaker) return speaker;
+  }
+  return interactable.dialogue?.speakers?.[0]?.trim() || "Sbaak";
 }
 
 function distanceToSegment(point: Point, start: Point, end: Point) {
@@ -1241,8 +1487,16 @@ export function MovementLab() {
   const bgmVolumeRef = useRef(0.35);
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
   const requestBgmPlaybackRef = useRef<() => void>(() => {});
+  const debugOpenRef = useRef(false);
+  const debugMenuSelectionRef = useRef<DebugMenuItem>(
+    DEBUG_MENU_ITEMS[0],
+  );
+  const dialoguePlaybackRef = useRef<DialoguePlayback | null>(null);
+  const dialogueTypingRef = useRef<DialogueTyping | null>(null);
 
   const [debugOpen, setDebugOpen] = useState(false);
+  const [debugMenuSelection, setDebugMenuSelection] =
+    useState<DebugMenuItem>(DEBUG_MENU_ITEMS[0]);
   const [showPlayerCollision, setShowPlayerCollision] = useState(false);
   const [showSceneCollision, setShowSceneCollision] = useState(false);
   const [speed, setSpeed] = useState(210);
@@ -1257,6 +1511,226 @@ export function MovementLab() {
   const [gamepadDiagnostic, setGamepadDiagnostic] = useState(
     "等待手把輸入…",
   );
+  const [dialogueView, setDialogueView] = useState<DialogueView>(null);
+
+  const stopDialogueTyping = () => {
+    const typing = dialogueTypingRef.current;
+    if (typing?.timerId !== null && typing?.timerId !== undefined) {
+      window.clearTimeout(typing.timerId);
+    }
+    dialogueTypingRef.current = null;
+  };
+
+  const closeDialogue = () => {
+    stopDialogueTyping();
+    dialoguePlaybackRef.current = null;
+    document.documentElement.classList.remove("dialogue-cursor-active");
+    setDialogueView(null);
+  };
+
+  const showDialoguePage = (playback: DialoguePlayback) => {
+    const line = playback.interactable.dialogue?.lines[playback.lineIndex];
+    if (!line) {
+      closeDialogue();
+      return;
+    }
+    stopDialogueTyping();
+    const speaker = resolveDialogueSpeaker(playback.interactable, playback.lineIndex);
+    const characters = splitDialogueRevealUnits(
+      playback.pages[playback.pageIndex] ?? "...",
+    );
+    const delayMilliseconds =
+      clamp(
+        playback.interactable.dialogue?.characterDelaySeconds ?? 0.02,
+        0,
+        2,
+      ) * 1000;
+    const typing: DialogueTyping = {
+      characters,
+      visibleCount: 0,
+      speaker,
+      delayMilliseconds,
+      timerId: null,
+    };
+    dialogueTypingRef.current = typing;
+
+    const revealNextCharacter = () => {
+      if (dialogueTypingRef.current !== typing) return;
+      typing.visibleCount = Math.min(
+        typing.characters.length,
+        typing.visibleCount + 1,
+      );
+      setDialogueView({
+        speaker: typing.speaker,
+        text: typing.characters.slice(0, typing.visibleCount).join(""),
+      });
+      if (typing.visibleCount < typing.characters.length) {
+        typing.timerId = window.setTimeout(
+          revealNextCharacter,
+          typing.delayMilliseconds,
+        );
+      } else {
+        typing.timerId = null;
+      }
+    };
+
+    if (delayMilliseconds <= 0) {
+      typing.visibleCount = characters.length;
+      setDialogueView({ speaker, text: characters.join("") });
+    } else {
+      revealNextCharacter();
+    }
+  };
+
+  const openDialogue = (interactable: SceneInteractable) => {
+    const lines = interactable.dialogue?.lines?.filter((line) => line.text.trim()) ?? [];
+    const effectiveLines = lines.length > 0 ? lines : [{ speaker: "", text: "..." }];
+    const normalized = {
+      ...interactable,
+      dialogue: {
+        characterDelaySeconds:
+          interactable.dialogue?.characterDelaySeconds ?? 0.02,
+        speakers:
+          interactable.dialogue?.speakers?.filter((speaker) => speaker.trim()) ??
+          ["Sbaak", "Echo"],
+        lines: effectiveLines,
+      },
+    };
+    const playback: DialoguePlayback = {
+      interactable: normalized,
+      lineIndex: 0,
+      pageIndex: 0,
+      pages: splitDialoguePages(effectiveLines[0].text),
+    };
+    dialoguePlaybackRef.current = playback;
+    document.documentElement.classList.add("dialogue-cursor-active");
+    showDialoguePage(playback);
+  };
+
+  const advanceDialogue = () => {
+    const playback = dialoguePlaybackRef.current;
+    if (!playback) return false;
+    const typing = dialogueTypingRef.current;
+    if (typing && typing.visibleCount < typing.characters.length) {
+      if (typing.timerId !== null) window.clearTimeout(typing.timerId);
+      typing.visibleCount = typing.characters.length;
+      typing.timerId = null;
+      setDialogueView({
+        speaker: typing.speaker,
+        text: typing.characters.join(""),
+      });
+      return true;
+    }
+    if (playback.pageIndex + 1 < playback.pages.length) {
+      playback.pageIndex += 1;
+      showDialoguePage(playback);
+      return true;
+    }
+    const lines = playback.interactable.dialogue?.lines ?? [];
+    if (playback.lineIndex + 1 < lines.length) {
+      playback.lineIndex += 1;
+      playback.pageIndex = 0;
+      playback.pages = splitDialoguePages(lines[playback.lineIndex].text);
+      showDialoguePage(playback);
+      return true;
+    }
+    closeDialogue();
+    return true;
+  };
+
+  const setDebugPanelOpen = (open: boolean) => {
+    debugOpenRef.current = open;
+    setDebugOpen(open);
+
+    if (open) {
+      debugMenuSelectionRef.current = DEBUG_MENU_ITEMS[0];
+      setDebugMenuSelection(DEBUG_MENU_ITEMS[0]);
+    }
+  };
+
+  const toggleDebugPanel = () => {
+    setDebugPanelOpen(!debugOpenRef.current);
+  };
+
+  const setSpeedValue = (value: number) => {
+    const nextValue = clamp(Math.round(value / 10) * 10, 100, 380);
+    speedRef.current = nextValue;
+    setSpeed(nextValue);
+  };
+
+  const setSizeValue = (value: number) => {
+    const nextValue = clamp(Math.round(value / 4) * 4, 90, 220);
+    sizeRef.current = nextValue;
+    setSize(nextValue);
+  };
+
+  const setCollisionSlideToleranceValue = (value: number) => {
+    const nextValue = clamp(Math.round(value / 5) * 5, 20, 100);
+    collisionSlideToleranceRef.current = nextValue / 100;
+    setCollisionSlideTolerance(nextValue);
+  };
+
+  const setBgmEnabledValue = (enabled: boolean) => {
+    bgmEnabledRef.current = enabled;
+    setBgmEnabled(enabled);
+    if (enabled) requestBgmPlaybackRef.current();
+    else bgmAudioRef.current?.pause();
+  };
+
+  const setBgmVolumeValue = (value: number) => {
+    const nextValue = clamp(Math.round(value / 5) * 5, 0, 100);
+    bgmVolumeRef.current = nextValue / 100;
+    if (bgmAudioRef.current) bgmAudioRef.current.volume = bgmVolumeRef.current;
+    setBgmVolume(nextValue);
+  };
+
+  const setDebugMenuSelectionValue = (item: DebugMenuItem) => {
+    debugMenuSelectionRef.current = item;
+    setDebugMenuSelection(item);
+  };
+
+  const moveDebugMenuSelection = (direction: number) => {
+    const currentIndex = DEBUG_MENU_ITEMS.indexOf(debugMenuSelectionRef.current);
+    const nextIndex =
+      (currentIndex + Math.sign(direction) + DEBUG_MENU_ITEMS.length) %
+      DEBUG_MENU_ITEMS.length;
+    setDebugMenuSelectionValue(DEBUG_MENU_ITEMS[nextIndex]);
+  };
+
+  const activateDebugMenuSelection = () => {
+    switch (debugMenuSelectionRef.current) {
+      case "player-collision":
+        showPlayerCollisionRef.current = !showPlayerCollisionRef.current;
+        setShowPlayerCollision(showPlayerCollisionRef.current);
+        break;
+      case "scene-collision":
+        showSceneCollisionRef.current = !showSceneCollisionRef.current;
+        setShowSceneCollision(showSceneCollisionRef.current);
+        break;
+      case "bgm-enabled":
+        setBgmEnabledValue(!bgmEnabledRef.current);
+        break;
+    }
+  };
+
+  const adjustDebugMenuSelection = (direction: number) => {
+    switch (debugMenuSelectionRef.current) {
+      case "bgm-volume":
+        if (bgmEnabledRef.current) setBgmVolumeValue(bgmVolumeRef.current * 100 + direction * 5);
+        break;
+      case "movement-speed":
+        setSpeedValue(speedRef.current + direction * 10);
+        break;
+      case "character-size":
+        setSizeValue(sizeRef.current + direction * 4);
+        break;
+      case "collision-slide-tolerance":
+        setCollisionSlideToleranceValue(
+          collisionSlideToleranceRef.current * 100 + direction * 5,
+        );
+        break;
+    }
+  };
 
   useEffect(() => {
     if (!["localhost", "127.0.0.1"].includes(window.location.hostname)) {
@@ -1367,9 +1841,19 @@ export function MovementLab() {
     let lastGamepadDiagnostic = "";
     let gamepadDiagnosticElapsed = 0;
     let autoPath: Point[] = [];
+    let autoDestination: Point | null = null;
     let touchEffect: TouchEffect | null = null;
     let pendingInteraction: PendingInteraction | null = null;
+    let movementGuideSuppressedForPendingInteraction = false;
     let wasGamepadActionPressed = false;
+    let wasGamepadBackPressed = false;
+    let wasGamepadConfirmPressed = false;
+    let wasGamepadSecondaryActionPressed = false;
+    let wasGamepadStartPressed = false;
+    let heldGamepadDpadX = 0;
+    let heldGamepadDpadY = 0;
+    let gamepadDpadXRepeatSeconds = 0;
+    let gamepadDpadYRepeatSeconds = 0;
     const virtualCursor = { x: 0, y: 0 };
     let virtualCursorPositioned = false;
     let virtualCursorVisible = false;
@@ -1389,6 +1873,21 @@ export function MovementLab() {
     let bgmPlayPending = false;
     let bgmPlayBlocked = false;
     let bgmDisposed = false;
+    let lastMovementGuideSign = 1;
+    let lockedAutoMovementGuideId: string | null = null;
+    let bypassedAutoMovementGuideId: string | null = null;
+    let activeInteractionKeyLabel = "E";
+    let activeInputMode: "keyboard-mouse" | "gamepad" = "keyboard-mouse";
+    let activePromptOwner: "player" | "cursor" | null = null;
+    let previousPlayerPromptTargetId: string | null = null;
+    let previousCursorPromptTargetId: string | null = null;
+    let keyboardInteractionKey = (localStorage.getItem("echoes:interaction-key") ?? "e").toLowerCase();
+    let keyboardInteractionLabel = localStorage.getItem("echoes:interaction-key-label") ?? keyboardInteractionKey.toUpperCase();
+
+    const onControlBindingsChanged = () => {
+      keyboardInteractionKey = (localStorage.getItem("echoes:interaction-key") ?? "e").toLowerCase();
+      keyboardInteractionLabel = localStorage.getItem("echoes:interaction-key-label") ?? keyboardInteractionKey.toUpperCase();
+    };
 
     const activateGamepadCursor = () => {
       virtualCursorVisible = true;
@@ -1521,6 +2020,19 @@ export function MovementLab() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
+      activeInputMode = "keyboard-mouse";
+      if (event.code === "Space" && dialoguePlaybackRef.current) {
+        event.preventDefault();
+        if (!event.repeat) advanceDialogue();
+        return;
+      }
+      if (key === keyboardInteractionKey) {
+        event.preventDefault();
+        if (!event.repeat) {
+          if (!advanceDialogue()) activateBestInteraction("keyboard");
+        }
+        return;
+      }
       if (!MOVEMENT_KEYS.has(key)) return;
       event.preventDefault();
       pressedKeys.add(key);
@@ -1558,6 +2070,62 @@ export function MovementLab() {
       };
     };
 
+    const triggerInteraction = (
+      interactable: SceneInteractable,
+      source: PendingInteraction["source"],
+    ) => {
+      window.dispatchEvent(
+        new CustomEvent("echoes:interaction", {
+          detail: {
+            action: interactable.type ?? interactable.action ?? "dialogue",
+            id: interactable.id,
+            label: interactable.label,
+            source,
+          },
+        }),
+      );
+      if ((interactable.type ?? "dialogue") === "dialogue") openDialogue(interactable);
+      if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
+    };
+
+    const findPathFromLimitedCandidates = (
+      requestedCandidates: Point[],
+      maximumFullSearches = 3,
+    ) => {
+      const radius = sizeRef.current * 0.14;
+      const seen = new Set<string>();
+      const candidates = requestedCandidates.filter((candidate) => {
+        const key = `${Math.round(candidate.x * 10)},${Math.round(candidate.y * 10)}`;
+        if (seen.has(key) || !isWalkable(candidate, radius)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      for (const candidate of candidates.slice(0, 8)) {
+        if (hasWalkableLine(player, candidate, radius)) return [candidate];
+      }
+
+      for (const candidate of candidates.slice(0, maximumFullSearches)) {
+        const path = findPath(player, candidate, radius);
+        if (path) return path;
+      }
+      return null;
+    };
+
+    const findReachableInteractionPath = (target: Point) => {
+      const candidates: Point[] = [target];
+      for (const ring of [18, 30, 44, 60, 78]) {
+        for (let index = 0; index < 16; index += 1) {
+          const angle = (index / 16) * Math.PI * 2;
+          candidates.push({
+            x: target.x + Math.cos(angle) * ring,
+            y: target.y + Math.sin(angle) * ring,
+          });
+        }
+      }
+      return findPathFromLimitedCandidates(candidates, 4);
+    };
+
     const assignWorldAction = (
       requestedDestination: Point,
       source: PendingInteraction["source"],
@@ -1571,18 +2139,23 @@ export function MovementLab() {
       ) {
         return;
       }
-      const destination =
-        interactable?.interactionPoint ??
-        interactable?.position ??
-        requestedDestination;
-      const path = findPath(player, destination, sizeRef.current * 0.14);
+      const destination = interactable?.interactionPoint ?? requestedDestination;
+      const path = interactable
+        ? interactable.interactionPoint
+          ? findReachableInteractionPath(destination)
+          : findPath(player, requestedDestination, sizeRef.current * 0.14)
+        : findPath(player, destination, sizeRef.current * 0.14);
 
       autoPath = path ?? [];
+      autoDestination = path !== null ? destination : null;
       pendingInteraction =
         interactable && path !== null ? { interactable, source } : null;
+      movementGuideSuppressedForPendingInteraction = false;
+      lockedAutoMovementGuideId = null;
+      bypassedAutoMovementGuideId = null;
       if (showTouchEffect) {
         touchEffect = {
-          point: interactable?.position ?? requestedDestination,
+          point: interactable ? getInteractableCenter(interactable) : requestedDestination,
           reachable: path !== null,
           startedAt: performance.now(),
         };
@@ -1597,34 +2170,58 @@ export function MovementLab() {
     };
 
     const completePendingInteraction = () => {
-      if (!pendingInteraction) return;
+      if (!pendingInteraction) {
+        autoDestination = null;
+        return;
+      }
 
       const { interactable, source } = pendingInteraction;
-      const interactionPoint =
-        interactable.interactionPoint ?? interactable.position;
-      const closeEnough =
-        Math.hypot(
-          player.x - interactionPoint.x,
-          player.y - interactionPoint.y,
-        ) <= (interactable.activationDistance ?? 52);
+      const interactionPoint = interactable.interactionPoint;
+      const closeEnough = interactionPoint
+        ? Math.hypot(
+            player.x - interactionPoint.x,
+            player.y - interactionPoint.y,
+          ) <= (interactable.activationDistance ?? 52)
+        : isTouchingInteractable(player, sizeRef.current * 0.14, interactable);
 
       if (closeEnough) {
-        window.dispatchEvent(
-          new CustomEvent("echoes:interaction", {
-            detail: {
-              action: interactable.action ?? "interact",
-              id: interactable.id,
-              label: interactable.label,
-              source,
-            },
-          }),
-        );
-        if (source === "pointer") {
-          pointerInteractionTriggeredId = interactable.id;
+        if (interactable.interactionPoint?.facing) {
+          currentFacing = interactable.interactionPoint.facing;
         }
+        triggerInteraction(interactable, source);
       }
 
       pendingInteraction = null;
+      autoDestination = null;
+      movementGuideSuppressedForPendingInteraction = false;
+      lockedAutoMovementGuideId = null;
+      bypassedAutoMovementGuideId = null;
+    };
+
+    const activateBestInteraction = (source: PendingInteraction["source"]) => {
+      if (dialoguePlaybackRef.current) {
+        advanceDialogue();
+        return;
+      }
+      const cursorTarget = virtualCursorVisible
+        ? findInteractableAt(screenToWorld(virtualCursor))
+        : null;
+      const playerTarget = findInteractableTouching(player, sizeRef.current * 0.14);
+      const target = cursorTarget ?? playerTarget;
+      if (!target) {
+        if (source !== "keyboard" && virtualCursorVisible) {
+          assignScreenAction(virtualCursor, source);
+        }
+        return;
+      }
+      if (!cursorTarget && playerTarget && !target.interactionPoint) {
+        triggerInteraction(target, source);
+        return;
+      }
+      assignWorldAction(
+        cursorTarget ? screenToWorld(virtualCursor) : getInteractableCenter(target),
+        source,
+      );
     };
 
     const assignHeldPointerAction = (force: boolean) => {
@@ -1651,6 +2248,7 @@ export function MovementLab() {
       if (event.pointerType === "mouse" && event.button !== 0) return;
 
       event.preventDefault();
+      activeInputMode = "keyboard-mouse";
       deactivateGamepadCursor();
       const bounds = canvas.getBoundingClientRect();
       virtualCursor.x = clamp(event.clientX - bounds.left, 0, viewportWidth);
@@ -1672,6 +2270,21 @@ export function MovementLab() {
       canvas.focus({ preventScroll: true });
     };
 
+    const onDialoguePointerDown = (event: PointerEvent) => {
+      if (!dialoguePlaybackRef.current || !event.isPrimary) return;
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest(".dialogue-box")
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      advanceDialogue();
+    };
+
     const onPointerMove = (event: PointerEvent) => {
       if (event.pointerId !== heldPointerId) return;
       event.preventDefault();
@@ -1685,7 +2298,22 @@ export function MovementLab() {
     const onPhysicalMouseMove = (event: PointerEvent) => {
       if (event.pointerType !== "mouse") return;
 
+      activeInputMode = "keyboard-mouse";
       deactivateGamepadCursor();
+      if (dialoguePlaybackRef.current) {
+        const overDialogue =
+          event.target instanceof Element &&
+          event.target.closest(".dialogue-box") !== null;
+        if (overDialogue) {
+          virtualCursorVisible = false;
+          return;
+        }
+        const bounds = canvas.getBoundingClientRect();
+        virtualCursor.x = clamp(event.clientX - bounds.left, 0, viewportWidth);
+        virtualCursor.y = clamp(event.clientY - bounds.top, 0, viewportHeight);
+        virtualCursorVisible = true;
+        return;
+      }
       if (event.target !== canvas) {
         virtualCursorVisible = false;
         return;
@@ -1768,12 +2396,17 @@ export function MovementLab() {
     window.addEventListener("pointerdown", allowAudioPlaybackRetry, {
       passive: true,
     });
+    window.addEventListener("pointerdown", onDialoguePointerDown, {
+      capture: true,
+      passive: false,
+    });
     window.addEventListener("blur", onWindowBlur);
     window.addEventListener("pointermove", onPhysicalMouseMove, {
       passive: true,
     });
     window.addEventListener("gamepadconnected", onGamepadConnected);
     window.addEventListener("gamepaddisconnected", onGamepadDisconnected);
+    window.addEventListener("echoes:control-bindings-changed", onControlBindingsChanged);
     document.addEventListener("visibilitychange", onVisibilityChange);
     canvas.addEventListener("pointerdown", onPointerDown, { passive: false });
     canvas.addEventListener("pointermove", onPointerMove, { passive: false });
@@ -1823,6 +2456,74 @@ export function MovementLab() {
         }
         context.fill();
         context.stroke();
+      });
+
+      context.fillStyle = "rgba(255, 226, 55, 0.16)";
+      context.strokeStyle = "#ffe347";
+      SCENE_INTERACTABLES.forEach((interactable) => {
+        if (!interactable.points || interactable.points.length < 3) return;
+        tracePolygon(context, interactable.points);
+        context.fill();
+        context.stroke();
+        if (interactable.interactionPoint) {
+          context.beginPath();
+          context.arc(interactable.interactionPoint.x, interactable.interactionPoint.y, 8, 0, Math.PI * 2);
+          context.fill();
+          context.stroke();
+        }
+      });
+
+      SCENE_MOVEMENT_GUIDES.forEach((guide) => {
+        if (guide.points.length < 2) return;
+        context.beginPath();
+        context.moveTo(guide.points[0].x, guide.points[0].y);
+        guide.points.slice(1).forEach((point) => context.lineTo(point.x, point.y));
+        context.setLineDash([]);
+        context.lineCap = "round";
+        context.lineJoin = "round";
+        context.lineWidth = guide.width ?? 36;
+        context.strokeStyle = "rgba(90, 205, 255, 0.18)";
+        context.stroke();
+
+        context.beginPath();
+        context.moveTo(guide.points[0].x, guide.points[0].y);
+        guide.points.slice(1).forEach((point) => context.lineTo(point.x, point.y));
+        context.setLineDash([8, 6]);
+        context.lineWidth = 2.5;
+        context.strokeStyle = "#5cdaff";
+        context.stroke();
+
+        const drawArrowhead = (tip: Point, direction: Point) => {
+          const size = 13;
+          const perpendicular = { x: -direction.y, y: direction.x };
+          context.beginPath();
+          context.moveTo(tip.x, tip.y);
+          context.lineTo(
+            tip.x - direction.x * size + perpendicular.x * size * 0.55,
+            tip.y - direction.y * size + perpendicular.y * size * 0.55,
+          );
+          context.lineTo(
+            tip.x - direction.x * size - perpendicular.x * size * 0.55,
+            tip.y - direction.y * size - perpendicular.y * size * 0.55,
+          );
+          context.closePath();
+          context.fillStyle = "#5cdaff";
+          context.fill();
+        };
+        const first = guide.points[0];
+        const second = guide.points[1];
+        const last = guide.points[guide.points.length - 1];
+        const beforeLast = guide.points[guide.points.length - 2];
+        const firstLength = Math.max(Math.hypot(first.x - second.x, first.y - second.y), Number.EPSILON);
+        const lastLength = Math.max(Math.hypot(last.x - beforeLast.x, last.y - beforeLast.y), Number.EPSILON);
+        drawArrowhead(first, {
+          x: (first.x - second.x) / firstLength,
+          y: (first.y - second.y) / firstLength,
+        });
+        drawArrowhead(last, {
+          x: (last.x - beforeLast.x) / lastLength,
+          y: (last.y - beforeLast.y) / lastLength,
+        });
       });
 
       context.restore();
@@ -1914,6 +2615,51 @@ export function MovementLab() {
     const drawPointerCursor = (time: number) => {
       if (!virtualCursorVisible) return;
 
+      if (dialoguePlaybackRef.current) {
+        const pulse = 1 + Math.sin(time / 190) * 0.035;
+        context.save();
+        context.translate(virtualCursor.x, virtualCursor.y);
+        context.scale(pulse, pulse);
+        context.lineWidth = 2;
+        context.lineJoin = "round";
+        context.strokeStyle = "#e9f4ed";
+        context.fillStyle = "rgba(23, 32, 29, 0.92)";
+        context.shadowColor = "#61ead8";
+        context.shadowBlur = 9;
+
+        context.beginPath();
+        context.moveTo(0, -11);
+        context.quadraticCurveTo(-8, -16, -18, -13);
+        context.lineTo(-18, 8);
+        context.quadraticCurveTo(-8, 7, 0, 13);
+        context.closePath();
+        context.fill();
+        context.stroke();
+
+        context.beginPath();
+        context.moveTo(0, -11);
+        context.quadraticCurveTo(8, -16, 18, -13);
+        context.lineTo(18, 8);
+        context.quadraticCurveTo(8, 7, 0, 13);
+        context.closePath();
+        context.fill();
+        context.stroke();
+
+        context.shadowBlur = 0;
+        context.beginPath();
+        context.moveTo(0, -11);
+        context.lineTo(0, 13);
+        context.stroke();
+        context.fillStyle = "#61ead8";
+        for (const x of [25, 31, 37]) {
+          context.beginPath();
+          context.arc(x, 4, 1.7, 0, Math.PI * 2);
+          context.fill();
+        }
+        context.restore();
+        return;
+      }
+
       const pulse = 1 + Math.sin(time / 150) * 0.07;
       const radius = 13 * pulse;
       context.save();
@@ -1965,6 +2711,139 @@ export function MovementLab() {
       context.closePath();
       context.fill();
       context.restore();
+    };
+
+    const drawMouseLeftClickIcon = (
+      left: number,
+      top: number,
+      width = 20,
+      height = 25,
+    ) => {
+      const buttonHeight = height * 0.47;
+      context.save();
+      context.fillStyle = "#17201d";
+      context.strokeStyle = "#f3f7ed";
+      context.lineWidth = 1.5;
+      context.beginPath();
+      context.roundRect(left, top, width, height, 3.5);
+      context.fill();
+      context.stroke();
+
+      context.fillStyle = "#61ead8";
+      context.beginPath();
+      context.roundRect(left + 1, top + 1, width / 2 - 1, buttonHeight - 1, [2.5, 0, 0, 0]);
+      context.fill();
+
+      context.beginPath();
+      context.moveTo(left + width / 2, top);
+      context.lineTo(left + width / 2, top + buttonHeight);
+      context.moveTo(left, top + buttonHeight);
+      context.lineTo(left + width, top + buttonHeight);
+      context.stroke();
+      context.restore();
+    };
+
+    const drawPromptPill = (
+      centerX: number,
+      topY: number,
+      text: string,
+      showMouseLeftIcon = false,
+    ) => {
+      context.save();
+      context.font = '600 16px "Segoe UI", "Noto Sans TC", sans-serif';
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      const prefix = showMouseLeftIcon ? "按" : "";
+      const mouseIconWidth = showMouseLeftIcon ? 20 : 0;
+      const inlineGaps = showMouseLeftIcon ? 18 : 0;
+      const contentWidth = showMouseLeftIcon
+        ? context.measureText(prefix).width +
+          mouseIconWidth +
+          inlineGaps +
+          context.measureText(text).width
+        : context.measureText(text).width;
+      const width = Math.max(154, contentWidth + 34);
+      const height = 46;
+      const left = clamp(centerX - width / 2, 8, viewportWidth - width - 8);
+      const top = clamp(topY, 8, viewportHeight - height - 8);
+      context.fillStyle = "rgba(45, 58, 45, 0.88)";
+      context.strokeStyle = "rgba(239, 250, 230, 0.82)";
+      context.lineWidth = 1.2;
+      context.beginPath();
+      context.roundRect(left, top, width, height, 18);
+      context.fill();
+      context.stroke();
+      context.fillStyle = "#f3f7ed";
+      if (showMouseLeftIcon) {
+        let cursorX = left + (width - contentWidth) / 2;
+        const prefixWidth = context.measureText(prefix).width;
+        context.textAlign = "left";
+        context.fillText(prefix, cursorX, top + height / 2 + 0.5);
+        cursorX += prefixWidth + 7;
+        drawMouseLeftClickIcon(cursorX, top + (height - 25) / 2);
+        cursorX += mouseIconWidth + 11;
+        context.fillText(text, cursorX, top + height / 2 + 0.5);
+      } else {
+        context.fillText(text, left + width / 2, top + height / 2 + 0.5);
+      }
+      context.restore();
+    };
+
+    const drawInteractionPrompts = () => {
+      const radius = sizeRef.current * 0.14;
+      const playerTarget = findInteractableTouching(player, radius);
+      const cursorTarget = virtualCursorVisible
+        ? findInteractableAt(screenToWorld(virtualCursor))
+        : null;
+      const playerTargetId = playerTarget?.id ?? null;
+      const cursorTargetId = cursorTarget?.id ?? null;
+
+      if (playerTargetId && playerTargetId !== previousPlayerPromptTargetId) {
+        activePromptOwner = "player";
+      }
+      if (cursorTargetId && cursorTargetId !== previousCursorPromptTargetId) {
+        activePromptOwner = "cursor";
+      }
+
+      if (activePromptOwner === "player" && !playerTarget) {
+        activePromptOwner = cursorTarget ? "cursor" : null;
+      } else if (activePromptOwner === "cursor" && !cursorTarget) {
+        activePromptOwner = playerTarget ? "player" : null;
+      } else if (!activePromptOwner) {
+        activePromptOwner = cursorTarget ? "cursor" : playerTarget ? "player" : null;
+      }
+
+      previousPlayerPromptTargetId = playerTargetId;
+      previousCursorPromptTargetId = cursorTargetId;
+      if (dialoguePlaybackRef.current) return;
+
+      if (activePromptOwner === "player" && playerTarget) {
+        const zoom = getSceneZoom(viewportWidth, viewportHeight);
+        const screenX = viewportWidth / 2 + (player.x - camera.x) * zoom;
+        const screenY = viewportHeight / 2 + (player.y - camera.y) * zoom;
+        drawPromptPill(
+          screenX,
+          screenY + 18,
+          `按 [${activeInteractionKeyLabel}] 進行${playerTarget.verb ?? "互動"}`,
+        );
+      }
+
+      if (activePromptOwner === "cursor" && cursorTarget) {
+        if (activeInputMode === "gamepad") {
+          drawPromptPill(
+            virtualCursor.x,
+            virtualCursor.y - 64,
+            `按 [A] 進行${cursorTarget.verb ?? "互動"}`,
+          );
+        } else {
+          drawPromptPill(
+            virtualCursor.x,
+            virtualCursor.y - 64,
+            `進行${cursorTarget.verb ?? "互動"}`,
+            true,
+          );
+        }
+      }
     };
 
     const updateFootstepAudio = (
@@ -2025,10 +2904,37 @@ export function MovementLab() {
       const gamepadInput = browserGamepadInput.connected
         ? browserGamepadInput
         : nativeGamepadInput;
+      const hasGamepadActivity =
+        Math.abs(gamepadInput.stickX) > 0.01 ||
+        Math.abs(gamepadInput.stickY) > 0.01 ||
+        Math.abs(gamepadInput.cursorX) > 0.01 ||
+        Math.abs(gamepadInput.cursorY) > 0.01 ||
+        Math.abs(gamepadInput.dpadX) > 0.01 ||
+        Math.abs(gamepadInput.dpadY) > 0.01 ||
+        gamepadInput.actionPressed ||
+        gamepadInput.confirmPressed ||
+        gamepadInput.secondaryActionPressed ||
+        gamepadInput.backPressed ||
+        gamepadInput.startPressed;
+      if (gamepadInput.connected && hasGamepadActivity) {
+        activeInputMode = "gamepad";
+      }
+      activeInteractionKeyLabel =
+        activeInputMode === "gamepad" ? "A" : keyboardInteractionLabel;
 
       if (gamepadInput.connected !== wasGamepadConnected) {
         wasGamepadConnected = gamepadInput.connected;
-        if (!gamepadInput.connected) wasGamepadActionPressed = false;
+        if (!gamepadInput.connected) {
+          wasGamepadActionPressed = false;
+          wasGamepadBackPressed = false;
+          wasGamepadConfirmPressed = false;
+          wasGamepadSecondaryActionPressed = false;
+          wasGamepadStartPressed = false;
+          heldGamepadDpadX = 0;
+          heldGamepadDpadY = 0;
+          gamepadDpadXRepeatSeconds = 0;
+          gamepadDpadYRepeatSeconds = 0;
+        }
         setGamepadConnected(gamepadInput.connected);
         setGamepadLabel(gamepadInput.label);
 
@@ -2064,14 +2970,90 @@ export function MovementLab() {
         );
       }
 
-      if (
+      const startJustPressed =
+        gamepadInput.connected &&
+        gamepadInput.startPressed &&
+        !wasGamepadStartPressed;
+      if (startJustPressed) toggleDebugPanel();
+      wasGamepadStartPressed = gamepadInput.startPressed;
+
+      const backJustPressed =
+        gamepadInput.connected &&
+        gamepadInput.backPressed &&
+        !wasGamepadBackPressed;
+      let debugMenuOpen = debugOpenRef.current;
+      if (debugMenuOpen && backJustPressed) {
+        setDebugPanelOpen(false);
+        debugMenuOpen = false;
+      }
+
+      if (!debugMenuOpen) {
+        heldGamepadDpadX = 0;
+        heldGamepadDpadY = 0;
+        gamepadDpadXRepeatSeconds = 0;
+        gamepadDpadYRepeatSeconds = 0;
+      }
+      if (debugMenuOpen) {
+        const dpadVertical = Math.sign(gamepadInput.dpadY);
+        if (dpadVertical === 0) {
+          heldGamepadDpadY = 0;
+          gamepadDpadYRepeatSeconds = 0;
+        } else if (dpadVertical !== heldGamepadDpadY) {
+          heldGamepadDpadY = dpadVertical;
+          gamepadDpadYRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
+          moveDebugMenuSelection(dpadVertical);
+        } else {
+          gamepadDpadYRepeatSeconds -= deltaTime;
+          if (gamepadDpadYRepeatSeconds <= 0) {
+            moveDebugMenuSelection(dpadVertical);
+            gamepadDpadYRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
+          }
+        }
+
+        const dpadHorizontal = Math.sign(gamepadInput.dpadX);
+        if (dpadHorizontal === 0) {
+          heldGamepadDpadX = 0;
+          gamepadDpadXRepeatSeconds = 0;
+        } else if (dpadHorizontal !== heldGamepadDpadX) {
+          heldGamepadDpadX = dpadHorizontal;
+          gamepadDpadXRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
+          adjustDebugMenuSelection(dpadHorizontal);
+        } else {
+          gamepadDpadXRepeatSeconds -= deltaTime;
+          if (gamepadDpadXRepeatSeconds <= 0) {
+            adjustDebugMenuSelection(dpadHorizontal);
+            gamepadDpadXRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
+          }
+        }
+
+        if (
+          gamepadInput.confirmPressed &&
+          !wasGamepadConfirmPressed
+        ) {
+          activateDebugMenuSelection();
+        }
+
+        if (
+          gamepadInput.connected &&
+          gamepadInput.secondaryActionPressed &&
+          !wasGamepadSecondaryActionPressed
+        ) {
+          activateGamepadCursor();
+          activateBestInteraction("gamepad");
+        }
+      } else if (
+        !startJustPressed &&
         gamepadInput.connected &&
         gamepadInput.actionPressed &&
         !wasGamepadActionPressed
       ) {
         activateGamepadCursor();
-        assignScreenAction(virtualCursor, "gamepad");
+        activateBestInteraction("gamepad");
       }
+
+      wasGamepadConfirmPressed = gamepadInput.confirmPressed;
+      wasGamepadBackPressed = gamepadInput.backPressed;
+      wasGamepadSecondaryActionPressed = gamepadInput.secondaryActionPressed;
       wasGamepadActionPressed = gamepadInput.actionPressed;
 
       gamepadDiagnosticElapsed += deltaTime;
@@ -2087,14 +3069,34 @@ export function MovementLab() {
         }
       }
 
-      let horizontal = clamp(keyboardHorizontal + gamepadInput.x, -1, 1);
-      let vertical = clamp(keyboardVertical + gamepadInput.y, -1, 1);
+      const gamepadMovementX = debugMenuOpen
+        ? gamepadInput.stickX
+        : gamepadInput.x;
+      const gamepadMovementY = debugMenuOpen
+        ? gamepadInput.stickY
+        : gamepadInput.y;
+      let horizontal = clamp(keyboardHorizontal + gamepadMovementX, -1, 1);
+      let vertical = clamp(keyboardVertical + gamepadMovementY, -1, 1);
+      if (dialoguePlaybackRef.current) {
+        horizontal = 0;
+        vertical = 0;
+        autoPath = [];
+        autoDestination = null;
+        pendingInteraction = null;
+        lockedAutoMovementGuideId = null;
+        bypassedAutoMovementGuideId = null;
+      }
       let inputLength = Math.hypot(horizontal, vertical);
       let inputStrength = Math.min(1, inputLength);
+      let followingAutoPath = false;
 
       if (inputLength > 0) {
         autoPath = [];
+        autoDestination = null;
         pendingInteraction = null;
+        movementGuideSuppressedForPendingInteraction = false;
+        lockedAutoMovementGuideId = null;
+        bypassedAutoMovementGuideId = null;
       } else {
         while (autoPath.length > 0) {
           const waypoint = autoPath[0];
@@ -2113,6 +3115,7 @@ export function MovementLab() {
           horizontal = (waypoint.x - player.x) / distanceToWaypoint;
           vertical = (waypoint.y - player.y) / distanceToWaypoint;
           inputLength = 1;
+          followingAutoPath = true;
           inputStrength = Math.min(
             1,
             distanceToWaypoint /
@@ -2122,6 +3125,145 @@ export function MovementLab() {
         }
 
         if (autoPath.length === 0) completePendingInteraction();
+      }
+
+      if (inputLength > 0) {
+        const guideRadius = sizeRef.current * 0.14;
+        const pendingInteractionPoint =
+          pendingInteraction?.interactable.interactionPoint;
+        if (
+          pendingInteractionPoint &&
+          Math.hypot(
+            player.x - pendingInteractionPoint.x,
+            player.y - pendingInteractionPoint.y,
+          ) <= (pendingInteraction?.interactable.activationDistance ?? 52)
+        ) {
+          movementGuideSuppressedForPendingInteraction = true;
+        }
+        if (!pendingInteraction) {
+          movementGuideSuppressedForPendingInteraction = false;
+        }
+        let guideContact = movementGuideSuppressedForPendingInteraction
+          ? null
+          : getMovementGuideContact(player, guideRadius);
+        if (bypassedAutoMovementGuideId) {
+          if (guideContact?.guide.id === bypassedAutoMovementGuideId) {
+            guideContact = null;
+          } else {
+            bypassedAutoMovementGuideId = null;
+          }
+        }
+        if (guideContact) {
+          const normalizedInput = {
+            x: horizontal / inputLength,
+            y: vertical / inputLength,
+          };
+          const inputDot =
+            normalizedInput.x * guideContact.tangent.x +
+            normalizedInput.y * guideContact.tangent.y;
+          if (followingAutoPath) {
+            if (lockedAutoMovementGuideId !== guideContact.guide.id) {
+              const finalTarget =
+                autoDestination ?? autoPath[autoPath.length - 1];
+              const finalTargetDot = finalTarget
+                ? (finalTarget.x - player.x) * guideContact.tangent.x +
+                  (finalTarget.y - player.y) * guideContact.tangent.y
+                : 0;
+              if (Math.abs(finalTargetDot) > 0.08) {
+                lastMovementGuideSign = Math.sign(finalTargetDot);
+              } else if (Math.abs(inputDot) > 0.08) {
+                lastMovementGuideSign = Math.sign(inputDot);
+              } else {
+                const facingVector = getDirectionVector(currentFacing);
+                const facingDot =
+                  facingVector.x * guideContact.tangent.x +
+                  facingVector.y * guideContact.tangent.y;
+                if (Math.abs(facingDot) > 0.08) {
+                  lastMovementGuideSign = Math.sign(facingDot);
+                }
+              }
+              lockedAutoMovementGuideId = guideContact.guide.id;
+            }
+          } else {
+            lockedAutoMovementGuideId = null;
+            if (Math.abs(inputDot) > 0.08) {
+              lastMovementGuideSign = Math.sign(inputDot);
+            } else {
+              const facingVector = getDirectionVector(currentFacing);
+              const facingDot =
+                facingVector.x * guideContact.tangent.x +
+                facingVector.y * guideContact.tangent.y;
+              if (Math.abs(facingDot) > 0.08) {
+                lastMovementGuideSign = Math.sign(facingDot);
+              }
+            }
+          }
+
+          let releasedAtGuideEndpoint = false;
+          if (
+            followingAutoPath &&
+            lockedAutoMovementGuideId === guideContact.guide.id &&
+            autoDestination
+          ) {
+            const guideExit =
+              lastMovementGuideSign >= 0
+                ? guideContact.guide.points[guideContact.guide.points.length - 1]
+                : guideContact.guide.points[0];
+            const exitDistance = Math.hypot(
+              guideExit.x - player.x,
+              guideExit.y - player.y,
+            );
+            const exitReleaseDistance = Math.max(
+              8,
+              Math.min(18, guideRadius * 0.6),
+            );
+            if (exitDistance <= exitReleaseDistance) {
+              const replannedPath = pendingInteraction?.interactable.interactionPoint
+                ? findReachableInteractionPath(autoDestination)
+                : findPath(player, autoDestination, guideRadius);
+              autoPath = replannedPath ?? [];
+              bypassedAutoMovementGuideId = guideContact.guide.id;
+              lockedAutoMovementGuideId = null;
+              horizontal = 0;
+              vertical = 0;
+              inputLength = 0;
+              releasedAtGuideEndpoint = true;
+            }
+          }
+
+          if (!releasedAtGuideEndpoint) {
+            const toLineX = guideContact.nearest.x - player.x;
+            const toLineY = guideContact.nearest.y - player.y;
+            const alongLine =
+              toLineX * guideContact.tangent.x +
+              toLineY * guideContact.tangent.y;
+            const perpendicularX =
+              toLineX - guideContact.tangent.x * alongLine;
+            const perpendicularY =
+              toLineY - guideContact.tangent.y * alongLine;
+            const perpendicularDistance = Math.hypot(perpendicularX, perpendicularY);
+            const centeringStrength = clamp(
+              perpendicularDistance / Math.max((guideContact.guide.width ?? 36) / 2, 1),
+              0,
+              1,
+            ) * 0.32;
+            const correctionX =
+              perpendicularDistance > 0.001
+                ? (perpendicularX / perpendicularDistance) * centeringStrength
+                : 0;
+            const correctionY =
+              perpendicularDistance > 0.001
+                ? (perpendicularY / perpendicularDistance) * centeringStrength
+                : 0;
+            horizontal =
+              guideContact.tangent.x * lastMovementGuideSign + correctionX;
+            vertical =
+              guideContact.tangent.y * lastMovementGuideSign + correctionY;
+            inputLength = Math.hypot(horizontal, vertical);
+          }
+        } else {
+          lockedAutoMovementGuideId = null;
+        }
       }
 
       const isMoving = inputLength > 0;
@@ -2239,6 +3381,7 @@ export function MovementLab() {
       context.restore();
       drawHeldPointerIndicator(time);
       drawPointerCursor(time);
+      drawInteractionPrompts();
     };
 
     const frame = (time: number) => {
@@ -2258,10 +3401,12 @@ export function MovementLab() {
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("keydown", allowAudioPlaybackRetry);
       window.removeEventListener("pointerdown", allowAudioPlaybackRetry);
+      window.removeEventListener("pointerdown", onDialoguePointerDown, true);
       window.removeEventListener("blur", onWindowBlur);
       window.removeEventListener("pointermove", onPhysicalMouseMove);
       window.removeEventListener("gamepadconnected", onGamepadConnected);
       window.removeEventListener("gamepaddisconnected", onGamepadDisconnected);
+      window.removeEventListener("echoes:control-bindings-changed", onControlBindingsChanged);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
@@ -2276,8 +3421,12 @@ export function MovementLab() {
       requestBgmPlaybackRef.current = () => {};
       stopFootsteps();
       footstepAudio.currentTime = 0;
+      stopDialogueTyping();
       document.documentElement.classList.remove("gamepad-cursor-active");
+      document.documentElement.classList.remove("dialogue-cursor-active");
     };
+    // The canvas simulation must be initialized once; gamepad actions use refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -2288,6 +3437,21 @@ export function MovementLab() {
         aria-label="八方向角色移動地圖測試場景"
         tabIndex={0}
       />
+
+      {dialogueView ? (
+        <button
+          className="dialogue-box"
+          type="button"
+          aria-label="對話；按下顯示下一頁"
+          onClick={advanceDialogue}
+        >
+          {dialogueView.speaker ? (
+            <strong className="dialogue-speaker">{dialogueView.speaker}</strong>
+          ) : null}
+          <span className="dialogue-text">{dialogueView.text}</span>
+          <span className="dialogue-next" aria-hidden="true" />
+        </button>
+      ) : null}
 
       <section className="top-left-hud" aria-label="場景資訊">
         <p className="eyebrow">Echoes Beyond the Stars</p>
@@ -2304,7 +3468,7 @@ export function MovementLab() {
           type="button"
           aria-expanded={debugOpen}
           aria-controls="debug-panel"
-          onClick={() => setDebugOpen((open) => !open)}
+          onClick={toggleDebugPanel}
         >
           <span>Debug</span>
           <span className="debug-chevron" aria-hidden="true">
@@ -2318,8 +3482,15 @@ export function MovementLab() {
             <button
               className="toggle-button"
               type="button"
+              data-gamepad-selected={
+                debugMenuSelection === "player-collision" || undefined
+              }
               aria-pressed={showPlayerCollision}
-              onClick={() => setShowPlayerCollision((visible) => !visible)}
+              onFocus={() => setDebugMenuSelectionValue("player-collision")}
+              onClick={() => {
+                setDebugMenuSelectionValue("player-collision");
+                activateDebugMenuSelection();
+              }}
             >
               <span>角色 Collision 描繪</span>
               <span className="toggle-pill" aria-hidden="true" />
@@ -2327,8 +3498,15 @@ export function MovementLab() {
             <button
               className="toggle-button"
               type="button"
+              data-gamepad-selected={
+                debugMenuSelection === "scene-collision" || undefined
+              }
               aria-pressed={showSceneCollision}
-              onClick={() => setShowSceneCollision((visible) => !visible)}
+              onFocus={() => setDebugMenuSelectionValue("scene-collision")}
+              onClick={() => {
+                setDebugMenuSelectionValue("scene-collision");
+                activateDebugMenuSelection();
+              }}
             >
               <span>場景 Collision 描繪</span>
               <span className="toggle-pill" aria-hidden="true" />
@@ -2339,19 +3517,25 @@ export function MovementLab() {
             <button
               className="toggle-button"
               type="button"
+              data-gamepad-selected={
+                debugMenuSelection === "bgm-enabled" || undefined
+              }
               aria-pressed={bgmEnabled}
+              onFocus={() => setDebugMenuSelectionValue("bgm-enabled")}
               onClick={() => {
-                const nextEnabled = !bgmEnabled;
-                bgmEnabledRef.current = nextEnabled;
-                setBgmEnabled(nextEnabled);
-                if (nextEnabled) requestBgmPlaybackRef.current();
-                else bgmAudioRef.current?.pause();
+                setDebugMenuSelectionValue("bgm-enabled");
+                activateDebugMenuSelection();
               }}
             >
               <span>BGM</span>
               <span className="toggle-pill" aria-hidden="true" />
             </button>
-            <div className="slider-row">
+            <div
+              className="slider-row"
+              data-gamepad-selected={
+                debugMenuSelection === "bgm-volume" || undefined
+              }
+            >
               <label htmlFor="bgm-volume">BGM 音量</label>
               <output className="slider-value" htmlFor="bgm-volume">
                 {bgmVolume}%
@@ -2364,7 +3548,8 @@ export function MovementLab() {
                 step="5"
                 value={bgmVolume}
                 disabled={!bgmEnabled}
-                onChange={(event) => setBgmVolume(Number(event.target.value))}
+                onFocus={() => setDebugMenuSelectionValue("bgm-volume")}
+                onChange={(event) => setBgmVolumeValue(Number(event.target.value))}
               />
             </div>
 
@@ -2377,12 +3562,21 @@ export function MovementLab() {
                   : "Chrome 尚未回報手把"}
               </strong>
               <span>{gamepadDiagnostic}</span>
+              <span className="gamepad-menu-hint">
+                START：開啟／關閉 · 十字鍵：選擇／調整 · A：確認 ·
+                B：關閉 · 左搖桿：角色移動 · X：游標點擊
+              </span>
             </div>
 
             <div className="debug-divider" />
             <p className="debug-section-label">Character Tuning</p>
 
-            <div className="slider-row">
+            <div
+              className="slider-row"
+              data-gamepad-selected={
+                debugMenuSelection === "movement-speed" || undefined
+              }
+            >
               <label htmlFor="movement-speed">移動速度</label>
               <output className="slider-value" htmlFor="movement-speed">
                 {speed}
@@ -2394,11 +3588,17 @@ export function MovementLab() {
                 max="380"
                 step="10"
                 value={speed}
-                onChange={(event) => setSpeed(Number(event.target.value))}
+                onFocus={() => setDebugMenuSelectionValue("movement-speed")}
+                onChange={(event) => setSpeedValue(Number(event.target.value))}
               />
             </div>
 
-            <div className="slider-row">
+            <div
+              className="slider-row"
+              data-gamepad-selected={
+                debugMenuSelection === "character-size" || undefined
+              }
+            >
               <label htmlFor="character-size">角色尺寸</label>
               <output className="slider-value" htmlFor="character-size">
                 {size}
@@ -2410,11 +3610,17 @@ export function MovementLab() {
                 max="220"
                 step="4"
                 value={size}
-                onChange={(event) => setSize(Number(event.target.value))}
+                onFocus={() => setDebugMenuSelectionValue("character-size")}
+                onChange={(event) => setSizeValue(Number(event.target.value))}
               />
             </div>
 
-            <div className="slider-row">
+            <div
+              className="slider-row"
+              data-gamepad-selected={
+                debugMenuSelection === "collision-slide-tolerance" || undefined
+              }
+            >
               <label htmlFor="collision-slide-tolerance">
                 碰撞滑動輔助
               </label>
@@ -2431,8 +3637,11 @@ export function MovementLab() {
                 max="100"
                 step="5"
                 value={collisionSlideTolerance}
+                onFocus={() =>
+                  setDebugMenuSelectionValue("collision-slide-tolerance")
+                }
                 onChange={(event) =>
-                  setCollisionSlideTolerance(Number(event.target.value))
+                  setCollisionSlideToleranceValue(Number(event.target.value))
                 }
               />
             </div>
@@ -2453,6 +3662,10 @@ export function MovementLab() {
           🎮 {gamepadConnected ? "手把已連線" : "請按手把任一按鈕啟用"}
         </span>
         <span>WASD／左搖桿移動 · 右搖桿游標 · A/X／點擊／長按指派</span>
+        <span>
+          START：DEBUG · 十字鍵選擇／調整 · A：確認 · B：關閉 ·
+          左搖桿仍可移動
+        </span>
       </section>
 
       <section className="direction-readout" aria-live="polite">

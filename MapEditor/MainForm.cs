@@ -33,6 +33,21 @@ public sealed class MainForm : Form
         DropDownStyle = ComboBoxStyle.DropDownList,
         Width = 72,
     };
+    private readonly ComboBox _interactionTypeCombo = new()
+    {
+        DropDownStyle = ComboBoxStyle.DropDownList,
+    };
+    private readonly TextBox _interactionVerbText = new();
+    private readonly GroupBox _interactionGroup = CreateGroup("互動設定", 190);
+    private readonly Label _dialogueSummaryLabel = new();
+    private readonly GroupBox _movementGuideGroup = CreateGroup("強制引導線設定", 112);
+    private readonly NumericUpDown _movementGuideWidthInput = new()
+    {
+        Minimum = 4,
+        Maximum = 240,
+        DecimalPlaces = 0,
+        Value = 36,
+    };
 
     private readonly string? _projectRoot;
     private string? _imagePath;
@@ -80,6 +95,8 @@ public sealed class MainForm : Form
 
         _facingCombo.Items.AddRange(new object[] { "N", "NE", "E", "SE", "S", "SW", "W", "NW" });
         _facingCombo.SelectedItem = "S";
+        _interactionTypeCombo.Items.Add(new InteractionTypeItem("dialogue", "對話"));
+        _interactionTypeCombo.SelectedIndex = 0;
 
         _canvas.DocumentChanged += CanvasOnDocumentChanged;
         _canvas.SelectionChanged += (_, _) =>
@@ -175,6 +192,8 @@ public sealed class MainForm : Form
         AddToolButton(toolbar, "碰撞多邊形", EditorTool.CollisionPolygon, "逐點圈出不可通行範圍");
         AddToolButton(toolbar, "碰撞矩形", EditorTool.CollisionRectangle, "拖曳建立矩形 Collision");
         AddToolButton(toolbar, "碰撞圓形", EditorTool.CollisionCircle, "由圓心向外拖曳建立 Collision");
+        AddToolButton(toolbar, "互動多邊形", EditorTool.InteractionPolygon, "逐點圈出亮黃色、非阻擋的互動範圍");
+        AddToolButton(toolbar, "強制引導線", EditorTool.MovementGuide, "逐點鋪設雙向箭頭移動引導路徑");
         AddToolButton(toolbar, "出生點", EditorTool.PlayerSpawn, "點擊設定玩家出生位置");
         toolbar.Items.Add(new ToolStripSeparator());
 
@@ -291,6 +310,45 @@ public sealed class MainForm : Form
         _deleteNodeButton.Click += (_, _) => _canvas.DeleteSelectedNode();
         layersGroup.Controls.Add(_deleteNodeButton);
         sidebar.Controls.Add(layersGroup);
+
+        var typeLabel = new Label { Text = "互動類型", AutoSize = false, ForeColor = Color.FromArgb(152, 163, 174) };
+        typeLabel.SetBounds(10, 30, 70, 24);
+        _interactionTypeCombo.SetBounds(83, 27, 182, 27);
+        _interactionGroup.Controls.Add(typeLabel);
+        _interactionGroup.Controls.Add(_interactionTypeCombo);
+        var verbLabel = new Label { Text = "提示動詞", AutoSize = false, ForeColor = Color.FromArgb(152, 163, 174) };
+        verbLabel.SetBounds(10, 68, 70, 24);
+        _interactionVerbText.SetBounds(83, 65, 182, 27);
+        _interactionGroup.Controls.Add(verbLabel);
+        _interactionGroup.Controls.Add(_interactionVerbText);
+        _dialogueSummaryLabel.SetBounds(10, 100, 255, 22);
+        _dialogueSummaryLabel.ForeColor = Color.FromArgb(155, 166, 176);
+        _interactionGroup.Controls.Add(_dialogueSummaryLabel);
+        var applyInteractionButton = CreateButton("套用設定", 10, 132, 124, 30);
+        applyInteractionButton.Click += (_, _) => ApplyInteractionSettings();
+        _interactionGroup.Controls.Add(applyInteractionButton);
+        var moreButton = CreateButton("更多...", 141, 132, 124, 30);
+        moreButton.Click += (_, _) => OpenDialogueEditor();
+        _interactionGroup.Controls.Add(moreButton);
+        _interactionGroup.Visible = false;
+        sidebar.Controls.Add(_interactionGroup);
+
+        var guideWidthLabel = new Label
+        {
+            Text = "生效寬度",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(152, 163, 174),
+        };
+        guideWidthLabel.SetBounds(10, 32, 70, 24);
+        _movementGuideWidthInput.SetBounds(83, 28, 182, 27);
+        _movementGuideGroup.Controls.Add(guideWidthLabel);
+        _movementGuideGroup.Controls.Add(_movementGuideWidthInput);
+        var applyGuideButton = CreateButton("套用引導寬度", 10, 66, 255, 30);
+        applyGuideButton.Click += (_, _) =>
+            _canvas.UpdateSelectedMovementGuideWidth((float)_movementGuideWidthInput.Value);
+        _movementGuideGroup.Controls.Add(applyGuideButton);
+        _movementGuideGroup.Visible = false;
+        sidebar.Controls.Add(_movementGuideGroup);
 
         var futureGroup = CreateGroup("場景連接（已預留）", 122);
         var futureLabel = new Label
@@ -625,7 +683,7 @@ public sealed class MainForm : Form
         _sceneIdText.Text = _canvas.Document.SceneId;
         _displayNameText.Text = _canvas.Document.DisplayName;
         _documentInfoLabel.Text =
-            $"NavMesh {_canvas.Document.NavMesh.Count} 個  ·  Collision {_canvas.Document.Collisions.Count} 個";
+            $"NavMesh {_canvas.Document.NavMesh.Count} · Collision {_canvas.Document.Collisions.Count} · 互動 {_canvas.Document.Interactables.Count} · 引導 {_canvas.Document.MovementGuides.Count}";
         var previousLoadingState = _loading;
         _loading = true;
         try
@@ -673,6 +731,22 @@ public sealed class MainForm : Form
                     $"[Collision/{shape}] {collision.Label}"));
             }
 
+            for (var index = 0; index < _canvas.Document.Interactables.Count; index++)
+            {
+                var interactable = _canvas.Document.Interactables[index];
+                _layersList.Items.Add(new LayerListItem(
+                    new LayerSelection(SceneLayerKind.Interactable, index),
+                    $"[互動/{interactable.Verb}] {interactable.Label}  ({interactable.Points.Count}點)"));
+            }
+
+            for (var index = 0; index < _canvas.Document.MovementGuides.Count; index++)
+            {
+                var guide = _canvas.Document.MovementGuides[index];
+                _layersList.Items.Add(new LayerListItem(
+                    new LayerSelection(SceneLayerKind.MovementGuide, index),
+                    $"[雙向引導/{Math.Round(guide.Width)}px] {guide.Label}  ({guide.Points.Count}點)"));
+            }
+
             var selectedItem = _layersList.Items
                 .Cast<LayerListItem>()
                 .FirstOrDefault(item => item.Selection == _canvas.Selection);
@@ -714,11 +788,39 @@ public sealed class MainForm : Form
                 _selectionInfoLabel.Text = $"已選取 Collision · {collision.Id}{node}";
                 _selectionNameText.Text = collision.Label;
             }
+            else if (_canvas.Selection.Kind == SceneLayerKind.Interactable && _canvas.Selection.Index >= 0)
+            {
+                var interactable = _canvas.Document.Interactables[_canvas.Selection.Index];
+                var node = _canvas.SelectedVertexIndex >= 0
+                    ? $" · Node {_canvas.SelectedVertexIndex + 1}"
+                    : "";
+                _selectionInfoLabel.Text = $"已選取互動區域 · {interactable.Id}{node}";
+                _selectionNameText.Text = interactable.Label;
+                _interactionVerbText.Text = interactable.Verb;
+                _interactionTypeCombo.SelectedIndex = 0;
+                _dialogueSummaryLabel.Text =
+                    $"對話：{interactable.Dialogue.Lines.Count} 句 · {interactable.Dialogue.CharacterDelaySeconds:0.00} 秒/字";
+            }
+            else if (_canvas.Selection.Kind == SceneLayerKind.MovementGuide && _canvas.Selection.Index >= 0)
+            {
+                var guide = _canvas.Document.MovementGuides[_canvas.Selection.Index];
+                var node = _canvas.SelectedVertexIndex >= 0
+                    ? $" · Node {_canvas.SelectedVertexIndex + 1}"
+                    : "";
+                _selectionInfoLabel.Text = $"已選取強制引導線 · {guide.Id}{node}";
+                _selectionNameText.Text = guide.Label;
+                _movementGuideWidthInput.Value = Math.Clamp(
+                    (decimal)guide.Width,
+                    _movementGuideWidthInput.Minimum,
+                    _movementGuideWidthInput.Maximum);
+            }
             else
             {
                 _selectionInfoLabel.Text = "尚未選取圖形";
                 _selectionNameText.Text = "";
             }
+            _interactionGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.Interactable;
+            _movementGuideGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.MovementGuide;
         }
         finally
         {
@@ -733,6 +835,31 @@ public sealed class MainForm : Form
             _layersList.SelectedItem is LayerListItem item
                 ? item.Selection
                 : LayerSelection.None);
+    }
+
+    private void ApplyInteractionSettings()
+    {
+        if (_canvas.SelectedInteractable is null) return;
+        var type = (_interactionTypeCombo.SelectedItem as InteractionTypeItem)?.Id ?? "dialogue";
+        _canvas.UpdateSelectedInteractable(type, _interactionVerbText.Text);
+        RefreshLayers();
+        RefreshSelectionUi();
+    }
+
+    private void OpenDialogueEditor()
+    {
+        var interactable = _canvas.SelectedInteractable;
+        if (interactable is null) return;
+        using var editor = new DialogueEditorForm(
+            interactable.Dialogue.Lines,
+            interactable.Dialogue.Speakers,
+            interactable.Dialogue.CharacterDelaySeconds);
+        if (editor.ShowDialog(this) != DialogResult.OK) return;
+        _canvas.UpdateSelectedDialogue(
+            editor.Lines,
+            editor.Speakers,
+            editor.CharacterDelaySeconds);
+        RefreshSelectionUi();
     }
 
     private void RefreshCommandState()
@@ -771,6 +898,8 @@ public sealed class MainForm : Form
             EditorTool.CollisionPolygon => "Collision：逐點圈出不可通行範圍",
             EditorTool.CollisionRectangle => "矩形 Collision：按住滑鼠拖曳範圍",
             EditorTool.CollisionCircle => "圓形 Collision：從中心向外拖曳",
+            EditorTool.InteractionPolygon => "互動區域：逐點圈出範圍；右鍵可設定類型與互動 Point",
+            EditorTool.MovementGuide => "強制引導線：逐點鋪設，雙擊／右鍵／Enter 完成（至少 2 點）",
             EditorTool.PlayerSpawn => "出生點：在場景點擊位置",
             _ => "準備就緒",
         };
@@ -920,6 +1049,19 @@ public sealed class MainForm : Form
         public LayerSelection Selection { get; }
         public string Text { get; }
         public override string ToString() => Text;
+    }
+
+    private sealed class InteractionTypeItem
+    {
+        public InteractionTypeItem(string id, string label)
+        {
+            Id = id;
+            Label = label;
+        }
+
+        public string Id { get; }
+        public string Label { get; }
+        public override string ToString() => Label;
     }
 
     private sealed class DarkColorTable : ProfessionalColorTable

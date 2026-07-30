@@ -16,6 +16,7 @@ public sealed class SceneDocument
     public List<NavMeshRegion> NavMesh { get; set; } = new();
     public List<CollisionShape> Collisions { get; set; } = new();
     public List<SceneInteractable> Interactables { get; set; } = new();
+    public List<MovementGuide> MovementGuides { get; set; } = new();
     public WorldLayout WorldLayout { get; set; } = new();
     public List<SceneConnection> Connections { get; set; } = new();
 
@@ -70,7 +71,7 @@ public sealed class PlayerSpawn
     public string Facing { get; set; } = "S";
 }
 
-public sealed class ScenePoint
+public class ScenePoint
 {
     public ScenePoint()
     {
@@ -122,14 +123,52 @@ public sealed class SceneInteractable
 {
     public string Id { get; set; } = "";
     public string Label { get; set; } = "Interactable";
-    public ScenePoint Position { get; set; } = new();
+    public string Shape { get; set; } = "polygon";
+    public List<ScenePoint> Points { get; set; } = new();
+    public string Type { get; set; } = "dialogue";
+    public string Verb { get; set; } = "對話";
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ScenePoint? InteractionPoint { get; set; }
+    public InteractionPoint? InteractionPoint { get; set; }
 
-    public float PickRadius { get; set; } = 32;
     public float ActivationDistance { get; set; } = 52;
-    public string Action { get; set; } = "interact";
+    public DialogueScript Dialogue { get; set; } = DialogueScript.CreateDefault();
+}
+
+public sealed class InteractionPoint : ScenePoint
+{
+    public string Facing { get; set; } = "S";
+}
+
+public sealed class DialogueScript
+{
+    public float CharacterDelaySeconds { get; set; } = 0.02f;
+    public List<string> Speakers { get; set; } = new() { "Sbaak", "Echo" };
+    public List<DialogueLine> Lines { get; set; } = new();
+
+    public static DialogueScript CreateDefault() => new()
+    {
+        Speakers = new List<string> { "Sbaak", "Echo" },
+        Lines = new List<DialogueLine>
+        {
+            new() { Speaker = "Sbaak", Text = "..." },
+        },
+    };
+}
+
+public sealed class DialogueLine
+{
+    public string Speaker { get; set; } = "";
+    public string Text { get; set; } = "...";
+}
+
+public sealed class MovementGuide
+{
+    public string Id { get; set; } = "";
+    public string Label { get; set; } = "Movement guide";
+    public List<ScenePoint> Points { get; set; } = new();
+    public float Width { get; set; } = 36;
+    public bool Bidirectional { get; set; } = true;
 }
 
 public sealed class SceneConnection
@@ -210,6 +249,49 @@ public static class SceneJson
             else if (collision.Points is null || collision.Points.Count < 3)
             {
                 throw new InvalidDataException($"Collision {collision.Id} 至少需要三個頂點。");
+            }
+        }
+
+        foreach (var interactable in document.Interactables)
+        {
+            if (interactable.Points.Count < 3)
+            {
+                throw new InvalidDataException($"互動多邊形 {interactable.Id} 至少需要 3 個 Node。");
+            }
+
+            interactable.Dialogue ??= DialogueScript.CreateDefault();
+            interactable.Dialogue.Speakers = interactable.Dialogue.Speakers
+                .Where(speaker => !string.IsNullOrWhiteSpace(speaker))
+                .Select(speaker => speaker.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (interactable.Dialogue.Speakers.Count == 0)
+            {
+                interactable.Dialogue.Speakers.AddRange(new[] { "Sbaak", "Echo" });
+            }
+            if (interactable.Dialogue.Lines.Count == 0)
+            {
+                interactable.Dialogue.Lines.Add(new DialogueLine
+                {
+                    Speaker = interactable.Dialogue.Speakers[0],
+                    Text = "...",
+                });
+            }
+            else if (string.IsNullOrWhiteSpace(interactable.Dialogue.Lines[0].Speaker))
+            {
+                interactable.Dialogue.Lines[0].Speaker = interactable.Dialogue.Speakers[0];
+            }
+        }
+
+        foreach (var guide in document.MovementGuides)
+        {
+            if (guide.Points.Count < 2)
+            {
+                throw new InvalidDataException($"強制引導線 {guide.Id} 至少需要 2 個 Node。");
+            }
+            if (guide.Width <= 0)
+            {
+                throw new InvalidDataException($"強制引導線 {guide.Id} 的生效寬度必須大於 0。");
             }
         }
     }
