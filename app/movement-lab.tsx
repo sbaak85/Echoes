@@ -7,6 +7,36 @@ import {
   AudioEventManager,
   type AudioEventName,
 } from "./audio-event-manager";
+import {
+  INITIAL_PLAYER_INVENTORY,
+  ITEM_BY_ID,
+  ITEM_DATABASE,
+  calculateInventoryWeight,
+  getOwnedItemStacks,
+  grantInventoryItem,
+  loadPlayerInventory,
+  removeInventoryItem,
+  savePlayerInventory,
+  type ItemCategory,
+  type PlayerInventory,
+} from "./item-database";
+import {
+  WORLD_ITEM_PLACEMENTS,
+  loadCollectedWorldItemIds,
+  loadDroppedWorldItems,
+  saveCollectedWorldItemIds,
+  saveDroppedWorldItems,
+  type DroppedWorldItem,
+} from "./world-item-placements";
+import {
+  getDpadToggleValue,
+  shouldUseOptionsCursor,
+  type OptionsGamepadMode,
+} from "./options-gamepad-control";
+import {
+  getClampedInventoryCategoryIndex,
+  getInventoryCategoryOffsetForBumper,
+} from "./inventory-gamepad-control";
 
 type Direction = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
 type Point = { x: number; y: number };
@@ -40,8 +70,12 @@ type SceneInteractable = {
   pickRadius?: number;
   activationDistance?: number;
   action?: string;
-  type?: "dialogue";
+  type?: "dialogue" | "pickup";
   verb?: string;
+  itemId?: string;
+  quantity?: number;
+  worldItemId?: string;
+  worldItemKind?: "placed" | "dropped";
   dialogue?: {
     characterDelaySeconds?: number;
     speakers?: string[];
@@ -76,6 +110,7 @@ type MovementGuide = {
 };
 
 type SceneFile = {
+  sceneId: string;
   image: { file: string; width: number; height: number };
   world: { width: number; height: number };
   playerSpawn: Point & { facing: string };
@@ -429,8 +464,66 @@ const SCENE_COLLIDERS =
       points: collision.points ?? [],
     };
   }) ?? DEFAULT_SCENE_COLLIDERS;
-const SCENE_INTERACTABLES = SCENE_DATA.interactables ?? [];
+const WORLD_ITEM_INTERACTABLES: SceneInteractable[] = WORLD_ITEM_PLACEMENTS
+  .filter((placement) => placement.sceneId === SCENE_DATA.sceneId)
+  .flatMap((placement) => {
+    const item = ITEM_BY_ID.get(placement.itemId);
+    if (!item) return [];
+    return [
+      {
+        id: `world-item:${placement.id}`,
+        label: item.name,
+        position: placement.position,
+        interactionPoint: placement.interactionPoint,
+        pickRadius: placement.pickRadius,
+        activationDistance: placement.activationDistance,
+        type: "pickup",
+        verb: "拾取",
+        itemId: item.id,
+        quantity: placement.quantity,
+        worldItemId: placement.id,
+        worldItemKind: "placed",
+      },
+    ];
+  });
+const STATIC_SCENE_INTERACTABLES = [
+  ...(SCENE_DATA.interactables ?? []),
+  ...WORLD_ITEM_INTERACTABLES,
+];
 const SCENE_MOVEMENT_GUIDES = SCENE_DATA.movementGuides ?? [];
+
+function getDroppedWorldItemInteractable(
+  placement: DroppedWorldItem,
+): SceneInteractable | null {
+  const item = ITEM_BY_ID.get(placement.itemId);
+  if (!item) return null;
+  return {
+    id: `dropped-world-item:${placement.id}`,
+    label: item.name,
+    position: placement.position,
+    interactionPoint: placement.interactionPoint,
+    pickRadius: placement.pickRadius,
+    activationDistance: placement.activationDistance,
+    type: "pickup",
+    verb: "拾取",
+    itemId: item.id,
+    quantity: placement.quantity,
+    worldItemId: placement.id,
+    worldItemKind: "dropped",
+  };
+}
+
+function buildSceneInteractables(
+  droppedWorldItems: readonly DroppedWorldItem[],
+) {
+  return [
+    ...STATIC_SCENE_INTERACTABLES,
+    ...droppedWorldItems.flatMap((placement) => {
+      const interactable = getDroppedWorldItemInteractable(placement);
+      return interactable ? [interactable] : [];
+    }),
+  ];
+}
 
 const SPRITE_SOURCES: Record<Direction, string> = {
   N: "./characters/01_N_Back.png",
@@ -537,48 +630,30 @@ const SURVIVAL_STATS = [
   { id: "spirit", label: "精神", symbol: "✦", value: 100 },
 ] as const;
 
-const HOTBAR_ITEMS = [
-  { id: "medkit", name: "醫療包", symbol: "+", count: 2 },
-  { id: "water", name: "純淨水", symbol: "◉", count: 3 },
-  { id: "ration", name: "能量棒", symbol: "▰", count: 4 },
-  { id: "flare", name: "照明棒", symbol: "✦", count: 2 },
-  { id: "crystal", name: "結晶碎片", symbol: "◆", count: 12 },
-  { id: "rope", name: "工具繩", symbol: "∞", count: 1 },
-  { id: "datapad", name: "資料板", symbol: "▤", count: 1 },
+const HOTBAR_ITEM_IDS = [
+  "medkit",
+  "water-bottle",
+  "emergency-ration",
+  "lantern",
+  "crystal-shard",
+  "utility-rope",
+  "navigation-data",
 ] as const;
 
-type InventoryCategory = "all" | "resource" | "tool" | "quest" | "main";
+type InventoryCategory = "all" | ItemCategory;
 
 const INVENTORY_CATEGORIES: Array<{ id: InventoryCategory; label: string }> = [
   { id: "all", label: "全部" },
   { id: "resource", label: "資源" },
-  { id: "tool", label: "道具" },
+  { id: "tool", label: "工具" },
   { id: "quest", label: "任務道具" },
   { id: "main", label: "主線道具" },
 ];
 
-const INVENTORY_ITEMS = [
-  { id: "crystal-shard", name: "藍色晶體碎片", symbol: "◆", count: 12, weight: 0.2, category: "resource", description: "帶有微弱共振反應的晶體碎片，可作為能源與精密裝置的材料。" },
-  { id: "metal-parts", name: "金屬零件", symbol: "⚙", count: 24, weight: 0.4, category: "resource", description: "從舊設備拆下的通用機械零件。" },
-  { id: "fiber-bundle", name: "纖維束", symbol: "≋", count: 15, weight: 0.15, category: "resource", description: "耐磨且富有韌性的植物纖維。" },
-  { id: "water-bottle", name: "淨水瓶", symbol: "◉", count: 5, weight: 0.8, category: "resource", description: "經過濾的飲用水，可恢復口渴數值。" },
-  { id: "emergency-ration", name: "緊急口糧", symbol: "▰", count: 8, weight: 0.35, category: "resource", description: "便於攜帶的高熱量壓縮食品。" },
-  { id: "alien-spore", name: "外星種子", symbol: "✺", count: 3, weight: 0.1, category: "resource", description: "來源不明的活性種子，仍在緩慢脈動。" },
-  { id: "utility-rope", name: "繩索", symbol: "∞", count: 6, weight: 0.7, category: "tool", description: "可用於攀爬、固定與臨時修繕。" },
-  { id: "scanner-parts", name: "掃描器零件", symbol: "◫", count: 7, weight: 0.3, category: "tool", description: "適用於便攜掃描器的替換模組。" },
-  { id: "repair-kit", name: "修理工具", symbol: "⌘", count: 1, weight: 1.8, category: "tool", description: "維修野外設備使用的基礎工具組。" },
-  { id: "tracking-module", name: "訊號模組", symbol: "◈", count: 4, weight: 0.25, category: "tool", description: "能夠標定近距離異常訊號來源。" },
-  { id: "time-crystal", name: "時間定位晶體", symbol: "♢", count: 1, weight: 0.8, category: "main", description: "內部封存著扭曲的時間共振頻率，似乎能標記並導引過去的特定位置。" },
-  { id: "navigation-data", name: "飛船導航資料", symbol: "▤", count: 1, weight: 0.2, category: "quest", description: "從墜落飛船中取出的導航資料。" },
-  { id: "memory-charm", name: "遺留下的記憶物", symbol: "◍", count: 2, weight: 0.1, category: "quest", description: "一件承載著陌生記憶的隨身物品。" },
-  { id: "ancient-plate", name: "古代符號板", symbol: "▥", count: 1, weight: 0.6, category: "quest", description: "刻著尚未解讀符號的古老金屬板。" },
-  { id: "medkit", name: "醫療包", symbol: "+", count: 3, weight: 1.1, category: "tool", description: "包含基礎止血與傷口處理用品。" },
-  { id: "lantern", name: "照明燈", symbol: "✦", count: 2, weight: 0.9, category: "tool", description: "適合遺跡探索的耐用照明設備。" },
-  { id: "battery", name: "電池組", symbol: "▣", count: 6, weight: 0.5, category: "resource", description: "可為小型電子設備供電。" },
-  { id: "energy-cell", name: "能量單元", symbol: "●", count: 4, weight: 0.45, category: "resource", description: "具高密度儲能能力的標準單元。" },
-  { id: "metal-scrap", name: "金屬碎片", symbol: "⬟", count: 18, weight: 0.2, category: "resource", description: "可重新熔製利用的金屬廢料。" },
-  { id: "synthetic-cloth", name: "合成布料", symbol: "▧", count: 9, weight: 0.18, category: "resource", description: "輕薄且防水的合成纖維布。" },
-] as const;
+const DEFAULT_SELECTED_INVENTORY_INDEX = Math.max(
+  0,
+  ITEM_DATABASE.findIndex((slot) => slot.item?.id === "medkit"),
+);
 
 function getCompassWindow(facing: Direction) {
   const currentIndex = COMPASS_DIRECTIONS.indexOf(facing);
@@ -608,6 +683,26 @@ function getDefaultDialogueTextSize(): DialogueTextSize {
 function getDefaultQuestCollapsed() {
   if (typeof window === "undefined") return false;
   return window.matchMedia(
+    "(max-width: 680px), (hover: none) and (pointer: coarse)",
+  ).matches;
+}
+
+const SURVIVAL_PANEL_STATE_STORAGE_KEY = "echoes:survival-panel-state";
+
+function getDefaultSurvivalExpanded() {
+  if (typeof window === "undefined") return true;
+
+  try {
+    const savedState = window.localStorage.getItem(
+      SURVIVAL_PANEL_STATE_STORAGE_KEY,
+    );
+    if (savedState === "expanded") return true;
+    if (savedState === "collapsed") return false;
+  } catch {
+    // 無法使用本機儲存時，仍依目前裝置類型決定預設狀態。
+  }
+
+  return !window.matchMedia(
     "(max-width: 680px), (hover: none) and (pointer: coarse)",
   ).matches;
 }
@@ -902,11 +997,22 @@ function getMovementGuideContact(point: Point, radius: number) {
   return nearest;
 }
 
-function findInteractableAt(point: Point) {
+function findInteractableAt(
+  point: Point,
+  interactables: readonly SceneInteractable[],
+  collectedWorldItems?: ReadonlySet<string>,
+): SceneInteractable | null {
   let nearest: SceneInteractable | null = null;
   let nearestDistance = Number.POSITIVE_INFINITY;
 
-  SCENE_INTERACTABLES.forEach((interactable) => {
+  interactables.forEach((interactable) => {
+    if (
+      interactable.worldItemKind === "placed" &&
+      interactable.worldItemId &&
+      collectedWorldItems?.has(interactable.worldItemId)
+    ) {
+      return;
+    }
     if (interactable.points && interactable.points.length >= 3) {
       if (pointInPolygon(point, interactable.points)) {
         nearest = interactable;
@@ -925,8 +1031,16 @@ function findInteractableAt(point: Point) {
   return nearest;
 }
 
-function findInteractableTouching(point: Point, radius: number) {
-  return SCENE_INTERACTABLES.find((interactable) =>
+function findInteractableTouching(
+  point: Point,
+  radius: number,
+  interactables: readonly SceneInteractable[],
+  collectedWorldItems?: ReadonlySet<string>,
+) {
+  return interactables.find((interactable) =>
+    (interactable.worldItemKind !== "placed" ||
+      !interactable.worldItemId ||
+      !collectedWorldItems?.has(interactable.worldItemId)) &&
     isTouchingInteractable(point, radius, interactable),
   ) ?? null;
 }
@@ -1168,6 +1282,66 @@ function isWalkable(footPoint: Point, radius: number) {
   return !SCENE_COLLIDERS.some((collider) =>
     circleIntersectsCollider(center, radius, collider),
   );
+}
+
+function findDroppedWorldItemPlacement(
+  origin: Point,
+  facing: Direction,
+  playerRadius: number,
+  existingItems: readonly DroppedWorldItem[],
+) {
+  const forward = getDirectionVector(facing);
+  const side = { x: -forward.y, y: forward.x };
+  const lateralSteps = [0, 1, -1, 2, -2, 3, -3];
+
+  for (let ring = 0; ring < 4; ring += 1) {
+    const forwardDistance = 48 + ring * 26;
+    for (const lateralStep of lateralSteps) {
+      const lateralDistance = lateralStep * 28;
+      const position = {
+        x: origin.x + forward.x * forwardDistance + side.x * lateralDistance,
+        y: origin.y + forward.y * forwardDistance + side.y * lateralDistance,
+      };
+      if (!isWalkable(position, 8)) continue;
+      if (
+        existingItems.some(
+          (item) =>
+            Math.hypot(
+              item.position.x - position.x,
+              item.position.y - position.y,
+            ) < 24,
+        )
+      ) {
+        continue;
+      }
+
+      const directionFromOrigin = {
+        x: position.x - origin.x,
+        y: position.y - origin.y,
+      };
+      const distanceFromOrigin = Math.max(
+        Number.EPSILON,
+        Math.hypot(directionFromOrigin.x, directionFromOrigin.y),
+      );
+      const interactionPoint = {
+        x: position.x - (directionFromOrigin.x / distanceFromOrigin) * 34,
+        y: position.y - (directionFromOrigin.y / distanceFromOrigin) * 34,
+      };
+      if (!isWalkable(interactionPoint, playerRadius)) continue;
+
+      return {
+        position,
+        interactionPoint: {
+          ...interactionPoint,
+          facing: getDirection(
+            position.x - interactionPoint.x,
+            position.y - interactionPoint.y,
+          ),
+        },
+      };
+    }
+  }
+  return null;
 }
 
 function hasWalkableLine(start: Point, end: Point, radius: number) {
@@ -1657,11 +1831,13 @@ export function MovementLab() {
   );
   const speedRef = useRef(210);
   const sizeRef = useRef(142);
+  const playerPositionRef = useRef<Point>({ ...SPAWN });
+  const playerFacingRef = useRef<Direction>(SCENE_START_FACING);
   const collisionSlideToleranceRef = useRef(0.55);
   const showPlayerCollisionRef = useRef(false);
   const showSceneCollisionRef = useRef(false);
   const bgmEnabledRef = useRef(true);
-  const bgmVolumeRef = useRef(AUDIO_EVENT_CONFIG.bgm.volume);
+  const bgmVolumeRef = useRef<number>(AUDIO_EVENT_CONFIG.bgm.volume);
   const virtualCursorControlsEnabledRef = useRef(true);
   const audioEventManagerRef = useRef<AudioEventManager | null>(null);
   const requestBgmPlaybackRef = useRef<() => void>(() => {});
@@ -1676,8 +1852,17 @@ export function MovementLab() {
   const hotbarFeedbackTimerRef = useRef<number | null>(null);
   const hotbarUseSequenceRef = useRef(0);
   const activeHotbarSlotRef = useRef(0);
-  const selectedInventoryIndexRef = useRef(10);
+  const selectedInventoryIndexRef = useRef(
+    DEFAULT_SELECTED_INVENTORY_INDEX,
+  );
+  const droppedWorldItemsRef = useRef<DroppedWorldItem[]>([]);
+  const sceneInteractablesRef = useRef<SceneInteractable[]>(
+    STATIC_SCENE_INTERACTABLES,
+  );
+  const droppedWorldItemSequenceRef = useRef(0);
+  const optionsGamepadModeRef = useRef<OptionsGamepadMode>("dpad");
   const inventoryGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
+  const inventoryCategoryRef = useRef<InventoryCategory>("all");
 
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
@@ -1697,7 +1882,7 @@ export function MovementLab() {
   const [virtualCursorControlsEnabled, setVirtualCursorControlsEnabled] =
     useState(true);
   const [dialogueTextSize, setDialogueTextSize] =
-    useState<DialogueTextSize>(getDefaultDialogueTextSize);
+    useState<DialogueTextSize>("small");
   const [facing, setFacing] = useState<Direction>(SCENE_START_FACING);
   const [moving, setMoving] = useState(false);
   const [gamepadConnected, setGamepadConnected] = useState(false);
@@ -1708,18 +1893,72 @@ export function MovementLab() {
   const [activeKeyboardKeys, setActiveKeyboardKeys] = useState<string[]>([]);
   const [interactionJustTriggered, setInteractionJustTriggered] = useState(false);
   const [gameClock, setGameClock] = useState({ day: 1, hour: 6, minute: 0 });
-  const [survivalExpanded, setSurvivalExpanded] = useState(false);
-  const [questCollapsed, setQuestCollapsed] = useState(getDefaultQuestCollapsed);
+  const [survivalExpanded, setSurvivalExpanded] = useState(true);
+  const [questCollapsed, setQuestCollapsed] = useState(false);
+  const [playerInventory, setPlayerInventory] = useState<PlayerInventory>(
+    () => ({ ...INITIAL_PLAYER_INVENTORY }),
+  );
+  const [collectedWorldItemIds, setCollectedWorldItemIds] = useState(
+    () => new Set<string>(),
+  );
+  const playerInventoryRef = useRef(playerInventory);
+  const collectedWorldItemIdsRef = useRef(collectedWorldItemIds);
   const [activeHotbarSlot, setActiveHotbarSlot] = useState(0);
   const [inventoryCategory, setInventoryCategory] = useState<InventoryCategory>("all");
   const [inventoryPage, setInventoryPage] = useState(0);
-  const [selectedInventoryIndex, setSelectedInventoryIndex] = useState(10);
+  const [selectedInventoryIndex, setSelectedInventoryIndex] = useState(
+    DEFAULT_SELECTED_INVENTORY_INDEX,
+  );
   const [hotbarFeedback, setHotbarFeedback] = useState<{
     message: string;
     sequence: number;
     slotIndex: number;
   } | null>(null);
   const [dialogueView, setDialogueView] = useState<DialogueView>(null);
+
+  const applyDroppedWorldItems = (items: readonly DroppedWorldItem[]) => {
+    const nextItems = [...items];
+    droppedWorldItemsRef.current = nextItems;
+    sceneInteractablesRef.current = buildSceneInteractables(nextItems);
+  };
+
+  useEffect(() => {
+    const hydrationTimer = window.setTimeout(() => {
+      const loadedInventory = loadPlayerInventory();
+      const loadedCollectedWorldItemIds = loadCollectedWorldItemIds();
+      const loadedDroppedWorldItems = loadDroppedWorldItems();
+      playerInventoryRef.current = loadedInventory;
+      collectedWorldItemIdsRef.current = loadedCollectedWorldItemIds;
+      droppedWorldItemsRef.current = loadedDroppedWorldItems;
+      sceneInteractablesRef.current = buildSceneInteractables(
+        loadedDroppedWorldItems,
+      );
+      setPlayerInventory(loadedInventory);
+      setCollectedWorldItemIds(loadedCollectedWorldItemIds);
+      setDialogueTextSize(getDefaultDialogueTextSize());
+      setQuestCollapsed(getDefaultQuestCollapsed());
+      setSurvivalExpanded(getDefaultSurvivalExpanded());
+    }, 0);
+    return () => window.clearTimeout(hydrationTimer);
+  }, []);
+
+  useEffect(() => {
+    playerInventoryRef.current = playerInventory;
+    const selectedItem =
+      ITEM_DATABASE[selectedInventoryIndexRef.current]?.item;
+    if (selectedItem && (playerInventory[selectedItem.id] ?? 0) > 0) return;
+    const firstOwnedItem = getOwnedItemStacks(playerInventory)[0];
+    if (!firstOwnedItem) return;
+    selectedInventoryIndexRef.current = firstOwnedItem.databaseIndex;
+    const selectionTimer = window.setTimeout(() => {
+      setSelectedInventoryIndex(firstOwnedItem.databaseIndex);
+    }, 0);
+    return () => window.clearTimeout(selectionTimer);
+  }, [playerInventory]);
+
+  useEffect(() => {
+    collectedWorldItemIdsRef.current = collectedWorldItemIds;
+  }, [collectedWorldItemIds]);
 
   useEffect(() => {
     const startedAt = performance.now();
@@ -1822,14 +2061,19 @@ export function MovementLab() {
 
   const activateHotbarItem = (slotIndex: number) => {
     if (optionsOpenRef.current || inventoryOpenRef.current || dialoguePlaybackRef.current) return;
-    const item = HOTBAR_ITEMS[slotIndex];
+    const itemId = HOTBAR_ITEM_IDS[slotIndex];
+    const item = itemId ? ITEM_BY_ID.get(itemId) : undefined;
     if (!item) return;
+    const count = playerInventoryRef.current[item.id] ?? 0;
 
     hotbarUseSequenceRef.current += 1;
     activeHotbarSlotRef.current = slotIndex;
     setActiveHotbarSlot(slotIndex);
     setHotbarFeedback({
-      message: `嘗試使用「${item.name}」· 功能尚未開放`,
+      message:
+        count > 0
+          ? `嘗試使用「${item.name}」· 功能尚未開放`
+          : `尚未持有「${item.name}」`,
       sequence: hotbarUseSequenceRef.current,
       slotIndex,
     });
@@ -1845,21 +2089,23 @@ export function MovementLab() {
 
   const selectHotbarSlot = (offset: number) => {
     setActiveHotbarSlot((current) => {
-      const next = (current + offset + HOTBAR_ITEMS.length) % HOTBAR_ITEMS.length;
+      const next =
+        (current + offset + HOTBAR_ITEM_IDS.length) % HOTBAR_ITEM_IDS.length;
       activeHotbarSlotRef.current = next;
       return next;
     });
   };
 
   const selectInventoryItem = (slotIndex: number) => {
-    if (!INVENTORY_ITEMS[slotIndex]) return;
+    const item = ITEM_DATABASE[slotIndex]?.item;
+    if (!item || (playerInventoryRef.current[item.id] ?? 0) <= 0) return;
     selectedInventoryIndexRef.current = slotIndex;
     setSelectedInventoryIndex(slotIndex);
   };
 
   const activateInventoryItem = (slotIndex: number) => {
-    const item = INVENTORY_ITEMS[slotIndex];
-    if (!item) return;
+    const item = ITEM_DATABASE[slotIndex]?.item;
+    if (!item || (playerInventoryRef.current[item.id] ?? 0) <= 0) return;
     selectInventoryItem(slotIndex);
     hotbarUseSequenceRef.current += 1;
     setHotbarFeedback({
@@ -1876,14 +2122,140 @@ export function MovementLab() {
     }, 1100);
   };
 
+  const discardInventoryItem = (
+    slotIndex: number,
+    button: HTMLButtonElement,
+  ) => {
+    const item = ITEM_DATABASE[slotIndex]?.item;
+    const currentQuantity = item
+      ? playerInventoryRef.current[item.id] ?? 0
+      : 0;
+    if (
+      !item ||
+      currentQuantity <= 0 ||
+      !item.inventoryRules.discardable
+    ) {
+      return;
+    }
+
+    const placement = findDroppedWorldItemPlacement(
+      playerPositionRef.current,
+      playerFacingRef.current,
+      sizeRef.current * 0.14,
+      droppedWorldItemsRef.current.filter(
+        (worldItem) => worldItem.sceneId === SCENE_DATA.sceneId,
+      ),
+    );
+    if (!placement) {
+      hotbarUseSequenceRef.current += 1;
+      setHotbarFeedback({
+        message: "角色附近沒有可放置道具的空間",
+        sequence: hotbarUseSequenceRef.current,
+        slotIndex: -1,
+      });
+      return;
+    }
+
+    let droppedWorldItemId = "";
+    do {
+      droppedWorldItemSequenceRef.current += 1;
+      droppedWorldItemId =
+        `inventory-drop:${SCENE_DATA.sceneId}:` +
+        droppedWorldItemSequenceRef.current;
+    } while (
+      droppedWorldItemsRef.current.some(
+        (worldItem) => worldItem.id === droppedWorldItemId,
+      )
+    );
+    const droppedWorldItem: DroppedWorldItem = {
+      id: droppedWorldItemId,
+      sceneId: SCENE_DATA.sceneId,
+      itemId: item.id,
+      quantity: 1,
+      position: placement.position,
+      interactionPoint: placement.interactionPoint,
+      pickRadius: 26,
+      activationDistance: 48,
+      createdFromInventory: true,
+    };
+    const nextInventory = removeInventoryItem(
+      playerInventoryRef.current,
+      item.id,
+      1,
+    );
+    const nextDroppedWorldItems = [
+      ...droppedWorldItemsRef.current,
+      droppedWorldItem,
+    ];
+
+    playerInventoryRef.current = nextInventory;
+    applyDroppedWorldItems(nextDroppedWorldItems);
+    setPlayerInventory(nextInventory);
+    try {
+      savePlayerInventory(nextInventory);
+      saveDroppedWorldItems(nextDroppedWorldItems);
+    } catch {
+      // 無法使用本機儲存時，本次遊戲工作階段仍保留丟棄結果。
+    }
+
+    button.animate(
+      [
+        { transform: "scale(1)", filter: "brightness(1)" },
+        {
+          transform: "scale(0.86)",
+          filter: "brightness(1.8) drop-shadow(0 0 8px #d65d53)",
+          offset: 0.38,
+        },
+        { transform: "scale(1.04)", filter: "brightness(1.2)", offset: 0.72 },
+        { transform: "scale(1)", filter: "brightness(1)" },
+      ],
+      { duration: 230, easing: "cubic-bezier(.2,.8,.2,1)" },
+    );
+
+    hotbarUseSequenceRef.current += 1;
+    setHotbarFeedback({
+      message:
+        `已丟棄「${item.name}」×1` +
+        ` · 目前持有 ${nextInventory[item.id] ?? 0}`,
+      sequence: hotbarUseSequenceRef.current,
+      slotIndex: -1,
+    });
+    if (hotbarFeedbackTimerRef.current !== null) {
+      window.clearTimeout(hotbarFeedbackTimerRef.current);
+    }
+    hotbarFeedbackTimerRef.current = window.setTimeout(() => {
+      setHotbarFeedback(null);
+      hotbarFeedbackTimerRef.current = null;
+    }, 1800);
+  };
+
   const changeInventoryCategory = (category: InventoryCategory) => {
+    inventoryCategoryRef.current = category;
     setInventoryCategory(category);
     setInventoryPage(0);
-    const currentItem = INVENTORY_ITEMS[selectedInventoryIndexRef.current];
-    if (category !== "all" && currentItem.category !== category) {
-      const nextIndex = INVENTORY_ITEMS.findIndex((item) => item.category === category);
-      if (nextIndex >= 0) selectInventoryItem(nextIndex);
+    const currentItem = ITEM_DATABASE[selectedInventoryIndexRef.current]?.item;
+    if (
+      category !== "all" &&
+      (!currentItem || currentItem.category !== category)
+    ) {
+      const nextItem = getOwnedItemStacks(playerInventoryRef.current).find(
+        (stack) => stack.definition.category === category,
+      );
+      if (nextItem) selectInventoryItem(nextItem.databaseIndex);
     }
+  };
+
+  const changeInventoryCategoryByOffset = (offset: number) => {
+    const currentIndex = INVENTORY_CATEGORIES.findIndex(
+      (category) => category.id === inventoryCategoryRef.current,
+    );
+    const nextIndex = getClampedInventoryCategoryIndex(
+      currentIndex,
+      INVENTORY_CATEGORIES.length,
+      offset,
+    );
+    if (nextIndex === currentIndex) return;
+    changeInventoryCategory(INVENTORY_CATEGORIES[nextIndex].id);
   };
 
   const moveInventorySelection = (horizontal: number, vertical: number) => {
@@ -2097,6 +2469,21 @@ export function MovementLab() {
     setOptionsPanelOpen(!optionsOpenRef.current);
   };
 
+  const toggleSurvivalPanel = () => {
+    setSurvivalExpanded((current) => {
+      const nextState = !current;
+      try {
+        window.localStorage.setItem(
+          SURVIVAL_PANEL_STATE_STORAGE_KEY,
+          nextState ? "expanded" : "collapsed",
+        );
+      } catch {
+        // 私密模式或禁止儲存時，至少保留本次頁面中的切換結果。
+      }
+      return nextState;
+    });
+  };
+
   const setInventoryPanelOpen = (open: boolean) => {
     inventoryOpenRef.current = open;
     setInventoryOpen(open);
@@ -2198,6 +2585,7 @@ export function MovementLab() {
   };
 
   const adjustOptionsMenuSelection = (direction: number) => {
+    const toggleValue = getDpadToggleValue(direction);
     switch (optionsMenuSelectionRef.current) {
       case "dialogue-text-size": {
         const sizes: DialogueTextSize[] = ["small", "medium", "large"];
@@ -2207,6 +2595,26 @@ export function MovementLab() {
         setDialogueTextSize(sizes[nextIndex]);
         break;
       }
+      case "bgm-enabled":
+        if (toggleValue !== null) setBgmEnabledValue(toggleValue);
+        break;
+      case "virtual-cursor-controls":
+        if (toggleValue !== null) {
+          setVirtualCursorControlsEnabledValue(toggleValue);
+        }
+        break;
+      case "player-collision":
+        if (toggleValue !== null) {
+          showPlayerCollisionRef.current = toggleValue;
+          setShowPlayerCollision(toggleValue);
+        }
+        break;
+      case "scene-collision":
+        if (toggleValue !== null) {
+          showSceneCollisionRef.current = toggleValue;
+          setShowSceneCollision(toggleValue);
+        }
+        break;
       case "bgm-volume":
         if (bgmEnabledRef.current) setBgmVolumeValue(bgmVolumeRef.current * 100 + direction * 5);
         break;
@@ -2403,6 +2811,18 @@ export function MovementLab() {
       if (!gamepadCursorActive) return;
       gamepadCursorActive = false;
       document.documentElement.classList.remove("gamepad-cursor-active");
+    };
+
+    const activateOptionsDpadMode = () => {
+      optionsGamepadModeRef.current = "dpad";
+      virtualCursorVisible = false;
+      deactivateGamepadCursor();
+    };
+
+    const activateInventoryDpadMode = () => {
+      inventoryGamepadModeRef.current = "dpad";
+      virtualCursorVisible = false;
+      deactivateGamepadCursor();
     };
 
     const setGamepadInputCursorHidden = (hidden: boolean) => {
@@ -2648,6 +3068,87 @@ export function MovementLab() {
           },
         }),
       );
+
+      if (
+        interactable.type === "pickup" &&
+        interactable.itemId &&
+        interactable.worldItemId
+      ) {
+        const item = ITEM_BY_ID.get(interactable.itemId);
+        const isPlacedWorldItem =
+          interactable.worldItemKind !== "dropped";
+        if (
+          item &&
+          (!isPlacedWorldItem ||
+            !collectedWorldItemIdsRef.current.has(interactable.worldItemId))
+        ) {
+          const quantity = Math.max(
+            1,
+            Math.floor(interactable.quantity ?? 1),
+          );
+          const nextInventory = grantInventoryItem(
+            playerInventoryRef.current,
+            item.id,
+            quantity,
+          );
+          playerInventoryRef.current = nextInventory;
+          setPlayerInventory(nextInventory);
+
+          if (interactable.worldItemKind === "dropped") {
+            const nextDroppedWorldItems =
+              droppedWorldItemsRef.current.filter(
+                (worldItem) =>
+                  worldItem.id !== interactable.worldItemId,
+              );
+            applyDroppedWorldItems(nextDroppedWorldItems);
+            try {
+              saveDroppedWorldItems(nextDroppedWorldItems);
+            } catch {
+              // 無法使用本機儲存時，本次工作階段仍會移除場上道具。
+            }
+          } else {
+            const nextCollectedWorldItemIds = new Set(
+              collectedWorldItemIdsRef.current,
+            );
+            nextCollectedWorldItemIds.add(interactable.worldItemId);
+            collectedWorldItemIdsRef.current =
+              nextCollectedWorldItemIds;
+            setCollectedWorldItemIds(nextCollectedWorldItemIds);
+            try {
+              saveCollectedWorldItemIds(nextCollectedWorldItemIds);
+            } catch {
+              // 無法使用本機儲存時，本次工作階段仍會移除固定拾取物。
+            }
+          }
+
+          try {
+            savePlayerInventory(nextInventory);
+          } catch {
+            // 無法使用本機儲存時，本次遊戲工作階段仍保留真實數量。
+          }
+
+          hotbarUseSequenceRef.current += 1;
+          setHotbarFeedback({
+            message:
+              `已拾取「${item.name}」×${quantity}` +
+              ` · 目前持有 ${nextInventory[item.id]}`,
+            sequence: hotbarUseSequenceRef.current,
+            slotIndex: -1,
+          });
+          if (hotbarFeedbackTimerRef.current !== null) {
+            window.clearTimeout(hotbarFeedbackTimerRef.current);
+          }
+          hotbarFeedbackTimerRef.current = window.setTimeout(() => {
+            setHotbarFeedback(null);
+            hotbarFeedbackTimerRef.current = null;
+          }, 1800);
+        }
+        if (source === "pointer") {
+          pointerInteractionTriggeredId = interactable.id;
+        }
+        return;
+      }
+
       if ((interactable.type ?? "dialogue") === "dialogue") openDialogue(interactable);
       if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
     };
@@ -2698,7 +3199,12 @@ export function MovementLab() {
       playAcceptedInteractionSound = false,
     ) => {
       const interactable =
-        forcedInteractable ?? findInteractableAt(requestedDestination);
+        forcedInteractable ??
+        findInteractableAt(
+          requestedDestination,
+          sceneInteractablesRef.current,
+          collectedWorldItemIdsRef.current,
+        );
       if (
         source === "pointer" &&
         interactable &&
@@ -2784,9 +3290,18 @@ export function MovementLab() {
       const canUseCursorForSource =
         source !== "gamepad" || virtualCursorControlsEnabledRef.current;
       const cursorTarget = canUseCursorForSource && virtualCursorVisible
-        ? findInteractableAt(screenToWorld(virtualCursor))
+          ? findInteractableAt(
+              screenToWorld(virtualCursor),
+              sceneInteractablesRef.current,
+              collectedWorldItemIdsRef.current,
+            )
         : null;
-      const playerTarget = findInteractableTouching(player, sizeRef.current * 0.14);
+      const playerTarget = findInteractableTouching(
+        player,
+        sizeRef.current * 0.14,
+        sceneInteractablesRef.current,
+        collectedWorldItemIdsRef.current,
+      );
       const lockedPlayerTarget =
         activePromptOwner === "player" &&
         playerTarget?.id === activePromptTargetId
@@ -2885,7 +3400,12 @@ export function MovementLab() {
         ? element.closest<HTMLElement>(".inventory-item[data-inventory-index]")
         : null;
       const index = Number(inventoryItem?.dataset.inventoryIndex);
-      return Number.isInteger(index) && INVENTORY_ITEMS[index] ? index : null;
+      const item = Number.isInteger(index)
+        ? ITEM_DATABASE[index]?.item
+        : null;
+      return item && (playerInventoryRef.current[item.id] ?? 0) > 0
+        ? index
+        : null;
     };
 
     const assignHeldPointerAction = (force: boolean) => {
@@ -2930,13 +3450,12 @@ export function MovementLab() {
     };
 
     const beginTouchJoystick = (event: PointerEvent, screenPoint: Point) => {
-      const visualMargin = 72;
       touchJoystickPointerId = event.pointerId;
       touchJoystickVisible = true;
       touchJoystick.inputOrigin.x = screenPoint.x;
       touchJoystick.inputOrigin.y = screenPoint.y;
-      touchJoystick.origin.x = clamp(viewportWidth * 0.13, visualMargin, viewportWidth - visualMargin);
-      touchJoystick.origin.y = clamp(viewportHeight * 0.7, visualMargin, viewportHeight - visualMargin);
+      touchJoystick.origin.x = screenPoint.x;
+      touchJoystick.origin.y = screenPoint.y;
       touchJoystick.knob.x = touchJoystick.origin.x;
       touchJoystick.knob.y = touchJoystick.origin.y;
       touchJoystick.input.x = 0;
@@ -3163,6 +3682,74 @@ export function MovementLab() {
       }
     };
 
+    const drawWorldItemPickups = (time: number) => {
+      sceneInteractablesRef.current.forEach((interactable) => {
+        if (
+          !interactable.position ||
+          !interactable.itemId ||
+          (interactable.worldItemKind === "placed" &&
+            interactable.worldItemId &&
+            collectedWorldItemIdsRef.current.has(interactable.worldItemId))
+        ) {
+          return;
+        }
+
+        const item = ITEM_BY_ID.get(interactable.itemId);
+        if (!item) return;
+        const pulse = 0.82 + Math.sin(time / 420) * 0.12;
+        const floatOffset = Math.sin(time / 620) * 2.2;
+        context.save();
+        context.translate(
+          interactable.position.x,
+          interactable.position.y + floatOffset,
+        );
+        context.globalAlpha = 0.95;
+        context.shadowColor = "#4ddcff";
+        context.shadowBlur = 20 * pulse;
+
+        if (item.id === "crystal-shard") {
+          context.fillStyle = "rgba(62, 205, 255, 0.96)";
+          context.strokeStyle = "#c2f5ff";
+          context.lineWidth = 1.5;
+          context.beginPath();
+          context.moveTo(0, -22);
+          context.lineTo(12, -3);
+          context.lineTo(6, 17);
+          context.lineTo(-8, 13);
+          context.lineTo(-13, -4);
+          context.closePath();
+          context.fill();
+          context.stroke();
+
+          context.fillStyle = "rgba(172, 244, 255, 0.72)";
+          context.beginPath();
+          context.moveTo(0, -18);
+          context.lineTo(4, -2);
+          context.lineTo(-2, 10);
+          context.lineTo(-8, -3);
+          context.closePath();
+          context.fill();
+        } else {
+          context.fillStyle = "rgba(32, 57, 62, 0.9)";
+          context.beginPath();
+          context.arc(0, 0, 19, 0, Math.PI * 2);
+          context.fill();
+          context.fillStyle = "#dffefa";
+          context.font = "700 22px system-ui";
+          context.textAlign = "center";
+          context.textBaseline = "middle";
+          context.fillText(item.symbol, 0, 1);
+        }
+
+        context.shadowBlur = 0;
+        context.fillStyle = "rgba(77, 220, 255, 0.18)";
+        context.beginPath();
+        context.ellipse(0, 20, 22 * pulse, 7 * pulse, 0, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+      });
+    };
+
     const drawSceneCollision = () => {
       if (!showSceneCollisionRef.current) return;
 
@@ -3199,7 +3786,14 @@ export function MovementLab() {
 
       context.fillStyle = "rgba(255, 226, 55, 0.16)";
       context.strokeStyle = "#ffe347";
-      SCENE_INTERACTABLES.forEach((interactable) => {
+      sceneInteractablesRef.current.forEach((interactable) => {
+        if (
+          interactable.worldItemKind === "placed" &&
+          interactable.worldItemId &&
+          collectedWorldItemIdsRef.current.has(interactable.worldItemId)
+        ) {
+          return;
+        }
         if (!interactable.points || interactable.points.length < 3) return;
         tracePolygon(context, interactable.points);
         context.fill();
@@ -3592,9 +4186,18 @@ export function MovementLab() {
 
     const drawInteractionPrompts = () => {
       const radius = sizeRef.current * 0.14;
-      const playerTarget = findInteractableTouching(player, radius);
+      const playerTarget = findInteractableTouching(
+        player,
+        radius,
+        sceneInteractablesRef.current,
+        collectedWorldItemIdsRef.current,
+      );
       const cursorTarget = virtualCursorVisible
-        ? findInteractableAt(screenToWorld(virtualCursor))
+        ? findInteractableAt(
+            screenToWorld(virtualCursor),
+            sceneInteractablesRef.current,
+            collectedWorldItemIdsRef.current,
+          )
         : null;
       const playerTargetId = playerTarget?.id ?? null;
       const cursorTargetId = cursorTarget?.id ?? null;
@@ -3781,7 +4384,11 @@ export function MovementLab() {
         gamepadInput.connected &&
         cursorInputLength > 0
       ) {
-        if (inventoryOpenRef.current) inventoryGamepadModeRef.current = "cursor";
+        if (optionsOpenRef.current) {
+          optionsGamepadModeRef.current = "cursor";
+        } else if (inventoryOpenRef.current) {
+          inventoryGamepadModeRef.current = "cursor";
+        }
         activateGamepadCursor();
         const marginX = Math.min(16, viewportWidth / 2);
         const marginY = Math.min(16, viewportHeight / 2);
@@ -3835,20 +4442,28 @@ export function MovementLab() {
       }
       if (optionsMenuOpen) {
         gameplayHotbarDpadX = 0;
-        if (leftBumperJustPressed) changeOptionsTab(-1);
-        if (rightBumperJustPressed) changeOptionsTab(1);
+        if (leftBumperJustPressed) {
+          activateOptionsDpadMode();
+          changeOptionsTab(-1);
+        }
+        if (rightBumperJustPressed) {
+          activateOptionsDpadMode();
+          changeOptionsTab(1);
+        }
 
         const dpadVertical = Math.sign(gamepadInput.dpadY);
         if (dpadVertical === 0) {
           heldGamepadDpadY = 0;
           gamepadDpadYRepeatSeconds = 0;
         } else if (dpadVertical !== heldGamepadDpadY) {
+          activateOptionsDpadMode();
           heldGamepadDpadY = dpadVertical;
           gamepadDpadYRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
           moveOptionsMenuSelection(dpadVertical);
         } else {
           gamepadDpadYRepeatSeconds -= deltaTime;
           if (gamepadDpadYRepeatSeconds <= 0) {
+            activateOptionsDpadMode();
             moveOptionsMenuSelection(dpadVertical);
             gamepadDpadYRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
           }
@@ -3859,12 +4474,14 @@ export function MovementLab() {
           heldGamepadDpadX = 0;
           gamepadDpadXRepeatSeconds = 0;
         } else if (dpadHorizontal !== heldGamepadDpadX) {
+          activateOptionsDpadMode();
           heldGamepadDpadX = dpadHorizontal;
           gamepadDpadXRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
           adjustOptionsMenuSelection(dpadHorizontal);
         } else {
           gamepadDpadXRepeatSeconds -= deltaTime;
           if (gamepadDpadXRepeatSeconds <= 0) {
+            activateOptionsDpadMode();
             adjustOptionsMenuSelection(dpadHorizontal);
             gamepadDpadXRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
           }
@@ -3874,8 +4491,11 @@ export function MovementLab() {
           gamepadInput.confirmPressed &&
           !wasGamepadConfirmPressed
         ) {
-          const uiResult = activateVirtualCursorUi();
-          if (uiResult !== "activated") activateOptionsMenuSelection();
+          if (shouldUseOptionsCursor(optionsGamepadModeRef.current)) {
+            activateVirtualCursorUi();
+          } else {
+            activateOptionsMenuSelection();
+          }
         }
 
         if (
@@ -3887,22 +4507,32 @@ export function MovementLab() {
         }
       } else if (inventoryMenuOpen) {
         gameplayHotbarDpadX = 0;
+        if (leftBumperJustPressed) {
+          activateInventoryDpadMode();
+          changeInventoryCategoryByOffset(
+            getInventoryCategoryOffsetForBumper("LB"),
+          );
+        }
+        if (rightBumperJustPressed) {
+          activateInventoryDpadMode();
+          changeInventoryCategoryByOffset(
+            getInventoryCategoryOffsetForBumper("RB"),
+          );
+        }
 
         const dpadVertical = Math.sign(gamepadInput.dpadY);
         if (dpadVertical === 0) {
           heldGamepadDpadY = 0;
           gamepadDpadYRepeatSeconds = 0;
         } else if (dpadVertical !== heldGamepadDpadY) {
-          inventoryGamepadModeRef.current = "dpad";
-          virtualCursorVisible = false;
-          deactivateGamepadCursor();
+          activateInventoryDpadMode();
           heldGamepadDpadY = dpadVertical;
           gamepadDpadYRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
           moveInventorySelection(0, dpadVertical);
         } else {
           gamepadDpadYRepeatSeconds -= deltaTime;
           if (gamepadDpadYRepeatSeconds <= 0) {
-            inventoryGamepadModeRef.current = "dpad";
+            activateInventoryDpadMode();
             moveInventorySelection(0, dpadVertical);
             gamepadDpadYRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
           }
@@ -3913,16 +4543,14 @@ export function MovementLab() {
           heldGamepadDpadX = 0;
           gamepadDpadXRepeatSeconds = 0;
         } else if (dpadHorizontal !== heldGamepadDpadX) {
-          inventoryGamepadModeRef.current = "dpad";
-          virtualCursorVisible = false;
-          deactivateGamepadCursor();
+          activateInventoryDpadMode();
           heldGamepadDpadX = dpadHorizontal;
           gamepadDpadXRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
           moveInventorySelection(dpadHorizontal, 0);
         } else {
           gamepadDpadXRepeatSeconds -= deltaTime;
           if (gamepadDpadXRepeatSeconds <= 0) {
-            inventoryGamepadModeRef.current = "dpad";
+            activateInventoryDpadMode();
             moveInventorySelection(dpadHorizontal, 0);
             gamepadDpadXRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
           }
@@ -4271,6 +4899,9 @@ export function MovementLab() {
       setFacing((previous) =>
         previous === currentFacing ? previous : currentFacing,
       );
+      playerPositionRef.current.x = player.x;
+      playerPositionRef.current.y = player.y;
+      playerFacingRef.current = currentFacing;
 
       const zoom = getSceneZoom(viewportWidth, viewportHeight);
       const desiredCameraX = getCameraCoordinate(
@@ -4305,6 +4936,7 @@ export function MovementLab() {
       context.scale(zoom, zoom);
       context.translate(-camera.x, -camera.y);
       drawMap();
+      drawWorldItemPickups(time);
       drawSceneCollision();
       drawPlayer();
       drawTouchEffect(time);
@@ -4364,19 +4996,50 @@ export function MovementLab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filteredInventoryItems = INVENTORY_ITEMS
-    .map((item, index) => ({ item, index }))
-    .filter(({ item }) => inventoryCategory === "all" || item.category === inventoryCategory);
+  const ownedInventoryItems = getOwnedItemStacks(playerInventory);
+  const filteredInventoryItems = ownedInventoryItems
+    .filter(
+      (stack) =>
+        inventoryCategory === "all" ||
+        stack.definition.category === inventoryCategory,
+    )
+    .map((stack) => ({
+      item: { ...stack.definition, count: stack.count },
+      index: stack.databaseIndex,
+    }));
   const inventoryPageCount = Math.max(1, Math.ceil(filteredInventoryItems.length / 16));
   const currentInventoryPage = Math.min(inventoryPage, inventoryPageCount - 1);
   const visibleInventoryItems = filteredInventoryItems.slice(
     currentInventoryPage * 16,
     currentInventoryPage * 16 + 16,
   );
-  const selectedInventoryItem = INVENTORY_ITEMS[selectedInventoryIndex] ?? INVENTORY_ITEMS[0];
+  const selectedInventoryStack =
+    ownedInventoryItems.find(
+      (stack) => stack.databaseIndex === selectedInventoryIndex,
+    ) ?? ownedInventoryItems[0] ?? null;
+  const selectedInventoryItem = selectedInventoryStack
+    ? {
+        ...selectedInventoryStack.definition,
+        count: selectedInventoryStack.count,
+      }
+    : null;
+  const inventoryWeight = calculateInventoryWeight(playerInventory);
+  const inventoryWeightPercent = Math.min(
+    100,
+    (inventoryWeight / 60) * 100,
+  );
+  const inventoryCategoryCounts = ownedInventoryItems.reduce(
+    (counts, stack) => {
+      counts[stack.definition.category] += stack.count;
+      return counts;
+    },
+    { resource: 0, tool: 0, quest: 0, main: 0 } as Record<ItemCategory, number>,
+  );
 
   const changeInventoryPage = (offset: number) => {
-    const nextPage = (currentInventoryPage + offset + inventoryPageCount) % inventoryPageCount;
+    const nextPage =
+      (currentInventoryPage + offset + inventoryPageCount) %
+      inventoryPageCount;
     setInventoryPage(nextPage);
     const firstItem = filteredInventoryItems[nextPage * 16];
     if (firstItem) selectInventoryItem(firstItem.index);
@@ -4488,7 +5151,7 @@ export function MovementLab() {
           aria-label={survivalExpanded ? "收合生存狀態" : "展開生存狀態"}
           aria-expanded={survivalExpanded}
           disabled={inventoryOpen}
-          onClick={() => setSurvivalExpanded((current) => !current)}
+          onClick={toggleSurvivalPanel}
         />
       </aside>
 
@@ -4549,14 +5212,21 @@ export function MovementLab() {
           </p>
         ) : null}
         <div className="hotbar-slots">
-          {HOTBAR_ITEMS.map((item, index) => {
+          {HOTBAR_ITEM_IDS.map((itemId, index) => {
+            const item = ITEM_BY_ID.get(itemId);
+            if (!item) return null;
+            const count = playerInventory[item.id] ?? 0;
             const isUsing = hotbarFeedback?.slotIndex === index;
             return (
               <button
-                className={`hotbar-slot${activeHotbarSlot === index ? " is-selected" : ""}${isUsing ? " is-using" : ""}`}
+                className={`hotbar-slot${activeHotbarSlot === index ? " is-selected" : ""}${isUsing ? " is-using" : ""}${count <= 0 ? " is-empty" : ""}`}
                 key={`${item.id}-${isUsing ? hotbarFeedback.sequence : 0}`}
                 type="button"
-                aria-label={`${index + 1}：使用${item.name}，持有 ${item.count}`}
+                aria-label={
+                  count > 0
+                    ? `${index + 1}：使用${item.name}，持有 ${count}`
+                    : `${index + 1}：${item.name}，尚未持有`
+                }
                 title={`${index + 1} · ${item.name}`}
                 onClick={() => {
                   if (inventoryOpenRef.current) {
@@ -4569,7 +5239,7 @@ export function MovementLab() {
               >
                 <span className="hotbar-key" aria-hidden="true">{index + 1}</span>
                 <span className="hotbar-item-icon" aria-hidden="true">{item.symbol}</span>
-                <span className="hotbar-count" aria-hidden="true">{item.count}</span>
+                <span className="hotbar-count" aria-hidden="true">{count > 0 ? count : "—"}</span>
               </button>
             );
           })}
@@ -4611,35 +5281,59 @@ export function MovementLab() {
                   </svg>
                 </div>
                 <div className="inventory-weight">
-                  <span>▣</span><strong>32.6 / 60.0 kg</strong>
-                  <i><b style={{ width: "54%" }} /></i>
+                  <span>▣</span><strong>{inventoryWeight.toFixed(1)} / 60.0 kg</strong>
+                  <i><b style={{ width: `${inventoryWeightPercent}%` }} /></i>
                 </div>
                 <section className="inventory-category-stats">
                   <h4>分類統計</h4>
-                  <p><span>♣　資源</span><strong>22</strong></p>
-                  <p><span>⌘　道具</span><strong>15</strong></p>
-                  <p><span>⚑　任務道具</span><strong>7</strong></p>
-                  <p><span>♔　主線道具</span><strong>5</strong></p>
+                  <p><span>♣　資源</span><strong>{inventoryCategoryCounts.resource}</strong></p>
+                  <p><span>⌘　工具</span><strong>{inventoryCategoryCounts.tool}</strong></p>
+                  <p><span>⚑　任務道具</span><strong>{inventoryCategoryCounts.quest}</strong></p>
+                  <p><span>♔　主線道具</span><strong>{inventoryCategoryCounts.main}</strong></p>
                 </section>
               </aside>
 
               <article className="inventory-selected-panel">
                 <header><span>選中道具</span><small>SELECTED ITEM</small></header>
-                <div className="inventory-feature-art">
-                  <span aria-hidden="true">{selectedInventoryItem.symbol}</span>
-                </div>
-                <section className="inventory-selected-copy">
-                  <h3>{selectedInventoryItem.name}</h3>
-                  <strong>{selectedInventoryItem.category === "main" ? "♔ 主線道具" : selectedInventoryItem.category === "quest" ? "⚑ 任務道具" : selectedInventoryItem.category === "tool" ? "⌘ 道具" : "♣ 資源"}</strong>
-                  <p>{selectedInventoryItem.description}</p>
-                  <output>重量　{selectedInventoryItem.weight.toFixed(2)} kg　　持有 ×{selectedInventoryItem.count}</output>
-                </section>
-                <div className="inventory-selected-actions">
-                  <button type="button" onClick={() => activateInventoryItem(selectedInventoryIndex)}>使用</button>
-                  <button type="button">查看</button>
-                  <button type="button">標記</button>
-                  <button className="is-danger" type="button">丟棄</button>
-                </div>
+                {selectedInventoryItem ? (
+                  <>
+                    <div className="inventory-feature-art">
+                      <span aria-hidden="true">{selectedInventoryItem.symbol}</span>
+                    </div>
+                    <section className="inventory-selected-copy">
+                      <h3>{selectedInventoryItem.name}</h3>
+                      <strong>{selectedInventoryItem.category === "main" ? "♔ 主線道具" : selectedInventoryItem.category === "quest" ? "⚑ 任務道具" : selectedInventoryItem.category === "tool" ? "⌘ 工具" : "♣ 資源"}</strong>
+                      <p>{selectedInventoryItem.description}</p>
+                      <output>重量　{selectedInventoryItem.weight.toFixed(2)} kg　　持有 ×{selectedInventoryItem.count}</output>
+                    </section>
+                    <div className="inventory-selected-actions">
+                      <button type="button" onClick={() => activateInventoryItem(selectedInventoryStack?.databaseIndex ?? selectedInventoryIndex)}>使用</button>
+                      <button type="button">查看</button>
+                      <button type="button">標記</button>
+                      <button
+                        className="is-danger"
+                        type="button"
+                        disabled={!selectedInventoryItem.inventoryRules.discardable}
+                        title={
+                          selectedInventoryItem.inventoryRules.discardable
+                            ? "丟棄一個到角色附近"
+                            : "此道具不可丟棄"
+                        }
+                        onClick={(event) =>
+                          discardInventoryItem(
+                            selectedInventoryStack?.databaseIndex ??
+                              selectedInventoryIndex,
+                            event.currentTarget,
+                          )
+                        }
+                      >
+                        丟棄
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="inventory-empty-message">目前沒有持有任何道具</p>
+                )}
               </article>
 
               <section className="inventory-catalog">
@@ -4664,6 +5358,9 @@ export function MovementLab() {
                   </label>
                 </div>
                 <div className="inventory-items" aria-label="背包道具">
+                  {visibleInventoryItems.length === 0 ? (
+                    <p className="inventory-empty-message">這個分類目前沒有持有道具</p>
+                  ) : null}
                   {visibleInventoryItems.map(({ item, index }) => (
                     <button
                       className={`inventory-item is-${item.category}${selectedInventoryIndex === index ? " is-selected" : ""}`}
@@ -4690,8 +5387,8 @@ export function MovementLab() {
           </section>
 
           <footer className="inventory-screen-footer">
-            <strong>Tab / B　關閉背包</strong>
-            <div className="inventory-currency"><span>◉　23,450</span><span>▣　32.6 / 60.0 kg</span></div>
+            <strong>LB　左側類型頁籤　·　RB　右側類型頁籤　·　Tab / B　關閉背包</strong>
+            <div className="inventory-currency"><span>◉　23,450</span><span>▣　{inventoryWeight.toFixed(1)} / 60.0 kg</span></div>
           </footer>
         </div>
       ) : null}
@@ -4848,7 +5545,7 @@ export function MovementLab() {
                   <div className="gamepad-debug" aria-live="polite">
                     <strong>{gamepadConnected ? gamepadLabel || "手把已連線" : "尚未偵測到手把"}</strong>
                     <span>{gamepadDiagnostic}</span>
-                    <span className="gamepad-menu-hint">START：開啟／關閉 · LB／RB：切換頁籤 · 十字鍵上下：選擇 · 左右：調整 · A：確認 · B：關閉 · 左搖桿：角色移動</span>
+                    <span className="gamepad-menu-hint">START：開啟／關閉 · LB／RB：切換頁籤 · 十字鍵上下：選擇 · 左右：調整／開關（左 OFF、右 ON）· A：確認 · B：關閉 · 左搖桿：角色移動</span>
                   </div>
                 </>
               ) : null}

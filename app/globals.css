@@ -894,6 +894,11 @@ html.dialogue-cursor-active .dialogue-box * {
   animation: hotbar-use 280ms ease-out;
 }
 
+.hotbar-slot.is-empty .hotbar-item-icon,
+.hotbar-slot.is-empty .hotbar-count {
+  opacity: 0.32;
+}
+
 @keyframes hotbar-use {
   0% { transform: scale(1); filter: brightness(1); }
   42% { transform: scale(0.88); filter: brightness(1.65); }
@@ -1486,6 +1491,12 @@ html.dialogue-cursor-active .dialogue-box * {
   cursor: pointer;
   font-family: Georgia, "Noto Serif TC", serif;
   font-size: 14px;
+  transform: scale(1);
+  transition:
+    transform 90ms ease,
+    filter 90ms ease,
+    border-color 140ms ease,
+    background 140ms ease;
 }
 
 .inventory-selected-actions button:hover,
@@ -1497,6 +1508,21 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .inventory-selected-actions .is-danger {
   color: #cf675d;
+}
+
+.inventory-selected-actions .is-danger:active:not(:disabled) {
+  background: rgba(113, 39, 35, 0.42);
+  filter: brightness(1.55);
+  transform: scale(0.86);
+}
+
+.inventory-selected-actions button:disabled {
+  border-color: rgba(132, 123, 106, 0.18);
+  background: rgba(17, 22, 23, 0.45);
+  color: #645f56;
+  cursor: not-allowed;
+  filter: saturate(0.25);
+  opacity: 0.58;
 }
 
 .inventory-catalog {
@@ -1514,21 +1540,76 @@ html.dialogue-cursor-active .dialogue-box * {
 }
 
 .inventory-categories button {
+  position: relative;
   padding: 11px 5px;
   border: 0;
   border-right: 1px solid rgba(178, 135, 73, 0.16);
+  outline: none;
   background: transparent;
   color: #aa9675;
   cursor: pointer;
   font-family: Georgia, "Noto Serif TC", serif;
   font-size: 16px;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    text-shadow 140ms ease;
+}
+
+.inventory-categories button:hover {
+  background: linear-gradient(
+    to top,
+    rgba(135, 92, 31, 0.12),
+    transparent 72%
+  );
+  color: #d8bd88;
 }
 
 .inventory-categories button.is-active,
-.inventory-categories button:hover {
-  background: linear-gradient(rgba(135, 92, 31, 0.2), rgba(135, 92, 31, 0.04));
-  box-shadow: inset 0 0 0 1px rgba(207, 159, 85, 0.4);
+.inventory-categories button.is-active:hover,
+.inventory-categories button.is-active:focus-visible {
+  background: linear-gradient(
+    to top,
+    rgba(216, 168, 81, 0.2),
+    rgba(135, 92, 31, 0.07) 48%,
+    transparent 82%
+  );
+  box-shadow: none;
   color: #efd298;
+  text-shadow:
+    0 0 7px rgba(255, 224, 158, 0.52),
+    0 0 15px rgba(209, 153, 65, 0.28);
+}
+
+.inventory-categories button.is-active::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 3px;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(
+    to top,
+    #f1c972 0,
+    #dca84f 46%,
+    rgba(218, 164, 74, 0.36) 78%,
+    transparent 100%
+  );
+  box-shadow:
+    0 -2px 5px rgba(239, 196, 108, 0.28),
+    0 -4px 9px rgba(205, 143, 51, 0.12);
+  content: "";
+  pointer-events: none;
+}
+
+.inventory-categories button:focus-visible:not(.is-active) {
+  background: linear-gradient(
+    to top,
+    rgba(135, 92, 31, 0.12),
+    transparent 72%
+  );
+  color: #d8bd88;
+  text-shadow: 0 0 8px rgba(221, 181, 108, 0.35);
 }
 
 .inventory-catalog-tools {
@@ -1572,6 +1653,18 @@ html.dialogue-cursor-active .dialogue-box * {
   align-content: stretch;
   padding: 0;
   overflow: hidden;
+}
+
+.inventory-empty-message {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  place-self: center;
+  margin: 0;
+  color: #8f816b;
+  font-family: Georgia, "Noto Serif TC", serif;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+  text-align: center;
 }
 
 .inventory-item {
@@ -1746,8 +1839,8 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .options-dialog {
   display: grid;
-  width: min(680px, calc(100vw - 40px));
-  height: 60%;
+  width: min(760px, calc(100vw - 40px));
+  height: 68%;
   min-height: 0;
   max-height: none;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
@@ -1777,7 +1870,7 @@ html.dialogue-cursor-active .dialogue-box * {
 .options-header p {
   margin: 0 0 4px;
   color: var(--accent);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.22em;
 }
@@ -1785,22 +1878,22 @@ html.dialogue-cursor-active .dialogue-box * {
 .options-header h2 {
   margin: 0;
   color: #f1fcfa;
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 650;
   letter-spacing: 0.08em;
 }
 
 .options-close {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.045);
   color: #dff1ef;
   cursor: pointer;
-  font-size: 27px;
+  font-size: 30px;
   font-weight: 300;
   line-height: 1;
 }
@@ -1818,13 +1911,13 @@ html.dialogue-cursor-active .dialogue-box * {
 }
 
 .options-tabs button {
-  padding: 10px 8px 12px;
+  padding: 13px 8px 14px;
   border: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
   color: #8fa6a8;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
   transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
 }
@@ -1843,7 +1936,7 @@ html.dialogue-cursor-active .dialogue-box * {
 .options-content {
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 13px;
   min-height: 0;
   padding: 25px 26px;
   overflow-y: auto;
@@ -1854,19 +1947,20 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .options-section-heading {
   display: grid;
-  gap: 4px;
-  margin-bottom: 4px;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .options-section-heading > span {
   color: #effbf8;
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 650;
 }
 
 .options-section-heading small {
   color: #8fa6a8;
-  font-size: 12px;
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 .choice-row {
@@ -1874,24 +1968,24 @@ html.dialogue-cursor-active .dialogue-box * {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 14px 12px;
+  padding: 17px 14px;
   border-radius: 9px;
 }
 
 .choice-row > div:first-child {
   display: grid;
-  gap: 4px;
+  gap: 6px;
 }
 
 .choice-row strong {
   color: #dbe6e7;
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 500;
 }
 
 .choice-row > div > span {
   color: #83999b;
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .choice-buttons {
@@ -1904,13 +1998,13 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .choice-buttons button {
   min-width: 42px;
-  padding: 8px 10px;
+  padding: 10px 13px;
   border: 0;
   border-right: 1px solid rgba(164, 223, 217, 0.16);
   background: rgba(255, 255, 255, 0.025);
   color: #9bb0b1;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 16px;
 }
 
 .choice-buttons button:last-child {
@@ -1931,7 +2025,8 @@ html.dialogue-cursor-active .dialogue-box * {
   border-top: 1px solid rgba(255, 255, 255, 0.07);
   background: rgba(2, 7, 10, 0.22);
   color: #83999b;
-  font-size: 10px;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .toggle-button {
@@ -1939,7 +2034,7 @@ html.dialogue-cursor-active .dialogue-box * {
   width: 100%;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 11px;
+  padding: 13px 14px;
   border: 0;
   border-radius: 7px;
   background: transparent;
@@ -1953,18 +2048,21 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .toggle-button > span:first-child {
   display: grid;
-  gap: 3px;
+  gap: 5px;
+  color: #dbe6e7;
+  font-size: 17px;
 }
 
 .toggle-button strong {
   color: #dbe6e7;
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 500;
 }
 
 .toggle-button small {
   color: #83999b;
-  font-size: 11px;
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .toggle-button[data-gamepad-selected="true"],
@@ -2007,9 +2105,9 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .gamepad-debug {
   display: grid;
-  gap: 5px;
+  gap: 7px;
   margin: 0 5px 9px;
-  padding: 9px 10px;
+  padding: 12px 13px;
   border-radius: 7px;
   background: rgba(255, 255, 255, 0.035);
   overflow-wrap: anywhere;
@@ -2017,14 +2115,14 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .gamepad-debug strong {
   color: #dbe6e7;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
 }
 
 .gamepad-debug span {
   color: var(--muted);
   font-family: Consolas, "SFMono-Regular", monospace;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -2032,25 +2130,25 @@ html.dialogue-cursor-active .dialogue-box * {
   margin-top: 2px;
   color: var(--accent);
   font-family: inherit;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .slider-row {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 7px 12px;
-  padding: 8px 10px;
+  gap: 9px 14px;
+  padding: 11px 13px;
 }
 
 .slider-row label {
   color: #dbe6e7;
-  font-size: 13px;
+  font-size: 17px;
 }
 
 .slider-value {
   color: var(--accent);
   font-family: Consolas, "SFMono-Regular", monospace;
-  font-size: 12px;
+  font-size: 16px;
 }
 
 .slider-row input {
@@ -2319,7 +2417,7 @@ html.dialogue-cursor-active .dialogue-box * {
 
   .options-dialog {
     width: min(100%, 560px);
-    height: 60%;
+    height: 68%;
     min-height: 0;
   }
 
