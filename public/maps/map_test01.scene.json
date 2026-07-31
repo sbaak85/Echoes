@@ -948,6 +948,10 @@
           "y": 640.793
         }
       ],
+      "interactionHintPoint": {
+        "x": 824.164,
+        "y": 595.517
+      },
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -1022,6 +1026,10 @@
           "y": 572.5066
         }
       ],
+      "interactionHintPoint": {
+        "x": 1041.224,
+        "y": 552.348
+      },
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -1069,6 +1077,10 @@
       ],
       "type": "dialogue",
       "verb": "\u79FB\u52D5",
+      "interactionHintPoint": {
+        "x": 90.792,
+        "y": 1176.962
+      },
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -1108,6 +1120,10 @@
       ],
       "type": "dialogue",
       "verb": "\u79FB\u52D5",
+      "interactionHintPoint": {
+        "x": 918,
+        "y": 1156.5
+      },
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -1178,6 +1194,10 @@
           "y": 427.42697
         }
       ],
+      "interactionHintPoint": {
+        "x": 893.63,
+        "y": 385.782
+      },
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -1250,6 +1270,10 @@
           "y": 402.68268
         }
       ],
+      "interactionHintPoint": {
+        "x": 537.212,
+        "y": 381.903
+      },
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -1336,6 +1360,10 @@
           "y": 569.68317
         }
       ],
+      "interactionHintPoint": {
+        "x": 357.876,
+        "y": 544.943
+      },
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,

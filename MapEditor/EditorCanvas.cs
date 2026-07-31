@@ -57,6 +57,8 @@ public sealed class EditorCanvas : Control
     private readonly ToolStripMenuItem _dialogueTypeContextItem = new("對話");
     private readonly ToolStripMenuItem _interactionPointContextItem = new("新增互動 Point");
     private readonly ToolStripMenuItem _deleteInteractionPointContextItem = new("刪除互動 Point");
+    private readonly ToolStripMenuItem _interactionHintPointContextItem = new("新增互動提示點");
+    private readonly ToolStripMenuItem _deleteInteractionHintPointContextItem = new("刪除互動提示點");
 
     private Bitmap? _sceneImage;
     private SceneDocument _document = new();
@@ -77,6 +79,7 @@ public sealed class EditorCanvas : Control
     private int _contextInteractionPointIndex = -1;
     private PointF _contextInsertPoint;
     private PointF _contextInteractionPoint;
+    private PointF _contextInteractionHintPoint;
     private bool _panning;
     private bool _spacePressed;
     private bool _endingCapture;
@@ -117,6 +120,8 @@ public sealed class EditorCanvas : Control
         }
         _interactionTypeContextItem.DropDownItems.Add(_dialogueTypeContextItem);
         _deleteInteractionPointContextItem.Click += (_, _) => DeleteSelectedInteractionPoint();
+        _interactionHintPointContextItem.Click += (_, _) => SetInteractionHintPointAtContext();
+        _deleteInteractionHintPointContextItem.Click += (_, _) => DeleteSelectedInteractionHintPoint();
         _nodeContextMenu.Items.AddRange(new ToolStripItem[]
         {
             _insertNodeContextItem,
@@ -125,6 +130,9 @@ public sealed class EditorCanvas : Control
             _interactionTypeContextItem,
             _interactionPointContextItem,
             _deleteInteractionPointContextItem,
+            new ToolStripSeparator(),
+            _interactionHintPointContextItem,
+            _deleteInteractionHintPointContextItem,
         });
         _nodeContextMenu.BackColor = Color.FromArgb(35, 39, 47);
         _nodeContextMenu.ForeColor = Color.WhiteSmoke;
@@ -389,13 +397,26 @@ public sealed class EditorCanvas : Control
 
                 ScalePoints(collision.Points, factor);
             }
-            else if (_selection.Kind is SceneLayerKind.NavMesh or SceneLayerKind.Interactable)
+            else if (_selection.Kind == SceneLayerKind.NavMesh)
             {
-                ScalePoints(
-                    _selection.Kind == SceneLayerKind.NavMesh
-                        ? _document.NavMesh[_selection.Index].Points
-                        : _document.Interactables[_selection.Index].Points,
-                    factor);
+                ScalePoints(_document.NavMesh[_selection.Index].Points, factor);
+            }
+            else if (_selection.Kind == SceneLayerKind.Interactable)
+            {
+                var interactable = _document.Interactables[_selection.Index];
+                if (interactable.Points.Count == 0) return;
+                var center = new PointF(
+                    interactable.Points.Average(point => point.X),
+                    interactable.Points.Average(point => point.Y));
+                ScalePoints(interactable.Points, factor);
+                foreach (var interactionPoint in interactable.EffectiveInteractionPoints)
+                {
+                    ScalePointAround(interactionPoint, center, factor);
+                }
+                if (interactable.InteractionHintPoint is { } interactionHintPoint)
+                {
+                    ScalePointAround(interactionHintPoint, center, factor);
+                }
             }
             else
             {
@@ -859,6 +880,10 @@ public sealed class EditorCanvas : Control
             {
                 DrawInteractionPoint(graphics, interactionPoint);
             }
+            if (interactable.InteractionHintPoint is { } interactionHintPoint)
+            {
+                DrawInteractionHintPoint(graphics, interactionHintPoint);
+            }
         }
     }
 
@@ -883,6 +908,23 @@ public sealed class EditorCanvas : Control
             center.Y,
             center.X + direction.X * length,
             center.Y + direction.Y * length);
+    }
+
+    private void DrawInteractionHintPoint(Graphics graphics, ScenePoint point)
+    {
+        var center = new PointF(point.X, point.Y);
+        var radius = 7f / _zoom;
+        using var glow = new SolidBrush(Color.FromArgb(58, 255, 255, 255));
+        using var fill = new SolidBrush(Color.FromArgb(205, 255, 255, 255));
+        using var outline = new Pen(Color.FromArgb(245, 105, 219, 238), 2f / _zoom);
+        graphics.FillEllipse(
+            glow,
+            center.X - radius * 1.9f,
+            center.Y - radius * 1.9f,
+            radius * 3.8f,
+            radius * 3.8f);
+        graphics.FillEllipse(fill, center.X - radius, center.Y - radius, radius * 2, radius * 2);
+        graphics.DrawEllipse(outline, center.X - radius, center.Y - radius, radius * 2, radius * 2);
     }
 
     private void DrawMovementGuides(Graphics graphics)
@@ -1445,6 +1487,11 @@ public sealed class EditorCanvas : Control
                 interactionPoint.X += deltaX;
                 interactionPoint.Y += deltaY;
             }
+            if (interactable.InteractionHintPoint is { } interactionHintPoint)
+            {
+                interactionHintPoint.X += deltaX;
+                interactionHintPoint.Y += deltaY;
+            }
         }
         else
         {
@@ -1691,6 +1738,14 @@ public sealed class EditorCanvas : Control
             interactionSelected && _contextInteractionPointIndex >= 0;
         _deleteInteractionPointContextItem.Enabled =
             interactionSelected && _contextInteractionPointIndex >= 0;
+        var hasInteractionHintPoint = interactionSelected &&
+            _document.Interactables[_selection.Index].InteractionHintPoint is not null;
+        _interactionHintPointContextItem.Visible = interactionSelected;
+        _interactionHintPointContextItem.Text = hasInteractionHintPoint
+            ? "移動互動提示點至此"
+            : "新增互動提示點";
+        _deleteInteractionHintPointContextItem.Visible = hasInteractionHintPoint;
+        _deleteInteractionHintPointContextItem.Enabled = hasInteractionHintPoint;
         _dialogueTypeContextItem.Checked = interactionSelected &&
             _document.Interactables[_selection.Index].Type.Equals("dialogue", StringComparison.OrdinalIgnoreCase);
         _nodeContextMenu.Show(this, screenLocation);
@@ -1701,6 +1756,7 @@ public sealed class EditorCanvas : Control
         var points = SelectedEditablePolygonPoints();
         if (points is null) return false;
         _contextInteractionPoint = ClampToWorld(world);
+        _contextInteractionHintPoint = ClampToWorld(world);
         _contextInteractionPointIndex = FindInteractionPointAtContext(world);
 
         if (_contextInteractionPointIndex >= 0)
@@ -1809,6 +1865,28 @@ public sealed class EditorCanvas : Control
             interactable.EffectiveInteractionPoints.Count > 0
                 ? $"已刪除互動 Point；目前剩餘 {interactable.EffectiveInteractionPoints.Count} 個。"
                 : "已刪除最後一個互動 Point；觸發時將不自動移動角色。");
+    }
+
+    private void SetInteractionHintPointAtContext()
+    {
+        var interactable = SelectedInteractable;
+        if (interactable is null || _contextSelection != _selection) return;
+        var point = _contextInteractionHintPoint;
+        PerformMutation(() =>
+        {
+            interactable.InteractionHintPoint = new ScenePoint(point.X, point.Y);
+        });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        StatusChanged?.Invoke(this, "已設定互動提示點；遊戲中會在此顯示半透明白色提示圓點。");
+    }
+
+    private void DeleteSelectedInteractionHintPoint()
+    {
+        var interactable = SelectedInteractable;
+        if (interactable?.InteractionHintPoint is null) return;
+        PerformMutation(() => interactable.InteractionHintPoint = null);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        StatusChanged?.Invoke(this, "已刪除互動提示點。");
     }
 
     private int FindInteractionPointAtContext(PointF world)
@@ -2142,6 +2220,12 @@ public sealed class EditorCanvas : Control
             point.X += deltaX;
             point.Y += deltaY;
         }
+    }
+
+    private static void ScalePointAround(ScenePoint point, PointF center, float factor)
+    {
+        point.X = center.X + (point.X - center.X) * factor;
+        point.Y = center.Y + (point.Y - center.Y) * factor;
     }
 
     private static string NextId(string prefix, IEnumerable<string> existingIds)

@@ -32,6 +32,9 @@ Included in version 1:
 - Player spawn position and eight-direction facing.
 - Multiple interaction Points per interaction polygon. Right-click inside a
   selected interaction polygon to add another Point and choose its facing.
+- One optional interaction hint Point per interaction polygon. Right-click
+  inside the selected polygon to add or move the translucent white in-game
+  prompt dot, or remove it from the same context menu.
   Right-click near an existing Point to change or delete that Point. At runtime,
   the Point nearest to the player is chosen once when interaction begins.
 - Lightweight `Audio 音效` manager window for event labels, trigger notes,

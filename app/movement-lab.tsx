@@ -67,6 +67,7 @@ type SceneInteractable = {
   position?: Point;
   interactionPoints?: InteractionPoint[];
   interactionPoint?: InteractionPoint;
+  interactionHintPoint?: Point;
   pickRadius?: number;
   activationDistance?: number;
   action?: string;
@@ -2792,6 +2793,10 @@ export function MovementLab() {
     let activePromptTargetId: string | null = null;
     let previousPlayerPromptTargetId: string | null = null;
     let previousCursorPromptTargetId: string | null = null;
+    const interactionHintAnimation = new Map<
+      string,
+      { opacity: number; lastTime: number }
+    >();
     let keyboardInteractionKey = (localStorage.getItem("echoes:interaction-key") ?? "e").toLowerCase();
     let keyboardInteractionLabel = localStorage.getItem("echoes:interaction-key-label") ?? keyboardInteractionKey.toUpperCase();
 
@@ -3746,6 +3751,84 @@ export function MovementLab() {
         context.beginPath();
         context.ellipse(0, 20, 22 * pulse, 7 * pulse, 0, 0, Math.PI * 2);
         context.fill();
+        context.restore();
+      });
+    };
+
+    const drawInteractionHintPoints = (time: number) => {
+      const playerTarget = findInteractableTouching(
+        player,
+        sizeRef.current * 0.14,
+        sceneInteractablesRef.current,
+        collectedWorldItemIdsRef.current,
+      );
+      const activeDialogueTargetId =
+        dialoguePlaybackRef.current?.interactable.id ?? null;
+      const zoom = getSceneZoom(viewportWidth, viewportHeight);
+
+      sceneInteractablesRef.current.forEach((interactable) => {
+        const point = interactable.interactionHintPoint;
+        if (!point) return;
+        if (
+          interactable.worldItemKind === "placed" &&
+          interactable.worldItemId &&
+          collectedWorldItemIdsRef.current.has(interactable.worldItemId)
+        ) {
+          return;
+        }
+
+        const animation = interactionHintAnimation.get(interactable.id) ?? {
+          opacity: 1,
+          lastTime: time,
+        };
+        const elapsed = Math.max(0, Math.min(100, time - animation.lastTime));
+        const targetOpacity =
+          activeDialogueTargetId === interactable.id ? 0 : 1;
+        if (animation.opacity < targetOpacity) {
+          animation.opacity = Math.min(
+            targetOpacity,
+            animation.opacity + elapsed / 100,
+          );
+        } else if (animation.opacity > targetOpacity) {
+          animation.opacity = Math.max(
+            targetOpacity,
+            animation.opacity - elapsed / 100,
+          );
+        }
+        animation.lastTime = time;
+        interactionHintAnimation.set(interactable.id, animation);
+        if (animation.opacity <= 0.001) return;
+
+        const canInteract =
+          playerTarget?.id === interactable.id && targetOpacity > 0;
+        const breathing = 1 + Math.sin(time / 420) * 0.08;
+        const activePulse = 1 + Math.sin(time / 180) * 0.035;
+        const scale = canInteract
+          ? 1.28 * activePulse
+          : breathing;
+        const bob = canInteract ? Math.sin(time / 210) * (4 / zoom) : 0;
+        const radius = (canInteract ? 7.4 : 6.4) * scale / zoom;
+
+        context.save();
+        context.globalAlpha = animation.opacity;
+        context.translate(point.x, point.y + bob);
+        context.shadowColor = "rgba(255, 255, 255, 0.82)";
+        context.shadowBlur = (canInteract ? 18 : 12) / zoom;
+        context.fillStyle = canInteract
+          ? "rgba(255, 255, 255, 0.82)"
+          : "rgba(255, 255, 255, 0.58)";
+        context.beginPath();
+        context.arc(0, 0, radius, 0, Math.PI * 2);
+        context.fill();
+
+        context.shadowBlur = 0;
+        context.strokeStyle = canInteract
+          ? "rgba(255, 255, 255, 0.72)"
+          : "rgba(255, 255, 255, 0.34)";
+        context.lineWidth = 1.2 / zoom;
+        context.beginPath();
+        context.arc(0, 0, radius * 1.85, 0, Math.PI * 2);
+        context.stroke();
         context.restore();
       });
     };
@@ -4937,6 +5020,7 @@ export function MovementLab() {
       context.translate(-camera.x, -camera.y);
       drawMap();
       drawWorldItemPickups(time);
+      drawInteractionHintPoints(time);
       drawSceneCollision();
       drawPlayer();
       drawTouchEffect(time);

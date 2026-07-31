@@ -136,6 +136,9 @@ public sealed class SceneInteractable
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public InteractionPoint? InteractionPoint { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ScenePoint? InteractionHintPoint { get; set; }
+
     public float ActivationDistance { get; set; } = 52;
     public DialogueScript Dialogue { get; set; } = DialogueScript.CreateDefault();
 

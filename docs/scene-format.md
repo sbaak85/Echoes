@@ -14,7 +14,9 @@ Version 1 fields:
 - `interactables`: bright-yellow, non-blocking interaction polygons. Each
   record stores polygon `points`, interaction `type`, prompt `verb`, optional
   `interactionPoints` (one or more `x`, `y`, eight-direction `facing` records),
-  and a dialogue script. When more than one point exists, the runtime chooses
+  optional `interactionHintPoint` (`x`, `y`) for the in-world translucent white
+  prompt dot, and a dialogue script. When more than one interaction Point exists,
+  the runtime chooses
   the point nearest to the player once when the interaction is triggered, then
   keeps that point for pathfinding, arrival, and facing. The legacy singular
   `interactionPoint` field is still accepted when older scenes are loaded.
@@ -23,7 +25,9 @@ Version 1 fields:
   list (default `Sbaak`, `Echo`). A blank speaker on any line after the first
   inherits the previous line's speaker. Dialogue lines keep their speaker and
   text as one utterance even when the runtime divides a long line into display
-  pages.
+  pages. The interaction hint dot gently breathes while idle, grows and floats
+  when the player can interact, fades out over `0.1` seconds while its dialogue
+  is active, and fades back in over `0.1` seconds when the dialogue closes.
 - `movementGuides`: non-blocking bidirectional guide polylines for diagonal
   stairs, slopes, and ladders. Each record stores editable `points`, an
   activation `width`, and `bidirectional`. While the player touches the guide

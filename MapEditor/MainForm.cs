@@ -933,7 +933,7 @@ public sealed class MainForm : Form
             EditorTool.CollisionPolygon => "Collision：逐點圈出不可通行範圍",
             EditorTool.CollisionRectangle => "矩形 Collision：按住滑鼠拖曳範圍",
             EditorTool.CollisionCircle => "圓形 Collision：從中心向外拖曳",
-            EditorTool.InteractionPolygon => "互動區域：逐點圈出範圍；右鍵可設定類型與互動 Point",
+            EditorTool.InteractionPolygon => "互動區域：逐點圈出範圍；右鍵可設定互動 Point 與互動提示點",
             EditorTool.MovementGuide => "強制引導線：逐點鋪設，雙擊／右鍵／Enter 完成（至少 2 點）",
             EditorTool.PlayerSpawn => "出生點：在場景點擊位置",
             _ => "準備就緒",

@@ -220,15 +220,18 @@ internal static class EditorSelfTest
             interactionPoints.Add(new InteractionPoint { X = 100, Y = 100, Facing = "S" });
         }
         interactionPoints.Add(new InteractionPoint { X = 200, Y = 200, Facing = "N" });
+        multiPointInteractable.InteractionHintPoint = new ScenePoint(150, 150);
         var expectedInteractionPointCount = interactionPoints.Count;
         var multiPointRoundTrip = SceneJson.Deserialize(SceneJson.Serialize(multiPointDocument));
         SceneJson.Validate(multiPointRoundTrip);
         if (
             multiPointRoundTrip.Interactables[0].EffectiveInteractionPoints.Count !=
-            expectedInteractionPointCount
+            expectedInteractionPointCount ||
+            multiPointRoundTrip.Interactables[0].InteractionHintPoint is not { X: 150, Y: 150 }
         )
         {
-            throw new InvalidDataException("Multiple Interaction Points did not survive JSON round-trip.");
+            throw new InvalidDataException(
+                "Interaction Points or the Interaction Hint Point did not survive JSON round-trip.");
         }
 
         var audioConfigPath = Path.Combine(projectRoot, "app", "audio-event-manager.ts");
