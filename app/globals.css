@@ -267,18 +267,27 @@ html.dialogue-cursor-active .dialogue-box * {
   z-index: 3;
   top: 14px;
   left: 40px;
-  width: 228px;
+  width: 176px;
   color: #dceae8;
-  pointer-events: none;
+  pointer-events: auto;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.64);
+  transition: width 180ms ease;
+}
+
+.survival-hud.is-expanded {
+  z-index: 4;
+  width: 228px;
 }
 
 .survival-hud.is-inventory-open {
   z-index: 12;
   left: 8%;
+  width: 176px;
+  pointer-events: none;
 }
 
-.survival-hud.is-inventory-open .survival-panel {
+.survival-hud.is-inventory-open .survival-panel,
+.survival-hud.is-inventory-open .survival-mini-panel {
   visibility: hidden;
 }
 
@@ -290,33 +299,106 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .survival-clock > span {
   display: flex;
-  min-height: 34px;
+  min-height: 27px;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 4px;
   border: 1px solid rgba(148, 211, 205, 0.13);
   border-radius: 5px;
   background: rgba(7, 19, 23, 0.68);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.025), 0 8px 18px rgba(0, 0, 0, 0.16);
-  font-size: 12px;
+  font-size: 9px;
   letter-spacing: 0.06em;
   backdrop-filter: blur(8px);
 }
 
 .survival-clock strong {
   color: #f1fbf9;
-  font-size: 13px;
+  font-size: 10px;
   font-weight: 600;
 }
 
 .survival-clock i {
   color: #d6eee9;
-  font-size: 14px;
+  font-size: 11px;
   font-style: normal;
 }
 
-.survival-panel {
+.survival-hud.is-expanded .survival-clock > span {
+  min-height: 34px;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.survival-hud.is-expanded .survival-clock strong {
+  font-size: 13px;
+}
+
+.survival-hud.is-expanded .survival-clock i {
+  font-size: 14px;
+}
+
+.survival-mini-panel {
   display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-top: 4px;
+  padding: 6px;
+  border: 1px solid rgba(148, 211, 205, 0.12);
+  border-radius: 5px;
+  background: rgba(7, 18, 23, 0.7);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(8px);
+}
+
+.survival-mini-stat {
+  --survival-color: #7edccf;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px;
+  align-items: center;
+  min-width: 0;
+}
+
+.survival-mini-stat.is-stamina { --survival-color: #8bd7b6; }
+.survival-mini-stat.is-hunger { --survival-color: #e9b36e; }
+.survival-mini-stat.is-thirst { --survival-color: #65d8ea; }
+.survival-mini-stat.is-spirit { --survival-color: #be7cf0; }
+
+.survival-mini-stat > i {
+  color: var(--survival-color);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.survival-mini-stat > small {
+  color: #b6c8c5;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 8px;
+}
+
+.survival-mini-stat > b {
+  grid-column: 1 / -1;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(173, 199, 197, 0.16);
+}
+
+.survival-mini-stat > b > em {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--survival-color);
+}
+
+.survival-hud.is-expanded .survival-mini-panel {
+  display: none;
+}
+
+.survival-panel {
+  display: none;
   gap: 9px;
   margin-top: 7px;
   padding: 12px 11px 13px;
@@ -325,6 +407,34 @@ html.dialogue-cursor-active .dialogue-box * {
   background: linear-gradient(135deg, rgba(8, 23, 28, 0.76), rgba(7, 16, 22, 0.65));
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.025), 0 12px 28px rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(10px);
+}
+
+.survival-hud.is-expanded .survival-panel {
+  display: grid;
+  transform-origin: top left;
+  animation: survival-panel-expand 180ms ease-out;
+}
+
+@keyframes survival-panel-expand {
+  from { opacity: 0; transform: scale(0.78, 0.55); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.survival-toggle-hitbox {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.survival-toggle-hitbox:hover,
+.survival-toggle-hitbox:focus-visible {
+  border-color: rgba(126, 237, 221, 0.38);
+  outline: none;
 }
 
 .survival-stat {
@@ -383,8 +493,8 @@ html.dialogue-cursor-active .dialogue-box * {
 .quest-hud {
   position: absolute;
   z-index: 3;
-  top: 24px;
-  right: 20px;
+  top: 14px;
+  right: 14px;
   width: 300px;
   overflow: hidden;
   border: 1px solid rgba(224, 174, 86, 0.19);
@@ -470,30 +580,31 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .quest-collapse {
   position: absolute;
-  top: 50%;
-  right: 12px;
-  display: grid;
-  width: 28px;
-  height: 28px;
+  z-index: 2;
+  inset: 0;
+  display: block;
+  width: auto;
+  height: auto;
   padding: 0;
-  place-items: center;
-  border: 1px solid rgba(236, 183, 88, 0.28);
-  border-radius: 50%;
-  background: rgba(222, 163, 68, 0.07);
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
   cursor: pointer;
   pointer-events: auto;
-  transform: translateY(-50%);
   transition: border-color 150ms ease, background 150ms ease;
 }
 
 .quest-collapse:hover,
 .quest-collapse:focus-visible {
   border-color: rgba(244, 197, 116, 0.75);
-  background: rgba(222, 163, 68, 0.17);
+  background: rgba(222, 163, 68, 0.035);
   outline: none;
 }
 
 .quest-collapse span {
+  position: absolute;
+  top: 21px;
+  right: 16px;
   width: 0;
   height: 0;
   border-top: 7px solid #f0bf69;
@@ -2086,9 +2197,9 @@ html.dialogue-cursor-active .dialogue-box * {
   }
 
   .quest-hud {
-    top: 112px;
-    right: 15px;
-    width: 270px;
+    top: 14px;
+    right: 14px;
+    width: 250px;
     transform: scale(0.82);
     transform-origin: top right;
   }
@@ -2275,7 +2386,36 @@ html.dialogue-cursor-active .dialogue-box * {
 
 @media (max-width: 480px) {
   .quest-hud {
-    top: 292px;
+    top: 14px;
+  }
+}
+
+@media (pointer: coarse), (max-width: 680px) {
+  .quest-hud.is-collapsed {
+    width: 180px;
+  }
+
+  .quest-hud.is-collapsed .quest-header {
+    min-height: 32px;
+    gap: 6px;
+    padding: 6px 32px 6px 9px;
+  }
+
+  .quest-hud.is-collapsed .quest-header strong {
+    font-size: 10px;
+  }
+
+  .quest-hud.is-collapsed .quest-summary-progress {
+    font-size: 9px;
+  }
+
+  .quest-hud.is-collapsed .quest-collapse span {
+    top: 50%;
+    right: 10px;
+    border-top-width: 6px;
+    border-right-width: 5px;
+    border-left-width: 5px;
+    transform: translateY(-50%) rotate(180deg);
   }
 }
 

@@ -605,6 +605,11 @@ function getDefaultDialogueTextSize(): DialogueTextSize {
     : "small";
 }
 
+function getDefaultQuestCollapsed() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(max-width: 680px), (pointer: coarse)").matches;
+}
+
 type GamepadInput = {
   actionPressed: boolean;
   backPressed: boolean;
@@ -1699,7 +1704,8 @@ export function MovementLab() {
   const [activeKeyboardKeys, setActiveKeyboardKeys] = useState<string[]>([]);
   const [interactionJustTriggered, setInteractionJustTriggered] = useState(false);
   const [gameClock, setGameClock] = useState({ day: 1, hour: 6, minute: 0 });
-  const [questCollapsed, setQuestCollapsed] = useState(false);
+  const [survivalExpanded, setSurvivalExpanded] = useState(false);
+  const [questCollapsed, setQuestCollapsed] = useState(getDefaultQuestCollapsed);
   const [activeHotbarSlot, setActiveHotbarSlot] = useState(0);
   const [inventoryCategory, setInventoryCategory] = useState<InventoryCategory>("all");
   const [inventoryPage, setInventoryPage] = useState(0);
@@ -4371,7 +4377,7 @@ export function MovementLab() {
         </p>
       </section>
 
-      <aside className={`survival-hud${inventoryOpen ? " is-inventory-open" : ""}`} aria-label="生存狀態指示表">
+      <aside className={`survival-hud${survivalExpanded ? " is-expanded" : ""}${inventoryOpen ? " is-inventory-open" : ""}`} aria-label="生存狀態指示表">
         <header className="survival-clock">
           <span>
             Day <strong>{gameClock.day}</strong>
@@ -4381,6 +4387,15 @@ export function MovementLab() {
             <strong>{String(gameClock.hour).padStart(2, "0")}:{String(gameClock.minute).padStart(2, "0")}</strong>
           </span>
         </header>
+        <div className="survival-mini-panel" aria-hidden={survivalExpanded}>
+          {SURVIVAL_STATS.map((stat) => (
+            <span className={`survival-mini-stat is-${stat.id}`} key={stat.id} title={`${stat.label} ${stat.value}/100`}>
+              <i aria-hidden="true">{stat.symbol}</i>
+              <b aria-hidden="true"><em style={{ width: `${stat.value}%` }} /></b>
+              <small>{stat.value}</small>
+            </span>
+          ))}
+        </div>
         <div className="survival-panel">
           {SURVIVAL_STATS.map((stat) => (
             <div className={`survival-stat is-${stat.id}`} key={stat.id}>
@@ -4393,6 +4408,14 @@ export function MovementLab() {
             </div>
           ))}
         </div>
+        <button
+          className="survival-toggle-hitbox"
+          type="button"
+          aria-label={survivalExpanded ? "收合生存狀態" : "展開生存狀態"}
+          aria-expanded={survivalExpanded}
+          disabled={inventoryOpen}
+          onClick={() => setSurvivalExpanded((current) => !current)}
+        />
       </aside>
 
       <aside
@@ -4408,15 +4431,6 @@ export function MovementLab() {
           <output className="quest-summary-progress" aria-label="任務總進度">
             0/2
           </output>
-          <button
-            className="quest-collapse"
-            type="button"
-            aria-label={questCollapsed ? "展開任務提示" : "收折任務提示"}
-            aria-expanded={!questCollapsed}
-            onClick={() => setQuestCollapsed((current) => !current)}
-          >
-            <span aria-hidden="true" />
-          </button>
         </header>
         {!questCollapsed ? (
           <div className="quest-objectives">
@@ -4432,6 +4446,15 @@ export function MovementLab() {
             </div>
           </div>
         ) : null}
+        <button
+          className="quest-collapse"
+          type="button"
+          aria-label={questCollapsed ? "展開任務提示" : "收折任務提示"}
+          aria-expanded={!questCollapsed}
+          onClick={() => setQuestCollapsed((current) => !current)}
+        >
+          <span aria-hidden="true" />
+        </button>
       </aside>
 
       <button
