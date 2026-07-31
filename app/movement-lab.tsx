@@ -1649,6 +1649,7 @@ function tracePolygon(
 export function MovementLab() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cursorCanvasRef = useRef<HTMLCanvasElement>(null);
+  const gameShellRef = useRef<HTMLElement>(null);
   const nativeGamepadRef = useRef<NativeGamepadState>(
     EMPTY_NATIVE_GAMEPAD_STATE,
   );
@@ -1678,6 +1679,7 @@ export function MovementLab() {
 
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [stageFullscreen, setStageFullscreen] = useState(false);
   const [optionsTab, setOptionsTab] = useState<OptionsTab>("display");
   const [optionsMenuSelection, setOptionsMenuSelection] =
     useState<OptionsMenuItem>(OPTIONS_MENU_ITEMS[0]);
@@ -1742,6 +1744,70 @@ export function MovementLab() {
     const timer = window.setInterval(updateGameClock, 500);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const fullscreenDocument = document as Document & {
+      webkitFullscreenElement?: Element | null;
+    };
+    const updateFullscreenState = () => {
+      const viewportMatchesScreen =
+        window.innerWidth >= Math.min(window.screen.width, window.screen.availWidth) - 3 &&
+        (
+          window.innerHeight >= window.screen.height - 3 ||
+          window.innerHeight >= window.screen.availHeight - 3
+        );
+      setStageFullscreen(Boolean(
+        document.fullscreenElement ||
+        fullscreenDocument.webkitFullscreenElement ||
+        viewportMatchesScreen
+      ));
+    };
+
+    updateFullscreenState();
+    window.addEventListener("resize", updateFullscreenState);
+    window.addEventListener("orientationchange", updateFullscreenState);
+    window.visualViewport?.addEventListener("resize", updateFullscreenState);
+    document.addEventListener("fullscreenchange", updateFullscreenState);
+    document.addEventListener("webkitfullscreenchange", updateFullscreenState);
+    return () => {
+      window.removeEventListener("resize", updateFullscreenState);
+      window.removeEventListener("orientationchange", updateFullscreenState);
+      window.visualViewport?.removeEventListener("resize", updateFullscreenState);
+      document.removeEventListener("fullscreenchange", updateFullscreenState);
+      document.removeEventListener("webkitfullscreenchange", updateFullscreenState);
+    };
+  }, []);
+
+  const toggleStageFullscreen = async () => {
+    const fullscreenDocument = document as Document & {
+      webkitExitFullscreen?: () => void | Promise<void>;
+      webkitFullscreenElement?: Element | null;
+    };
+    const fullscreenElement = document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement;
+    try {
+      if (fullscreenElement) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else {
+          await fullscreenDocument.webkitExitFullscreen?.();
+        }
+        return;
+      }
+
+      const target = gameShellRef.current as (HTMLElement & {
+        webkitRequestFullscreen?: () => void | Promise<void>;
+      }) | null;
+      if (target?.requestFullscreen) {
+        await target.requestFullscreen();
+      } else if (target?.webkitRequestFullscreen) {
+        await target.webkitRequestFullscreen();
+      } else {
+        setStageFullscreen((current) => !current);
+      }
+    } catch {
+      setStageFullscreen((current) => !current);
+    }
+  };
 
   useEffect(() => () => {
     if (hotbarFeedbackTimerRef.current !== null) {
@@ -4321,7 +4387,10 @@ export function MovementLab() {
         style={{ backgroundImage: `url(${MAP_SOURCE})` }}
         aria-hidden="true"
       />
-      <main className="game-shell">
+      <main
+        ref={gameShellRef}
+        className={`game-shell${stageFullscreen ? " is-fullscreen" : ""}`}
+      >
       <canvas
         ref={canvasRef}
         className={`game-canvas${virtualCursorControlsEnabled ? "" : " physical-cursor-enabled"}`}
@@ -4826,6 +4895,18 @@ export function MovementLab() {
       <section className="movement-status" aria-live="polite">
         {interactionJustTriggered ? "INTERACTIVE" : moving ? "MOVING" : "FACING"}
       </section>
+
+      {!optionsOpen && !inventoryOpen && !dialogueView ? (
+        <button
+          className="fullscreen-trigger"
+          type="button"
+          aria-label={stageFullscreen ? "退出全螢幕" : "進入全螢幕"}
+          aria-pressed={stageFullscreen}
+          onClick={() => void toggleStageFullscreen()}
+        >
+          <span aria-hidden="true"><i /><i /><i /><i /></span>
+        </button>
+      ) : null}
 
       <canvas
         ref={cursorCanvasRef}

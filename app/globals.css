@@ -77,6 +77,15 @@ button {
   transform: translate(-50%, -50%);
 }
 
+.game-shell.is-fullscreen,
+.game-shell:fullscreen,
+.game-shell:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  aspect-ratio: auto;
+}
+
 @media (pointer: coarse), (max-width: 680px) {
   .game-shell {
     width: 100vw;
@@ -737,6 +746,76 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .inventory-hotbar.is-inventory-open {
   z-index: 12;
+}
+
+.fullscreen-trigger {
+  position: absolute;
+  z-index: 9;
+  right: 14px;
+  bottom: 14px;
+  display: none;
+  width: 38px;
+  height: 38px;
+  padding: 8px;
+  place-items: center;
+  border: 1px solid rgba(170, 231, 225, 0.3);
+  border-radius: 8px;
+  background: rgba(7, 18, 22, 0.76);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+  color: #bff7ef;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+
+.fullscreen-trigger > span {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.fullscreen-trigger i {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-color: currentColor;
+  border-style: solid;
+}
+
+.fullscreen-trigger i:nth-child(1) { top: 0; left: 0; border-width: 2px 0 0 2px; }
+.fullscreen-trigger i:nth-child(2) { top: 0; right: 0; border-width: 2px 2px 0 0; }
+.fullscreen-trigger i:nth-child(3) { right: 0; bottom: 0; border-width: 0 2px 2px 0; }
+.fullscreen-trigger i:nth-child(4) { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
+
+.fullscreen-trigger:hover,
+.fullscreen-trigger:focus-visible,
+.fullscreen-trigger[aria-pressed="true"] {
+  border-color: rgba(123, 224, 212, 0.78);
+  background: rgba(16, 43, 46, 0.9);
+  outline: none;
+}
+
+.game-shell.is-fullscreen .survival-hud:not(.is-inventory-open),
+.game-shell:fullscreen .survival-hud:not(.is-inventory-open) {
+  top: 14px;
+  left: 14px;
+}
+
+.game-shell.is-fullscreen .top-left-hud,
+.game-shell:fullscreen .top-left-hud {
+  left: 14px;
+}
+
+.game-shell.is-fullscreen .options-trigger,
+.game-shell:fullscreen .options-trigger {
+  bottom: 14px;
+  left: 14px;
+}
+
+.game-shell.is-fullscreen .inventory-hotbar,
+.game-shell:fullscreen .inventory-hotbar {
+  bottom: 14px;
+  left: 72px;
 }
 
 .hotbar-slots {
@@ -2391,6 +2470,10 @@ html.dialogue-cursor-active .dialogue-box * {
 }
 
 @media (pointer: coarse), (max-width: 680px) {
+  .fullscreen-trigger {
+    display: grid;
+  }
+
   .quest-hud.is-collapsed {
     width: 180px;
   }
