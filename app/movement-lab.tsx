@@ -1752,15 +1752,14 @@ export function MovementLab() {
       webkitFullscreenElement?: Element | null;
     };
     const updateFullscreenState = () => {
-      const browserChromeHidden =
-        Math.abs(window.outerWidth - window.innerWidth) <= 12 &&
-        Math.abs(window.outerHeight - window.innerHeight) <= 12;
+      const browserToolbarHidden =
+        Math.abs(window.outerHeight - window.innerHeight) <= 48;
       const viewportMatchesScreen =
-        browserChromeHidden &&
-        window.innerWidth >= Math.min(window.screen.width, window.screen.availWidth) - 3 &&
+        browserToolbarHidden &&
+        window.innerWidth >= Math.min(window.screen.width, window.screen.availWidth) - 20 &&
         (
-          window.innerHeight >= window.screen.height - 3 ||
-          window.innerHeight >= window.screen.availHeight - 3
+          window.innerHeight >= window.screen.height - 20 ||
+          window.innerHeight >= window.screen.availHeight - 20
         );
       setStageFullscreen(Boolean(
         document.fullscreenElement ||

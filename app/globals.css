@@ -80,10 +80,14 @@ button {
 .game-shell.is-fullscreen,
 .game-shell:fullscreen,
 .game-shell:-webkit-full-screen {
+  inset: 0;
   width: 100vw;
+  max-width: none;
   height: 100vh;
   height: 100dvh;
+  max-height: none;
   aspect-ratio: auto;
+  transform: none;
 }
 
 @media (max-width: 680px), (hover: none) and (pointer: coarse) {
