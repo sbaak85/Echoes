@@ -221,17 +221,83 @@ internal static class EditorSelfTest
         }
         interactionPoints.Add(new InteractionPoint { X = 200, Y = 200, Facing = "N" });
         multiPointInteractable.InteractionHintPoint = new ScenePoint(150, 150);
+        multiPointInteractable.Type = "gather";
+        multiPointInteractable.SurvivalRequirements = new SurvivalRequirements
+        {
+            Stamina = new SurvivalRequirementRule
+            {
+                Comparison = "below",
+                Value = 75,
+            },
+        };
+        multiPointInteractable.SurvivalEffects = new SurvivalEffects
+        {
+            Stamina = -4,
+            Hunger = -2,
+            Thirst = -2,
+            Spirit = -1,
+            TimeMinutes = 480,
+        };
+        multiPointInteractable.DailyInteractionLimit = 3;
+        multiPointInteractable.ItemReward = new InteractionItemReward
+        {
+            ItemId = "metal-parts",
+            Quantity = 4,
+            Delivery = "world",
+        };
+        multiPointInteractable.FailureDialogue = new DialogueScript
+        {
+            CharacterDelaySeconds = 0.03f,
+            Speakers = new List<string> { "Sbaak", "Echo" },
+            Lines = new List<DialogueLine>
+            {
+                new() { Speaker = "Echo", Text = "條件尚未達成。" },
+            },
+        };
+        multiPointInteractable.UseRequirements = new List<InteractionUseRequirement>
+        {
+            new() { Kind = "item", ItemId = "transistor", Quantity = 3 },
+            new() { Kind = "chapter", Chapter = 4 },
+        };
         var expectedInteractionPointCount = interactionPoints.Count;
         var multiPointRoundTrip = SceneJson.Deserialize(SceneJson.Serialize(multiPointDocument));
         SceneJson.Validate(multiPointRoundTrip);
         if (
             multiPointRoundTrip.Interactables[0].EffectiveInteractionPoints.Count !=
             expectedInteractionPointCount ||
-            multiPointRoundTrip.Interactables[0].InteractionHintPoint is not { X: 150, Y: 150 }
+            multiPointRoundTrip.Interactables[0].InteractionHintPoint is not { X: 150, Y: 150 } ||
+            multiPointRoundTrip.Interactables[0].SurvivalRequirements.Stamina is not
+                { Comparison: "below", Value: 75 } ||
+            multiPointRoundTrip.Interactables[0].SurvivalEffects.Stamina != -4 ||
+            multiPointRoundTrip.Interactables[0].SurvivalEffects.TimeMinutes != 480 ||
+            multiPointRoundTrip.Interactables[0].DailyInteractionLimit != 3 ||
+            multiPointRoundTrip.Interactables[0].ItemReward is not
+                { ItemId: "metal-parts", Quantity: 4, Delivery: "world" } ||
+            multiPointRoundTrip.Interactables[0].FailureDialogue.Lines.FirstOrDefault() is not
+                { Speaker: "Echo", Text: "條件尚未達成。" } ||
+            multiPointRoundTrip.Interactables[0].UseRequirements?.Count != 2 ||
+            multiPointRoundTrip.Interactables[0].UseRequirements?[0] is not
+                { Kind: "item", ItemId: "transistor", Quantity: 3 } ||
+            multiPointRoundTrip.Interactables[0].UseRequirements?[1] is not
+                { Kind: "chapter", Chapter: 4 }
         )
         {
             throw new InvalidDataException(
-                "Interaction Points or the Interaction Hint Point did not survive JSON round-trip.");
+                "Interaction Points, hint Point, survival settings, item reward, requirements, or failure dialogue did not survive JSON round-trip.");
+        }
+
+        using (var requirementsEditor = new SurvivalEffectEditorForm(
+            multiPointInteractable.Type,
+            multiPointInteractable.SurvivalRequirements,
+            multiPointInteractable.SurvivalEffects,
+            multiPointInteractable.DailyInteractionLimit,
+            multiPointInteractable.UseRequirements))
+        {
+            if (requirementsEditor.UseRequirements.Count != 2)
+            {
+                throw new InvalidDataException(
+                    "Use requirement editor did not preserve multiple conditions.");
+            }
         }
 
         var audioConfigPath = Path.Combine(projectRoot, "app", "audio-event-manager.ts");

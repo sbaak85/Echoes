@@ -35,6 +35,25 @@ Included in version 1:
 - One optional interaction hint Point per interaction polygon. Right-click
   inside the selected polygon to add or move the translucent white in-game
   prompt dot, or remove it from the same context menu.
+- Interaction polygons support five behavior types: dialogue, operation,
+  gather, move, and general interaction. The right-side interaction settings
+  can define independent preconditions for stamina, hunger, thirst, and spirit:
+  unrestricted, at least a value, or below a value. Completion effects support
+  stamina, hunger, thirst, and spirit changes from -100 to +100 plus elapsed
+  game time in hours. Dialogue always finishes before these effects and usage
+  counts are applied. For example, sleep can require stamina below 75, advance
+  eight game hours, and then restore 75 stamina.
+  Daily interaction limits can be unlimited or 1-10 uses and reset at 06:00.
+  Operation defaults to `-5/-3/-3/0`; gather defaults to `-4/-2/-2/-1`
+  with three daily uses; general interaction defaults to `-1/-1/-1/0`.
+- Each interaction polygon can optionally reward any registered item after a
+  successful complete interaction. The reward setting selects the item,
+  quantity (1-99), and whether it is placed directly in the backpack or
+  spawned nearby in the scene as a persistent pickup stack. Dialogue, survival
+  requirements, and daily-use limits are resolved before the reward is issued.
+- Overlap-safe selection. Right-click an overlapping area and choose a named
+  shape from `選取重疊圖形`, or hold `Alt` and left-click repeatedly to cycle
+  through interaction, collision, NavMesh, and movement-guide layers.
   Right-click near an existing Point to change or delete that Point. At runtime,
   the Point nearest to the player is chosen once when interaction begins.
 - Lightweight `Audio 音效` manager window for event labels, trigger notes,

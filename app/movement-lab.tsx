@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import mapTest01Scene from "../public/maps/map_test01.scene.json";
 import {
   AUDIO_EVENT_CONFIG,
@@ -17,6 +23,7 @@ import {
   loadPlayerInventory,
   removeInventoryItem,
   savePlayerInventory,
+  useSurvivalInventoryItem,
   type ItemCategory,
   type PlayerInventory,
 } from "./item-database";
@@ -37,6 +44,49 @@ import {
   getClampedInventoryCategoryIndex,
   getInventoryCategoryOffsetForBumper,
 } from "./inventory-gamepad-control";
+import {
+  DEFAULT_HOTBAR_ASSIGNMENTS,
+  HOTBAR_SLOT_COUNT,
+  assignHotbarSlot,
+  loadHotbarAssignments,
+  saveHotbarAssignments,
+} from "./hotbar-assignments";
+import { resetStoredNewGameProgress } from "./new-game-reset";
+import {
+  getUnmetInteractionUseRequirements,
+  normalizeInteractionItemReward,
+  normalizeInteractionUseRequirements,
+  selectInteractionDialogue,
+  selectInteractionFeedbackPoint,
+  shouldCompleteAfterDialogue,
+  type InteractionDialogueScript,
+  type InteractionItemReward,
+  type InteractionUseRequirement,
+} from "./interaction-flow";
+import { loadStoryProgress } from "./story-progress";
+import {
+  advanceSurvivalByGameMinutes,
+  advanceSurvivalState,
+  applySurvivalEffects,
+  createInitialSurvivalState,
+  createInteractionUsageState,
+  ensureInteractionUsageCycle,
+  getCharacterStatuses,
+  getGameClock,
+  getUnmetSurvivalRequirements,
+  getSurvivalSpeedMultiplier,
+  hasConfiguredSurvivalEffects,
+  isInteractionLocked,
+  loadInteractionUsageState,
+  loadSurvivalState,
+  recordInteractionUse,
+  saveInteractionUsageState,
+  saveSurvivalState,
+  type InteractionUsageState,
+  type SurvivalEffects,
+  type SurvivalGameState,
+  type SurvivalRequirements,
+} from "./survival-manager";
 
 type Direction = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
 type Point = { x: number; y: number };
@@ -71,17 +121,19 @@ type SceneInteractable = {
   pickRadius?: number;
   activationDistance?: number;
   action?: string;
-  type?: "dialogue" | "pickup";
+  type?: "dialogue" | "operation" | "gather" | "move" | "interaction" | "pickup";
   verb?: string;
+  survivalRequirements?: SurvivalRequirements;
+  survivalEffects?: SurvivalEffects & { timeMinutes?: number };
+  dailyInteractionLimit?: number | null;
+  itemReward?: InteractionItemReward;
+  useRequirements?: InteractionUseRequirement[];
   itemId?: string;
   quantity?: number;
   worldItemId?: string;
   worldItemKind?: "placed" | "dropped";
-  dialogue?: {
-    characterDelaySeconds?: number;
-    speakers?: string[];
-    lines: Array<{ speaker?: string; text: string }>;
-  };
+  dialogue?: InteractionDialogueScript;
+  failureDialogue?: InteractionDialogueScript;
 };
 type PendingInteraction = {
   interactable: SceneInteractable;
@@ -93,6 +145,7 @@ type DialoguePlayback = {
   lineIndex: number;
   pageIndex: number;
   pages: string[];
+  onComplete?: () => void;
 };
 type DialogueView = { speaker: string; text: string } | null;
 type DialogueTyping = {
@@ -102,6 +155,25 @@ type DialogueTyping = {
   delayMilliseconds: number;
   timerId: number | null;
 };
+type InventoryDragState = {
+  itemId: string;
+  pointerId: number;
+  pointerType: string;
+  x: number;
+  y: number;
+};
+type PendingInventoryDrag = {
+  itemId: string;
+  pointerId: number;
+  pointerType: string;
+  startX: number;
+  startY: number;
+  active: boolean;
+  timerId: number | null;
+};
+type InventoryContextMenu =
+  | { kind: "inventory"; x: number; y: number; databaseIndex: number }
+  | { kind: "hotbar"; x: number; y: number; slotIndex: number };
 type MovementGuide = {
   id: string;
   label: string;
@@ -583,6 +655,7 @@ const OPTIONS_MENU_ITEMS = [
   "player-collision",
   "scene-collision",
   "collision-slide-tolerance",
+  "restart-game",
 ] as const;
 
 type OptionsMenuItem = (typeof OPTIONS_MENU_ITEMS)[number];
@@ -604,6 +677,7 @@ const OPTIONS_TAB_ITEMS: Record<OptionsTab, OptionsMenuItem[]> = {
     "player-collision",
     "scene-collision",
     "collision-slide-tolerance",
+    "restart-game",
   ],
 };
 
@@ -622,24 +696,29 @@ const COMPASS_MINOR_TICK_POSITIONS = [
   15, 20, 25, 35, 40, 45, 55, 60, 65, 75, 80, 85,
 ];
 
-const GAME_DAY_REAL_DURATION_MS = 60 * 60 * 1000;
-const GAME_START_TIME_MINUTES = 6 * 60;
 const SURVIVAL_STATS = [
-  { id: "stamina", label: "體力", symbol: "♥", value: 100 },
-  { id: "hunger", label: "飢餓", symbol: "♨", value: 100 },
-  { id: "thirst", label: "口渴", symbol: "◒", value: 100 },
-  { id: "spirit", label: "精神", symbol: "✦", value: 100 },
+  { id: "stamina", label: "體力", symbol: "♥" },
+  { id: "hunger", label: "飢餓", symbol: "♨" },
+  { id: "thirst", label: "口渴", symbol: "◒" },
+  { id: "spirit", label: "精神", symbol: "✦" },
 ] as const;
 
-const HOTBAR_ITEM_IDS = [
-  "medkit",
-  "water-bottle",
-  "emergency-ration",
-  "lantern",
-  "crystal-shard",
-  "utility-rope",
-  "navigation-data",
-] as const;
+const SURVIVAL_EFFECT_LABELS = {
+  stamina: "體力",
+  hunger: "飢餓",
+  thirst: "口渴",
+  spirit: "精神",
+} as const;
+
+function formatSurvivalEffects(effects: SurvivalEffects) {
+  const entries = Object.entries(SURVIVAL_EFFECT_LABELS).flatMap(
+    ([metric, label]) => {
+      const value = Number(effects[metric as keyof SurvivalEffects] ?? 0);
+      return value === 0 ? [] : [`${label}${value > 0 ? "+" : ""}${value}`];
+    },
+  );
+  return entries.length > 0 ? entries.join("、") : "尚未設定";
+}
 
 type InventoryCategory = "all" | ItemCategory;
 
@@ -1067,6 +1146,13 @@ function getInteractableCenter(interactable: SceneInteractable): Point {
     };
   }
   return interactable.position ?? { x: 0, y: 0 };
+}
+
+function getInteractionTweenPoint(interactable: SceneInteractable): Point {
+  return selectInteractionFeedbackPoint(
+    interactable.interactionHintPoint,
+    getInteractableCenter(interactable),
+  );
 }
 
 function getInteractionPoints(
@@ -1823,6 +1909,8 @@ function tracePolygon(
   context.closePath();
 }
 
+const INITIAL_SURVIVAL_STATE = createInitialSurvivalState();
+
 export function MovementLab() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cursorCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -1843,6 +1931,9 @@ export function MovementLab() {
   const audioEventManagerRef = useRef<AudioEventManager | null>(null);
   const requestBgmPlaybackRef = useRef<() => void>(() => {});
   const optionsOpenRef = useRef(false);
+  const survivalFlowPausedRef = useRef(false);
+  const restartConfirmationOpenRef = useRef(false);
+  const restartConfirmationChoiceRef = useRef<"cancel" | "confirm">("cancel");
   const inventoryOpenRef = useRef(false);
   const optionsTabRef = useRef<OptionsTab>("display");
   const optionsMenuSelectionRef = useRef<OptionsMenuItem>(
@@ -1853,6 +1944,11 @@ export function MovementLab() {
   const hotbarFeedbackTimerRef = useRef<number | null>(null);
   const hotbarUseSequenceRef = useRef(0);
   const activeHotbarSlotRef = useRef(0);
+  const hotbarAssignmentsRef = useRef<(string | null)[]>([
+    ...DEFAULT_HOTBAR_ASSIGNMENTS,
+  ]);
+  const pendingInventoryDragRef = useRef<PendingInventoryDrag | null>(null);
+  const suppressInventoryClickRef = useRef(false);
   const selectedInventoryIndexRef = useRef(
     DEFAULT_SELECTED_INVENTORY_INDEX,
   );
@@ -1864,8 +1960,17 @@ export function MovementLab() {
   const optionsGamepadModeRef = useRef<OptionsGamepadMode>("dpad");
   const inventoryGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
   const inventoryCategoryRef = useRef<InventoryCategory>("all");
+  const survivalStateRef = useRef<SurvivalGameState>(INITIAL_SURVIVAL_STATE);
+  const interactionUsageRef = useRef<InteractionUsageState>(
+    createInteractionUsageState(INITIAL_SURVIVAL_STATE.gameMinutes),
+  );
+  const currentStoryChapterRef = useRef(1);
 
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [survivalFlowPaused, setSurvivalFlowPaused] = useState(false);
+  const [restartConfirmationOpen, setRestartConfirmationOpen] = useState(false);
+  const [restartConfirmationChoice, setRestartConfirmationChoice] =
+    useState<"cancel" | "confirm">("cancel");
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [stageFullscreen, setStageFullscreen] = useState(false);
   const [optionsTab, setOptionsTab] = useState<OptionsTab>("display");
@@ -1893,7 +1998,10 @@ export function MovementLab() {
   );
   const [activeKeyboardKeys, setActiveKeyboardKeys] = useState<string[]>([]);
   const [interactionJustTriggered, setInteractionJustTriggered] = useState(false);
-  const [gameClock, setGameClock] = useState({ day: 1, hour: 6, minute: 0 });
+  const [survivalState, setSurvivalState] = useState<SurvivalGameState>(
+    INITIAL_SURVIVAL_STATE,
+  );
+  const gameClock = getGameClock(survivalState.gameMinutes);
   const [survivalExpanded, setSurvivalExpanded] = useState(true);
   const [questCollapsed, setQuestCollapsed] = useState(false);
   const [playerInventory, setPlayerInventory] = useState<PlayerInventory>(
@@ -1905,6 +2013,13 @@ export function MovementLab() {
   const playerInventoryRef = useRef(playerInventory);
   const collectedWorldItemIdsRef = useRef(collectedWorldItemIds);
   const [activeHotbarSlot, setActiveHotbarSlot] = useState(0);
+  const [hotbarAssignments, setHotbarAssignments] = useState<(string | null)[]>(
+    () => [...DEFAULT_HOTBAR_ASSIGNMENTS],
+  );
+  const [inventoryDrag, setInventoryDrag] = useState<InventoryDragState | null>(null);
+  const [hotbarDropTarget, setHotbarDropTarget] = useState<number | null>(null);
+  const [inventoryContextMenu, setInventoryContextMenu] =
+    useState<InventoryContextMenu | null>(null);
   const [inventoryCategory, setInventoryCategory] = useState<InventoryCategory>("all");
   const [inventoryPage, setInventoryPage] = useState(0);
   const [selectedInventoryIndex, setSelectedInventoryIndex] = useState(
@@ -1928,14 +2043,26 @@ export function MovementLab() {
       const loadedInventory = loadPlayerInventory();
       const loadedCollectedWorldItemIds = loadCollectedWorldItemIds();
       const loadedDroppedWorldItems = loadDroppedWorldItems();
+      const loadedHotbarAssignments = loadHotbarAssignments();
+      const loadedSurvivalState = loadSurvivalState();
+      const loadedInteractionUsage = loadInteractionUsageState(
+        loadedSurvivalState.gameMinutes,
+      );
+      const loadedStoryProgress = loadStoryProgress();
       playerInventoryRef.current = loadedInventory;
       collectedWorldItemIdsRef.current = loadedCollectedWorldItemIds;
       droppedWorldItemsRef.current = loadedDroppedWorldItems;
+      hotbarAssignmentsRef.current = loadedHotbarAssignments;
+      survivalStateRef.current = loadedSurvivalState;
+      interactionUsageRef.current = loadedInteractionUsage;
+      currentStoryChapterRef.current = loadedStoryProgress.currentChapter;
       sceneInteractablesRef.current = buildSceneInteractables(
         loadedDroppedWorldItems,
       );
       setPlayerInventory(loadedInventory);
       setCollectedWorldItemIds(loadedCollectedWorldItemIds);
+      setHotbarAssignments(loadedHotbarAssignments);
+      setSurvivalState(loadedSurvivalState);
       setDialogueTextSize(getDefaultDialogueTextSize());
       setQuestCollapsed(getDefaultQuestCollapsed());
       setSurvivalExpanded(getDefaultSurvivalExpanded());
@@ -1960,32 +2087,6 @@ export function MovementLab() {
   useEffect(() => {
     collectedWorldItemIdsRef.current = collectedWorldItemIds;
   }, [collectedWorldItemIds]);
-
-  useEffect(() => {
-    const startedAt = performance.now();
-
-    const updateGameClock = () => {
-      const elapsedRealMilliseconds = performance.now() - startedAt;
-      const elapsedGameMinutes = Math.floor(
-        (elapsedRealMilliseconds / GAME_DAY_REAL_DURATION_MS) * 24 * 60,
-      );
-      const totalMinutes = GAME_START_TIME_MINUTES + elapsedGameMinutes;
-      const day = Math.floor(totalMinutes / (24 * 60)) + 1;
-      const minutesInDay = totalMinutes % (24 * 60);
-      const hour = Math.floor(minutesInDay / 60);
-      const minute = minutesInDay % 60;
-
-      setGameClock((current) =>
-        current.day === day && current.hour === hour && current.minute === minute
-          ? current
-          : { day, hour, minute },
-      );
-    };
-
-    updateGameClock();
-    const timer = window.setInterval(updateGameClock, 500);
-    return () => window.clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     const fullscreenDocument = document as Document & {
@@ -2055,43 +2156,71 @@ export function MovementLab() {
   };
 
   useEffect(() => () => {
+    const pendingDrag = pendingInventoryDragRef.current;
+    if (pendingDrag?.timerId !== null && pendingDrag?.timerId !== undefined) {
+      window.clearTimeout(pendingDrag.timerId);
+    }
     if (hotbarFeedbackTimerRef.current !== null) {
       window.clearTimeout(hotbarFeedbackTimerRef.current);
     }
   }, []);
 
-  const activateHotbarItem = (slotIndex: number) => {
-    if (optionsOpenRef.current || inventoryOpenRef.current || dialoguePlaybackRef.current) return;
-    const itemId = HOTBAR_ITEM_IDS[slotIndex];
-    const item = itemId ? ITEM_BY_ID.get(itemId) : undefined;
-    if (!item) return;
-    const count = playerInventoryRef.current[item.id] ?? 0;
-
+  const showInventoryFeedback = (
+    message: string,
+    slotIndex = -1,
+    duration = 1100,
+  ) => {
     hotbarUseSequenceRef.current += 1;
-    activeHotbarSlotRef.current = slotIndex;
-    setActiveHotbarSlot(slotIndex);
     setHotbarFeedback({
-      message:
-        count > 0
-          ? `嘗試使用「${item.name}」· 功能尚未開放`
-          : `尚未持有「${item.name}」`,
+      message,
       sequence: hotbarUseSequenceRef.current,
       slotIndex,
     });
-
     if (hotbarFeedbackTimerRef.current !== null) {
       window.clearTimeout(hotbarFeedbackTimerRef.current);
     }
     hotbarFeedbackTimerRef.current = window.setTimeout(() => {
       setHotbarFeedback(null);
       hotbarFeedbackTimerRef.current = null;
-    }, 1100);
+    }, duration);
+  };
+
+  const setHotbarSlotAssignment = (slotIndex: number, itemId: string | null) => {
+    const next = assignHotbarSlot(
+      hotbarAssignmentsRef.current,
+      slotIndex,
+      itemId,
+    );
+    hotbarAssignmentsRef.current = next;
+    setHotbarAssignments(next);
+    saveHotbarAssignments(next);
+    const item = itemId ? ITEM_BY_ID.get(itemId) : null;
+    showInventoryFeedback(
+      item
+        ? `已將「${item.name}」指派至快捷格 ${slotIndex + 1}`
+        : `已清除快捷格 ${slotIndex + 1}`,
+      slotIndex,
+      1400,
+    );
+  };
+
+  const activateHotbarItem = (slotIndex: number) => {
+    if (optionsOpenRef.current || inventoryOpenRef.current || dialoguePlaybackRef.current) return;
+    const itemId = hotbarAssignmentsRef.current[slotIndex];
+    const item = itemId ? ITEM_BY_ID.get(itemId) : undefined;
+    if (!item) {
+      showInventoryFeedback("此快捷格尚未指派道具", slotIndex);
+      return;
+    }
+    activeHotbarSlotRef.current = slotIndex;
+    setActiveHotbarSlot(slotIndex);
+    useInventoryItem(item.id, slotIndex);
   };
 
   const selectHotbarSlot = (offset: number) => {
     setActiveHotbarSlot((current) => {
       const next =
-        (current + offset + HOTBAR_ITEM_IDS.length) % HOTBAR_ITEM_IDS.length;
+        (current + offset + HOTBAR_SLOT_COUNT) % HOTBAR_SLOT_COUNT;
       activeHotbarSlotRef.current = next;
       return next;
     });
@@ -2108,24 +2237,142 @@ export function MovementLab() {
     const item = ITEM_DATABASE[slotIndex]?.item;
     if (!item || (playerInventoryRef.current[item.id] ?? 0) <= 0) return;
     selectInventoryItem(slotIndex);
-    hotbarUseSequenceRef.current += 1;
-    setHotbarFeedback({
-      message: `嘗試使用「${item.name}」· 功能尚未開放`,
-      sequence: hotbarUseSequenceRef.current,
-      slotIndex: -1,
-    });
-    if (hotbarFeedbackTimerRef.current !== null) {
-      window.clearTimeout(hotbarFeedbackTimerRef.current);
+    useInventoryItem(item.id, -1);
+  };
+
+  function useInventoryItem(itemId: string, feedbackSlotIndex: number) {
+    const item = ITEM_BY_ID.get(itemId);
+    if (!item) return;
+    const result = useSurvivalInventoryItem(
+      playerInventoryRef.current,
+      survivalStateRef.current,
+      item.id,
+    );
+    let message: string;
+
+    if (result.status === "not-owned") {
+      message = `尚未持有「${item.name}」`;
+    } else if (result.status === "not-configured") {
+      message = `嘗試使用「${item.name}」· 功能尚未開放`;
+    } else if (result.status === "full") {
+      message = "現在無法使用這個";
+    } else {
+      survivalStateRef.current = result.survival;
+      playerInventoryRef.current = result.inventory;
+      setSurvivalState(result.survival);
+      setPlayerInventory(result.inventory);
+      try {
+        saveSurvivalState(result.survival);
+        savePlayerInventory(result.inventory);
+      } catch {
+        // 無法使用本機儲存時，本次工作階段仍保留使用結果。
+      }
+      message = `已使用「${item.name}」· ${formatSurvivalEffects(item.survivalEffects)}`;
     }
-    hotbarFeedbackTimerRef.current = window.setTimeout(() => {
-      setHotbarFeedback(null);
-      hotbarFeedbackTimerRef.current = null;
-    }, 1100);
+
+    showInventoryFeedback(message, feedbackSlotIndex);
+  }
+
+  const getHotbarSlotAtPoint = (x: number, y: number) => {
+    const element = document.elementFromPoint(x, y);
+    const slot = element?.closest<HTMLElement>(".hotbar-slot[data-hotbar-index]");
+    const index = Number(slot?.dataset.hotbarIndex);
+    return Number.isInteger(index) && index >= 0 && index < HOTBAR_SLOT_COUNT
+      ? index
+      : null;
+  };
+
+  const startInventoryDrag = (pending: PendingInventoryDrag, x: number, y: number) => {
+    if (pendingInventoryDragRef.current !== pending) return;
+    pending.active = true;
+    if (pending.timerId !== null) {
+      window.clearTimeout(pending.timerId);
+      pending.timerId = null;
+    }
+    setInventoryContextMenu(null);
+    setInventoryDrag({
+      itemId: pending.itemId,
+      pointerId: pending.pointerId,
+      pointerType: pending.pointerType,
+      x,
+      y,
+    });
+    navigator.vibrate?.(12);
+  };
+
+  const beginInventoryDrag = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    itemId: string,
+  ) => {
+    if (event.button !== 0) return;
+    const pending: PendingInventoryDrag = {
+      itemId,
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      startX: event.clientX,
+      startY: event.clientY,
+      active: false,
+      timerId: null,
+    };
+    pendingInventoryDragRef.current = pending;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    if (event.pointerType !== "mouse") {
+      pending.timerId = window.setTimeout(() => {
+        startInventoryDrag(pending, pending.startX, pending.startY);
+      }, 360);
+    }
+  };
+
+  const moveInventoryDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const pending = pendingInventoryDragRef.current;
+    if (!pending || pending.pointerId !== event.pointerId) return;
+    const distance = Math.hypot(
+      event.clientX - pending.startX,
+      event.clientY - pending.startY,
+    );
+    if (!pending.active && pending.pointerType === "mouse" && distance >= 5) {
+      startInventoryDrag(pending, event.clientX, event.clientY);
+    }
+    if (!pending.active) return;
+    event.preventDefault();
+    setInventoryDrag((current) => current
+      ? { ...current, x: event.clientX, y: event.clientY }
+      : current);
+    setHotbarDropTarget(getHotbarSlotAtPoint(event.clientX, event.clientY));
+  };
+
+  const finishInventoryDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const pending = pendingInventoryDragRef.current;
+    if (!pending || pending.pointerId !== event.pointerId) return;
+    if (pending.timerId !== null) window.clearTimeout(pending.timerId);
+    if (pending.active) {
+      event.preventDefault();
+      suppressInventoryClickRef.current = true;
+      const slotIndex = getHotbarSlotAtPoint(event.clientX, event.clientY);
+      if (slotIndex !== null) {
+        setHotbarSlotAssignment(slotIndex, pending.itemId);
+      }
+      window.setTimeout(() => {
+        suppressInventoryClickRef.current = false;
+      }, 0);
+    }
+    pendingInventoryDragRef.current = null;
+    setInventoryDrag(null);
+    setHotbarDropTarget(null);
+  };
+
+  const cancelInventoryDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const pending = pendingInventoryDragRef.current;
+    if (!pending || pending.pointerId !== event.pointerId) return;
+    if (pending.timerId !== null) window.clearTimeout(pending.timerId);
+    pendingInventoryDragRef.current = null;
+    setInventoryDrag(null);
+    setHotbarDropTarget(null);
   };
 
   const discardInventoryItem = (
     slotIndex: number,
-    button: HTMLButtonElement,
+    button: HTMLElement,
   ) => {
     const item = ITEM_DATABASE[slotIndex]?.item;
     const currentQuantity = item
@@ -2336,10 +2583,16 @@ export function MovementLab() {
     setDialogueView(null);
   };
 
+  const finishDialogue = () => {
+    const onComplete = dialoguePlaybackRef.current?.onComplete;
+    closeDialogue();
+    onComplete?.();
+  };
+
   const showDialoguePage = (playback: DialoguePlayback) => {
     const line = playback.interactable.dialogue?.lines[playback.lineIndex];
     if (!line) {
-      closeDialogue();
+      finishDialogue();
       return;
     }
     stopDialogueTyping();
@@ -2392,16 +2645,20 @@ export function MovementLab() {
     }
   };
 
-  const openDialogue = (interactable: SceneInteractable) => {
-    const lines = interactable.dialogue?.lines?.filter((line) => line.text.trim()) ?? [];
+  const openDialogue = (
+    interactable: SceneInteractable,
+    onComplete?: () => void,
+    dialogue: InteractionDialogueScript | undefined = interactable.dialogue,
+  ) => {
+    const lines = dialogue?.lines?.filter((line) => line.text.trim()) ?? [];
     const effectiveLines = lines.length > 0 ? lines : [{ speaker: "", text: "..." }];
     const normalized = {
       ...interactable,
       dialogue: {
         characterDelaySeconds:
-          interactable.dialogue?.characterDelaySeconds ?? 0.02,
+          dialogue?.characterDelaySeconds ?? 0.02,
         speakers:
-          interactable.dialogue?.speakers?.filter((speaker) => speaker.trim()) ??
+          dialogue?.speakers?.filter((speaker) => speaker.trim()) ??
           ["Sbaak", "Echo"],
         lines: effectiveLines,
       },
@@ -2411,6 +2668,7 @@ export function MovementLab() {
       lineIndex: 0,
       pageIndex: 0,
       pages: splitDialoguePages(effectiveLines[0].text),
+      onComplete,
     };
     dialoguePlaybackRef.current = playback;
     document.documentElement.classList.add("dialogue-cursor-active");
@@ -2446,7 +2704,7 @@ export function MovementLab() {
       showDialoguePage(playback);
       return true;
     }
-    closeDialogue();
+    finishDialogue();
     return true;
   };
 
@@ -2458,6 +2716,11 @@ export function MovementLab() {
     optionsOpenRef.current = open;
     setOptionsOpen(open);
 
+    if (!open) {
+      restartConfirmationOpenRef.current = false;
+      setRestartConfirmationOpen(false);
+    }
+
     if (open) {
       optionsMenuSelectionRef.current = OPTIONS_MENU_ITEMS[0];
       setOptionsMenuSelection(OPTIONS_MENU_ITEMS[0]);
@@ -2468,6 +2731,12 @@ export function MovementLab() {
 
   const toggleOptionsPanel = () => {
     setOptionsPanelOpen(!optionsOpenRef.current);
+  };
+
+  const toggleSurvivalFlowPaused = () => {
+    const paused = !survivalFlowPausedRef.current;
+    survivalFlowPausedRef.current = paused;
+    setSurvivalFlowPaused(paused);
   };
 
   const toggleSurvivalPanel = () => {
@@ -2487,6 +2756,16 @@ export function MovementLab() {
 
   const setInventoryPanelOpen = (open: boolean) => {
     inventoryOpenRef.current = open;
+    if (!open) {
+      const pendingDrag = pendingInventoryDragRef.current;
+      if (pendingDrag?.timerId !== null && pendingDrag?.timerId !== undefined) {
+        window.clearTimeout(pendingDrag.timerId);
+      }
+      pendingInventoryDragRef.current = null;
+      setInventoryDrag(null);
+      setHotbarDropTarget(null);
+      setInventoryContextMenu(null);
+    }
     setInventoryOpen(open);
   };
 
@@ -2535,7 +2814,25 @@ export function MovementLab() {
     setOptionsTab(tab);
   };
 
+  const setRestartConfirmationChoiceValue = (choice: "cancel" | "confirm") => {
+    restartConfirmationChoiceRef.current = choice;
+    setRestartConfirmationChoice(choice);
+  };
+
+  const openRestartConfirmation = () => {
+    restartConfirmationOpenRef.current = true;
+    setRestartConfirmationOpen(true);
+    setRestartConfirmationChoiceValue("cancel");
+  };
+
+  const closeRestartConfirmation = () => {
+    restartConfirmationOpenRef.current = false;
+    setRestartConfirmationOpen(false);
+    setRestartConfirmationChoiceValue("cancel");
+  };
+
   const moveOptionsMenuSelection = (direction: number) => {
+    if (restartConfirmationOpenRef.current) return;
     const items = OPTIONS_TAB_ITEMS[optionsTabRef.current];
     const currentIndex = items.indexOf(optionsMenuSelectionRef.current);
     const nextIndex = currentIndex + Math.sign(direction);
@@ -2544,6 +2841,7 @@ export function MovementLab() {
   };
 
   const changeOptionsTab = (direction: number) => {
+    if (restartConfirmationOpenRef.current) return;
     const currentIndex = OPTIONS_TABS.findIndex(
       (tab) => tab.id === optionsTabRef.current,
     );
@@ -2560,6 +2858,14 @@ export function MovementLab() {
   };
 
   const activateOptionsMenuSelection = () => {
+    if (restartConfirmationOpenRef.current) {
+      if (restartConfirmationChoiceRef.current === "confirm") {
+        confirmRestartNewGame();
+      } else {
+        closeRestartConfirmation();
+      }
+      return;
+    }
     switch (optionsMenuSelectionRef.current) {
       case "dialogue-text-size":
         setDialogueTextSize((current) =>
@@ -2582,10 +2888,17 @@ export function MovementLab() {
       case "bgm-enabled":
         setBgmEnabledValue(!bgmEnabledRef.current);
         break;
+      case "restart-game":
+        openRestartConfirmation();
+        break;
     }
   };
 
   const adjustOptionsMenuSelection = (direction: number) => {
+    if (restartConfirmationOpenRef.current) {
+      setRestartConfirmationChoiceValue(direction > 0 ? "confirm" : "cancel");
+      return;
+    }
     const toggleValue = getDpadToggleValue(direction);
     switch (optionsMenuSelectionRef.current) {
       case "dialogue-text-size": {
@@ -2795,10 +3108,60 @@ export function MovementLab() {
     let previousCursorPromptTargetId: string | null = null;
     const interactionHintAnimation = new Map<
       string,
-      { opacity: number; lastTime: number }
+      { opacity: number; emphasis: number; lastTime: number }
     >();
     let keyboardInteractionKey = (localStorage.getItem("echoes:interaction-key") ?? "e").toLowerCase();
     let keyboardInteractionLabel = localStorage.getItem("echoes:interaction-key-label") ?? keyboardInteractionKey.toUpperCase();
+    let survivalUiElapsed = 0;
+    let survivalSaveElapsed = 0;
+
+    const refreshInteractionUsageCycle = () => {
+      const current = interactionUsageRef.current;
+      const next = ensureInteractionUsageCycle(
+        current,
+        survivalStateRef.current.gameMinutes,
+      );
+      if (next !== current) {
+        interactionUsageRef.current = next;
+        saveInteractionUsageState(next);
+      }
+      return next;
+    };
+
+    const isInteractableLocked = (interactable: SceneInteractable) =>
+      isInteractionLocked(
+        refreshInteractionUsageCycle(),
+        interactable.id,
+        interactable.dailyInteractionLimit,
+      );
+
+    const getInteractionRequirementFailure = (
+      interactable: SceneInteractable,
+    ) => getUnmetSurvivalRequirements(
+      survivalStateRef.current.values,
+      interactable.survivalRequirements,
+    )[0];
+
+    const getInteractionUseRequirementFailure = (
+      interactable: SceneInteractable,
+    ) => getUnmetInteractionUseRequirements(
+      normalizeInteractionUseRequirements(
+        interactable.useRequirements,
+        (itemId) => ITEM_BY_ID.has(itemId),
+      ),
+      playerInventoryRef.current,
+      currentStoryChapterRef.current,
+    )[0];
+
+    const openInteractionFailureDialogue = (
+      interactable: SceneInteractable,
+      source: PendingInteraction["source"],
+    ) => {
+      const failureDialogue = selectInteractionDialogue(interactable, "failure");
+      openDialogue(interactable, undefined, failureDialogue);
+      if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
+      return false;
+    };
 
     const onControlBindingsChanged = () => {
       keyboardInteractionKey = (localStorage.getItem("echoes:interaction-key") ?? "e").toLowerCase();
@@ -2970,6 +3333,25 @@ export function MovementLab() {
         return;
       }
       activeInputMode = "keyboard-mouse";
+      if (restartConfirmationOpenRef.current) {
+        if (key === "escape") {
+          event.preventDefault();
+          closeRestartConfirmation();
+        } else if (key === "arrowleft" || key === "arrowright") {
+          event.preventDefault();
+          setRestartConfirmationChoiceValue(
+            key === "arrowright" ? "confirm" : "cancel",
+          );
+        } else if (key === "enter" && !event.repeat) {
+          event.preventDefault();
+          if (restartConfirmationChoiceRef.current === "confirm") {
+            confirmRestartNewGame();
+          } else {
+            closeRestartConfirmation();
+          }
+        }
+        return;
+      }
       if (key === "escape" && optionsOpenRef.current) {
         event.preventDefault();
         setOptionsPanelOpen(false);
@@ -3051,10 +3433,139 @@ export function MovementLab() {
       };
     };
 
-    const triggerInteraction = (
+    const showInteractionItemFeedback = (message: string) => {
+      hotbarUseSequenceRef.current += 1;
+      setHotbarFeedback({
+        message,
+        sequence: hotbarUseSequenceRef.current,
+        slotIndex: -1,
+      });
+      if (hotbarFeedbackTimerRef.current !== null) {
+        window.clearTimeout(hotbarFeedbackTimerRef.current);
+      }
+      hotbarFeedbackTimerRef.current = window.setTimeout(() => {
+        setHotbarFeedback(null);
+        hotbarFeedbackTimerRef.current = null;
+      }, 1800);
+    };
+
+    const grantInteractionItemReward = (interactable: SceneInteractable) => {
+      const reward = normalizeInteractionItemReward(
+        interactable.itemReward,
+        (itemId) => ITEM_BY_ID.has(itemId),
+      );
+      if (!reward) return;
+      const item = ITEM_BY_ID.get(reward.itemId);
+      if (!item) return;
+
+      if (reward.delivery === "inventory") {
+        const nextInventory = grantInventoryItem(
+          playerInventoryRef.current,
+          item.id,
+          reward.quantity,
+        );
+        playerInventoryRef.current = nextInventory;
+        setPlayerInventory(nextInventory);
+        try {
+          savePlayerInventory(nextInventory);
+        } catch {
+          // 無法使用本機儲存時，本次工作階段仍保留獎勵。
+        }
+        showInteractionItemFeedback(
+          `獲得「${item.name}」×${reward.quantity} · 已放入背包`,
+        );
+        return;
+      }
+
+      const placement = findDroppedWorldItemPlacement(
+        player,
+        currentFacing,
+        sizeRef.current * 0.14,
+        droppedWorldItemsRef.current.filter(
+          (worldItem) => worldItem.sceneId === SCENE_DATA.sceneId,
+        ),
+      );
+      if (!placement) {
+        showInteractionItemFeedback(
+          `「${item.name}」未生成 · 角色附近沒有可放置空間`,
+        );
+        return;
+      }
+
+      let rewardWorldItemId = "";
+      do {
+        droppedWorldItemSequenceRef.current += 1;
+        rewardWorldItemId =
+          `interaction-reward:${SCENE_DATA.sceneId}:` +
+          `${interactable.id}:${droppedWorldItemSequenceRef.current}`;
+      } while (
+        droppedWorldItemsRef.current.some(
+          (worldItem) => worldItem.id === rewardWorldItemId,
+        )
+      );
+      const droppedWorldItem: DroppedWorldItem = {
+        id: rewardWorldItemId,
+        sceneId: SCENE_DATA.sceneId,
+        itemId: item.id,
+        quantity: reward.quantity,
+        position: placement.position,
+        interactionPoint: placement.interactionPoint,
+        pickRadius: 26,
+        activationDistance: 48,
+        createdFromInventory: false,
+      };
+      const nextDroppedWorldItems = [
+        ...droppedWorldItemsRef.current,
+        droppedWorldItem,
+      ];
+      applyDroppedWorldItems(nextDroppedWorldItems);
+      try {
+        saveDroppedWorldItems(nextDroppedWorldItems);
+      } catch {
+        // 無法使用本機儲存時，本次工作階段仍會保留場上獎勵。
+      }
+      showInteractionItemFeedback(
+        `「${item.name}」×${reward.quantity} 已生成在場上`,
+      );
+    };
+
+    const completeInteraction = (
       interactable: SceneInteractable,
       source: PendingInteraction["source"],
     ) => {
+      if (isInteractableLocked(interactable)) {
+        return openInteractionFailureDialogue(interactable, source);
+      }
+
+      const elapsedGameMinutes = Math.max(
+        0,
+        Number(interactable.survivalEffects?.timeMinutes ?? 0),
+      );
+      if (elapsedGameMinutes > 0 || interactable.survivalEffects) {
+        let nextSurvival = survivalStateRef.current;
+        if (elapsedGameMinutes > 0) {
+          nextSurvival = advanceSurvivalByGameMinutes(
+            nextSurvival,
+            elapsedGameMinutes,
+          );
+        }
+        nextSurvival = applySurvivalEffects(
+          nextSurvival,
+          interactable.survivalEffects,
+        );
+        survivalStateRef.current = nextSurvival;
+        setSurvivalState(nextSurvival);
+        saveSurvivalState(nextSurvival);
+      }
+      const usage = recordInteractionUse(
+        refreshInteractionUsageCycle(),
+        interactable.id,
+        interactable.dailyInteractionLimit,
+      );
+      if (usage !== interactionUsageRef.current) {
+        interactionUsageRef.current = usage;
+        saveInteractionUsageState(usage);
+      }
       if (interactionFeedbackTimer !== null) {
         window.clearTimeout(interactionFeedbackTimer);
       }
@@ -3073,6 +3584,10 @@ export function MovementLab() {
           },
         }),
       );
+
+      if (interactable.type !== "pickup") {
+        grantInteractionItemReward(interactable);
+      }
 
       if (
         interactable.type === "pickup" &&
@@ -3151,11 +3666,37 @@ export function MovementLab() {
         if (source === "pointer") {
           pointerInteractionTriggeredId = interactable.id;
         }
-        return;
+        return true;
       }
 
-      if ((interactable.type ?? "dialogue") === "dialogue") openDialogue(interactable);
       if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
+      return true;
+    };
+
+    const triggerInteraction = (
+      interactable: SceneInteractable,
+      source: PendingInteraction["source"],
+    ) => {
+      if (isInteractableLocked(interactable)) {
+        return openInteractionFailureDialogue(interactable, source);
+      }
+      if (getInteractionRequirementFailure(interactable)) {
+        return openInteractionFailureDialogue(interactable, source);
+      }
+      if (getInteractionUseRequirementFailure(interactable)) {
+        return openInteractionFailureDialogue(interactable, source);
+      }
+
+      const hasDialogueSequence = shouldCompleteAfterDialogue(interactable);
+      if (hasDialogueSequence) {
+        openDialogue(interactable, () => {
+          completeInteraction(interactable, source);
+        });
+        if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
+        return true;
+      }
+
+      return completeInteraction(interactable, source);
     };
 
     const findPathFromLimitedCandidates = (
@@ -3217,6 +3758,75 @@ export function MovementLab() {
       ) {
         return;
       }
+      if (interactable && isInteractableLocked(interactable)) {
+        autoPath = [];
+        autoDestination = null;
+        pendingInteraction = null;
+        openInteractionFailureDialogue(interactable, source);
+        if (showTouchEffect) {
+          touchEffect = {
+            point: getInteractionTweenPoint(interactable),
+            reachable: false,
+            startedAt: performance.now(),
+          };
+        }
+        return;
+      }
+      if (interactable && getInteractionRequirementFailure(interactable)) {
+        autoPath = [];
+        autoDestination = null;
+        pendingInteraction = null;
+        openInteractionFailureDialogue(interactable, source);
+        if (showTouchEffect) {
+          touchEffect = {
+            point: getInteractionTweenPoint(interactable),
+            reachable: false,
+            startedAt: performance.now(),
+          };
+        }
+        return;
+      }
+      if (interactable && getInteractionUseRequirementFailure(interactable)) {
+        autoPath = [];
+        autoDestination = null;
+        pendingInteraction = null;
+        openInteractionFailureDialogue(interactable, source);
+        if (showTouchEffect) {
+          touchEffect = {
+            point: getInteractionTweenPoint(interactable),
+            reachable: false,
+            startedAt: performance.now(),
+          };
+        }
+        return;
+      }
+      if (
+        interactable?.type === "pickup" &&
+        isTouchingInteractable(
+          player,
+          sizeRef.current * 0.14,
+          interactable,
+        )
+      ) {
+        autoPath = [];
+        autoDestination = null;
+        pendingInteraction = null;
+        movementGuideSuppressedForPendingInteraction = false;
+        lockedAutoMovementGuideId = null;
+        bypassedAutoMovementGuideId = null;
+        if (playAcceptedInteractionSound) {
+          playOneShotAudio("interactionAccepted");
+        }
+        if (showTouchEffect) {
+          touchEffect = {
+            point: getInteractionTweenPoint(interactable),
+            reachable: true,
+            startedAt: performance.now(),
+          };
+        }
+        triggerInteraction(interactable, source);
+        return;
+      }
       const interactionPoint = interactable
         ? findNearestInteractionPoint(interactable, player)
         : undefined;
@@ -3245,7 +3855,7 @@ export function MovementLab() {
       bypassedAutoMovementGuideId = null;
       if (showTouchEffect) {
         touchEffect = {
-          point: interactable ? getInteractableCenter(interactable) : requestedDestination,
+          point: interactable ? getInteractionTweenPoint(interactable) : requestedDestination,
           reachable: path !== null,
           startedAt: performance.now(),
         };
@@ -3266,15 +3876,26 @@ export function MovementLab() {
       }
 
       const { interactable, interactionPoint, source } = pendingInteraction;
-      const closeEnough = interactionPoint
-        ? Math.hypot(
-            player.x - interactionPoint.x,
-            player.y - interactionPoint.y,
-          ) <= (interactable.activationDistance ?? 52)
-        : isTouchingInteractable(player, sizeRef.current * 0.14, interactable);
+      const isPickup = interactable.type === "pickup";
+      const closeEnough = isPickup
+        ? isTouchingInteractable(
+            player,
+            sizeRef.current * 0.14,
+            interactable,
+          )
+        : interactionPoint
+          ? Math.hypot(
+              player.x - interactionPoint.x,
+              player.y - interactionPoint.y,
+            ) <= (interactable.activationDistance ?? 52)
+          : isTouchingInteractable(
+              player,
+              sizeRef.current * 0.14,
+              interactable,
+            );
 
       if (closeEnough) {
-        if (interactionPoint?.facing) {
+        if (!isPickup && interactionPoint?.facing) {
           currentFacing = interactionPoint.facing;
         }
         triggerInteraction(interactable, source);
@@ -3338,7 +3959,10 @@ export function MovementLab() {
       }
       if (
         targetOwner === "player" &&
-        getInteractionPoints(target).length === 0
+        (
+          target.type === "pickup" ||
+          getInteractionPoints(target).length === 0
+        )
       ) {
         if (source === "gamepad") {
           playOneShotAudio("interactionAccepted");
@@ -3777,13 +4401,33 @@ export function MovementLab() {
           return;
         }
 
+        if (isInteractableLocked(interactable)) {
+          const radius = 8 / zoom;
+          context.save();
+          context.translate(point.x, point.y);
+          context.strokeStyle = "rgba(166, 173, 180, 0.88)";
+          context.lineWidth = 3 / zoom;
+          context.lineCap = "round";
+          context.beginPath();
+          context.moveTo(-radius, -radius);
+          context.lineTo(radius, radius);
+          context.moveTo(radius, -radius);
+          context.lineTo(-radius, radius);
+          context.stroke();
+          context.restore();
+          return;
+        }
+
         const animation = interactionHintAnimation.get(interactable.id) ?? {
           opacity: 1,
+          emphasis: 0,
           lastTime: time,
         };
         const elapsed = Math.max(0, Math.min(100, time - animation.lastTime));
         const targetOpacity =
           activeDialogueTargetId === interactable.id ? 0 : 1;
+        const targetEmphasis =
+          playerTarget?.id === interactable.id && targetOpacity > 0 ? 1 : 0;
         if (animation.opacity < targetOpacity) {
           animation.opacity = Math.min(
             targetOpacity,
@@ -3795,36 +4439,46 @@ export function MovementLab() {
             animation.opacity - elapsed / 100,
           );
         }
+        if (animation.emphasis < targetEmphasis) {
+          animation.emphasis = Math.min(
+            targetEmphasis,
+            animation.emphasis + elapsed / 100,
+          );
+        } else if (animation.emphasis > targetEmphasis) {
+          animation.emphasis = Math.max(
+            targetEmphasis,
+            animation.emphasis - elapsed / 100,
+          );
+        }
         animation.lastTime = time;
         interactionHintAnimation.set(interactable.id, animation);
         if (animation.opacity <= 0.001) return;
 
-        const canInteract =
-          playerTarget?.id === interactable.id && targetOpacity > 0;
+        const emphasis =
+          animation.emphasis * animation.emphasis *
+          (3 - 2 * animation.emphasis);
         const breathing = 1 + Math.sin(time / 420) * 0.08;
         const activePulse = 1 + Math.sin(time / 180) * 0.035;
-        const scale = canInteract
-          ? 1.28 * activePulse
-          : breathing;
-        const bob = canInteract ? Math.sin(time / 210) * (4 / zoom) : 0;
-        const radius = (canInteract ? 7.4 : 6.4) * scale / zoom;
+        const idleRadius = 6.4 * breathing;
+        const activeRadius = 7.4 * 1.28 * activePulse;
+        const radius =
+          (idleRadius + (activeRadius - idleRadius) * emphasis) / zoom;
+        const bob = Math.sin(time / 210) * (4 / zoom) * emphasis;
+        const fillAlpha = 0.58 + (0.82 - 0.58) * emphasis;
+        const outlineAlpha = 0.34 + (0.72 - 0.34) * emphasis;
 
         context.save();
         context.globalAlpha = animation.opacity;
         context.translate(point.x, point.y + bob);
         context.shadowColor = "rgba(255, 255, 255, 0.82)";
-        context.shadowBlur = (canInteract ? 18 : 12) / zoom;
-        context.fillStyle = canInteract
-          ? "rgba(255, 255, 255, 0.82)"
-          : "rgba(255, 255, 255, 0.58)";
+        context.shadowBlur = (12 + (18 - 12) * emphasis) / zoom;
+        context.fillStyle = `rgba(255, 255, 255, ${fillAlpha})`;
         context.beginPath();
         context.arc(0, 0, radius, 0, Math.PI * 2);
         context.fill();
 
         context.shadowBlur = 0;
-        context.strokeStyle = canInteract
-          ? "rgba(255, 255, 255, 0.72)"
-          : "rgba(255, 255, 255, 0.34)";
+        context.strokeStyle = `rgba(255, 255, 255, ${outlineAlpha})`;
         context.lineWidth = 1.2 / zoom;
         context.beginPath();
         context.arc(0, 0, radius * 1.85, 0, Math.PI * 2);
@@ -3983,6 +4637,32 @@ export function MovementLab() {
         context.stroke();
         context.restore();
       }
+    };
+
+    const drawPlayerStatuses = (time: number) => {
+      const statuses = getCharacterStatuses(survivalStateRef.current.values);
+      if (statuses.length === 0) return;
+      const zoom = getSceneZoom(viewportWidth, viewportHeight);
+      const fontSize = 14 / zoom;
+      const rowHeight = 19 / zoom;
+      const pulse = 1 + Math.sin(time / 430) * 0.055;
+      context.save();
+      context.translate(player.x, player.y - sizeRef.current - 14 / zoom);
+      context.scale(pulse, pulse);
+      context.font = `700 ${fontSize}px "Segoe UI", "Noto Sans TC", sans-serif`;
+      context.textAlign = "center";
+      context.textBaseline = "bottom";
+      context.lineJoin = "round";
+      context.lineWidth = 3 / zoom;
+      statuses.forEach((status, index) => {
+        const y = -((statuses.length - index - 1) * rowHeight);
+        context.globalAlpha = 0.82 + Math.sin(time / 430 + index * 0.8) * 0.15;
+        context.strokeStyle = "rgba(5, 12, 17, 0.9)";
+        context.strokeText(status.label, 0, y);
+        context.fillStyle = status.color;
+        context.fillText(status.label, 0, y);
+      });
+      context.restore();
     };
 
     const drawTouchEffect = (time: number) => {
@@ -4269,18 +4949,24 @@ export function MovementLab() {
 
     const drawInteractionPrompts = () => {
       const radius = sizeRef.current * 0.14;
-      const playerTarget = findInteractableTouching(
+      const foundPlayerTarget = findInteractableTouching(
         player,
         radius,
         sceneInteractablesRef.current,
         collectedWorldItemIdsRef.current,
       );
-      const cursorTarget = virtualCursorVisible
+      const foundCursorTarget = virtualCursorVisible
         ? findInteractableAt(
             screenToWorld(virtualCursor),
             sceneInteractablesRef.current,
             collectedWorldItemIdsRef.current,
           )
+        : null;
+      const playerTarget = foundPlayerTarget && !isInteractableLocked(foundPlayerTarget)
+        ? foundPlayerTarget
+        : null;
+      const cursorTarget = foundCursorTarget && !isInteractableLocked(foundCursorTarget)
+        ? foundCursorTarget
         : null;
       const playerTargetId = playerTarget?.id ?? null;
       const cursorTargetId = cursorTarget?.id ?? null;
@@ -4364,6 +5050,9 @@ export function MovementLab() {
 
     const update = (deltaTime: number) => {
       const movementStart = { x: player.x, y: player.y };
+      const effectiveMovementSpeed =
+        speedRef.current *
+        getSurvivalSpeedMultiplier(survivalStateRef.current.values);
       const keyboardHorizontal =
         Number(pressedKeys.has("d") || pressedKeys.has("arrowright")) -
         Number(pressedKeys.has("a") || pressedKeys.has("arrowleft"));
@@ -4510,8 +5199,12 @@ export function MovementLab() {
         !wasGamepadRightBumperPressed;
       let optionsMenuOpen = optionsOpenRef.current;
       if (optionsMenuOpen && backJustPressed) {
-        setOptionsPanelOpen(false);
-        optionsMenuOpen = false;
+        if (restartConfirmationOpenRef.current) {
+          closeRestartConfirmation();
+        } else {
+          setOptionsPanelOpen(false);
+          optionsMenuOpen = false;
+        }
       } else if (backJustPressed && !dialoguePlaybackRef.current) {
         setInventoryPanelOpen(!inventoryOpenRef.current);
       }
@@ -4717,7 +5410,11 @@ export function MovementLab() {
         -1,
         1,
       );
-      if (dialoguePlaybackRef.current || inventoryOpenRef.current) {
+      if (
+        dialoguePlaybackRef.current ||
+        inventoryOpenRef.current ||
+        survivalStateRef.current.gameOverReason
+      ) {
         horizontal = 0;
         vertical = 0;
         autoPath = [];
@@ -4759,7 +5456,7 @@ export function MovementLab() {
           inputStrength = Math.min(
             1,
             distanceToWaypoint /
-              Math.max(speedRef.current * deltaTime, Number.EPSILON),
+              Math.max(effectiveMovementSpeed * deltaTime, Number.EPSILON),
           );
           break;
         }
@@ -4910,7 +5607,7 @@ export function MovementLab() {
       if (isMoving) {
         const velocityX = horizontal / inputLength;
         const velocityY = vertical / inputLength;
-        const distance = speedRef.current * deltaTime * inputStrength;
+        const distance = effectiveMovementSpeed * deltaTime * inputStrength;
         const radius = sizeRef.current * 0.14;
         const desiredPosition = {
           x: player.x + velocityX * distance,
@@ -4964,6 +5661,18 @@ export function MovementLab() {
         }
       }
 
+      if (
+        pendingInteraction?.interactable.type === "pickup" &&
+        isTouchingInteractable(
+          player,
+          sizeRef.current * 0.14,
+          pendingInteraction.interactable,
+        )
+      ) {
+        autoPath = [];
+        completePendingInteraction();
+      }
+
       const actualMovementDistance = Math.hypot(
         player.x - movementStart.x,
         player.y - movementStart.y,
@@ -4973,6 +5682,38 @@ export function MovementLab() {
       const isActuallyMoving =
         actualMovementSpeed >= FOOTSTEP_MIN_MOVEMENT_SPEED;
       updateFootstepAudio(actualMovementSpeed, deltaTime);
+
+      const survivalPaused =
+        survivalFlowPausedRef.current ||
+        optionsOpenRef.current ||
+        inventoryOpenRef.current ||
+        Boolean(dialoguePlaybackRef.current);
+      if (!survivalPaused && !survivalStateRef.current.gameOverReason) {
+        survivalStateRef.current = advanceSurvivalState(
+          survivalStateRef.current,
+          deltaTime,
+          actualMovementDistance,
+          actualMovementSpeed,
+        );
+        refreshInteractionUsageCycle();
+      }
+      survivalUiElapsed += deltaTime;
+      survivalSaveElapsed += deltaTime;
+      if (survivalUiElapsed >= 0.12) {
+        survivalUiElapsed = 0;
+        setSurvivalState({
+          ...survivalStateRef.current,
+          values: { ...survivalStateRef.current.values },
+          zeroDurationMinutes: {
+            ...survivalStateRef.current.zeroDurationMinutes,
+          },
+        });
+      }
+      if (survivalSaveElapsed >= 1) {
+        survivalSaveElapsed = 0;
+        saveSurvivalState(survivalStateRef.current);
+        saveInteractionUsageState(interactionUsageRef.current);
+      }
 
       if (isActuallyMoving !== wasMoving) {
         wasMoving = isActuallyMoving;
@@ -5023,6 +5764,7 @@ export function MovementLab() {
       drawInteractionHintPoints(time);
       drawSceneCollision();
       drawPlayer();
+      drawPlayerStatuses(time);
       drawTouchEffect(time);
       context.restore();
       drawHeldPointerIndicator(time);
@@ -5042,6 +5784,8 @@ export function MovementLab() {
     animationFrame = requestAnimationFrame(frame);
 
     return () => {
+      saveSurvivalState(survivalStateRef.current);
+      saveInteractionUsageState(interactionUsageRef.current);
       cancelAnimationFrame(animationFrame);
       resizeObserver.disconnect();
       window.removeEventListener("keydown", onKeyDown);
@@ -5129,10 +5873,106 @@ export function MovementLab() {
     if (firstItem) selectInventoryItem(firstItem.index);
   };
 
+  const openInventoryItemContextMenu = (
+    event: ReactMouseEvent<HTMLButtonElement>,
+    databaseIndex: number,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    selectInventoryItem(databaseIndex);
+    setInventoryContextMenu({
+      kind: "inventory",
+      x: Math.min(event.clientX, window.innerWidth - 178),
+      y: Math.min(event.clientY, window.innerHeight - 196),
+      databaseIndex,
+    });
+  };
+
+  const openHotbarContextMenu = (
+    event: ReactMouseEvent<HTMLButtonElement>,
+    slotIndex: number,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    activeHotbarSlotRef.current = slotIndex;
+    setActiveHotbarSlot(slotIndex);
+    setInventoryContextMenu({
+      kind: "hotbar",
+      x: Math.min(event.clientX, window.innerWidth - 178),
+      y: Math.min(event.clientY, window.innerHeight - 108),
+      slotIndex,
+    });
+  };
+
+  const showUnavailableInventoryAction = (label: string) => {
+    showInventoryFeedback(`${label}功能暫未開放`);
+    setInventoryContextMenu(null);
+  };
+
+  const restartSurvivalTest = () => {
+    const next = createInitialSurvivalState();
+    const usage = createInteractionUsageState(next.gameMinutes);
+    survivalStateRef.current = next;
+    interactionUsageRef.current = usage;
+    saveSurvivalState(next);
+    saveInteractionUsageState(usage);
+    setSurvivalState(next);
+  };
+
+  const confirmRestartNewGame = () => {
+    const progress = resetStoredNewGameProgress();
+    survivalStateRef.current = progress.survival;
+    interactionUsageRef.current = progress.interactionUsage;
+    playerInventoryRef.current = progress.inventory;
+    collectedWorldItemIdsRef.current = progress.collectedWorldItemIds;
+    hotbarAssignmentsRef.current = progress.hotbarAssignments;
+    currentStoryChapterRef.current = progress.story.currentChapter;
+    droppedWorldItemSequenceRef.current = 0;
+    activeHotbarSlotRef.current = 0;
+    selectedInventoryIndexRef.current = DEFAULT_SELECTED_INVENTORY_INDEX;
+    applyDroppedWorldItems(progress.droppedWorldItems);
+
+    setSurvivalState(progress.survival);
+    setPlayerInventory(progress.inventory);
+    setCollectedWorldItemIds(progress.collectedWorldItemIds);
+    setHotbarAssignments(progress.hotbarAssignments);
+    setActiveHotbarSlot(0);
+    setSelectedInventoryIndex(DEFAULT_SELECTED_INVENTORY_INDEX);
+    setInventoryPage(0);
+    setInventoryCategory("all");
+    setHotbarFeedback(null);
+    setOptionsPanelOpen(false);
+
+    window.setTimeout(() => window.location.reload(), 0);
+  };
+
+  const draggedInventoryItem = inventoryDrag
+    ? ITEM_BY_ID.get(inventoryDrag.itemId) ?? null
+    : null;
+  const contextInventoryItem =
+    inventoryContextMenu?.kind === "inventory"
+      ? ITEM_DATABASE[inventoryContextMenu.databaseIndex]?.item ?? null
+      : null;
+  const contextHotbarItemId =
+    inventoryContextMenu?.kind === "hotbar"
+      ? hotbarAssignments[inventoryContextMenu.slotIndex] ?? null
+      : null;
+  const contextHotbarItem = contextHotbarItemId
+    ? ITEM_BY_ID.get(contextHotbarItemId) ?? null
+    : null;
+
   return (
     <div
       className="game-viewport"
       onContextMenu={(event) => event.preventDefault()}
+      onPointerDown={(event) => {
+        if (
+          inventoryContextMenu &&
+          !(event.target as Element).closest?.(".inventory-context-menu")
+        ) {
+          setInventoryContextMenu(null);
+        }
+      }}
     >
       <div
         className="game-backdrop"
@@ -5209,25 +6049,31 @@ export function MovementLab() {
           </span>
         </header>
         <div className="survival-mini-panel" aria-hidden={survivalExpanded}>
-          {SURVIVAL_STATS.map((stat) => (
-            <span className={`survival-mini-stat is-${stat.id}`} key={stat.id} title={`${stat.label} ${stat.value}/100`}>
+          {SURVIVAL_STATS.map((stat) => {
+            const value = survivalState.values[stat.id];
+            const critical = value <= 20;
+            return (
+            <span className={`survival-mini-stat is-${stat.id}${critical ? " is-critical" : ""}`} key={stat.id} title={`${stat.label} ${Math.round(value)}/100`}>
               <i aria-hidden="true">{stat.symbol}</i>
-              <b aria-hidden="true"><em style={{ width: `${stat.value}%` }} /></b>
-              <small>{stat.value}</small>
+              <b aria-hidden="true"><em style={{ width: `${value}%` }} /></b>
+              <small>{Math.round(value)}</small>
             </span>
-          ))}
+          )})}
         </div>
         <div className="survival-panel">
-          {SURVIVAL_STATS.map((stat) => (
-            <div className={`survival-stat is-${stat.id}`} key={stat.id}>
+          {SURVIVAL_STATS.map((stat) => {
+            const value = survivalState.values[stat.id];
+            const critical = value <= 20;
+            return (
+            <div className={`survival-stat is-${stat.id}${critical ? " is-critical" : ""}`} key={stat.id}>
               <span className="survival-stat-icon" aria-hidden="true">{stat.symbol}</span>
               <span className="survival-stat-label">{stat.label}</span>
-              <output>{stat.value}/100</output>
+              <output>{Math.round(value)}/100</output>
               <span className="survival-meter" aria-hidden="true">
-                <i style={{ width: `${stat.value}%` }} />
+                <i style={{ width: `${value}%` }} />
               </span>
             </div>
-          ))}
+          )})}
         </div>
         <button
           className="survival-toggle-hitbox"
@@ -5279,6 +6125,17 @@ export function MovementLab() {
       </aside>
 
       <button
+        className="survival-pause-trigger"
+        type="button"
+        aria-label={survivalFlowPaused ? "恢復生存時間流逝" : "暫停生存時間流逝"}
+        aria-pressed={survivalFlowPaused}
+        title={survivalFlowPaused ? "恢復生存時間流逝" : "暫停生存時間流逝"}
+        onClick={toggleSurvivalFlowPaused}
+      >
+        <span aria-hidden="true"><i /><i /></span>
+      </button>
+
+      <button
         className="options-trigger"
         type="button"
         aria-label="開啟選項"
@@ -5296,22 +6153,25 @@ export function MovementLab() {
           </p>
         ) : null}
         <div className="hotbar-slots">
-          {HOTBAR_ITEM_IDS.map((itemId, index) => {
-            const item = ITEM_BY_ID.get(itemId);
-            if (!item) return null;
-            const count = playerInventory[item.id] ?? 0;
+          {hotbarAssignments.map((itemId, index) => {
+            const item = itemId ? ITEM_BY_ID.get(itemId) : null;
+            const count = item ? playerInventory[item.id] ?? 0 : 0;
             const isUsing = hotbarFeedback?.slotIndex === index;
             return (
               <button
-                className={`hotbar-slot${activeHotbarSlot === index ? " is-selected" : ""}${isUsing ? " is-using" : ""}${count <= 0 ? " is-empty" : ""}`}
-                key={`${item.id}-${isUsing ? hotbarFeedback.sequence : 0}`}
+                className={`hotbar-slot${activeHotbarSlot === index ? " is-selected" : ""}${isUsing ? " is-using" : ""}${count <= 0 ? " is-empty" : ""}${hotbarDropTarget === index ? " is-drop-target" : ""}`}
+                key={`${index}-${item?.id ?? "empty"}-${isUsing ? hotbarFeedback.sequence : 0}`}
                 type="button"
+                data-hotbar-index={index}
                 aria-label={
-                  count > 0
+                  item && count > 0
                     ? `${index + 1}：使用${item.name}，持有 ${count}`
-                    : `${index + 1}：${item.name}，尚未持有`
+                    : item
+                      ? `${index + 1}：${item.name}，尚未持有`
+                      : `${index + 1}：尚未指派道具`
                 }
-                title={`${index + 1} · ${item.name}`}
+                title={`${index + 1} · ${item?.name ?? "空白快捷格"}`}
+                onContextMenu={(event) => openHotbarContextMenu(event, index)}
                 onClick={() => {
                   if (inventoryOpenRef.current) {
                     activeHotbarSlotRef.current = index;
@@ -5322,12 +6182,26 @@ export function MovementLab() {
                 }}
               >
                 <span className="hotbar-key" aria-hidden="true">{index + 1}</span>
-                <span className="hotbar-item-icon" aria-hidden="true">{item.symbol}</span>
-                <span className="hotbar-count" aria-hidden="true">{count > 0 ? count : "—"}</span>
+                <span className="hotbar-item-icon" aria-hidden="true">{item?.symbol ?? "＋"}</span>
+                <span className="hotbar-count" aria-hidden="true">{item ? count > 0 ? count : "—" : ""}</span>
               </button>
             );
           })}
         </div>
+        <button
+          className="inventory-trigger"
+          type="button"
+          aria-label={inventoryOpen ? "關閉背包" : "開啟背包"}
+          aria-pressed={inventoryOpen}
+          title={inventoryOpen ? "關閉背包" : "開啟背包"}
+          onClick={() => setInventoryPanelOpen(!inventoryOpenRef.current)}
+        >
+          <span className="inventory-trigger-icon" aria-hidden="true">
+            <i className="inventory-trigger-handle" />
+            <i className="inventory-trigger-body" />
+            <i className="inventory-trigger-pocket" />
+          </span>
+        </button>
       </section>
 
       {inventoryOpen ? (
@@ -5355,6 +6229,22 @@ export function MovementLab() {
             <div className="inventory-body">
               <aside className="inventory-summary-panel">
                 <h3>生存背包</h3>
+                <section className="inventory-survival-panel" aria-label="背包生存狀態">
+                  {SURVIVAL_STATS.map((stat) => {
+                    const value = survivalState.values[stat.id];
+                    const critical = value <= 20;
+                    return (
+                      <div className={`survival-stat is-${stat.id}${critical ? " is-critical" : ""}`} key={stat.id}>
+                        <span className="survival-stat-icon" aria-hidden="true">{stat.symbol}</span>
+                        <span className="survival-stat-label">{stat.label}</span>
+                        <output>{Math.round(value)}/100</output>
+                        <span className="survival-meter" aria-hidden="true">
+                          <i style={{ width: `${value}%` }} />
+                        </span>
+                      </div>
+                    );
+                  })}
+                </section>
                 <div className="inventory-bag-art" aria-hidden="true">
                   <svg viewBox="0 0 180 190">
                     <path d="M57 48c3-25 18-36 33-36s30 11 33 36" />
@@ -5388,6 +6278,9 @@ export function MovementLab() {
                       <h3>{selectedInventoryItem.name}</h3>
                       <strong>{selectedInventoryItem.category === "main" ? "♔ 主線道具" : selectedInventoryItem.category === "quest" ? "⚑ 任務道具" : selectedInventoryItem.category === "tool" ? "⌘ 工具" : "♣ 資源"}</strong>
                       <p>{selectedInventoryItem.description}</p>
+                      <p className={`inventory-survival-effects${hasConfiguredSurvivalEffects(selectedInventoryItem.survivalEffects) ? " is-configured" : ""}`}>
+                        生存影響　{formatSurvivalEffects(selectedInventoryItem.survivalEffects)}
+                      </p>
                       <output>重量　{selectedInventoryItem.weight.toFixed(2)} kg　　持有 ×{selectedInventoryItem.count}</output>
                     </section>
                     <div className="inventory-selected-actions">
@@ -5451,8 +6344,22 @@ export function MovementLab() {
                       type="button"
                       key={item.id}
                       data-inventory-index={index}
-                      aria-label={`${item.name}，持有 ${item.count}`}
-                      onClick={() => selectInventoryItem(index)}
+                      data-inventory-item-id={item.id}
+                      aria-label={`${item.name}，持有 ${item.count}，生存影響：${formatSurvivalEffects(item.survivalEffects)}`}
+                      title={`生存影響：${formatSurvivalEffects(item.survivalEffects)}`}
+                      onPointerDown={(event) => beginInventoryDrag(event, item.id)}
+                      onPointerMove={moveInventoryDrag}
+                      onPointerUp={finishInventoryDrag}
+                      onPointerCancel={cancelInventoryDrag}
+                      onLostPointerCapture={cancelInventoryDrag}
+                      onContextMenu={(event) => openInventoryItemContextMenu(event, index)}
+                      onClick={(event) => {
+                        if (suppressInventoryClickRef.current) {
+                          event.preventDefault();
+                          return;
+                        }
+                        selectInventoryItem(index);
+                      }}
                     >
                       <span className="inventory-item-kind" aria-hidden="true">{item.category === "main" ? "♔" : item.category === "quest" ? "⚑" : item.category === "tool" ? "⌘" : "♣"}</span>
                       <span className="inventory-item-icon" aria-hidden="true">{item.symbol}</span>
@@ -5471,10 +6378,88 @@ export function MovementLab() {
           </section>
 
           <footer className="inventory-screen-footer">
-            <strong>LB　左側類型頁籤　·　RB　右側類型頁籤　·　Tab / B　關閉背包</strong>
+            <strong>拖曳／長按道具 → 指派快捷格　·　右鍵：更多功能　·　Tab / B：關閉背包</strong>
             <div className="inventory-currency"><span>◉　23,450</span><span>▣　{inventoryWeight.toFixed(1)} / 60.0 kg</span></div>
           </footer>
         </div>
+      ) : null}
+
+      {inventoryDrag && draggedInventoryItem ? (
+        <div
+          className="inventory-drag-ghost"
+          style={{ left: inventoryDrag.x, top: inventoryDrag.y }}
+          aria-hidden="true"
+        >
+          <span>{draggedInventoryItem.symbol}</span>
+          <strong>{draggedInventoryItem.name}</strong>
+          <small>拖曳至快捷格</small>
+        </div>
+      ) : null}
+
+      {inventoryContextMenu?.kind === "inventory" ? (
+        <menu
+          className="inventory-context-menu"
+          style={{ left: inventoryContextMenu.x, top: inventoryContextMenu.y }}
+          aria-label={`${contextInventoryItem?.name ?? "道具"}功能選單`}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              activateInventoryItem(inventoryContextMenu.databaseIndex);
+              setInventoryContextMenu(null);
+            }}
+          >
+            使用
+          </button>
+          <button type="button" onClick={() => showUnavailableInventoryAction("查看")}>查看</button>
+          <button type="button" onClick={() => showUnavailableInventoryAction("標記")}>標記</button>
+          <button
+            className="is-danger"
+            type="button"
+            disabled={!contextInventoryItem?.inventoryRules.discardable}
+            onClick={(event) => {
+              discardInventoryItem(
+                inventoryContextMenu.databaseIndex,
+                event.currentTarget,
+              );
+              setInventoryContextMenu(null);
+            }}
+          >
+            丟棄
+          </button>
+        </menu>
+      ) : null}
+
+      {inventoryContextMenu?.kind === "hotbar" ? (
+        <menu
+          className="inventory-context-menu is-hotbar-menu"
+          style={{ left: inventoryContextMenu.x, top: inventoryContextMenu.y }}
+          aria-label={`快捷格 ${inventoryContextMenu.slotIndex + 1} 功能選單`}
+        >
+          <button
+            type="button"
+            disabled={!contextHotbarItem}
+            onClick={() => {
+              if (contextHotbarItem) {
+                useInventoryItem(contextHotbarItem.id, inventoryContextMenu.slotIndex);
+              }
+              setInventoryContextMenu(null);
+            }}
+          >
+            使用
+          </button>
+          <button
+            className="is-danger"
+            type="button"
+            disabled={!contextHotbarItemId}
+            onClick={() => {
+              setHotbarSlotAssignment(inventoryContextMenu.slotIndex, null);
+              setInventoryContextMenu(null);
+            }}
+          >
+            移除
+          </button>
+        </menu>
       ) : null}
 
       {optionsOpen ? (
@@ -5651,6 +6636,22 @@ export function MovementLab() {
                     <output className="slider-value" htmlFor="collision-slide-tolerance">{collisionSlideTolerance}%</output>
                     <input id="collision-slide-tolerance" type="range" min="20" max="100" step="5" value={collisionSlideTolerance} onFocus={() => setOptionsMenuSelectionValue("collision-slide-tolerance")} onChange={(event) => setCollisionSlideToleranceValue(Number(event.target.value))} />
                   </div>
+                  <button
+                    className="restart-game-option"
+                    type="button"
+                    data-gamepad-selected={optionsMenuSelection === "restart-game" || undefined}
+                    onFocus={() => setOptionsMenuSelectionValue("restart-game")}
+                    onClick={() => {
+                      setOptionsMenuSelectionValue("restart-game");
+                      openRestartConfirmation();
+                    }}
+                  >
+                    <span>
+                      <strong>重新開始</strong>
+                      <small>重置生存狀態、日期時間、資源與遊戲進度</small>
+                    </span>
+                    <b>重新開始</b>
+                  </button>
                 </>
               ) : null}
             </div>
@@ -5659,6 +6660,43 @@ export function MovementLab() {
               <span>START／齒輪：關閉</span><span>LB／RB：切換頁籤 · 十字鍵：選擇／調整 · A：確認 · B：關閉</span>
             </footer>
           </section>
+          {restartConfirmationOpen ? (
+            <div
+              className="restart-confirmation-backdrop"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) closeRestartConfirmation();
+              }}
+            >
+              <section
+                className="restart-confirmation"
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="restart-confirmation-title"
+              >
+                <small>NEW GAME</small>
+                <h3 id="restart-confirmation-title">確定要重新開始新遊戲？</h3>
+                <p>目前的生存狀態、日期時間、背包資源及場景進度都會被重置。</p>
+                <div>
+                  <button
+                    className={restartConfirmationChoice === "cancel" ? "is-selected" : undefined}
+                    type="button"
+                    onFocus={() => setRestartConfirmationChoiceValue("cancel")}
+                    onClick={closeRestartConfirmation}
+                  >
+                    取消
+                  </button>
+                  <button
+                    className={`is-confirm${restartConfirmationChoice === "confirm" ? " is-selected" : ""}`}
+                    type="button"
+                    onFocus={() => setRestartConfirmationChoiceValue("confirm")}
+                    onClick={confirmRestartNewGame}
+                  >
+                    確定
+                  </button>
+                </div>
+              </section>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -5692,6 +6730,21 @@ export function MovementLab() {
         >
           <span aria-hidden="true"><i /><i /><i /><i /></span>
         </button>
+      ) : null}
+
+      {survivalState.gameOverReason ? (
+        <section className="survival-game-over" role="alertdialog" aria-modal="true" aria-label="遊戲結束">
+          <small>SURVIVAL FAILURE</small>
+          <h2>GAME OVER</h2>
+          <p>
+            {{
+              hunger: "角色已連續五個遊戲日處於飢餓歸零狀態。",
+              thirst: "角色已連續三個遊戲日處於口渴歸零狀態。",
+              spirit: "角色已連續十個遊戲日處於精神歸零狀態。",
+            }[survivalState.gameOverReason]}
+          </p>
+          <button type="button" onClick={restartSurvivalTest}>重新開始生存測試</button>
+        </section>
       ) : null}
 
       <canvas

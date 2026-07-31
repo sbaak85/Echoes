@@ -38,9 +38,25 @@ public sealed class MainForm : Form
     {
         DropDownStyle = ComboBoxStyle.DropDownList,
     };
+    private readonly ComboBox _interactionRewardItemCombo = new()
+    {
+        DropDownStyle = ComboBoxStyle.DropDownList,
+    };
+    private readonly NumericUpDown _interactionRewardQuantityInput = new()
+    {
+        Minimum = 1,
+        Maximum = 99,
+        Value = 1,
+    };
+    private readonly ComboBox _interactionRewardDeliveryCombo = new()
+    {
+        DropDownStyle = ComboBoxStyle.DropDownList,
+    };
     private readonly TextBox _interactionVerbText = new();
-    private readonly GroupBox _interactionGroup = CreateGroup("互動設定", 190);
+    private readonly GroupBox _interactionGroup = CreateGroup("互動設定", 350);
     private readonly Label _dialogueSummaryLabel = new();
+    private readonly Label _survivalSummaryLabel = new();
+    private readonly Button _dialogueMoreButton = CreateButton("更多...", 141, 152, 124, 30);
     private readonly GroupBox _movementGuideGroup = CreateGroup("強制引導線設定", 112);
     private readonly NumericUpDown _movementGuideWidthInput = new()
     {
@@ -96,8 +112,33 @@ public sealed class MainForm : Form
 
         _facingCombo.Items.AddRange(new object[] { "N", "NE", "E", "SE", "S", "SW", "W", "NW" });
         _facingCombo.SelectedItem = "S";
-        _interactionTypeCombo.Items.Add(new InteractionTypeItem("dialogue", "對話"));
+        foreach (var defaults in InteractionTypeDefaults.All)
+        {
+            _interactionTypeCombo.Items.Add(new InteractionTypeItem(defaults.Id, defaults.Label));
+        }
         _interactionTypeCombo.SelectedIndex = 0;
+        _interactionTypeCombo.SelectedIndexChanged += (_, _) =>
+        {
+            if (_syncingSelection || _interactionTypeCombo.SelectedItem is not InteractionTypeItem item) return;
+            _interactionVerbText.Text = InteractionTypeDefaults.Get(item.Id).Verb;
+            _dialogueMoreButton.Enabled = true;
+        };
+
+        _interactionRewardItemCombo.Items.Add(new ItemCatalogEntry("", "不生成道具"));
+        foreach (var item in ItemCatalog.All)
+        {
+            _interactionRewardItemCombo.Items.Add(item);
+        }
+        _interactionRewardItemCombo.SelectedIndex = 0;
+        _interactionRewardDeliveryCombo.Items.AddRange(new object[]
+        {
+            new RewardDeliveryItem("inventory", "直接放入背包"),
+            new RewardDeliveryItem("world", "Spawn 在場上"),
+        });
+        _interactionRewardDeliveryCombo.SelectedIndex = 0;
+        _interactionRewardItemCombo.SelectedIndexChanged += (_, _) =>
+            RefreshRewardControlState();
+        RefreshRewardControlState();
 
         _canvas.DocumentChanged += CanvasOnDocumentChanged;
         _canvas.SelectionChanged += (_, _) =>
@@ -335,12 +376,48 @@ public sealed class MainForm : Form
         _dialogueSummaryLabel.SetBounds(10, 100, 255, 22);
         _dialogueSummaryLabel.ForeColor = Color.FromArgb(155, 166, 176);
         _interactionGroup.Controls.Add(_dialogueSummaryLabel);
-        var applyInteractionButton = CreateButton("套用設定", 10, 132, 124, 30);
+        _survivalSummaryLabel.SetBounds(10, 124, 255, 38);
+        _survivalSummaryLabel.ForeColor = Color.FromArgb(129, 222, 211);
+        _interactionGroup.Controls.Add(_survivalSummaryLabel);
+        var applyInteractionButton = CreateButton("套用設定", 10, 164, 124, 30);
         applyInteractionButton.Click += (_, _) => ApplyInteractionSettings();
         _interactionGroup.Controls.Add(applyInteractionButton);
-        var moreButton = CreateButton("更多...", 141, 132, 124, 30);
-        moreButton.Click += (_, _) => OpenDialogueEditor();
-        _interactionGroup.Controls.Add(moreButton);
+        _dialogueMoreButton.SetBounds(141, 164, 124, 30);
+        _dialogueMoreButton.Click += (_, _) => OpenDialogueEditor();
+        _interactionGroup.Controls.Add(_dialogueMoreButton);
+        var survivalButton = CreateButton("需求與完成效果...", 10, 202, 255, 30);
+        survivalButton.Click += (_, _) => OpenSurvivalEffectEditor();
+        _interactionGroup.Controls.Add(survivalButton);
+        var rewardItemLabel = new Label
+        {
+            Text = "互動後生成",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(152, 163, 174),
+        };
+        rewardItemLabel.SetBounds(10, 242, 70, 24);
+        _interactionRewardItemCombo.SetBounds(83, 239, 182, 27);
+        _interactionGroup.Controls.Add(rewardItemLabel);
+        _interactionGroup.Controls.Add(_interactionRewardItemCombo);
+        var rewardQuantityLabel = new Label
+        {
+            Text = "數量",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(152, 163, 174),
+        };
+        rewardQuantityLabel.SetBounds(10, 278, 38, 24);
+        _interactionRewardQuantityInput.SetBounds(50, 275, 58, 27);
+        _interactionRewardDeliveryCombo.SetBounds(116, 275, 149, 27);
+        _interactionGroup.Controls.Add(rewardQuantityLabel);
+        _interactionGroup.Controls.Add(_interactionRewardQuantityInput);
+        _interactionGroup.Controls.Add(_interactionRewardDeliveryCombo);
+        var resetLabel = new Label
+        {
+            Text = "有限次數於每日 06:00 重置",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(130, 140, 150),
+        };
+        resetLabel.SetBounds(10, 314, 255, 22);
+        _interactionGroup.Controls.Add(resetLabel);
         _interactionGroup.Visible = false;
         sidebar.Controls.Add(_interactionGroup);
 
@@ -808,9 +885,39 @@ public sealed class MainForm : Form
                 _selectionInfoLabel.Text = $"已選取互動區域 · {interactable.Id}{node}";
                 _selectionNameText.Text = interactable.Label;
                 _interactionVerbText.Text = interactable.Verb;
-                _interactionTypeCombo.SelectedIndex = 0;
+                _interactionTypeCombo.SelectedIndex = Math.Max(
+                    0,
+                    InteractionTypeDefaults.All
+                        .Select((item, index) => new { item.Id, Index = index })
+                        .FirstOrDefault(item => item.Id.Equals(interactable.Type, StringComparison.OrdinalIgnoreCase))
+                        ?.Index ?? 0);
                 _dialogueSummaryLabel.Text =
-                    $"對話：{interactable.Dialogue.Lines.Count} 句 · {interactable.Dialogue.CharacterDelaySeconds:0.00} 秒/字";
+                    $"成功 {interactable.Dialogue.Lines.Count} 句 · 失敗 {interactable.FailureDialogue.Lines.Count} 句";
+                var effects = interactable.SurvivalEffects;
+                var limit = interactable.DailyInteractionLimit?.ToString() ?? "無限";
+                _survivalSummaryLabel.Text =
+                    $"需求 {FormatRequirements(interactable.SurvivalRequirements)} · 物/章 {interactable.UseRequirements?.Count ?? 0}\r\n" +
+                    $"效果 體{effects.Stamina:+0.#;-0.#;0} 餓{effects.Hunger:+0.#;-0.#;0} 渴{effects.Thirst:+0.#;-0.#;0} 精{effects.Spirit:+0.#;-0.#;0} 時{effects.TimeMinutes / 60:0.#}h · {limit}次";
+                var rewardItemIndex = _interactionRewardItemCombo.Items
+                    .Cast<ItemCatalogEntry>()
+                    .Select((item, index) => new { item.Id, Index = index })
+                    .FirstOrDefault(item => item.Id.Equals(
+                        interactable.ItemReward?.ItemId ?? "",
+                        StringComparison.OrdinalIgnoreCase))
+                    ?.Index ?? 0;
+                _interactionRewardItemCombo.SelectedIndex = rewardItemIndex;
+                _interactionRewardQuantityInput.Value = Math.Clamp(
+                    interactable.ItemReward?.Quantity ?? 1,
+                    (int)_interactionRewardQuantityInput.Minimum,
+                    (int)_interactionRewardQuantityInput.Maximum);
+                _interactionRewardDeliveryCombo.SelectedIndex =
+                    interactable.ItemReward?.Delivery.Equals(
+                        "world",
+                        StringComparison.OrdinalIgnoreCase) == true
+                        ? 1
+                        : 0;
+                RefreshRewardControlState();
+                _dialogueMoreButton.Enabled = true;
             }
             else if (_canvas.Selection.Kind == SceneLayerKind.MovementGuide && _canvas.Selection.Index >= 0)
             {
@@ -852,9 +959,40 @@ public sealed class MainForm : Form
     {
         if (_canvas.SelectedInteractable is null) return;
         var type = (_interactionTypeCombo.SelectedItem as InteractionTypeItem)?.Id ?? "dialogue";
+        var reward = ReadInteractionItemReward();
         _canvas.UpdateSelectedInteractable(type, _interactionVerbText.Text);
+        _canvas.UpdateSelectedItemReward(reward);
         RefreshLayers();
         RefreshSelectionUi();
+    }
+
+    private InteractionItemReward? ReadInteractionItemReward()
+    {
+        if (
+            _interactionRewardItemCombo.SelectedItem is not ItemCatalogEntry item ||
+            string.IsNullOrWhiteSpace(item.Id)
+        )
+        {
+            return null;
+        }
+        var delivery =
+            (_interactionRewardDeliveryCombo.SelectedItem as RewardDeliveryItem)?.Id ??
+            "inventory";
+        return new InteractionItemReward
+        {
+            ItemId = item.Id,
+            Quantity = (int)_interactionRewardQuantityInput.Value,
+            Delivery = delivery,
+        };
+    }
+
+    private void RefreshRewardControlState()
+    {
+        var enabled =
+            _interactionRewardItemCombo.SelectedItem is ItemCatalogEntry item &&
+            !string.IsNullOrWhiteSpace(item.Id);
+        _interactionRewardQuantityInput.Enabled = enabled;
+        _interactionRewardDeliveryCombo.Enabled = enabled;
     }
 
     private void OpenDialogueEditor()
@@ -862,15 +1000,56 @@ public sealed class MainForm : Form
         var interactable = _canvas.SelectedInteractable;
         if (interactable is null) return;
         using var editor = new DialogueEditorForm(
-            interactable.Dialogue.Lines,
-            interactable.Dialogue.Speakers,
-            interactable.Dialogue.CharacterDelaySeconds);
+            interactable.Dialogue,
+            interactable.FailureDialogue);
         if (editor.ShowDialog(this) != DialogResult.OK) return;
-        _canvas.UpdateSelectedDialogue(
-            editor.Lines,
-            editor.Speakers,
-            editor.CharacterDelaySeconds);
+        _canvas.UpdateSelectedDialogues(
+            editor.SuccessDialogue,
+            editor.FailureDialogue);
         RefreshSelectionUi();
+    }
+
+    private void OpenSurvivalEffectEditor()
+    {
+        var selectedInteractable = _canvas.SelectedInteractable;
+        if (selectedInteractable is null) return;
+        var selectedType = (_interactionTypeCombo.SelectedItem as InteractionTypeItem)?.Id ?? selectedInteractable.Type;
+        _canvas.UpdateSelectedInteractable(selectedType, _interactionVerbText.Text);
+        var interactable = _canvas.SelectedInteractable;
+        if (interactable is null) return;
+        using var editor = new SurvivalEffectEditorForm(
+            selectedType,
+            interactable.SurvivalRequirements,
+            interactable.SurvivalEffects,
+            interactable.DailyInteractionLimit,
+            interactable.UseRequirements);
+        if (editor.ShowDialog(this) != DialogResult.OK) return;
+        _canvas.UpdateSelectedSurvivalSettings(
+            editor.Requirements,
+            editor.Effects,
+            editor.DailyLimit,
+            editor.UseRequirements);
+        RefreshSelectionUi();
+    }
+
+    private static string FormatRequirements(SurvivalRequirements requirements)
+    {
+        var values = new List<string>();
+        AddRequirement(values, "體", requirements.Stamina);
+        AddRequirement(values, "餓", requirements.Hunger);
+        AddRequirement(values, "渴", requirements.Thirst);
+        AddRequirement(values, "精", requirements.Spirit);
+        return values.Count == 0 ? "無" : string.Join(" ", values);
+    }
+
+    private static void AddRequirement(
+        ICollection<string> values,
+        string label,
+        SurvivalRequirementRule? requirement)
+    {
+        if (requirement is null) return;
+        values.Add(
+            $"{label}{(requirement.Comparison.Equals("below", StringComparison.OrdinalIgnoreCase) ? "<" : "≥")}{requirement.Value:0.#}");
     }
 
     private void OpenAudioEventEditor()
@@ -927,7 +1106,7 @@ public sealed class MainForm : Form
 
         _statusLabel.Text = tool switch
         {
-            EditorTool.Select => "選取工具：拖曳圖形或黃色頂點；右鍵邊線可新增 Node",
+            EditorTool.Select => "選取工具：拖曳圖形或黃色頂點；Alt＋左鍵循環重疊圖形；右鍵可直接指定圖層",
             EditorTool.Pan => "平移工具：拖曳畫布",
             EditorTool.NavMeshPolygon => "NavMesh：逐點圈出可行走範圍",
             EditorTool.CollisionPolygon => "Collision：逐點圈出不可通行範圍",
@@ -1089,6 +1268,19 @@ public sealed class MainForm : Form
     private sealed class InteractionTypeItem
     {
         public InteractionTypeItem(string id, string label)
+        {
+            Id = id;
+            Label = label;
+        }
+
+        public string Id { get; }
+        public string Label { get; }
+        public override string ToString() => Label;
+    }
+
+    private sealed class RewardDeliveryItem
+    {
+        public RewardDeliveryItem(string id, string label)
         {
             Id = id;
             Label = label;

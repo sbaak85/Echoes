@@ -1,3 +1,11 @@
+import {
+  applySurvivalEffects,
+  canApplySurvivalEffects,
+  hasConfiguredSurvivalEffects,
+  type SurvivalEffects,
+  type SurvivalGameState,
+} from "./survival-manager.ts";
+
 export type ItemCategory = "resource" | "tool" | "quest" | "main";
 
 export type ItemInventoryRules = {
@@ -14,6 +22,7 @@ export type ItemDefinition = {
   description: string;
   weight: number;
   usable: boolean;
+  survivalEffects: SurvivalEffects;
   inventoryRules: ItemInventoryRules;
 };
 
@@ -41,6 +50,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "帶有微弱共振反應的晶體碎片，可作為能源與精密裝置的材料。",
       weight: 0.2,
       usable: false,
+      survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 99 },
     },
   },
@@ -54,6 +64,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "從舊設備拆下的通用機械零件。",
       weight: 0.4,
       usable: false,
+      survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 99 },
     },
   },
@@ -67,6 +78,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "耐磨且富有韌性的植物纖維。",
       weight: 0.15,
       usable: false,
+      survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 99 },
     },
   },
@@ -80,6 +92,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "經過濾的飲用水，可恢復口渴數值。",
       weight: 0.8,
       usable: true,
+      survivalEffects: { thirst: 30 },
       inventoryRules: { transferable: true, discardable: true, stackSize: 20 },
     },
   },
@@ -93,6 +106,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "便於攜帶的高熱量壓縮食品。",
       weight: 0.35,
       usable: true,
+      survivalEffects: { hunger: 50 },
       inventoryRules: { transferable: true, discardable: true, stackSize: 20 },
     },
   },
@@ -105,7 +119,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       category: "resource",
       description: "來源不明的活性種子，仍在緩慢脈動。",
       weight: 0.1,
-      usable: false,
+      usable: true,
+      survivalEffects: { hunger: 10, thirst: 10 },
       inventoryRules: { transferable: true, discardable: true, stackSize: 99 },
     },
   },
@@ -119,6 +134,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "可用於攀爬、固定與臨時修繕。",
       weight: 0.7,
       usable: true,
+      survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 10 },
     },
   },
@@ -132,6 +148,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "適用於便攜掃描器的替換模組。",
       weight: 0.3,
       usable: false,
+      survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 30 },
     },
   },
@@ -145,6 +162,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "維修野外設備使用的基礎工具組。",
       weight: 1.8,
       usable: true,
+      survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 5 },
     },
   },
@@ -158,6 +176,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "能夠標定近距離異常訊號來源。",
       weight: 0.25,
       usable: true,
+      survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 10 },
     },
   },
@@ -171,6 +190,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "內部封存著扭曲的時間共振頻率，似乎能標記並導引過去的特定位置。",
       weight: 0.8,
       usable: false,
+      survivalEffects: {},
       inventoryRules: { transferable: false, discardable: false, stackSize: 1 },
     },
   },
@@ -184,6 +204,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "從墜落飛船中取出的導航資料。",
       weight: 0.2,
       usable: false,
+      survivalEffects: {},
       inventoryRules: { transferable: false, discardable: false, stackSize: 1 },
     },
   },
@@ -197,6 +218,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "一件承載著陌生記憶的隨身物品。",
       weight: 0.1,
       usable: false,
+      survivalEffects: {},
       inventoryRules: { transferable: false, discardable: false, stackSize: 20 },
     },
   },
@@ -210,6 +232,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "刻著尚未解讀符號的古老金屬板。",
       weight: 0.6,
       usable: false,
+      survivalEffects: {},
       inventoryRules: { transferable: false, discardable: false, stackSize: 5 },
     },
   },
@@ -223,6 +246,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "包含基礎止血與傷口處理用品。",
       weight: 1.1,
       usable: true,
+      survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 10 },
     },
   },
@@ -236,6 +260,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "適合遺跡探索的耐用照明設備。",
       weight: 0.9,
       usable: true,
+      survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 5 },
     },
   },
@@ -249,6 +274,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "可為小型電子設備供電。",
       weight: 0.5,
       usable: false,
+      survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 40 },
     },
   },
@@ -262,6 +288,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "具高密度儲能能力的標準單元。",
       weight: 0.45,
       usable: false,
+      survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 40 },
     },
   },
@@ -275,6 +302,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "可重新熔製利用的金屬廢料。",
       weight: 0.2,
       usable: false,
+      survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 99 },
     },
   },
@@ -288,12 +316,52 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "輕薄且防水的合成纖維布。",
       weight: 0.18,
       usable: false,
+      survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 99 },
     },
   },
-  { slot: 21, item: null },
-  { slot: 22, item: null },
-  { slot: 23, item: null },
+  {
+    slot: 21,
+    item: {
+      id: "ruin-key",
+      name: "遺跡鑰匙",
+      symbol: "⚿",
+      category: "quest",
+      description: "刻有古代紋路的沉重鑰匙，可開啟特定遺跡機關。",
+      weight: 0.3,
+      usable: false,
+      survivalEffects: {},
+      inventoryRules: { transferable: false, discardable: false, stackSize: 10 },
+    },
+  },
+  {
+    slot: 22,
+    item: {
+      id: "transistor",
+      name: "電晶體",
+      symbol: "⌁",
+      category: "resource",
+      description: "修復通訊與控制設備所需的電子元件。",
+      weight: 0.05,
+      usable: false,
+      survivalEffects: {},
+      inventoryRules: { transferable: true, discardable: true, stackSize: 99 },
+    },
+  },
+  {
+    slot: 23,
+    item: {
+      id: "welding-tool",
+      name: "銲槍工具",
+      symbol: "⌐",
+      category: "tool",
+      description: "用於金屬構件與線路接點修復的便攜銲接工具。",
+      weight: 1.4,
+      usable: false,
+      survivalEffects: {},
+      inventoryRules: { transferable: true, discardable: true, stackSize: 1 },
+    },
+  },
   { slot: 24, item: null },
   { slot: 25, item: null },
   { slot: 26, item: null },
@@ -388,6 +456,13 @@ export type OwnedItemStack = {
   count: number;
 };
 
+export type SurvivalItemUseResult = {
+  status: "success" | "not-owned" | "not-configured" | "full";
+  inventory: PlayerInventory;
+  survival: SurvivalGameState;
+  item: ItemDefinition | null;
+};
+
 export const INITIAL_PLAYER_INVENTORY: Readonly<PlayerInventory> = {
   medkit: 2,
   "water-bottle": 3,
@@ -463,6 +538,29 @@ export function removeInventoryItem(
   return nextInventory;
 }
 
+export function useSurvivalInventoryItem(
+  inventory: PlayerInventory,
+  survival: SurvivalGameState,
+  itemId: string,
+): SurvivalItemUseResult {
+  const item = ITEM_BY_ID.get(itemId) ?? null;
+  if (!item || (inventory[itemId] ?? 0) <= 0) {
+    return { status: "not-owned", inventory, survival, item };
+  }
+  if (!item.usable || !hasConfiguredSurvivalEffects(item.survivalEffects)) {
+    return { status: "not-configured", inventory, survival, item };
+  }
+  if (!canApplySurvivalEffects(survival.values, item.survivalEffects)) {
+    return { status: "full", inventory, survival, item };
+  }
+  return {
+    status: "success",
+    inventory: removeInventoryItem(inventory, item.id, 1),
+    survival: applySurvivalEffects(survival, item.survivalEffects),
+    item,
+  };
+}
+
 export function getOwnedItemStacks(
   inventory: PlayerInventory,
 ): OwnedItemStack[] {
@@ -499,7 +597,10 @@ export function validateItemDatabase() {
     }
     if (
       slot.item.weight < 0 ||
-      slot.item.inventoryRules.stackSize < 1
+      slot.item.inventoryRules.stackSize < 1 ||
+      Object.values(slot.item.survivalEffects).some(
+        (value) => !Number.isFinite(value) || Math.abs(value) > 100,
+      )
     ) {
       throw new Error(`Invalid item parameters: ${slot.item.id}`);
     }

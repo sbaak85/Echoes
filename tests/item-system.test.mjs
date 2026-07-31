@@ -12,8 +12,10 @@ import {
   normalizePlayerInventory,
   removeInventoryItem,
   savePlayerInventory,
+  useSurvivalInventoryItem,
   validateItemDatabase,
 } from "../app/item-database.ts";
+import { createInitialSurvivalState } from "../app/survival-manager.ts";
 import {
   WORLD_ITEM_PLACEMENTS,
   loadCollectedWorldItemIds,
@@ -38,11 +40,11 @@ function installMemoryLocalStorage() {
   return values;
 }
 
-test("中央道具資料庫固定保留 100 欄，現有 20 項道具都有唯一欄位", () => {
+test("中央道具資料庫固定保留 100 欄，現有 23 項道具都有唯一欄位", () => {
   assert.equal(validateItemDatabase(), true);
   assert.equal(ITEM_DATABASE.length, ITEM_DATABASE_CAPACITY);
   assert.equal(ITEM_DATABASE_CAPACITY, 100);
-  assert.equal(ITEM_DEFINITIONS.length, 20);
+  assert.equal(ITEM_DEFINITIONS.length, 23);
   assert.deepEqual(
     ITEM_DATABASE.map((slot) => slot.slot),
     Array.from({ length: 100 }, (_, index) => index + 1),
@@ -69,6 +71,69 @@ test("每項道具都有轉移、丟棄與每格堆疊量標籤", () => {
       ?.inventoryRules,
     { transferable: false, discardable: false, stackSize: 1 },
   );
+});
+
+test("每項道具都有生存影響欄位，三種消耗品使用正確設定", () => {
+  ITEM_DEFINITIONS.forEach((item) => {
+    assert.equal(typeof item.survivalEffects, "object");
+  });
+  assert.deepEqual(
+    ITEM_DEFINITIONS.find((item) => item.id === "water-bottle")?.survivalEffects,
+    { thirst: 30 },
+  );
+  assert.deepEqual(
+    ITEM_DEFINITIONS.find((item) => item.id === "emergency-ration")?.survivalEffects,
+    { hunger: 50 },
+  );
+  assert.deepEqual(
+    ITEM_DEFINITIONS.find((item) => item.id === "alien-spore")?.survivalEffects,
+    { hunger: 10, thirst: 10 },
+  );
+});
+
+test("成功使用生存道具會套用效果並消耗一個", () => {
+  const survival = createInitialSurvivalState();
+  survival.values.thirst = 45;
+  const result = useSurvivalInventoryItem(
+    { "water-bottle": 2 },
+    survival,
+    "water-bottle",
+  );
+  assert.equal(result.status, "success");
+  assert.equal(result.survival.values.thirst, 75);
+  assert.equal(result.inventory["water-bottle"], 1);
+});
+
+test("回復目標已滿時無法使用且不消耗道具，未設定效果也維持不可用", () => {
+  const fullResult = useSurvivalInventoryItem(
+    { "water-bottle": 2 },
+    createInitialSurvivalState(),
+    "water-bottle",
+  );
+  assert.equal(fullResult.status, "full");
+  assert.equal(fullResult.inventory["water-bottle"], 2);
+
+  const unconfiguredResult = useSurvivalInventoryItem(
+    { medkit: 2 },
+    createInitialSurvivalState(),
+    "medkit",
+  );
+  assert.equal(unconfiguredResult.status, "not-configured");
+  assert.equal(unconfiguredResult.inventory.medkit, 2);
+});
+
+test("多項回復只要至少一項未滿即可使用並各自封頂", () => {
+  const survival = createInitialSurvivalState();
+  survival.values.thirst = 94;
+  const result = useSurvivalInventoryItem(
+    { "alien-spore": 1 },
+    survival,
+    "alien-spore",
+  );
+  assert.equal(result.status, "success");
+  assert.equal(result.survival.values.hunger, 100);
+  assert.equal(result.survival.values.thirst, 100);
+  assert.equal("alien-spore" in result.inventory, false);
 });
 
 test("玩家背包只回傳真正持有的道具", () => {
@@ -187,6 +252,32 @@ test("同一道具可逐次丟棄、歸零移除，再逐個拾回並保存", ()
     saveDroppedWorldItems([]);
     assert.equal(loadPlayerInventory().medkit, 2);
     assert.equal(loadDroppedWorldItems().length, 0);
+  } finally {
+    delete globalThis.window;
+  }
+});
+
+test("互動後生成在場上的道具堆疊會保留來源與數量", () => {
+  installMemoryLocalStorage();
+  try {
+    const rewardItems = normalizeDroppedWorldItems([
+      {
+        id: "interaction-reward:map_test01:gather-001:1",
+        sceneId: "map_test01",
+        itemId: "metal-parts",
+        quantity: 4,
+        position: { x: 760, y: 710 },
+        interactionPoint: { x: 726, y: 710, facing: "E" },
+        pickRadius: 26,
+        activationDistance: 48,
+        createdFromInventory: false,
+      },
+    ]);
+    saveDroppedWorldItems(rewardItems);
+    const restored = loadDroppedWorldItems();
+    assert.equal(restored.length, 1);
+    assert.equal(restored[0].quantity, 4);
+    assert.equal(restored[0].createdFromInventory, false);
   } finally {
     delete globalThis.window;
   }

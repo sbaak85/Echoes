@@ -53,8 +53,9 @@ public sealed class EditorCanvas : Control
     private readonly ContextMenuStrip _nodeContextMenu = new();
     private readonly ToolStripMenuItem _insertNodeContextItem = new("新增 Node");
     private readonly ToolStripMenuItem _deleteNodeContextItem = new("刪除 Node");
+    private readonly ToolStripMenuItem _overlapSelectionContextItem = new("選取重疊圖形");
     private readonly ToolStripMenuItem _interactionTypeContextItem = new("互動類型");
-    private readonly ToolStripMenuItem _dialogueTypeContextItem = new("對話");
+    private readonly Dictionary<string, ToolStripMenuItem> _interactionTypeContextItems = new();
     private readonly ToolStripMenuItem _interactionPointContextItem = new("新增互動 Point");
     private readonly ToolStripMenuItem _deleteInteractionPointContextItem = new("刪除互動 Point");
     private readonly ToolStripMenuItem _interactionHintPointContextItem = new("新增互動提示點");
@@ -106,7 +107,17 @@ public sealed class EditorCanvas : Control
         };
         _insertNodeContextItem.Click += (_, _) => InsertNodeAtContextLocation();
         _deleteNodeContextItem.Click += (_, _) => DeleteSelectedNode();
-        _dialogueTypeContextItem.Click += (_, _) => SetSelectedInteractionType("dialogue", "對話");
+        foreach (var defaults in InteractionTypeDefaults.All)
+        {
+            var item = new ToolStripMenuItem(defaults.Label) { Tag = defaults };
+            item.Click += (_, _) =>
+            {
+                var selectedDefaults = (InteractionTypeDefaults)item.Tag!;
+                SetSelectedInteractionType(selectedDefaults.Id, selectedDefaults.Verb);
+            };
+            _interactionTypeContextItems.Add(defaults.Id, item);
+            _interactionTypeContextItem.DropDownItems.Add(item);
+        }
         foreach (var direction in new[] { "N", "NE", "E", "SE", "S", "SW", "W", "NW" })
         {
             var symbol = direction switch
@@ -118,12 +129,13 @@ public sealed class EditorCanvas : Control
             item.Click += (_, _) => SetInteractionPointAtContext((string)item.Tag!);
             _interactionPointContextItem.DropDownItems.Add(item);
         }
-        _interactionTypeContextItem.DropDownItems.Add(_dialogueTypeContextItem);
         _deleteInteractionPointContextItem.Click += (_, _) => DeleteSelectedInteractionPoint();
         _interactionHintPointContextItem.Click += (_, _) => SetInteractionHintPointAtContext();
         _deleteInteractionHintPointContextItem.Click += (_, _) => DeleteSelectedInteractionHintPoint();
         _nodeContextMenu.Items.AddRange(new ToolStripItem[]
         {
+            _overlapSelectionContextItem,
+            new ToolStripSeparator(),
             _insertNodeContextItem,
             _deleteNodeContextItem,
             new ToolStripSeparator(),
@@ -439,46 +451,65 @@ public sealed class EditorCanvas : Control
         var interactable = SelectedInteractable;
         if (interactable is null) return;
         type = string.IsNullOrWhiteSpace(type) ? "dialogue" : type.Trim();
-        verb = string.IsNullOrWhiteSpace(verb) ? "對話" : verb.Trim();
+        var defaults = InteractionTypeDefaults.Get(type);
+        var typeChanged = !interactable.Type.Equals(type, StringComparison.OrdinalIgnoreCase);
+        verb = string.IsNullOrWhiteSpace(verb) ? defaults.Verb : verb.Trim();
         PerformMutation(() =>
         {
             interactable.Type = type;
             interactable.Verb = verb;
+            if (typeChanged)
+            {
+                interactable.SurvivalRequirements = new SurvivalRequirements();
+                interactable.SurvivalEffects = defaults.Effects.Clone();
+                interactable.DailyInteractionLimit = defaults.DailyLimit;
+            }
         });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void UpdateSelectedDialogue(
-        IEnumerable<DialogueLine> lines,
-        IEnumerable<string> speakers,
-        float characterDelaySeconds)
+    public void UpdateSelectedSurvivalSettings(
+        SurvivalRequirements requirements,
+        SurvivalEffects effects,
+        int? dailyLimit,
+        IEnumerable<InteractionUseRequirement> useRequirements)
     {
         var interactable = SelectedInteractable;
         if (interactable is null) return;
-        var replacement = lines.Select(line => new DialogueLine
+        dailyLimit = dailyLimit is null ? null : Math.Clamp(dailyLimit.Value, 1, 10);
+        PerformMutation(() =>
         {
-            Speaker = line.Speaker,
-            Text = line.Text,
-        }).ToList();
-        var speakerList = speakers
-            .Where(speaker => !string.IsNullOrWhiteSpace(speaker))
-            .Select(speaker => speaker.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        if (speakerList.Count == 0) speakerList.AddRange(new[] { "Sbaak", "Echo" });
-        if (replacement.Count == 0)
+            interactable.SurvivalRequirements = requirements.Clone();
+            interactable.SurvivalEffects = effects.Clone();
+            interactable.DailyInteractionLimit = dailyLimit;
+            var requirementList = useRequirements
+                .Select(requirement => requirement.Clone())
+                .ToList();
+            interactable.UseRequirements = requirementList.Count == 0
+                ? null
+                : requirementList;
+        });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void UpdateSelectedItemReward(InteractionItemReward? reward)
+    {
+        var interactable = SelectedInteractable;
+        if (interactable is null) return;
+        PerformMutation(() => interactable.ItemReward = reward?.Clone());
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void UpdateSelectedDialogues(
+        DialogueScript successDialogue,
+        DialogueScript failureDialogue)
+    {
+        var interactable = SelectedInteractable;
+        if (interactable is null) return;
+        PerformMutation(() =>
         {
-            replacement.Add(new DialogueLine { Speaker = speakerList[0], Text = "..." });
-        }
-        else if (string.IsNullOrWhiteSpace(replacement[0].Speaker))
-        {
-            replacement[0].Speaker = speakerList[0];
-        }
-        PerformMutation(() => interactable.Dialogue = new DialogueScript
-        {
-            CharacterDelaySeconds = Math.Clamp(characterDelaySeconds, 0, 2),
-            Speakers = speakerList,
-            Lines = replacement,
+            interactable.Dialogue = successDialogue.Clone();
+            interactable.FailureDialogue = failureDialogue.Clone();
         });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -642,6 +673,40 @@ public sealed class EditorCanvas : Control
             if (points.Count != 3)
             {
                 throw new InvalidOperationException("A polygon was allowed to drop below three nodes.");
+            }
+
+            var overlapPoints = new List<ScenePoint>
+            {
+                new(2, 2),
+                new(22, 2),
+                new(22, 22),
+                new(2, 22),
+            };
+            var overlapCollisionIndex = _document.Collisions.Count;
+            _document.Collisions.Add(new CollisionShape
+            {
+                Id = "self-test-overlap-collision",
+                Label = "Overlap collision",
+                Shape = "polygon",
+                Points = overlapPoints.Select(point => point.Clone()).ToList(),
+            });
+            var overlapInteractableIndex = _document.Interactables.Count;
+            _document.Interactables.Add(new SceneInteractable
+            {
+                Id = "self-test-overlap-interaction",
+                Label = "Overlap interaction",
+                Points = overlapPoints.Select(point => point.Clone()).ToList(),
+            });
+            var overlapCandidates = GetHitTestCandidates(new PointF(12, 12));
+            if (
+                !overlapCandidates.Contains(
+                    new LayerSelection(SceneLayerKind.Collision, overlapCollisionIndex)) ||
+                !overlapCandidates.Contains(
+                    new LayerSelection(SceneLayerKind.Interactable, overlapInteractableIndex))
+            )
+            {
+                throw new InvalidOperationException(
+                    "Overlapping interaction and collision shapes were not both selectable.");
             }
 
             SceneJson.Validate(_document);
@@ -1222,7 +1287,9 @@ public sealed class EditorCanvas : Control
                 break;
 
             case EditorTool.Select:
-                BeginSelectDrag(rawWorld);
+                BeginSelectDrag(
+                    rawWorld,
+                    ModifierKeys.HasFlag(Keys.Alt));
                 break;
         }
     }
@@ -1395,9 +1462,9 @@ public sealed class EditorCanvas : Control
         if (!_panning) UpdateCursor();
     }
 
-    private void BeginSelectDrag(PointF world)
+    private void BeginSelectDrag(PointF world, bool cycleOverlappingShapes = false)
     {
-        var handle = HitSelectedHandle(world);
+        var handle = cycleOverlappingShapes ? -1 : HitSelectedHandle(world);
         if (handle >= 0)
         {
             SetSelectedVertex(SelectedEditablePolygonPoints() is null ? -1 : handle);
@@ -1409,10 +1476,19 @@ public sealed class EditorCanvas : Control
             return;
         }
 
-        var hit = HitTest(world);
+        var hit = cycleOverlappingShapes
+            ? CycleHitTest(world)
+            : HitTest(world);
         SetSelectedVertex(-1);
         SelectLayer(hit);
         if (!IsValidSelection(hit)) return;
+
+        if (cycleOverlappingShapes)
+        {
+            StatusChanged?.Invoke(
+                this,
+                $"已循環選取重疊圖形：{DescribeSelection(hit)}");
+        }
 
         BeginMutation();
         _lastDragWorld = SnapAndClamp(world);
@@ -1642,6 +1718,20 @@ public sealed class EditorCanvas : Control
 
     private LayerSelection HitTest(PointF point)
     {
+        return GetHitTestCandidates(point).FirstOrDefault(LayerSelection.None);
+    }
+
+    private LayerSelection CycleHitTest(PointF point)
+    {
+        var candidates = GetHitTestCandidates(point);
+        if (candidates.Count == 0) return LayerSelection.None;
+        var currentIndex = candidates.IndexOf(_selection);
+        return candidates[(currentIndex + 1) % candidates.Count];
+    }
+
+    private List<LayerSelection> GetHitTestCandidates(PointF point)
+    {
+        var candidates = new List<LayerSelection>();
         for (var index = _document.MovementGuides.Count - 1; index >= 0; index--)
         {
             var guide = _document.MovementGuides[index];
@@ -1653,7 +1743,8 @@ public sealed class EditorCanvas : Control
                     ToPointF(guide.Points[segment + 1]));
                 if (Distance(point, nearest) <= guide.Width / 2f + 7f / _zoom)
                 {
-                    return new LayerSelection(SceneLayerKind.MovementGuide, index);
+                    candidates.Add(new LayerSelection(SceneLayerKind.MovementGuide, index));
+                    break;
                 }
             }
         }
@@ -1662,7 +1753,7 @@ public sealed class EditorCanvas : Control
         {
             if (PointInPolygon(point, _document.Interactables[index].Points))
             {
-                return new LayerSelection(SceneLayerKind.Interactable, index);
+                candidates.Add(new LayerSelection(SceneLayerKind.Interactable, index));
             }
         }
 
@@ -1672,18 +1763,18 @@ public sealed class EditorCanvas : Control
             var hit = collision.Shape == "circle" && collision.Center is not null
                 ? Distance(point, new PointF(collision.Center.X, collision.Center.Y)) <= collision.Radius
                 : PointInPolygon(point, collision.Points);
-            if (hit) return new LayerSelection(SceneLayerKind.Collision, index);
+            if (hit) candidates.Add(new LayerSelection(SceneLayerKind.Collision, index));
         }
 
         for (var index = _document.NavMesh.Count - 1; index >= 0; index--)
         {
             if (PointInPolygon(point, _document.NavMesh[index].Points))
             {
-                return new LayerSelection(SceneLayerKind.NavMesh, index);
+                candidates.Add(new LayerSelection(SceneLayerKind.NavMesh, index));
             }
         }
 
-        return LayerSelection.None;
+        return candidates;
     }
 
     private int HitSelectedHandle(PointF point)
@@ -1730,6 +1821,7 @@ public sealed class EditorCanvas : Control
         }
 
         var interactionSelected = _selection.Kind == SceneLayerKind.Interactable && IsValidSelection(_selection);
+        PopulateOverlapSelectionMenu(world);
         _interactionTypeContextItem.Visible = interactionSelected;
         _interactionPointContextItem.Visible = interactionSelected;
         _interactionPointContextItem.Text =
@@ -1746,9 +1838,47 @@ public sealed class EditorCanvas : Control
             : "新增互動提示點";
         _deleteInteractionHintPointContextItem.Visible = hasInteractionHintPoint;
         _deleteInteractionHintPointContextItem.Enabled = hasInteractionHintPoint;
-        _dialogueTypeContextItem.Checked = interactionSelected &&
-            _document.Interactables[_selection.Index].Type.Equals("dialogue", StringComparison.OrdinalIgnoreCase);
+        foreach (var (type, item) in _interactionTypeContextItems)
+        {
+            item.Checked = interactionSelected &&
+                _document.Interactables[_selection.Index].Type.Equals(type, StringComparison.OrdinalIgnoreCase);
+        }
         _nodeContextMenu.Show(this, screenLocation);
+    }
+
+    private void PopulateOverlapSelectionMenu(PointF world)
+    {
+        _overlapSelectionContextItem.DropDownItems.Clear();
+        var candidates = GetHitTestCandidates(world);
+        _overlapSelectionContextItem.Visible = candidates.Count > 1;
+        foreach (var candidate in candidates)
+        {
+            var item = new ToolStripMenuItem(DescribeSelection(candidate))
+            {
+                Checked = candidate == _selection,
+                Tag = candidate,
+            };
+            item.Click += (_, _) =>
+            {
+                if (item.Tag is not LayerSelection selection) return;
+                SelectLayer(selection);
+                StatusChanged?.Invoke(this, $"已選取重疊圖形：{DescribeSelection(selection)}");
+            };
+            _overlapSelectionContextItem.DropDownItems.Add(item);
+        }
+    }
+
+    private string DescribeSelection(LayerSelection selection)
+    {
+        if (!IsValidSelection(selection)) return "無";
+        return selection.Kind switch
+        {
+            SceneLayerKind.NavMesh => $"NavMesh · {_document.NavMesh[selection.Index].Label}",
+            SceneLayerKind.Collision => $"Collision · {_document.Collisions[selection.Index].Label}",
+            SceneLayerKind.Interactable => $"互動區域 · {_document.Interactables[selection.Index].Label}",
+            SceneLayerKind.MovementGuide => $"強制引導線 · {_document.MovementGuides[selection.Index].Label}",
+            _ => "無",
+        };
     }
 
     private bool PrepareNodeContextMenu(PointF world)

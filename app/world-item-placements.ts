@@ -14,7 +14,7 @@ export type WorldItemPlacement = {
 };
 
 export type DroppedWorldItem = WorldItemPlacement & {
-  createdFromInventory: true;
+  createdFromInventory: boolean;
 };
 
 /**
@@ -104,7 +104,7 @@ export function normalizeDroppedWorldItems(value: unknown): DroppedWorldItem[] {
       },
       pickRadius: Math.max(1, candidate.pickRadius ?? 26),
       activationDistance: Math.max(1, candidate.activationDistance ?? 48),
-      createdFromInventory: true as const,
+      createdFromInventory: candidate.createdFromInventory === true,
     }];
   });
 }

@@ -13,7 +13,7 @@
   },
   "grid": {
     "size": 5,
-    "visible": false,
+    "visible": true,
     "snap": false
   },
   "playerSpawn": {
@@ -767,8 +767,8 @@
       "label": "\u5713\u5F62\u78B0\u649E 5",
       "shape": "circle",
       "center": {
-        "x": 822,
-        "y": 594
+        "x": 820.25635,
+        "y": 587.4611
       },
       "radius": 25.455845
     },
@@ -926,6 +926,14 @@
       ],
       "type": "dialogue",
       "verb": "\u4E92\u52D5",
+      "survivalRequirements": {},
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
       "interactionPoints": [
         {
           "facing": "NW",
@@ -949,8 +957,8 @@
         }
       ],
       "interactionHintPoint": {
-        "x": 824.164,
-        "y": 595.517
+        "x": 820.72046,
+        "y": 571.97107
       },
       "activationDistance": 52,
       "dialogue": {
@@ -1017,8 +1025,16 @@
           "y": 564
         }
       ],
-      "type": "dialogue",
+      "type": "operation",
       "verb": "\u64CD\u4F5C",
+      "survivalRequirements": {},
+      "survivalEffects": {
+        "stamina": -5,
+        "hunger": -3,
+        "thirst": -3,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
       "interactionPoints": [
         {
           "facing": "NW",
@@ -1027,8 +1043,8 @@
         }
       ],
       "interactionHintPoint": {
-        "x": 1041.224,
-        "y": 552.348
+        "x": 1065.0125,
+        "y": 498.10342
       },
       "activationDistance": 52,
       "dialogue": {
@@ -1075,11 +1091,19 @@
           "y": 1089
         }
       ],
-      "type": "dialogue",
+      "type": "move",
       "verb": "\u79FB\u52D5",
+      "survivalRequirements": {},
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
       "interactionHintPoint": {
-        "x": 90.792,
-        "y": 1176.962
+        "x": 70.77471,
+        "y": 1171.1614
       },
       "activationDistance": 52,
       "dialogue": {
@@ -1118,11 +1142,19 @@
           "y": 1107
         }
       ],
-      "type": "dialogue",
+      "type": "move",
       "verb": "\u79FB\u52D5",
+      "survivalRequirements": {},
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
       "interactionHintPoint": {
-        "x": 918,
-        "y": 1156.5
+        "x": 930.5217,
+        "y": 1154.4807
       },
       "activationDistance": 52,
       "dialogue": {
@@ -1185,8 +1217,21 @@
           "y": 410
         }
       ],
-      "type": "dialogue",
+      "type": "move",
       "verb": "\u79FB\u52D5",
+      "survivalRequirements": {
+        "stamina": {
+          "comparison": "below",
+          "value": 75
+        }
+      },
+      "survivalEffects": {
+        "stamina": 75,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 480
+      },
       "interactionPoints": [
         {
           "facing": "NW",
@@ -1195,8 +1240,8 @@
         }
       ],
       "interactionHintPoint": {
-        "x": 893.63,
-        "y": 385.782
+        "x": 884.81836,
+        "y": 362.02887
       },
       "activationDistance": 52,
       "dialogue": {
@@ -1251,8 +1296,17 @@
           "y": 295
         }
       ],
-      "type": "dialogue",
+      "type": "gather",
       "verb": "\u63A1\u96C6",
+      "survivalRequirements": {},
+      "survivalEffects": {
+        "stamina": -4,
+        "hunger": -2,
+        "thirst": -2,
+        "spirit": -1,
+        "timeMinutes": 0
+      },
+      "dailyInteractionLimit": 3,
       "interactionPoints": [
         {
           "facing": "N",
@@ -1271,8 +1325,8 @@
         }
       ],
       "interactionHintPoint": {
-        "x": 537.212,
-        "y": 381.903
+        "x": 529.8747,
+        "y": 363.0053
       },
       "activationDistance": 52,
       "dialogue": {
@@ -1331,8 +1385,17 @@
           "y": 580
         }
       ],
-      "type": "dialogue",
+      "type": "gather",
       "verb": "\u63A1\u96C6",
+      "survivalRequirements": {},
+      "survivalEffects": {
+        "stamina": -4,
+        "hunger": -2,
+        "thirst": -2,
+        "spirit": -1,
+        "timeMinutes": 0
+      },
+      "dailyInteractionLimit": 3,
       "interactionPoints": [
         {
           "facing": "NW",
@@ -1361,8 +1424,8 @@
         }
       ],
       "interactionHintPoint": {
-        "x": 357.876,
-        "y": 544.943
+        "x": 339.46475,
+        "y": 508.49805
       },
       "activationDistance": 52,
       "dialogue": {
