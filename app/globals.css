@@ -86,7 +86,7 @@ button {
   aspect-ratio: auto;
 }
 
-@media (pointer: coarse), (max-width: 680px) {
+@media (max-width: 680px), (hover: none) and (pointer: coarse) {
   .game-shell {
     width: 100vw;
     height: 100vh;
@@ -2469,7 +2469,7 @@ html.dialogue-cursor-active .dialogue-box * {
   }
 }
 
-@media (pointer: coarse), (max-width: 680px) {
+@media (max-width: 680px), (hover: none) and (pointer: coarse) {
   .fullscreen-trigger {
     display: grid;
   }

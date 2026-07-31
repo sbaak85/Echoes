@@ -607,7 +607,9 @@ function getDefaultDialogueTextSize(): DialogueTextSize {
 
 function getDefaultQuestCollapsed() {
   if (typeof window === "undefined") return false;
-  return window.matchMedia("(max-width: 680px), (pointer: coarse)").matches;
+  return window.matchMedia(
+    "(max-width: 680px), (hover: none) and (pointer: coarse)",
+  ).matches;
 }
 
 type GamepadInput = {
@@ -1750,7 +1752,11 @@ export function MovementLab() {
       webkitFullscreenElement?: Element | null;
     };
     const updateFullscreenState = () => {
+      const browserChromeHidden =
+        Math.abs(window.outerWidth - window.innerWidth) <= 12 &&
+        Math.abs(window.outerHeight - window.innerHeight) <= 12;
       const viewportMatchesScreen =
+        browserChromeHidden &&
         window.innerWidth >= Math.min(window.screen.width, window.screen.availWidth) - 3 &&
         (
           window.innerHeight >= window.screen.height - 3 ||
