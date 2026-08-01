@@ -59,6 +59,7 @@ internal static class Program
 
         if (args.Length > 0 && args[0].Equals("--ui-smoke-test", StringComparison.OrdinalIgnoreCase))
         {
+            Exception? smokeTestFailure = null;
             using var form = new MainForm
             {
                 ShowInTaskbar = false,
@@ -83,10 +84,27 @@ internal static class Program
                 form.Close();
                 System.Windows.Forms.Application.ExitThread();
             };
-            form.Shown += (_, _) => audioEditor?.Show(form);
+            form.Shown += (_, _) =>
+            {
+                try
+                {
+                    form.RunLayerRenameUiSelfTest();
+                    audioEditor?.Show(form);
+                }
+                catch (Exception exception)
+                {
+                    smokeTestFailure = exception;
+                    timer.Stop();
+                    audioEditor?.Close();
+                    form.Close();
+                    System.Windows.Forms.Application.ExitThread();
+                }
+            };
             timer.Start();
             System.Windows.Forms.Application.Run(form);
-            return 0;
+            if (smokeTestFailure is null) return 0;
+            EditorDiagnostics.Log("UI smoke test failure", smokeTestFailure);
+            return 1;
         }
 
         System.Windows.Forms.Application.Run(new MainForm());

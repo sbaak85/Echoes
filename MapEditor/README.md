@@ -24,6 +24,9 @@ Included in version 1:
 - Polygon, rectangle, and circle collision drawing.
 - Selection, whole-shape movement, vertex/radius editing, scaling, deletion,
   undo, and redo.
+- NavMesh, collision, interaction, and movement-guide entries in the right-side
+  layer list can be renamed in place by double-clicking. Enter or leaving the
+  field saves the name, Escape cancels, and the label is stored in scene JSON.
 - Closed NavMesh and collision polygons support adding and removing nodes.
   Select a node and press Delete (or use the sidebar/context menu) to remove
   it; right-click near a selected polygon edge to insert a node at that point.

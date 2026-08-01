@@ -6,10 +6,12 @@ import {
   ITEM_DATABASE,
   ITEM_DATABASE_CAPACITY,
   ITEM_DEFINITIONS,
+  getItemDebugSpawnDelivery,
   getOwnedItemStacks,
   grantInventoryItem,
   loadPlayerInventory,
   normalizePlayerInventory,
+  parseDebugItemSpawnCommand,
   removeInventoryItem,
   savePlayerInventory,
   useSurvivalInventoryItem,
@@ -39,6 +41,28 @@ function installMemoryLocalStorage() {
   };
   return values;
 }
+
+test("Debug 道具生成指令支援 ID、數量與生成去向", () => {
+  assert.deepEqual(parseDebugItemSpawnCommand("water-bottle 3"), {
+    itemId: "water-bottle",
+    quantity: 3,
+  });
+  assert.deepEqual(parseDebugItemSpawnCommand("MEDKIT"), {
+    itemId: "medkit",
+    quantity: 1,
+  });
+  assert.equal(parseDebugItemSpawnCommand("medkit 0"), null);
+  assert.equal(parseDebugItemSpawnCommand("medkit three"), null);
+
+  const inventoryItem = ITEM_DEFINITIONS.find(
+    (item) => item.id === "time-crystal",
+  );
+  const worldItem = ITEM_DEFINITIONS.find(
+    (item) => item.id === "water-bottle",
+  );
+  assert.equal(getItemDebugSpawnDelivery(inventoryItem), "inventory");
+  assert.equal(getItemDebugSpawnDelivery(worldItem), "world");
+});
 
 test("中央道具資料庫固定保留 100 欄，現有 23 項道具都有唯一欄位", () => {
   assert.equal(validateItemDatabase(), true);
@@ -83,7 +107,7 @@ test("每項道具都有生存影響欄位，三種消耗品使用正確設定",
   );
   assert.deepEqual(
     ITEM_DEFINITIONS.find((item) => item.id === "emergency-ration")?.survivalEffects,
-    { hunger: 50 },
+    { stamina: 30, hunger: 50 },
   );
   assert.deepEqual(
     ITEM_DEFINITIONS.find((item) => item.id === "alien-spore")?.survivalEffects,
@@ -102,6 +126,21 @@ test("成功使用生存道具會套用效果並消耗一個", () => {
   assert.equal(result.status, "success");
   assert.equal(result.survival.values.thirst, 75);
   assert.equal(result.inventory["water-bottle"], 1);
+});
+
+test("緊急口糧同時恢復體力 30 與飢餓 50", () => {
+  const survival = createInitialSurvivalState();
+  survival.values.stamina = 40;
+  survival.values.hunger = 30;
+  const result = useSurvivalInventoryItem(
+    { "emergency-ration": 2 },
+    survival,
+    "emergency-ration",
+  );
+  assert.equal(result.status, "success");
+  assert.equal(result.survival.values.stamina, 70);
+  assert.equal(result.survival.values.hunger, 80);
+  assert.equal(result.inventory["emergency-ration"], 1);
 });
 
 test("回復目標已滿時無法使用且不消耗道具，未設定效果也維持不可用", () => {

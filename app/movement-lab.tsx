@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type FormEvent as ReactFormEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
@@ -18,9 +19,11 @@ import {
   ITEM_BY_ID,
   ITEM_DATABASE,
   calculateInventoryWeight,
+  getItemDebugSpawnDelivery,
   getOwnedItemStacks,
   grantInventoryItem,
   loadPlayerInventory,
+  parseDebugItemSpawnCommand,
   removeInventoryItem,
   savePlayerInventory,
   useSurvivalInventoryItem,
@@ -1931,6 +1934,11 @@ export function MovementLab() {
   const audioEventManagerRef = useRef<AudioEventManager | null>(null);
   const requestBgmPlaybackRef = useRef<() => void>(() => {});
   const optionsOpenRef = useRef(false);
+  const debugItemSpawnerOpenRef = useRef(false);
+  const debugItemSpawnHandlerRef = useRef<(command: string) => boolean>(
+    () => false,
+  );
+  const debugItemInputRef = useRef<HTMLInputElement>(null);
   const survivalFlowPausedRef = useRef(false);
   const restartConfirmationOpenRef = useRef(false);
   const restartConfirmationChoiceRef = useRef<"cancel" | "confirm">("cancel");
@@ -1967,6 +1975,8 @@ export function MovementLab() {
   const currentStoryChapterRef = useRef(1);
 
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [debugItemSpawnerOpen, setDebugItemSpawnerOpen] = useState(false);
+  const [debugItemSpawnCommand, setDebugItemSpawnCommand] = useState("");
   const [survivalFlowPaused, setSurvivalFlowPaused] = useState(false);
   const [restartConfirmationOpen, setRestartConfirmationOpen] = useState(false);
   const [restartConfirmationChoice, setRestartConfirmationChoice] =
@@ -2184,6 +2194,34 @@ export function MovementLab() {
       hotbarFeedbackTimerRef.current = null;
     }, duration);
   };
+
+  const closeDebugItemSpawner = () => {
+    debugItemSpawnerOpenRef.current = false;
+    setDebugItemSpawnerOpen(false);
+    setDebugItemSpawnCommand("");
+    canvasRef.current?.focus();
+  };
+
+  const submitDebugItemSpawn = (event: ReactFormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const succeeded = debugItemSpawnHandlerRef.current(debugItemSpawnCommand);
+    if (succeeded) {
+      closeDebugItemSpawner();
+      return;
+    }
+    window.setTimeout(() => {
+      debugItemInputRef.current?.focus();
+      debugItemInputRef.current?.select();
+    }, 0);
+  };
+
+  useEffect(() => {
+    if (!debugItemSpawnerOpen) return;
+    const focusTimer = window.setTimeout(() => {
+      debugItemInputRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(focusTimer);
+  }, [debugItemSpawnerOpen]);
 
   const setHotbarSlotAssignment = (slotIndex: number, itemId: string | null) => {
     const next = assignHotbarSlot(
@@ -3314,15 +3352,6 @@ export function MovementLab() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
-      if (
-        key === "tab" &&
-        !optionsOpenRef.current &&
-        !dialoguePlaybackRef.current
-      ) {
-        event.preventDefault();
-        if (!event.repeat) setInventoryPanelOpen(!inventoryOpenRef.current);
-        return;
-      }
       const eventTarget = event.target;
       if (
         eventTarget instanceof HTMLInputElement ||
@@ -3330,6 +3359,36 @@ export function MovementLab() {
         eventTarget instanceof HTMLSelectElement ||
         (eventTarget instanceof HTMLElement && eventTarget.isContentEditable)
       ) {
+        return;
+      }
+      if (
+        event.code === "Backquote" &&
+        !optionsOpenRef.current &&
+        !inventoryOpenRef.current &&
+        !dialoguePlaybackRef.current &&
+        !restartConfirmationOpenRef.current
+      ) {
+        event.preventDefault();
+        if (!event.repeat) {
+          pressedKeys.clear();
+          setActiveKeyboardKeys([]);
+          debugItemSpawnerOpenRef.current = true;
+          setDebugItemSpawnCommand("");
+          setDebugItemSpawnerOpen(true);
+        }
+        return;
+      }
+      if (debugItemSpawnerOpenRef.current) {
+        event.preventDefault();
+        return;
+      }
+      if (
+        key === "tab" &&
+        !optionsOpenRef.current &&
+        !dialoguePlaybackRef.current
+      ) {
+        event.preventDefault();
+        if (!event.repeat) setInventoryPanelOpen(!inventoryOpenRef.current);
         return;
       }
       activeInputMode = "keyboard-mouse";
@@ -3447,6 +3506,94 @@ export function MovementLab() {
         setHotbarFeedback(null);
         hotbarFeedbackTimerRef.current = null;
       }, 1800);
+    };
+
+    debugItemSpawnHandlerRef.current = (command: string) => {
+      const parsed = parseDebugItemSpawnCommand(command);
+      if (!parsed) {
+        showInteractionItemFeedback(
+          "格式錯誤 · 請輸入：道具ID 數量（數量為 1～999）",
+        );
+        return false;
+      }
+
+      const item = ITEM_BY_ID.get(parsed.itemId);
+      if (!item) {
+        showInteractionItemFeedback(`找不到道具 ID：${parsed.itemId}`);
+        return false;
+      }
+
+      if (getItemDebugSpawnDelivery(item) === "inventory") {
+        const nextInventory = grantInventoryItem(
+          playerInventoryRef.current,
+          item.id,
+          parsed.quantity,
+        );
+        playerInventoryRef.current = nextInventory;
+        setPlayerInventory(nextInventory);
+        try {
+          savePlayerInventory(nextInventory);
+        } catch {
+          // 儲存空間不可用時，仍保留本次遊玩階段的生成結果。
+        }
+        showInteractionItemFeedback(
+          `Debug：${item.name} ×${parsed.quantity} 已放入背包`,
+        );
+        return true;
+      }
+
+      const placement = findDroppedWorldItemPlacement(
+        player,
+        currentFacing,
+        sizeRef.current * 0.14,
+        droppedWorldItemsRef.current.filter(
+          (worldItem) => worldItem.sceneId === SCENE_DATA.sceneId,
+        ),
+      );
+      if (!placement) {
+        showInteractionItemFeedback(
+          `角色附近沒有足夠空間生成 ${item.name}`,
+        );
+        return false;
+      }
+
+      let worldItemId = "";
+      do {
+        droppedWorldItemSequenceRef.current += 1;
+        worldItemId =
+          `debug-spawn:${SCENE_DATA.sceneId}:` +
+          `${droppedWorldItemSequenceRef.current}`;
+      } while (
+        droppedWorldItemsRef.current.some(
+          (worldItem) => worldItem.id === worldItemId,
+        )
+      );
+
+      const droppedWorldItem: DroppedWorldItem = {
+        id: worldItemId,
+        sceneId: SCENE_DATA.sceneId,
+        itemId: item.id,
+        quantity: parsed.quantity,
+        position: placement.position,
+        interactionPoint: placement.interactionPoint,
+        pickRadius: 26,
+        activationDistance: 48,
+        createdFromInventory: false,
+      };
+      const nextDroppedWorldItems = [
+        ...droppedWorldItemsRef.current,
+        droppedWorldItem,
+      ];
+      applyDroppedWorldItems(nextDroppedWorldItems);
+      try {
+        saveDroppedWorldItems(nextDroppedWorldItems);
+      } catch {
+        // 儲存空間不可用時，仍保留本次遊玩階段的生成結果。
+      }
+      showInteractionItemFeedback(
+        `Debug：${item.name} ×${parsed.quantity} 已生成在角色旁`,
+      );
+      return true;
     };
 
     const grantInteractionItemReward = (interactable: SceneInteractable) => {
@@ -5413,6 +5560,7 @@ export function MovementLab() {
       if (
         dialoguePlaybackRef.current ||
         inventoryOpenRef.current ||
+        debugItemSpawnerOpenRef.current ||
         survivalStateRef.current.gameOverReason
       ) {
         horizontal = 0;
@@ -5687,6 +5835,7 @@ export function MovementLab() {
         survivalFlowPausedRef.current ||
         optionsOpenRef.current ||
         inventoryOpenRef.current ||
+        debugItemSpawnerOpenRef.current ||
         Boolean(dialoguePlaybackRef.current);
       if (!survivalPaused && !survivalStateRef.current.gameOverReason) {
         survivalStateRef.current = advanceSurvivalState(
@@ -5806,6 +5955,7 @@ export function MovementLab() {
       canvas.removeEventListener("lostpointercapture", onPointerCancel);
       bgmDisposed = true;
       requestBgmPlaybackRef.current = () => {};
+      debugItemSpawnHandlerRef.current = () => false;
       stopFootsteps();
       stopDialogueTyping();
       if (interactionFeedbackTimer !== null) {
@@ -5989,6 +6139,35 @@ export function MovementLab() {
         aria-label="八方向角色移動地圖測試場景"
         tabIndex={0}
       />
+
+      {debugItemSpawnerOpen ? (
+        <form
+          className="debug-item-spawner"
+          aria-label="Debug 生成道具"
+          onSubmit={submitDebugItemSpawn}
+        >
+          <span className="debug-item-spawner-label">ITEM SPAWN</span>
+          <input
+            ref={debugItemInputRef}
+            value={debugItemSpawnCommand}
+            onChange={(event) => setDebugItemSpawnCommand(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                closeDebugItemSpawner();
+              } else if (event.key === "Enter") {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
+            placeholder="道具ID 數量（例：water-bottle 3）"
+            aria-label="輸入道具 ID 與數量"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <button type="submit" aria-label="生成道具">Enter</button>
+        </form>
+      ) : null}
 
       <section
         className="compass-strip"

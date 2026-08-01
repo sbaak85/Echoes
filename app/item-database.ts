@@ -8,6 +8,8 @@ import {
 
 export type ItemCategory = "resource" | "tool" | "quest" | "main";
 
+export type ItemDebugSpawnDelivery = "world" | "inventory";
+
 export type ItemInventoryRules = {
   transferable: boolean;
   discardable: boolean;
@@ -24,6 +26,7 @@ export type ItemDefinition = {
   usable: boolean;
   survivalEffects: SurvivalEffects;
   inventoryRules: ItemInventoryRules;
+  debugSpawnDelivery?: ItemDebugSpawnDelivery;
 };
 
 export type ItemDatabaseSlot = {
@@ -106,7 +109,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "便於攜帶的高熱量壓縮食品。",
       weight: 0.35,
       usable: true,
-      survivalEffects: { hunger: 50 },
+      survivalEffects: { stamina: 30, hunger: 50 },
       inventoryRules: { transferable: true, discardable: true, stackSize: 20 },
     },
   },
@@ -192,6 +195,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       usable: false,
       survivalEffects: {},
       inventoryRules: { transferable: false, discardable: false, stackSize: 1 },
+      debugSpawnDelivery: "inventory",
     },
   },
   {
@@ -448,6 +452,29 @@ export const ITEM_DEFINITIONS = ITEM_DATABASE.flatMap((slot) =>
 export const ITEM_BY_ID = new Map(
   ITEM_DEFINITIONS.map((item) => [item.id, item]),
 );
+
+export type DebugItemSpawnCommand = {
+  itemId: string;
+  quantity: number;
+};
+
+export function parseDebugItemSpawnCommand(
+  command: string,
+): DebugItemSpawnCommand | null {
+  const match = command.trim().match(/^(\S+)(?:\s+(\d+))?$/);
+  if (!match) return null;
+  const quantity = match[2] === undefined ? 1 : Number(match[2]);
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 999) {
+    return null;
+  }
+  return { itemId: match[1].toLowerCase(), quantity };
+}
+
+export function getItemDebugSpawnDelivery(
+  item: Pick<ItemDefinition, "debugSpawnDelivery">,
+): ItemDebugSpawnDelivery {
+  return item.debugSpawnDelivery === "inventory" ? "inventory" : "world";
+}
 
 export type PlayerInventory = Record<string, number>;
 export type OwnedItemStack = {

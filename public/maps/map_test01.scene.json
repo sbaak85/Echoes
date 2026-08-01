@@ -1260,7 +1260,7 @@
     },
     {
       "id": "interaction-006",
-      "label": "\u4E92\u52D5\u5340\u57DF 6",
+      "label": "\u85CD\u8272\u6676\u9AD4\u7926\u77F3",
       "shape": "polygon",
       "points": [
         {
@@ -1298,7 +1298,12 @@
       ],
       "type": "gather",
       "verb": "\u63A1\u96C6",
-      "survivalRequirements": {},
+      "survivalRequirements": {
+        "stamina": {
+          "comparison": "atLeast",
+          "value": 20
+        }
+      },
       "survivalEffects": {
         "stamina": -4,
         "hunger": -2,
@@ -1307,6 +1312,11 @@
         "timeMinutes": 0
       },
       "dailyInteractionLimit": 3,
+      "itemReward": {
+        "itemId": "crystal-shard",
+        "quantity": 1,
+        "delivery": "world"
+      },
       "interactionPoints": [
         {
           "facing": "N",
@@ -1339,6 +1349,19 @@
           {
             "speaker": "Sbaak",
             "text": "\u795E\u79D8\u7684\u7926\u77F3\uFF0C\u53EF\u4EE5\u63D0\u4F9B\u6211\u767C\u96FB\u3002"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u6211\u5DF2\u7D93\u6C92\u6709\u529B\u6C23\u505A\u9019\u500B\u4E86\u2026\u2026"
           }
         ]
       }

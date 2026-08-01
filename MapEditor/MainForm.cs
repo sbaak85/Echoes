@@ -9,6 +9,11 @@ public sealed class MainForm : Form
     private readonly EditorCanvas _canvas = new() { Dock = DockStyle.Fill };
     private readonly Dictionary<EditorTool, ToolStripButton> _toolButtons = new();
     private readonly ListBox _layersList = new();
+    private readonly TextBox _layerRenameEditor = new()
+    {
+        Visible = false,
+        BorderStyle = BorderStyle.FixedSingle,
+    };
     private readonly TextBox _sceneIdText = new();
     private readonly TextBox _displayNameText = new();
     private readonly TextBox _selectionNameText = new();
@@ -72,6 +77,8 @@ public sealed class MainForm : Form
     private bool _dirty;
     private bool _loading;
     private bool _syncingSelection;
+    private bool _finishingLayerRename;
+    private LayerSelection _layerRenameSelection = LayerSelection.None;
 
     internal bool SuppressUnsavedPrompt { get; init; }
 
@@ -149,6 +156,9 @@ public sealed class MainForm : Form
         _canvas.ViewChanged += (_, _) => RefreshCommandState();
         _canvas.StatusChanged += (_, statusText) => _statusLabel.Text = statusText;
         _layersList.SelectedIndexChanged += LayersListOnSelectedIndexChanged;
+        _layersList.MouseDoubleClick += LayersListOnMouseDoubleClick;
+        _layerRenameEditor.KeyDown += LayerRenameEditorOnKeyDown;
+        _layerRenameEditor.LostFocus += (_, _) => CommitLayerRename();
         _gridButton.CheckedChanged += (_, _) =>
         {
             if (!_loading) _canvas.SetGridVisible(_gridButton.Checked);
@@ -330,6 +340,10 @@ public sealed class MainForm : Form
         _layersList.ForeColor = Color.FromArgb(226, 230, 234);
         _layersList.BorderStyle = BorderStyle.FixedSingle;
         layersGroup.Controls.Add(_layersList);
+        _layerRenameEditor.BackColor = Color.FromArgb(37, 42, 50);
+        _layerRenameEditor.ForeColor = Color.WhiteSmoke;
+        layersGroup.Controls.Add(_layerRenameEditor);
+        _layerRenameEditor.BringToFront();
         _selectionInfoLabel.SetBounds(10, 230, 255, 22);
         _selectionInfoLabel.ForeColor = Color.FromArgb(129, 222, 211);
         layersGroup.Controls.Add(_selectionInfoLabel);
@@ -802,7 +816,8 @@ public sealed class MainForm : Form
                 var region = _canvas.Document.NavMesh[index];
                 _layersList.Items.Add(new LayerListItem(
                     new LayerSelection(SceneLayerKind.NavMesh, index),
-                    $"[NavMesh] {region.Label}  ({region.Points.Count}點)"));
+                    $"[NavMesh] {region.Label}  ({region.Points.Count}點)",
+                    region.Label));
             }
 
             for (var index = 0; index < _canvas.Document.Collisions.Count; index++)
@@ -816,7 +831,8 @@ public sealed class MainForm : Form
                 };
                 _layersList.Items.Add(new LayerListItem(
                     new LayerSelection(SceneLayerKind.Collision, index),
-                    $"[Collision/{shape}] {collision.Label}"));
+                    $"[Collision/{shape}] {collision.Label}",
+                    collision.Label));
             }
 
             for (var index = 0; index < _canvas.Document.Interactables.Count; index++)
@@ -824,7 +840,8 @@ public sealed class MainForm : Form
                 var interactable = _canvas.Document.Interactables[index];
                 _layersList.Items.Add(new LayerListItem(
                     new LayerSelection(SceneLayerKind.Interactable, index),
-                    $"[互動/{interactable.Verb}] {interactable.Label}  ({interactable.Points.Count}點)"));
+                    $"[互動/{interactable.Verb}] {interactable.Label}  ({interactable.Points.Count}點)",
+                    interactable.Label));
             }
 
             for (var index = 0; index < _canvas.Document.MovementGuides.Count; index++)
@@ -832,7 +849,8 @@ public sealed class MainForm : Form
                 var guide = _canvas.Document.MovementGuides[index];
                 _layersList.Items.Add(new LayerListItem(
                     new LayerSelection(SceneLayerKind.MovementGuide, index),
-                    $"[雙向引導/{Math.Round(guide.Width)}px] {guide.Label}  ({guide.Points.Count}點)"));
+                    $"[雙向引導/{Math.Round(guide.Width)}px] {guide.Label}  ({guide.Points.Count}點)",
+                    guide.Label));
             }
 
             var selectedItem = _layersList.Items
@@ -954,6 +972,141 @@ public sealed class MainForm : Form
                 ? item.Selection
                 : LayerSelection.None);
     }
+
+    private void LayersListOnMouseDoubleClick(object? sender, MouseEventArgs e)
+    {
+        var itemIndex = _layersList.IndexFromPoint(e.Location);
+        BeginLayerRename(itemIndex);
+    }
+
+    private bool BeginLayerRename(int itemIndex)
+    {
+        if (
+            itemIndex < 0 ||
+            itemIndex >= _layersList.Items.Count ||
+            _layersList.Items[itemIndex] is not LayerListItem item
+        )
+        {
+            return false;
+        }
+
+        _layersList.SelectedIndex = itemIndex;
+        var itemBounds = _layersList.GetItemRectangle(itemIndex);
+        _layerRenameSelection = item.Selection;
+        _layerRenameEditor.Text = item.Label;
+        _layerRenameEditor.SetBounds(
+            _layersList.Left + itemBounds.Left + 1,
+            _layersList.Top + itemBounds.Top,
+            Math.Max(80, itemBounds.Width - 2),
+            Math.Max(22, itemBounds.Height));
+        _layerRenameEditor.Visible = true;
+        _layerRenameEditor.BringToFront();
+        _layerRenameEditor.Focus();
+        _layerRenameEditor.SelectAll();
+        _statusLabel.Text = "輸入新名稱後按 Enter；按 Esc 可取消。";
+        return true;
+    }
+
+    private void LayerRenameEditorOnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyCode == Keys.Enter)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            CommitLayerRename();
+        }
+        else if (e.KeyCode == Keys.Escape)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            CancelLayerRename();
+        }
+    }
+
+    private void CommitLayerRename()
+    {
+        if (!_layerRenameEditor.Visible || _finishingLayerRename) return;
+
+        var selection = _layerRenameSelection;
+        var label = _layerRenameEditor.Text.Trim();
+        FinishLayerRenameEditor();
+        if (label.Length == 0)
+        {
+            _statusLabel.Text = "名稱不能空白，已保留原名稱。";
+            return;
+        }
+
+        _canvas.SelectLayer(selection);
+        _canvas.RenameSelection(label);
+        _statusLabel.Text = $"已重新命名為「{label}」。";
+    }
+
+    private void CancelLayerRename()
+    {
+        if (!_layerRenameEditor.Visible || _finishingLayerRename) return;
+        FinishLayerRenameEditor();
+        _statusLabel.Text = "已取消重新命名。";
+    }
+
+    private void FinishLayerRenameEditor()
+    {
+        _finishingLayerRename = true;
+        try
+        {
+            _layerRenameEditor.Visible = false;
+            _layerRenameSelection = LayerSelection.None;
+            _layersList.Focus();
+        }
+        finally
+        {
+            _finishingLayerRename = false;
+        }
+    }
+
+    internal void RunLayerRenameUiSelfTest()
+    {
+        var layerKinds = new[]
+        {
+            SceneLayerKind.NavMesh,
+            SceneLayerKind.Collision,
+            SceneLayerKind.Interactable,
+            SceneLayerKind.MovementGuide,
+        };
+
+        foreach (var kind in layerKinds)
+        {
+            var item = _layersList.Items
+                .Cast<LayerListItem>()
+                .FirstOrDefault(candidate => candidate.Selection.Kind == kind)
+                ?? throw new InvalidDataException($"Layer rename UI self-test is missing {kind}.");
+            var itemIndex = _layersList.Items.IndexOf(item);
+            var originalLabel = item.Label;
+            var testLabel = $"{originalLabel} rename test";
+            if (!BeginLayerRename(itemIndex))
+            {
+                throw new InvalidOperationException($"Could not begin renaming {kind}.");
+            }
+
+            _layerRenameEditor.Text = testLabel;
+            CommitLayerRename();
+            if (!GetLayerLabel(item.Selection).Equals(testLabel, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException($"Double-click rename failed for {kind}.");
+            }
+
+            _canvas.SelectLayer(item.Selection);
+            _canvas.RenameSelection(originalLabel);
+        }
+    }
+
+    private string GetLayerLabel(LayerSelection selection) => selection.Kind switch
+    {
+        SceneLayerKind.NavMesh => _canvas.Document.NavMesh[selection.Index].Label,
+        SceneLayerKind.Collision => _canvas.Document.Collisions[selection.Index].Label,
+        SceneLayerKind.Interactable => _canvas.Document.Interactables[selection.Index].Label,
+        SceneLayerKind.MovementGuide => _canvas.Document.MovementGuides[selection.Index].Label,
+        _ => "",
+    };
 
     private void ApplyInteractionSettings()
     {
@@ -1254,14 +1407,16 @@ public sealed class MainForm : Form
 
     private sealed class LayerListItem
     {
-        public LayerListItem(LayerSelection selection, string text)
+        public LayerListItem(LayerSelection selection, string text, string label)
         {
             Selection = selection;
             Text = text;
+            Label = label;
         }
 
         public LayerSelection Selection { get; }
         public string Text { get; }
+        public string Label { get; }
         public override string ToString() => Text;
     }
 
