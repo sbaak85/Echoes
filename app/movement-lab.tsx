@@ -706,6 +706,20 @@ const SURVIVAL_STATS = [
   { id: "spirit", label: "精神", symbol: "✦" },
 ] as const;
 
+type SurvivalMetricId = (typeof SURVIVAL_STATS)[number]["id"];
+type SurvivalDisplayValues = Record<SurvivalMetricId, number>;
+
+function getSurvivalDisplayValues(
+  values: SurvivalGameState["values"],
+): SurvivalDisplayValues {
+  return {
+    stamina: Math.round(values.stamina),
+    hunger: Math.round(values.hunger),
+    thirst: Math.round(values.thirst),
+    spirit: Math.round(values.spirit),
+  };
+}
+
 const SURVIVAL_EFFECT_LABELS = {
   stamina: "體力",
   hunger: "飢餓",
@@ -1950,7 +1964,9 @@ export function MovementLab() {
   const dialoguePlaybackRef = useRef<DialoguePlayback | null>(null);
   const dialogueTypingRef = useRef<DialogueTyping | null>(null);
   const hotbarFeedbackTimerRef = useRef<number | null>(null);
+  const hotbarSelectionHintTimerRef = useRef<number | null>(null);
   const hotbarUseSequenceRef = useRef(0);
+  const hotbarSelectionHintSequenceRef = useRef(0);
   const activeHotbarSlotRef = useRef(0);
   const hotbarAssignmentsRef = useRef<(string | null)[]>([
     ...DEFAULT_HOTBAR_ASSIGNMENTS,
@@ -1970,6 +1986,10 @@ export function MovementLab() {
   const inventoryGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
   const inventoryCategoryRef = useRef<InventoryCategory>("all");
   const survivalStateRef = useRef<SurvivalGameState>(INITIAL_SURVIVAL_STATE);
+  const previousSurvivalDisplayValuesRef = useRef<SurvivalDisplayValues | null>(
+    null,
+  );
+  const survivalValueTweenSequenceRef = useRef(0);
   const interactionUsageRef = useRef<InteractionUsageState>(
     createInteractionUsageState(INITIAL_SURVIVAL_STATE.gameMinutes),
   );
@@ -2016,6 +2036,14 @@ export function MovementLab() {
   const [survivalState, setSurvivalState] = useState<SurvivalGameState>(
     INITIAL_SURVIVAL_STATE,
   );
+  const [survivalValueTweens, setSurvivalValueTweens] = useState<
+    Partial<
+      Record<
+        SurvivalMetricId,
+        { delta: number; sequence: number }
+      >
+    >
+  >({});
   const gameClock = getGameClock(survivalState.gameMinutes);
   const [survivalExpanded, setSurvivalExpanded] = useState(true);
   const [questCollapsed, setQuestCollapsed] = useState(false);
@@ -2045,6 +2073,11 @@ export function MovementLab() {
     sequence: number;
     slotIndex: number;
   } | null>(null);
+  const [hotbarSelectionHint, setHotbarSelectionHint] = useState<{
+    slotIndex: number;
+    sequence: number;
+    visible: boolean;
+  } | null>(null);
   const [dialogueView, setDialogueView] = useState<DialogueView>(null);
 
   const applyDroppedWorldItems = (items: readonly DroppedWorldItem[]) => {
@@ -2069,6 +2102,9 @@ export function MovementLab() {
       droppedWorldItemsRef.current = loadedDroppedWorldItems;
       hotbarAssignmentsRef.current = loadedHotbarAssignments;
       survivalStateRef.current = loadedSurvivalState;
+      previousSurvivalDisplayValuesRef.current = getSurvivalDisplayValues(
+        loadedSurvivalState.values,
+      );
       interactionUsageRef.current = loadedInteractionUsage;
       currentStoryChapterRef.current = loadedStoryProgress.currentChapter;
       sceneInteractablesRef.current = buildSceneInteractables(
@@ -2178,7 +2214,40 @@ export function MovementLab() {
     if (hotbarFeedbackTimerRef.current !== null) {
       window.clearTimeout(hotbarFeedbackTimerRef.current);
     }
+    if (hotbarSelectionHintTimerRef.current !== null) {
+      window.clearTimeout(hotbarSelectionHintTimerRef.current);
+    }
   }, []);
+
+  useEffect(() => {
+    const currentValues = getSurvivalDisplayValues(survivalState.values);
+    const previousValues = previousSurvivalDisplayValuesRef.current;
+    previousSurvivalDisplayValuesRef.current = currentValues;
+    if (!previousValues) return;
+
+    const changes = SURVIVAL_STATS.flatMap(({ id }) => {
+      const delta = currentValues[id] - previousValues[id];
+      return delta === 0 ? [] : [{ id, delta }];
+    });
+    if (changes.length === 0) return;
+
+    setSurvivalValueTweens((current) => {
+      const next = { ...current };
+      for (const { id, delta } of changes) {
+        survivalValueTweenSequenceRef.current += 1;
+        next[id] = {
+          delta,
+          sequence: survivalValueTweenSequenceRef.current,
+        };
+      }
+      return next;
+    });
+  }, [
+    survivalState.values.hunger,
+    survivalState.values.spirit,
+    survivalState.values.stamina,
+    survivalState.values.thirst,
+  ]);
 
   const showInventoryFeedback = (
     message: string,
@@ -2260,13 +2329,30 @@ export function MovementLab() {
     useInventoryItem(item.id, slotIndex);
   };
 
+  const showHotbarSelectionHint = (slotIndex: number) => {
+    hotbarSelectionHintSequenceRef.current += 1;
+    const sequence = hotbarSelectionHintSequenceRef.current;
+    setHotbarSelectionHint({ slotIndex, sequence, visible: true });
+    if (hotbarSelectionHintTimerRef.current !== null) {
+      window.clearTimeout(hotbarSelectionHintTimerRef.current);
+    }
+    hotbarSelectionHintTimerRef.current = window.setTimeout(() => {
+      setHotbarSelectionHint((current) =>
+        current?.sequence === sequence
+          ? { ...current, visible: false }
+          : current,
+      );
+      hotbarSelectionHintTimerRef.current = null;
+    }, 10_000);
+  };
+
   const selectHotbarSlot = (offset: number) => {
-    setActiveHotbarSlot((current) => {
-      const next =
-        (current + offset + HOTBAR_SLOT_COUNT) % HOTBAR_SLOT_COUNT;
-      activeHotbarSlotRef.current = next;
-      return next;
-    });
+    const next =
+      (activeHotbarSlotRef.current + offset + HOTBAR_SLOT_COUNT) %
+      HOTBAR_SLOT_COUNT;
+    activeHotbarSlotRef.current = next;
+    setActiveHotbarSlot(next);
+    showHotbarSelectionHint(next);
   };
 
   const selectInventoryItem = (slotIndex: number) => {
@@ -2325,6 +2411,14 @@ export function MovementLab() {
       : null;
   };
 
+  const getGameShellPointerPosition = (clientX: number, clientY: number) => {
+    const shellRect = gameShellRef.current?.getBoundingClientRect();
+    return {
+      x: clientX - (shellRect?.left ?? 0),
+      y: clientY - (shellRect?.top ?? 0),
+    };
+  };
+
   const startInventoryDrag = (pending: PendingInventoryDrag, x: number, y: number) => {
     if (pendingInventoryDragRef.current !== pending) return;
     pending.active = true;
@@ -2333,12 +2427,13 @@ export function MovementLab() {
       pending.timerId = null;
     }
     setInventoryContextMenu(null);
+    const pointer = getGameShellPointerPosition(x, y);
     setInventoryDrag({
       itemId: pending.itemId,
       pointerId: pending.pointerId,
       pointerType: pending.pointerType,
-      x,
-      y,
+      x: pointer.x,
+      y: pointer.y,
     });
     navigator.vibrate?.(12);
   };
@@ -2378,8 +2473,9 @@ export function MovementLab() {
     }
     if (!pending.active) return;
     event.preventDefault();
+    const pointer = getGameShellPointerPosition(event.clientX, event.clientY);
     setInventoryDrag((current) => current
-      ? { ...current, x: event.clientX, y: event.clientY }
+      ? { ...current, x: pointer.x, y: pointer.y }
       : current);
     setHotbarDropTarget(getHotbarSlotAtPoint(event.clientX, event.clientY));
   };
@@ -5972,9 +6068,9 @@ export function MovementLab() {
       context.translate(-camera.x, -camera.y);
       drawMap();
       drawWorldItemPickups(time);
-      drawInteractionHintPoints(time);
       drawSceneCollision();
       drawPlayer();
+      drawInteractionHintPoints(time);
       drawPlayerStatuses(time);
       drawTouchEffect(time);
       context.restore();
@@ -6092,11 +6188,30 @@ export function MovementLab() {
   ) => {
     event.preventDefault();
     event.stopPropagation();
+    const shellRect = gameShellRef.current?.getBoundingClientRect();
+    const pointer = getGameShellPointerPosition(event.clientX, event.clientY);
+    const menuWidth = 164;
+    const menuHeight = 196;
+    const menuOffsetX = 20;
+    const menuOffsetY = 12;
+    const menuEdgeGap = 8;
     selectInventoryItem(databaseIndex);
     setInventoryContextMenu({
       kind: "inventory",
-      x: Math.min(event.clientX, window.innerWidth - 178),
-      y: Math.min(event.clientY, window.innerHeight - 196),
+      x: Math.max(
+        menuEdgeGap,
+        Math.min(
+          pointer.x + menuOffsetX,
+          (shellRect?.width ?? window.innerWidth) - menuWidth - menuEdgeGap,
+        ),
+      ),
+      y: Math.max(
+        menuEdgeGap,
+        Math.min(
+          pointer.y + menuOffsetY,
+          (shellRect?.height ?? window.innerHeight) - menuHeight - menuEdgeGap,
+        ),
+      ),
       databaseIndex,
     });
   };
@@ -6107,12 +6222,26 @@ export function MovementLab() {
   ) => {
     event.preventDefault();
     event.stopPropagation();
+    const slotRect = event.currentTarget.getBoundingClientRect();
+    const shellRect = gameShellRef.current?.getBoundingClientRect();
+    const shellLeft = shellRect?.left ?? 0;
+    const shellTop = shellRect?.top ?? 0;
+    const shellWidth = shellRect?.width ?? window.innerWidth;
+    const menuHalfWidth = 75;
+    const menuEdgeGap = 8;
+    const slotCenterX = slotRect.left - shellLeft + slotRect.width / 2;
     activeHotbarSlotRef.current = slotIndex;
     setActiveHotbarSlot(slotIndex);
     setInventoryContextMenu({
       kind: "hotbar",
-      x: Math.min(event.clientX, window.innerWidth - 178),
-      y: Math.min(event.clientY, window.innerHeight - 108),
+      x: Math.max(
+        menuHalfWidth + menuEdgeGap,
+        Math.min(
+          slotCenterX,
+          shellWidth - menuHalfWidth - menuEdgeGap,
+        ),
+      ),
+      y: slotRect.top - shellTop - menuEdgeGap,
       slotIndex,
     });
   };
@@ -6162,6 +6291,19 @@ export function MovementLab() {
   const draggedInventoryItem = inventoryDrag
     ? ITEM_BY_ID.get(inventoryDrag.itemId) ?? null
     : null;
+  const renderSurvivalValueTween = (metricId: SurvivalMetricId) => {
+    const tween = survivalValueTweens[metricId];
+    if (!tween) return null;
+    return (
+      <span
+        className={`survival-value-tween is-${tween.delta > 0 ? "increase" : "decrease"}`}
+        key={tween.sequence}
+        aria-hidden="true"
+      >
+        {tween.delta > 0 ? "+" : ""}{tween.delta}
+      </span>
+    );
+  };
   const contextInventoryItem =
     inventoryContextMenu?.kind === "inventory"
       ? ITEM_DATABASE[inventoryContextMenu.databaseIndex]?.item ?? null
@@ -6299,6 +6441,7 @@ export function MovementLab() {
               <i aria-hidden="true">{stat.symbol}</i>
               <b aria-hidden="true"><em style={{ width: `${value}%` }} /></b>
               <small>{Math.round(value)}</small>
+              {renderSurvivalValueTween(stat.id)}
             </span>
           )})}
         </div>
@@ -6314,6 +6457,7 @@ export function MovementLab() {
               <span className="survival-meter" aria-hidden="true">
                 <i style={{ width: `${value}%` }} />
               </span>
+              {renderSurvivalValueTween(stat.id)}
             </div>
           )})}
         </div>
@@ -6426,6 +6570,16 @@ export function MovementLab() {
                 <span className="hotbar-key" aria-hidden="true">{index + 1}</span>
                 <span className="hotbar-item-icon" aria-hidden="true">{item?.symbol ?? "＋"}</span>
                 <span className="hotbar-count" aria-hidden="true">{item ? count > 0 ? count : "—" : ""}</span>
+                {hotbarSelectionHint?.slotIndex === index ? (
+                  <span
+                    className={`hotbar-selection-hint${hotbarSelectionHint.visible ? " is-visible" : ""}`}
+                    key={hotbarSelectionHint.sequence}
+                    aria-live="polite"
+                  >
+                    <strong>{item?.name ?? "空白快捷格"}</strong>
+                    <small>按 <b>[Y]</b> 進行使用</small>
+                  </span>
+                ) : null}
               </button>
             );
           })}
@@ -6483,6 +6637,7 @@ export function MovementLab() {
                         <span className="survival-meter" aria-hidden="true">
                           <i style={{ width: `${value}%` }} />
                         </span>
+                        {renderSurvivalValueTween(stat.id)}
                       </div>
                     );
                   })}
