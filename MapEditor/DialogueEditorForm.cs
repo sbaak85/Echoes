@@ -6,22 +6,30 @@ public sealed class DialogueEditorForm : Form
     private readonly TabControl _tabs = new();
     private readonly DataGridView _successGrid = new();
     private readonly DataGridView _failureGrid = new();
+    private readonly DataGridView _completionGrid = new();
     private readonly DataGridViewComboBoxColumn _successSpeakerColumn = new();
     private readonly DataGridViewComboBoxColumn _failureSpeakerColumn = new();
+    private readonly DataGridViewComboBoxColumn _completionSpeakerColumn = new();
     private readonly NumericUpDown _successDelayInput = CreateDelayInput();
     private readonly NumericUpDown _failureDelayInput = CreateDelayInput();
+    private readonly NumericUpDown _completionDelayInput = CreateDelayInput();
     private readonly List<string> _speakers;
 
     public DialogueScript SuccessDialogue { get; private set; }
     public DialogueScript FailureDialogue { get; private set; }
+    public DialogueScript? CompletionDialogue { get; private set; }
 
-    private DataGridView ActiveGrid => _tabs.SelectedIndex == 1
-        ? _failureGrid
-        : _successGrid;
+    private DataGridView ActiveGrid => _tabs.SelectedIndex switch
+    {
+        1 => _failureGrid,
+        2 => _completionGrid,
+        _ => _successGrid,
+    };
 
     public DialogueEditorForm(
         DialogueScript successDialogue,
-        DialogueScript failureDialogue)
+        DialogueScript failureDialogue,
+        DialogueScript? completionDialogue)
     {
         Text = "對話腳本編輯器";
         StartPosition = FormStartPosition.CenterParent;
@@ -32,10 +40,14 @@ public sealed class DialogueEditorForm : Form
 
         SuccessDialogue = successDialogue.Clone();
         FailureDialogue = failureDialogue.Clone();
+        CompletionDialogue = completionDialogue?.Clone();
+        var editableCompletionDialogue = CompletionDialogue ?? new DialogueScript();
         _speakers = SuccessDialogue.Speakers
             .Concat(FailureDialogue.Speakers)
+            .Concat(editableCompletionDialogue.Speakers)
             .Concat(SuccessDialogue.Lines.Select(line => line.Speaker))
             .Concat(FailureDialogue.Lines.Select(line => line.Speaker))
+            .Concat(editableCompletionDialogue.Lines.Select(line => line.Speaker))
             .Where(speaker => !string.IsNullOrWhiteSpace(speaker))
             .Select(speaker => speaker.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -59,24 +71,38 @@ public sealed class DialogueEditorForm : Form
             FailureDialogue.CharacterDelaySeconds,
             0,
             2);
+        _completionDelayInput.Value = (decimal)Math.Clamp(
+            editableCompletionDialogue.CharacterDelaySeconds,
+            0,
+            2);
 
         ConfigureGrid(_successGrid, _successSpeakerColumn, SuccessDialogue.Lines);
         ConfigureGrid(_failureGrid, _failureSpeakerColumn, FailureDialogue.Lines);
+        ConfigureGrid(
+            _completionGrid,
+            _completionSpeakerColumn,
+            editableCompletionDialogue.Lines);
 
         _tabs.Dock = DockStyle.Fill;
         _tabs.Padding = new Point(18, 7);
         var successPage = CreateDialoguePage(
-            "使用成功",
-            "互動成功後播放；現有對話已保留在此頁。",
+            "可互動時的對話",
+            "條件成立並開始互動時播放；對話結束後才會執行互動。",
             _successGrid,
             _successDelayInput);
         var failurePage = CreateDialoguePage(
-            "使用失敗",
+            "不可互動時的對話",
             "門檻不足、每日次數用完或缺少必要道具時播放；不會結算互動。",
             _failureGrid,
             _failureDelayInput);
+        var completionPage = CreateDialoguePage(
+            "互動成功完成後的對話",
+            "互動效果、次數與獎勵結算完成後播放；可留空以直接結束。",
+            _completionGrid,
+            _completionDelayInput);
         _tabs.TabPages.Add(successPage);
         _tabs.TabPages.Add(failurePage);
+        _tabs.TabPages.Add(completionPage);
         _tabs.SelectedIndex = 0;
 
         var buttons = new FlowLayoutPanel
@@ -258,6 +284,11 @@ public sealed class DialogueEditorForm : Form
     {
         var grid = ActiveGrid;
         if (grid.CurrentRow is null) return;
+        if (ReferenceEquals(grid, _completionGrid))
+        {
+            grid.Rows.RemoveAt(grid.CurrentRow.Index);
+            return;
+        }
         if (grid.Rows.Count == 1)
         {
             grid.Rows[0].Cells[0].Value = "";
@@ -291,6 +322,7 @@ public sealed class DialogueEditorForm : Form
         if (successLines is null) return;
         var failureLines = ReadLines(_failureGrid);
         if (failureLines is null) return;
+        var completionLines = ReadLines(_completionGrid, allowEmpty: true)!;
 
         var speakers = _speakers.ToList();
         SuccessDialogue = new DialogueScript
@@ -305,10 +337,20 @@ public sealed class DialogueEditorForm : Form
             Speakers = speakers.ToList(),
             Lines = failureLines,
         };
+        CompletionDialogue = completionLines.Count == 0
+            ? null
+            : new DialogueScript
+            {
+                CharacterDelaySeconds = (float)_completionDelayInput.Value,
+                Speakers = speakers.ToList(),
+                Lines = completionLines,
+            };
         DialogResult = DialogResult.OK;
     }
 
-    private List<DialogueLine>? ReadLines(DataGridView grid)
+    private List<DialogueLine>? ReadLines(
+        DataGridView grid,
+        bool allowEmpty = false)
     {
         grid.EndEdit();
         var result = new List<DialogueLine>();
@@ -321,9 +363,10 @@ public sealed class DialogueEditorForm : Form
         }
         if (result.Count == 0)
         {
+            if (allowEmpty) return result;
             MessageBox.Show(
                 this,
-                "成功與失敗頁籤都必須至少保留一句非空白的對話。",
+                "「可互動時」與「不可互動時」頁籤都必須至少保留一句非空白的對話。",
                 "對話腳本",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
@@ -338,7 +381,12 @@ public sealed class DialogueEditorForm : Form
 
     private void RefreshSpeakerOptions()
     {
-        foreach (var column in new[] { _successSpeakerColumn, _failureSpeakerColumn })
+        foreach (var column in new[]
+        {
+            _successSpeakerColumn,
+            _failureSpeakerColumn,
+            _completionSpeakerColumn,
+        })
         {
             column.Items.Clear();
             foreach (var speaker in _speakers) column.Items.Add(speaker);

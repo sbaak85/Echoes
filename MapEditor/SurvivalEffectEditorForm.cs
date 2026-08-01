@@ -37,6 +37,10 @@ public sealed class SurvivalEffectEditorForm : Form
     private readonly RequirementControls _hungerRequirement = new();
     private readonly RequirementControls _thirstRequirement = new();
     private readonly RequirementControls _spiritRequirement = new();
+    private readonly ComboBox _requirementMatchMode = new()
+    {
+        DropDownStyle = ComboBoxStyle.DropDownList,
+    };
     private readonly NumericUpDown _stamina = CreateEffectValueInput();
     private readonly NumericUpDown _hunger = CreateEffectValueInput();
     private readonly NumericUpDown _thirst = CreateEffectValueInput();
@@ -67,6 +71,7 @@ public sealed class SurvivalEffectEditorForm : Form
 
     public SurvivalRequirements Requirements => new()
     {
+        Mode = _requirementMatchMode.SelectedIndex == 1 ? "any" : "all",
         Stamina = ReadRequirement(_staminaRequirement),
         Hunger = ReadRequirement(_hungerRequirement),
         Thirst = ReadRequirement(_thirstRequirement),
@@ -153,25 +158,39 @@ public sealed class SurvivalEffectEditorForm : Form
     {
         var explanation = new Label
         {
-            Text = "預設為無限制。可設定數值至少達到，或必須低於指定值才能開始互動。",
+            Text = "預設為無限制。複數生存條件可設定為全部成立，或任一成立。",
             AutoSize = false,
             ForeColor = Color.FromArgb(154, 166, 177),
         };
         explanation.SetBounds(18, 18, 410, 44);
         page.Controls.Add(explanation);
 
-        AddRequirementRow(page, "體力", _staminaRequirement, 76, requirements.Stamina);
-        AddRequirementRow(page, "飢餓", _hungerRequirement, 126, requirements.Hunger);
-        AddRequirementRow(page, "口渴", _thirstRequirement, 176, requirements.Thirst);
-        AddRequirementRow(page, "精神", _spiritRequirement, 226, requirements.Spirit);
+        AddFieldLabel(page, "條件組合", 69);
+        _requirementMatchMode.SetBounds(136, 66, 286, 28);
+        _requirementMatchMode.Items.AddRange(new object[]
+        {
+            "全部成立（AND）",
+            "任一成立（OR）",
+        });
+        _requirementMatchMode.SelectedIndex = "any".Equals(
+            requirements.Mode,
+            StringComparison.OrdinalIgnoreCase)
+            ? 1
+            : 0;
+        page.Controls.Add(_requirementMatchMode);
+
+        AddRequirementRow(page, "體力", _staminaRequirement, 108, requirements.Stamina);
+        AddRequirementRow(page, "飢餓", _hungerRequirement, 154, requirements.Hunger);
+        AddRequirementRow(page, "口渴", _thirstRequirement, 200, requirements.Thirst);
+        AddRequirementRow(page, "精神", _spiritRequirement, 246, requirements.Spirit);
 
         var example = new Label
         {
-            Text = "睡覺範例：體力選「低於」75；完成效果設定經過 8 小時、體力 +75。",
+            Text = "營火範例：選「任一成立」，體力與精神皆選「以下」99。",
             AutoSize = false,
             ForeColor = Color.FromArgb(129, 222, 211),
         };
-        example.SetBounds(18, 278, 410, 42);
+        example.SetBounds(18, 286, 410, 38);
         page.Controls.Add(example);
 
         _useRequirementToggle.Click += (_, _) =>
@@ -222,6 +241,7 @@ public sealed class SurvivalEffectEditorForm : Form
         var clearButton = CreateButton("清除所有需求", 18, 512, 150, 34);
         clearButton.Click += (_, _) =>
         {
+            _requirementMatchMode.SelectedIndex = 0;
             foreach (var controls in RequirementRows()) controls.Mode.SelectedIndex = 0;
             foreach (var row in _useRequirementRows.ToList()) RemoveUseRequirementRow(row);
         };
@@ -401,14 +421,24 @@ public sealed class SurvivalEffectEditorForm : Form
         fieldLabel.SetBounds(18, top + 3, 64, 26);
         page.Controls.Add(fieldLabel);
 
-        controls.Mode.Items.AddRange(new object[] { "無限制", "至少", "低於" });
-        controls.Mode.SetBounds(88, top, 132, 28);
+        controls.Mode.Items.AddRange(new object[]
+        {
+            "無限制",
+            "至少（≥）",
+            "低於（<）",
+            "以下（≤）",
+        });
+        controls.Mode.SetBounds(88, top, 144, 28);
         controls.Mode.SelectedIndex = rule is null
             ? 0
-            : rule.Comparison.Equals("below", StringComparison.OrdinalIgnoreCase) ? 2 : 1;
+            : rule.Comparison.Equals("below", StringComparison.OrdinalIgnoreCase)
+                ? 2
+                : rule.Comparison.Equals("atMost", StringComparison.OrdinalIgnoreCase)
+                    ? 3
+                    : 1;
         page.Controls.Add(controls.Mode);
 
-        controls.Value.SetBounds(232, top, 190, 28);
+        controls.Value.SetBounds(244, top, 178, 28);
         controls.Value.Value = Math.Clamp(
             (decimal)(rule?.Value ?? 0),
             controls.Value.Minimum,
@@ -424,7 +454,12 @@ public sealed class SurvivalEffectEditorForm : Form
         if (controls.Mode.SelectedIndex <= 0) return null;
         return new SurvivalRequirementRule
         {
-            Comparison = controls.Mode.SelectedIndex == 2 ? "below" : "atLeast",
+            Comparison = controls.Mode.SelectedIndex switch
+            {
+                2 => "below",
+                3 => "atMost",
+                _ => "atLeast",
+            },
             Value = (float)controls.Value.Value,
         };
     }

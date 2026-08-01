@@ -910,7 +910,7 @@ public sealed class MainForm : Form
                         .FirstOrDefault(item => item.Id.Equals(interactable.Type, StringComparison.OrdinalIgnoreCase))
                         ?.Index ?? 0);
                 _dialogueSummaryLabel.Text =
-                    $"成功 {interactable.Dialogue.Lines.Count} 句 · 失敗 {interactable.FailureDialogue.Lines.Count} 句";
+                    $"可互動 {interactable.Dialogue.Lines.Count} · 不可互動 {interactable.FailureDialogue.Lines.Count} · 完成後 {interactable.CompletionDialogue?.Lines.Count ?? 0} 句";
                 var effects = interactable.SurvivalEffects;
                 var limit = interactable.DailyInteractionLimit?.ToString() ?? "無限";
                 _survivalSummaryLabel.Text =
@@ -1154,11 +1154,13 @@ public sealed class MainForm : Form
         if (interactable is null) return;
         using var editor = new DialogueEditorForm(
             interactable.Dialogue,
-            interactable.FailureDialogue);
+            interactable.FailureDialogue,
+            interactable.CompletionDialogue);
         if (editor.ShowDialog(this) != DialogResult.OK) return;
         _canvas.UpdateSelectedDialogues(
             editor.SuccessDialogue,
-            editor.FailureDialogue);
+            editor.FailureDialogue,
+            editor.CompletionDialogue);
         RefreshSelectionUi();
     }
 
@@ -1209,7 +1211,11 @@ public sealed class MainForm : Form
         AddRequirement(values, "餓", requirements.Hunger);
         AddRequirement(values, "渴", requirements.Thirst);
         AddRequirement(values, "精", requirements.Spirit);
-        return values.Count == 0 ? "無" : string.Join(" ", values);
+        if (values.Count == 0) return "無";
+        var mode = "any".Equals(requirements.Mode, StringComparison.OrdinalIgnoreCase)
+            ? "任一"
+            : "全部";
+        return $"{mode}｜{string.Join(" ", values)}";
     }
 
     private static void AddRequirement(
@@ -1218,8 +1224,14 @@ public sealed class MainForm : Form
         SurvivalRequirementRule? requirement)
     {
         if (requirement is null) return;
-        values.Add(
-            $"{label}{(requirement.Comparison.Equals("below", StringComparison.OrdinalIgnoreCase) ? "<" : "≥")}{requirement.Value:0.#}");
+        var comparison = requirement.Comparison.Equals(
+            "below",
+            StringComparison.OrdinalIgnoreCase)
+            ? "<"
+            : requirement.Comparison.Equals("atMost", StringComparison.OrdinalIgnoreCase)
+                ? "≤"
+                : "≥";
+        values.Add($"{label}{comparison}{requirement.Value:0.#}");
     }
 
     private void OpenAudioEventEditor()

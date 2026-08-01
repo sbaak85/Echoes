@@ -1,3 +1,5 @@
+import { resolveItemId } from "./item-database.ts";
+
 export type WorldItemPlacement = {
   id: string;
   sceneId: string;
@@ -25,7 +27,7 @@ export const WORLD_ITEM_PLACEMENTS: readonly WorldItemPlacement[] = [
   {
     id: "map-test01-blue-crystal-shard-001",
     sceneId: "map_test01",
-    itemId: "crystal-shard",
+    itemId: "R0001",
     quantity: 1,
     position: { x: 735, y: 670 },
     interactionPoint: { x: 700, y: 682, facing: "E" },
@@ -86,12 +88,14 @@ export function normalizeDroppedWorldItems(value: unknown): DroppedWorldItem[] {
     ) {
       return [];
     }
+    const itemId = resolveItemId(candidate.itemId);
+    if (!itemId) return [];
     const quantity = Math.max(1, Math.floor(candidate.quantity ?? 1));
     seenIds.add(candidate.id);
     return [{
       id: candidate.id,
       sceneId: candidate.sceneId,
-      itemId: candidate.itemId,
+      itemId,
       quantity,
       position: {
         x: candidate.position.x,

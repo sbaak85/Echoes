@@ -533,7 +533,8 @@ public sealed class EditorCanvas : Control
 
     public void UpdateSelectedDialogues(
         DialogueScript successDialogue,
-        DialogueScript failureDialogue)
+        DialogueScript failureDialogue,
+        DialogueScript? completionDialogue)
     {
         var interactable = SelectedInteractable;
         if (interactable is null) return;
@@ -541,6 +542,7 @@ public sealed class EditorCanvas : Control
         {
             interactable.Dialogue = successDialogue.Clone();
             interactable.FailureDialogue = failureDialogue.Clone();
+            interactable.CompletionDialogue = completionDialogue?.Clone();
         });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }

@@ -18,6 +18,7 @@ export type ItemInventoryRules = {
 
 export type ItemDefinition = {
   id: string;
+  englishName: string;
   name: string;
   symbol: string;
   category: ItemCategory;
@@ -46,7 +47,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 1,
     item: {
-      id: "crystal-shard",
+      id: "R0001",
+      englishName: "crystal-shard",
       name: "藍色晶體碎片",
       symbol: "◆",
       category: "resource",
@@ -60,7 +62,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 2,
     item: {
-      id: "metal-parts",
+      id: "R0002",
+      englishName: "metal-parts",
       name: "金屬零件",
       symbol: "⚙",
       category: "resource",
@@ -74,7 +77,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 3,
     item: {
-      id: "fiber-bundle",
+      id: "R0003",
+      englishName: "fiber-bundle",
       name: "纖維束",
       symbol: "≋",
       category: "resource",
@@ -88,7 +92,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 4,
     item: {
-      id: "water-bottle",
+      id: "R0004",
+      englishName: "water-bottle",
       name: "淨水瓶",
       symbol: "◉",
       category: "resource",
@@ -102,7 +107,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 5,
     item: {
-      id: "emergency-ration",
+      id: "R0005",
+      englishName: "emergency-ration",
       name: "緊急口糧",
       symbol: "▰",
       category: "resource",
@@ -116,7 +122,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 6,
     item: {
-      id: "alien-spore",
+      id: "R0006",
+      englishName: "alien-spore",
       name: "外星種子",
       symbol: "✺",
       category: "resource",
@@ -130,7 +137,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 7,
     item: {
-      id: "utility-rope",
+      id: "T0001",
+      englishName: "utility-rope",
       name: "繩索",
       symbol: "∞",
       category: "tool",
@@ -144,7 +152,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 8,
     item: {
-      id: "scanner-parts",
+      id: "T0002",
+      englishName: "scanner-parts",
       name: "掃描器零件",
       symbol: "◫",
       category: "tool",
@@ -158,7 +167,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 9,
     item: {
-      id: "repair-kit",
+      id: "T0003",
+      englishName: "repair-kit",
       name: "修理工具",
       symbol: "⌘",
       category: "tool",
@@ -172,7 +182,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 10,
     item: {
-      id: "tracking-module",
+      id: "T0004",
+      englishName: "tracking-module",
       name: "訊號模組",
       symbol: "◈",
       category: "tool",
@@ -186,7 +197,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 11,
     item: {
-      id: "time-crystal",
+      id: "M0001",
+      englishName: "time-crystal",
       name: "時間定位晶體",
       symbol: "♢",
       category: "main",
@@ -201,7 +213,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 12,
     item: {
-      id: "navigation-data",
+      id: "Q0001",
+      englishName: "navigation-data",
       name: "飛船導航資料",
       symbol: "▤",
       category: "quest",
@@ -215,7 +228,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 13,
     item: {
-      id: "memory-charm",
+      id: "Q0002",
+      englishName: "memory-charm",
       name: "遺留下的記憶物",
       symbol: "◍",
       category: "quest",
@@ -229,7 +243,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 14,
     item: {
-      id: "ancient-plate",
+      id: "Q0003",
+      englishName: "ancient-plate",
       name: "古代符號板",
       symbol: "▥",
       category: "quest",
@@ -243,7 +258,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 15,
     item: {
-      id: "medkit",
+      id: "T0005",
+      englishName: "medkit",
       name: "醫療包",
       symbol: "+",
       category: "tool",
@@ -257,7 +273,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 16,
     item: {
-      id: "lantern",
+      id: "T0006",
+      englishName: "lantern",
       name: "照明燈",
       symbol: "✦",
       category: "tool",
@@ -271,7 +288,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 17,
     item: {
-      id: "battery",
+      id: "R0007",
+      englishName: "battery",
       name: "電池組",
       symbol: "▣",
       category: "resource",
@@ -285,7 +303,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 18,
     item: {
-      id: "energy-cell",
+      id: "R0008",
+      englishName: "energy-cell",
       name: "能量單元",
       symbol: "●",
       category: "resource",
@@ -299,7 +318,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 19,
     item: {
-      id: "metal-scrap",
+      id: "R0009",
+      englishName: "metal-scrap",
       name: "金屬碎片",
       symbol: "⬟",
       category: "resource",
@@ -313,7 +333,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 20,
     item: {
-      id: "synthetic-cloth",
+      id: "R0010",
+      englishName: "synthetic-cloth",
       name: "合成布料",
       symbol: "▧",
       category: "resource",
@@ -327,7 +348,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 21,
     item: {
-      id: "ruin-key",
+      id: "Q0004",
+      englishName: "ruin-key",
       name: "遺跡鑰匙",
       symbol: "⚿",
       category: "quest",
@@ -341,7 +363,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 22,
     item: {
-      id: "transistor",
+      id: "R0011",
+      englishName: "transistor",
       name: "電晶體",
       symbol: "⌁",
       category: "resource",
@@ -355,7 +378,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
   {
     slot: 23,
     item: {
-      id: "welding-tool",
+      id: "T0007",
+      englishName: "welding-tool",
       name: "銲槍工具",
       symbol: "⌐",
       category: "tool",
@@ -366,7 +390,21 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       inventoryRules: { transferable: true, discardable: true, stackSize: 1 },
     },
   },
-  { slot: 24, item: null },
+  {
+    slot: 24,
+    item: {
+      id: "R0012",
+      englishName: "alien-fruit",
+      name: "外星果實",
+      symbol: "⬢",
+      category: "resource",
+      description: "富含水分與高能量養分的異星果實，可同時恢復體力、飢餓與口渴。",
+      weight: 0.3,
+      usable: true,
+      survivalEffects: { stamina: 20, hunger: 50, thirst: 40 },
+      inventoryRules: { transferable: true, discardable: true, stackSize: 20 },
+    },
+  },
   { slot: 25, item: null },
   { slot: 26, item: null },
   { slot: 27, item: null },
@@ -453,6 +491,19 @@ export const ITEM_BY_ID = new Map(
   ITEM_DEFINITIONS.map((item) => [item.id, item]),
 );
 
+/** 舊版英文代號仍保留為英文名稱與存檔遷移別名。 */
+export const LEGACY_ITEM_ID_TO_CURRENT_ID = Object.freeze(
+  Object.fromEntries(
+    ITEM_DEFINITIONS.map((item) => [item.englishName.toLowerCase(), item.id]),
+  ) as Readonly<Record<string, string>>,
+);
+
+export function resolveItemId(itemId: string): string | null {
+  const normalizedId = itemId.trim().toUpperCase();
+  if (ITEM_BY_ID.has(normalizedId)) return normalizedId;
+  return LEGACY_ITEM_ID_TO_CURRENT_ID[itemId.trim().toLowerCase()] ?? null;
+}
+
 export type DebugItemSpawnCommand = {
   itemId: string;
   quantity: number;
@@ -467,7 +518,10 @@ export function parseDebugItemSpawnCommand(
   if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 999) {
     return null;
   }
-  return { itemId: match[1].toLowerCase(), quantity };
+  return {
+    itemId: resolveItemId(match[1]) ?? match[1].toUpperCase(),
+    quantity,
+  };
 }
 
 export function getItemDebugSpawnDelivery(
@@ -490,14 +544,25 @@ export type SurvivalItemUseResult = {
   item: ItemDefinition | null;
 };
 
-export const INITIAL_PLAYER_INVENTORY: Readonly<PlayerInventory> = {
-  medkit: 2,
-  "water-bottle": 3,
-  "emergency-ration": 4,
-  "utility-rope": 1,
-  lantern: 1,
-  "navigation-data": 1,
+const INITIAL_PLAYER_INVENTORY_OVERRIDES: Readonly<PlayerInventory> = {
+  T0005: 2,
+  R0004: 3,
+  R0005: 4,
+  T0001: 1,
+  T0006: 1,
+  Q0001: 1,
 };
+
+export const INITIAL_PLAYER_INVENTORY: Readonly<PlayerInventory> =
+  Object.freeze(
+    ITEM_DEFINITIONS.reduce<PlayerInventory>((inventory, item) => {
+      inventory[item.id] = Math.max(
+        1,
+        INITIAL_PLAYER_INVENTORY_OVERRIDES[item.id] ?? 0,
+      );
+      return inventory;
+    }, {}),
+  );
 
 export const PLAYER_INVENTORY_STORAGE_KEY = "echoes:player-inventory:v1";
 
@@ -505,9 +570,12 @@ export function normalizePlayerInventory(value: unknown): PlayerInventory {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const inventory: PlayerInventory = {};
   Object.entries(value).forEach(([itemId, rawCount]) => {
-    if (!ITEM_BY_ID.has(itemId) || typeof rawCount !== "number") return;
+    const currentItemId = resolveItemId(itemId);
+    if (!currentItemId || typeof rawCount !== "number") return;
     const count = Math.max(0, Math.floor(rawCount));
-    if (count > 0) inventory[itemId] = count;
+    if (count > 0) {
+      inventory[currentItemId] = (inventory[currentItemId] ?? 0) + count;
+    }
   });
   return inventory;
 }
@@ -614,6 +682,13 @@ export function validateItemDatabase() {
     );
   }
   const itemIds = new Set<string>();
+  const englishNames = new Set<string>();
+  const categoryPrefixes: Readonly<Record<ItemCategory, string>> = {
+    resource: "R",
+    tool: "T",
+    quest: "Q",
+    main: "M",
+  };
   ITEM_DATABASE.forEach((slot, index) => {
     if (slot.slot !== index + 1) {
       throw new Error(`Item database slot ${index + 1} is out of order.`);
@@ -621,6 +696,16 @@ export function validateItemDatabase() {
     if (!slot.item) return;
     if (itemIds.has(slot.item.id)) {
       throw new Error(`Duplicate item id: ${slot.item.id}`);
+    }
+    const englishName = slot.item.englishName.trim().toLowerCase();
+    if (
+      !new RegExp(`^${categoryPrefixes[slot.item.category]}\\d{4}$`).test(
+        slot.item.id,
+      ) ||
+      !englishName ||
+      englishNames.has(englishName)
+    ) {
+      throw new Error(`Invalid item identity: ${slot.item.id}`);
     }
     if (
       slot.item.weight < 0 ||
@@ -632,6 +717,7 @@ export function validateItemDatabase() {
       throw new Error(`Invalid item parameters: ${slot.item.id}`);
     }
     itemIds.add(slot.item.id);
+    englishNames.add(englishName);
   });
   return true;
 }

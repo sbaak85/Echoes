@@ -2,6 +2,7 @@ export type InteractionFlowDescriptor = {
   type?: string;
   dialogue?: InteractionDialogueScript;
   failureDialogue?: InteractionDialogueScript;
+  completionDialogue?: InteractionDialogueScript;
   useRequirements?: InteractionUseRequirement[];
 };
 
@@ -43,9 +44,15 @@ export function shouldCompleteAfterDialogue(
 
 export function selectInteractionDialogue(
   interactable: InteractionFlowDescriptor,
-  outcome: "success" | "failure",
+  outcome: "success" | "failure" | "completion",
 ) {
   if (outcome === "success") return interactable.dialogue ?? null;
+  if (outcome === "completion") {
+    const dialogue = interactable.completionDialogue;
+    return dialogue?.lines?.some((line) => line.text.trim())
+      ? dialogue
+      : null;
+  }
   return interactable.failureDialogue ?? DEFAULT_INTERACTION_FAILURE_DIALOGUE;
 }
 
@@ -58,7 +65,7 @@ export function selectInteractionFeedbackPoint(
 
 export function normalizeInteractionUseRequirements(
   value: unknown,
-  isKnownItem: (itemId: string) => boolean,
+  resolveItemId: (itemId: string) => string | null,
 ): InteractionUseRequirement[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((raw): InteractionUseRequirement[] => {
@@ -70,8 +77,10 @@ export function normalizeInteractionUseRequirements(
         chapter: Math.min(99, Math.max(1, Math.floor(Number(candidate.chapter) || 1))),
       }];
     }
-    const itemId = typeof candidate.itemId === "string" ? candidate.itemId : "";
-    if (!isKnownItem(itemId)) return [];
+    const itemId = typeof candidate.itemId === "string"
+      ? resolveItemId(candidate.itemId)
+      : null;
+    if (!itemId) return [];
     return [{
       kind: "item",
       itemId,
@@ -99,18 +108,19 @@ export function getUnmetInteractionUseRequirements(
 
 export function normalizeInteractionItemReward(
   value: unknown,
-  isKnownItem: (itemId: string) => boolean,
+  resolveItemId: (itemId: string) => string | null,
 ): InteractionItemReward | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const candidate = value as Partial<InteractionItemReward>;
   if (
-    typeof candidate.itemId !== "string" ||
-    !isKnownItem(candidate.itemId)
+    typeof candidate.itemId !== "string"
   ) {
     return null;
   }
+  const itemId = resolveItemId(candidate.itemId);
+  if (!itemId) return null;
   return {
-    itemId: candidate.itemId,
+    itemId,
     quantity: Math.min(
       99,
       Math.max(1, Math.floor(Number(candidate.quantity) || 1)),

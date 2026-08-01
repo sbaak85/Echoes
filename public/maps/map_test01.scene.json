@@ -963,12 +963,13 @@
       "type": "dialogue",
       "verb": "\u4E92\u52D5",
       "survivalRequirements": {
+        "mode": "any",
         "stamina": {
-          "comparison": "below",
+          "comparison": "atMost",
           "value": 99
         },
         "spirit": {
-          "comparison": "below",
+          "comparison": "atMost",
           "value": 99
         }
       },
@@ -1423,7 +1424,7 @@
       },
       "dailyInteractionLimit": 3,
       "itemReward": {
-        "itemId": "crystal-shard",
+        "itemId": "R0001",
         "quantity": 1,
         "delivery": "world"
       },
@@ -1528,7 +1529,12 @@
         "spirit": -1,
         "timeMinutes": 0
       },
-      "dailyInteractionLimit": 3,
+      "dailyInteractionLimit": 1,
+      "itemReward": {
+        "itemId": "R0012",
+        "quantity": 1,
+        "delivery": "world"
+      },
       "interactionPoints": [
         {
           "facing": "NW",

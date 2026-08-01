@@ -79,7 +79,7 @@ test("interaction effects clamp values and daily usage resets at 06:00", () => {
   assert.equal(isInteractionLocked(usage, "mine", 3), false);
 });
 
-test("互動需求同時支援至少達到與必須低於", () => {
+test("互動需求支援至少、低於與以下，舊資料預設全部成立", () => {
   const requirements = {
     stamina: { comparison: "below", value: 75 },
     spirit: { comparison: "atLeast", value: 30 },
@@ -94,6 +94,35 @@ test("互動需求同時支援至少達到與必須低於", () => {
   assert.deepEqual(
     getUnmetSurvivalRequirements(
       { stamina: 75, hunger: 100, thirst: 100, spirit: 29 },
+      requirements,
+    ).map(({ metric }) => metric),
+    ["stamina", "spirit"],
+  );
+  assert.deepEqual(
+    getUnmetSurvivalRequirements(
+      { stamina: 99, hunger: 100, thirst: 100, spirit: 100 },
+      { stamina: { comparison: "atMost", value: 99 } },
+    ),
+    [],
+  );
+});
+
+test("互動需求可設定任一條件成立", () => {
+  const requirements = {
+    mode: "any",
+    stamina: { comparison: "atMost", value: 99 },
+    spirit: { comparison: "atMost", value: 99 },
+  };
+  assert.deepEqual(
+    getUnmetSurvivalRequirements(
+      { stamina: 99, hunger: 100, thirst: 100, spirit: 100 },
+      requirements,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    getUnmetSurvivalRequirements(
+      { stamina: 100, hunger: 100, thirst: 100, spirit: 100 },
       requirements,
     ).map(({ metric }) => metric),
     ["stamina", "spirit"],

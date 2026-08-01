@@ -25,6 +25,7 @@ import {
   loadPlayerInventory,
   parseDebugItemSpawnCommand,
   removeInventoryItem,
+  resolveItemId,
   savePlayerInventory,
   useSurvivalInventoryItem,
   type ItemCategory,
@@ -51,6 +52,7 @@ import {
   DEFAULT_HOTBAR_ASSIGNMENTS,
   HOTBAR_SLOT_COUNT,
   assignHotbarSlot,
+  getHotbarSelectionHintMode,
   loadHotbarAssignments,
   saveHotbarAssignments,
 } from "./hotbar-assignments";
@@ -90,6 +92,13 @@ import {
   type SurvivalGameState,
   type SurvivalRequirements,
 } from "./survival-manager";
+import {
+  createWorldItemSpawnMotion,
+  getWorldItemThrowDistanceBoost,
+  getWorldItemSpawnPose,
+  type WorldItemSpawnMotion,
+} from "./world-item-spawn-motion";
+import { buildMiniMapGeometry } from "./minimap-geometry";
 
 type Direction = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
 type Point = { x: number; y: number };
@@ -137,6 +146,7 @@ type SceneInteractable = {
   worldItemKind?: "placed" | "dropped";
   dialogue?: InteractionDialogueScript;
   failureDialogue?: InteractionDialogueScript;
+  completionDialogue?: InteractionDialogueScript;
 };
 type PendingInteraction = {
   interactable: SceneInteractable;
@@ -540,6 +550,12 @@ const SCENE_COLLIDERS =
       points: collision.points ?? [],
     };
   }) ?? DEFAULT_SCENE_COLLIDERS;
+const MINI_MAP_GEOMETRY = buildMiniMapGeometry(
+  WORLD,
+  NAV_REGIONS,
+  SCENE_COLLIDERS,
+  192,
+);
 const WORLD_ITEM_INTERACTABLES: SceneInteractable[] = WORLD_ITEM_PLACEMENTS
   .filter((placement) => placement.sceneId === SCENE_DATA.sceneId)
   .flatMap((placement) => {
@@ -706,6 +722,8 @@ const SURVIVAL_STATS = [
   { id: "spirit", label: "精神", symbol: "✦" },
 ] as const;
 
+const SURVIVAL_VALUE_TWEEN_DURATION_MS = 2200;
+
 type SurvivalMetricId = (typeof SURVIVAL_STATS)[number]["id"];
 type SurvivalDisplayValues = Record<SurvivalMetricId, number>;
 
@@ -749,7 +767,7 @@ const INVENTORY_CATEGORIES: Array<{ id: InventoryCategory; label: string }> = [
 
 const DEFAULT_SELECTED_INVENTORY_INDEX = Math.max(
   0,
-  ITEM_DATABASE.findIndex((slot) => slot.item?.id === "medkit"),
+  ITEM_DATABASE.findIndex((slot) => slot.item?.id === "T0005"),
 );
 
 function getCompassWindow(facing: Direction) {
@@ -1397,14 +1415,99 @@ function findDroppedWorldItemPlacement(
   const forward = getDirectionVector(facing);
   const side = { x: -forward.y, y: forward.x };
   const lateralSteps = [0, 1, -1, 2, -2, 3, -3];
+  const randomizedDistanceBoost = getWorldItemThrowDistanceBoost();
+  const distanceBoosts = [randomizedDistanceBoost, 8, 16, 24];
 
-  for (let ring = 0; ring < 4; ring += 1) {
-    const forwardDistance = 48 + ring * 26;
-    for (const lateralStep of lateralSteps) {
-      const lateralDistance = lateralStep * 28;
+  for (const distanceBoost of distanceBoosts) {
+    for (let ring = 0; ring < 4; ring += 1) {
+      const forwardDistance = 48 + distanceBoost + ring * 26;
+      for (const lateralStep of lateralSteps) {
+        const lateralDistance = lateralStep * 28;
+        const position = {
+          x: origin.x + forward.x * forwardDistance + side.x * lateralDistance,
+          y: origin.y + forward.y * forwardDistance + side.y * lateralDistance,
+        };
+        if (!isWalkable(position, 8)) continue;
+        if (
+          existingItems.some(
+            (item) =>
+              Math.hypot(
+                item.position.x - position.x,
+                item.position.y - position.y,
+              ) < 24,
+          )
+        ) {
+          continue;
+        }
+
+        const directionFromOrigin = {
+          x: position.x - origin.x,
+          y: position.y - origin.y,
+        };
+        const distanceFromOrigin = Math.max(
+          Number.EPSILON,
+          Math.hypot(directionFromOrigin.x, directionFromOrigin.y),
+        );
+        const interactionPoint = {
+          x: position.x - (directionFromOrigin.x / distanceFromOrigin) * 34,
+          y: position.y - (directionFromOrigin.y / distanceFromOrigin) * 34,
+        };
+        if (!isWalkable(interactionPoint, playerRadius)) continue;
+
+        return {
+          position,
+          interactionPoint: {
+            ...interactionPoint,
+            facing: getDirection(
+              position.x - interactionPoint.x,
+              position.y - interactionPoint.y,
+            ),
+          },
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function findSpawnedWorldItemPlacement(
+  origin: Point,
+  playerRadius: number,
+  existingItems: readonly DroppedWorldItem[],
+) {
+  const seedAngle = Math.random() * Math.PI * 2;
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+
+  // 互動提示點可能位於礦石或其他物件的圖形範圍內。拋物線本身可以
+  // 越過物件，因此只要求最終落點與角色接近點可行走，不把空中的
+  // 中途落點誤判成必須可行走的位置。
+  const distanceBoost = getWorldItemThrowDistanceBoost();
+  const finalDistances = [68, 84, 102, 122, 146, 174].map(
+    (distance) => distance + distanceBoost,
+  );
+  const approachDistances = [34, 44, 54, 66];
+  const approachAngleOffsets = [
+    Math.PI,
+    Math.PI * 0.75,
+    Math.PI * 1.25,
+    Math.PI * 0.5,
+    Math.PI * 1.5,
+    0,
+  ];
+
+  for (const finalDistance of finalDistances) {
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      const angle = seedAngle + attempt * goldenAngle;
+      const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+      const slideDistance = 20;
+      const landingDistance = Math.max(24, finalDistance - slideDistance);
+      const landing = {
+        x: origin.x + direction.x * landingDistance,
+        y: origin.y + direction.y * landingDistance,
+      };
       const position = {
-        x: origin.x + forward.x * forwardDistance + side.x * lateralDistance,
-        y: origin.y + forward.y * forwardDistance + side.y * lateralDistance,
+        x: origin.x + direction.x * finalDistance,
+        y: origin.y + direction.y * finalDistance,
       };
       if (!isWalkable(position, 8)) continue;
       if (
@@ -1419,32 +1522,31 @@ function findDroppedWorldItemPlacement(
         continue;
       }
 
-      const directionFromOrigin = {
-        x: position.x - origin.x,
-        y: position.y - origin.y,
-      };
-      const distanceFromOrigin = Math.max(
-        Number.EPSILON,
-        Math.hypot(directionFromOrigin.x, directionFromOrigin.y),
-      );
-      const interactionPoint = {
-        x: position.x - (directionFromOrigin.x / distanceFromOrigin) * 34,
-        y: position.y - (directionFromOrigin.y / distanceFromOrigin) * 34,
-      };
-      if (!isWalkable(interactionPoint, playerRadius)) continue;
+      for (const approachDistance of approachDistances) {
+        for (const angleOffset of approachAngleOffsets) {
+          const approachAngle = angle + angleOffset;
+          const interactionPoint = {
+            x: position.x + Math.cos(approachAngle) * approachDistance,
+            y: position.y + Math.sin(approachAngle) * approachDistance,
+          };
+          if (!isWalkable(interactionPoint, playerRadius)) continue;
 
-      return {
-        position,
-        interactionPoint: {
-          ...interactionPoint,
-          facing: getDirection(
-            position.x - interactionPoint.x,
-            position.y - interactionPoint.y,
-          ),
-        },
-      };
+          return {
+            position,
+            landing,
+            interactionPoint: {
+              ...interactionPoint,
+              facing: getDirection(
+                position.x - interactionPoint.x,
+                position.y - interactionPoint.y,
+              ),
+            },
+          };
+        }
+      }
     }
   }
+
   return null;
 }
 
@@ -1926,11 +2028,47 @@ function tracePolygon(
   context.closePath();
 }
 
+function drawMiniMapGeometry(canvas: HTMLCanvasElement) {
+  const { columns, rows, mask, contours } = MINI_MAP_GEOMETRY;
+  canvas.width = columns;
+  canvas.height = rows;
+  const context = canvas.getContext("2d");
+  if (!context) return;
+
+  const image = context.createImageData(columns, rows);
+  for (let index = 0; index < mask.length; index += 1) {
+    if (mask[index] !== 1) continue;
+    const pixel = index * 4;
+    image.data[pixel] = 97;
+    image.data[pixel + 1] = 191;
+    image.data[pixel + 2] = 180;
+    image.data[pixel + 3] = 92;
+  }
+  context.putImageData(image, 0, 0);
+
+  context.save();
+  context.beginPath();
+  for (const [start, end] of contours) {
+    context.moveTo(start.x, start.y);
+    context.lineTo(end.x, end.y);
+  }
+  context.strokeStyle = "rgba(244, 255, 253, 0.96)";
+  context.lineWidth = 0.86;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.shadowColor = "rgba(155, 255, 240, 0.62)";
+  context.shadowBlur = 1.4;
+  context.stroke();
+  context.restore();
+}
+
 const INITIAL_SURVIVAL_STATE = createInitialSurvivalState();
 
 export function MovementLab() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cursorCanvasRef = useRef<HTMLCanvasElement>(null);
+  const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
+  const minimapPlayerMarkerRef = useRef<HTMLSpanElement>(null);
   const gameShellRef = useRef<HTMLElement>(null);
   const nativeGamepadRef = useRef<NativeGamepadState>(
     EMPTY_NATIVE_GAMEPAD_STATE,
@@ -1977,6 +2115,9 @@ export function MovementLab() {
     DEFAULT_SELECTED_INVENTORY_INDEX,
   );
   const droppedWorldItemsRef = useRef<DroppedWorldItem[]>([]);
+  const worldItemSpawnMotionsRef = useRef<Map<string, WorldItemSpawnMotion>>(
+    new Map(),
+  );
   const sceneInteractablesRef = useRef<SceneInteractable[]>(
     STATIC_SCENE_INTERACTABLES,
   );
@@ -1990,6 +2131,7 @@ export function MovementLab() {
     null,
   );
   const survivalValueTweenSequenceRef = useRef(0);
+  const survivalValueTweenExpiryTimerRef = useRef<number | null>(null);
   const interactionUsageRef = useRef<InteractionUsageState>(
     createInteractionUsageState(INITIAL_SURVIVAL_STATE.gameMinutes),
   );
@@ -2040,13 +2182,14 @@ export function MovementLab() {
     Partial<
       Record<
         SurvivalMetricId,
-        { delta: number; sequence: number }
+        { delta: number; sequence: number; startedAt: number }
       >
     >
   >({});
   const gameClock = getGameClock(survivalState.gameMinutes);
   const [survivalExpanded, setSurvivalExpanded] = useState(true);
   const [questCollapsed, setQuestCollapsed] = useState(false);
+  const [minimapCollapsed, setMinimapCollapsed] = useState(false);
   const [playerInventory, setPlayerInventory] = useState<PlayerInventory>(
     () => ({ ...INITIAL_PLAYER_INVENTORY }),
   );
@@ -2217,6 +2360,9 @@ export function MovementLab() {
     if (hotbarSelectionHintTimerRef.current !== null) {
       window.clearTimeout(hotbarSelectionHintTimerRef.current);
     }
+    if (survivalValueTweenExpiryTimerRef.current !== null) {
+      window.clearTimeout(survivalValueTweenExpiryTimerRef.current);
+    }
   }, []);
 
   useEffect(() => {
@@ -2231,6 +2377,7 @@ export function MovementLab() {
     });
     if (changes.length === 0) return;
 
+    const startedAt = window.performance.now();
     setSurvivalValueTweens((current) => {
       const next = { ...current };
       for (const { id, delta } of changes) {
@@ -2238,10 +2385,18 @@ export function MovementLab() {
         next[id] = {
           delta,
           sequence: survivalValueTweenSequenceRef.current,
+          startedAt,
         };
       }
       return next;
     });
+    if (survivalValueTweenExpiryTimerRef.current !== null) {
+      window.clearTimeout(survivalValueTweenExpiryTimerRef.current);
+    }
+    survivalValueTweenExpiryTimerRef.current = window.setTimeout(() => {
+      setSurvivalValueTweens({});
+      survivalValueTweenExpiryTimerRef.current = null;
+    }, SURVIVAL_VALUE_TWEEN_DURATION_MS);
   }, [
     survivalState.values.hunger,
     survivalState.values.spirit,
@@ -2344,6 +2499,16 @@ export function MovementLab() {
       );
       hotbarSelectionHintTimerRef.current = null;
     }, 10_000);
+  };
+
+  const hideHotbarSelectionHint = () => {
+    if (hotbarSelectionHintTimerRef.current !== null) {
+      window.clearTimeout(hotbarSelectionHintTimerRef.current);
+      hotbarSelectionHintTimerRef.current = null;
+    }
+    setHotbarSelectionHint((current) =>
+      current ? { ...current, visible: false } : current,
+    );
   };
 
   const selectHotbarSlot = (offset: number) => {
@@ -2565,6 +2730,32 @@ export function MovementLab() {
       activationDistance: 48,
       createdFromInventory: true,
     };
+    const dropDirection = {
+      x: placement.position.x - playerPositionRef.current.x,
+      y: placement.position.y - playerPositionRef.current.y,
+    };
+    const dropDistance = Math.max(
+      1,
+      Math.hypot(dropDirection.x, dropDirection.y),
+    );
+    const dropLanding = {
+      x: placement.position.x - (dropDirection.x / dropDistance) * 20,
+      y: placement.position.y - (dropDirection.y / dropDistance) * 20,
+    };
+    const facingVector = getDirectionVector(playerFacingRef.current);
+    const dropStart = {
+      x: playerPositionRef.current.x + facingVector.x * 8,
+      y: playerPositionRef.current.y - sizeRef.current * 0.42,
+    };
+    worldItemSpawnMotionsRef.current.set(
+      droppedWorldItemId,
+      createWorldItemSpawnMotion(
+        performance.now(),
+        dropStart,
+        dropLanding,
+        placement.position,
+      ),
+    );
     const nextInventory = removeInventoryItem(
       playerInventoryRef.current,
       item.id,
@@ -2789,6 +2980,7 @@ export function MovementLab() {
     onComplete?: () => void,
     dialogue: InteractionDialogueScript | undefined = interactable.dialogue,
   ) => {
+    hideHotbarSelectionHint();
     const lines = dialogue?.lines?.filter((line) => line.text.trim()) ?? [];
     const effectiveLines = lines.length > 0 ? lines : [{ speaker: "", text: "..." }];
     const normalized = {
@@ -3126,6 +3318,11 @@ export function MovementLab() {
   }, []);
 
   useEffect(() => {
+    const minimapCanvas = minimapCanvasRef.current;
+    if (minimapCanvas) drawMiniMapGeometry(minimapCanvas);
+  }, []);
+
+  useEffect(() => {
     speedRef.current = speed;
   }, [speed]);
 
@@ -3162,6 +3359,7 @@ export function MovementLab() {
   useEffect(() => {
     const canvas = canvasRef.current;
     const cursorCanvas = cursorCanvasRef.current;
+    const minimapPlayerMarker = minimapPlayerMarkerRef.current;
     if (!canvas || !cursorCanvas) return;
 
     const context = canvas.getContext("2d");
@@ -3254,6 +3452,9 @@ export function MovementLab() {
     let keyboardInteractionLabel = localStorage.getItem("echoes:interaction-key-label") ?? keyboardInteractionKey.toUpperCase();
     let survivalUiElapsed = 0;
     let survivalSaveElapsed = 0;
+    let minimapSyncElapsed = 0;
+    let lastMinimapPlayerX = Number.NaN;
+    let lastMinimapPlayerY = Number.NaN;
 
     const refreshInteractionUsageCycle = () => {
       const current = interactionUsageRef.current;
@@ -3287,7 +3488,7 @@ export function MovementLab() {
     ) => getUnmetInteractionUseRequirements(
       normalizeInteractionUseRequirements(
         interactable.useRequirements,
-        (itemId) => ITEM_BY_ID.has(itemId),
+        resolveItemId,
       ),
       playerInventoryRef.current,
       currentStoryChapterRef.current,
@@ -3513,9 +3714,13 @@ export function MovementLab() {
         }
         return;
       }
-      if (key === "escape" && optionsOpenRef.current) {
+      if (key === "escape") {
         event.preventDefault();
-        setOptionsPanelOpen(false);
+        if (!event.repeat) {
+          pressedKeys.clear();
+          setActiveKeyboardKeys([]);
+          setOptionsPanelOpen(!optionsOpenRef.current);
+        }
         return;
       }
       if (
@@ -3699,13 +3904,24 @@ export function MovementLab() {
     };
 
     const grantInteractionItemReward = (interactable: SceneInteractable) => {
+      if (!interactable.itemReward) return true;
       const reward = normalizeInteractionItemReward(
         interactable.itemReward,
-        (itemId) => ITEM_BY_ID.has(itemId),
+        resolveItemId,
       );
-      if (!reward) return;
+      if (!reward) {
+        showInteractionItemFeedback(
+          "互動獎勵設定無效，這次互動沒有消耗額度。",
+        );
+        return false;
+      }
       const item = ITEM_BY_ID.get(reward.itemId);
-      if (!item) return;
+      if (!item) {
+        showInteractionItemFeedback(
+          "找不到互動獎勵道具，這次互動沒有消耗額度。",
+        );
+        return false;
+      }
 
       if (reward.delivery === "inventory") {
         const nextInventory = grantInventoryItem(
@@ -3723,22 +3939,23 @@ export function MovementLab() {
         showInteractionItemFeedback(
           `獲得「${item.name}」×${reward.quantity} · 已放入背包`,
         );
-        return;
+        return true;
       }
 
-      const placement = findDroppedWorldItemPlacement(
-        player,
-        currentFacing,
+      const spawnOrigin = getInteractionTweenPoint(interactable);
+      const nearbyWorldItems = droppedWorldItemsRef.current.filter(
+        (worldItem) => worldItem.sceneId === SCENE_DATA.sceneId,
+      );
+      const placement = findSpawnedWorldItemPlacement(
+        spawnOrigin,
         sizeRef.current * 0.14,
-        droppedWorldItemsRef.current.filter(
-          (worldItem) => worldItem.sceneId === SCENE_DATA.sceneId,
-        ),
+        nearbyWorldItems,
       );
       if (!placement) {
         showInteractionItemFeedback(
-          `「${item.name}」未生成 · 角色附近沒有可放置空間`,
+          `「${item.name}」未生成 · 互動區附近沒有可放置空間，本次不消耗額度`,
         );
-        return;
+        return false;
       }
 
       let rewardWorldItemId = "";
@@ -3763,6 +3980,15 @@ export function MovementLab() {
         activationDistance: 48,
         createdFromInventory: false,
       };
+      worldItemSpawnMotionsRef.current.set(
+        rewardWorldItemId,
+        createWorldItemSpawnMotion(
+          performance.now(),
+          spawnOrigin,
+          placement.landing,
+          placement.position,
+        ),
+      );
       const nextDroppedWorldItems = [
         ...droppedWorldItemsRef.current,
         droppedWorldItem,
@@ -3776,6 +4002,7 @@ export function MovementLab() {
       showInteractionItemFeedback(
         `「${item.name}」×${reward.quantity} 已生成在場上`,
       );
+      return true;
     };
 
     const completeInteraction = (
@@ -3784,6 +4011,15 @@ export function MovementLab() {
     ) => {
       if (isInteractableLocked(interactable)) {
         return openInteractionFailureDialogue(interactable, source);
+      }
+
+      // 有生成獎勵的互動必須先成功建立獎勵，才結算生存值與每日額度。
+      // 找不到合法落點時，整次互動保持失敗，避免玩家白白被扣次數。
+      if (
+        interactable.type !== "pickup" &&
+        !grantInteractionItemReward(interactable)
+      ) {
+        return false;
       }
 
       const elapsedGameMinutes = Math.max(
@@ -3834,10 +4070,6 @@ export function MovementLab() {
         }),
       );
 
-      if (interactable.type !== "pickup") {
-        grantInteractionItemReward(interactable);
-      }
-
       if (
         interactable.type === "pickup" &&
         interactable.itemId &&
@@ -3864,6 +4096,7 @@ export function MovementLab() {
           setPlayerInventory(nextInventory);
 
           if (interactable.worldItemKind === "dropped") {
+            worldItemSpawnMotionsRef.current.delete(interactable.worldItemId);
             const nextDroppedWorldItems =
               droppedWorldItemsRef.current.filter(
                 (worldItem) =>
@@ -3919,6 +4152,13 @@ export function MovementLab() {
       }
 
       if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
+      const completionDialogue = selectInteractionDialogue(
+        interactable,
+        "completion",
+      );
+      if (completionDialogue) {
+        openDialogue(interactable, undefined, completionDialogue);
+      }
       return true;
     };
 
@@ -3926,6 +4166,7 @@ export function MovementLab() {
       interactable: SceneInteractable,
       source: PendingInteraction["source"],
     ) => {
+      hideHotbarSelectionHint();
       if (isInteractableLocked(interactable)) {
         return openInteractionFailureDialogue(interactable, source);
       }
@@ -4604,18 +4845,42 @@ export function MovementLab() {
 
         const item = ITEM_BY_ID.get(interactable.itemId);
         if (!item) return;
+        let drawPosition = interactable.position;
+        let drawRotation = 0;
+        let drawScaleX = 1;
+        let drawScaleY = 1;
+        if (
+          interactable.worldItemKind === "dropped" &&
+          interactable.worldItemId
+        ) {
+          const spawnMotion = worldItemSpawnMotionsRef.current.get(
+            interactable.worldItemId,
+          );
+          if (spawnMotion) {
+            const pose = getWorldItemSpawnPose(spawnMotion, time);
+            drawPosition = pose.position;
+            drawRotation = pose.rotation;
+            drawScaleX = pose.scaleX;
+            drawScaleY = pose.scaleY;
+            if (pose.finished) {
+              worldItemSpawnMotionsRef.current.delete(interactable.worldItemId);
+            }
+          }
+        }
         const pulse = 0.82 + Math.sin(time / 420) * 0.12;
         const floatOffset = Math.sin(time / 620) * 2.2;
         context.save();
         context.translate(
-          interactable.position.x,
-          interactable.position.y + floatOffset,
+          drawPosition.x,
+          drawPosition.y + floatOffset,
         );
+        context.rotate(drawRotation);
+        context.scale(drawScaleX, drawScaleY);
         context.globalAlpha = 0.95;
         context.shadowColor = "#4ddcff";
         context.shadowBlur = 20 * pulse;
 
-        if (item.id === "crystal-shard") {
+        if (item.id === "R0001") {
           context.fillStyle = "rgba(62, 205, 255, 0.96)";
           context.strokeStyle = "#c2f5ff";
           context.lineWidth = 1.5;
@@ -5665,6 +5930,7 @@ export function MovementLab() {
           gamepadInput.hotbarUsePressed &&
           !wasGamepadHotbarUsePressed
         ) {
+          hideHotbarSelectionHint();
           activateHotbarItem(activeHotbarSlotRef.current);
         }
 
@@ -6033,6 +6299,22 @@ export function MovementLab() {
       playerPositionRef.current.x = player.x;
       playerPositionRef.current.y = player.y;
       playerFacingRef.current = currentFacing;
+      minimapSyncElapsed += deltaTime;
+      if (
+        minimapPlayerMarker &&
+        minimapSyncElapsed >= 1 / 30 &&
+        (!Number.isFinite(lastMinimapPlayerX) ||
+          Math.hypot(
+            player.x - lastMinimapPlayerX,
+            player.y - lastMinimapPlayerY,
+          ) >= 0.5)
+      ) {
+        minimapSyncElapsed = 0;
+        lastMinimapPlayerX = player.x;
+        lastMinimapPlayerY = player.y;
+        minimapPlayerMarker.style.left = `${clamp(player.x / WORLD.width, 0, 1) * 100}%`;
+        minimapPlayerMarker.style.top = `${clamp(player.y / WORLD.height, 0, 1) * 100}%`;
+      }
 
       const zoom = getSceneZoom(viewportWidth, viewportHeight);
       const desiredCameraX = getCameraCoordinate(
@@ -6270,6 +6552,7 @@ export function MovementLab() {
     hotbarAssignmentsRef.current = progress.hotbarAssignments;
     currentStoryChapterRef.current = progress.story.currentChapter;
     droppedWorldItemSequenceRef.current = 0;
+    worldItemSpawnMotionsRef.current.clear();
     activeHotbarSlotRef.current = 0;
     selectedInventoryIndexRef.current = DEFAULT_SELECTED_INVENTORY_INDEX;
     applyDroppedWorldItems(progress.droppedWorldItems);
@@ -6294,10 +6577,16 @@ export function MovementLab() {
   const renderSurvivalValueTween = (metricId: SurvivalMetricId) => {
     const tween = survivalValueTweens[metricId];
     if (!tween) return null;
+    const elapsedMilliseconds = Math.max(
+      0,
+      window.performance.now() - tween.startedAt,
+    );
+    if (elapsedMilliseconds >= SURVIVAL_VALUE_TWEEN_DURATION_MS) return null;
     return (
       <span
         className={`survival-value-tween is-${tween.delta > 0 ? "increase" : "decrease"}`}
         key={tween.sequence}
+        style={{ animationDelay: `-${elapsedMilliseconds}ms` }}
         aria-hidden="true"
       >
         {tween.delta > 0 ? "+" : ""}{tween.delta}
@@ -6365,7 +6654,7 @@ export function MovementLab() {
                 event.currentTarget.form?.requestSubmit();
               }
             }}
-            placeholder="道具ID 數量（例：water-bottle 3）"
+            placeholder="道具ID 數量（例：R0004 3）"
             aria-label="輸入道具 ID 與數量"
             autoComplete="off"
             spellCheck={false}
@@ -6542,6 +6831,10 @@ export function MovementLab() {
           {hotbarAssignments.map((itemId, index) => {
             const item = itemId ? ITEM_BY_ID.get(itemId) : null;
             const count = item ? playerInventory[item.id] ?? 0 : 0;
+            const selectionHintMode = getHotbarSelectionHintMode(
+              item?.id ?? null,
+              count,
+            );
             const isUsing = hotbarFeedback?.slotIndex === index;
             return (
               <button
@@ -6577,7 +6870,15 @@ export function MovementLab() {
                     aria-live="polite"
                   >
                     <strong>{item?.name ?? "空白快捷格"}</strong>
-                    <small>按 <b>[Y]</b> 進行使用</small>
+                    {selectionHintMode === "use" ? (
+                      <small>按 <b>[Y]</b> 進行使用</small>
+                    ) : (
+                      <small className="is-unavailable">
+                        {selectionHintMode === "unavailable"
+                          ? "暫無此道具"
+                          : "尚未指派道具"}
+                      </small>
+                    )}
                   </span>
                 ) : null}
               </button>
@@ -7109,13 +7410,47 @@ export function MovementLab() {
       ) : null}
 
       <p className="controls-subtitle" aria-label="操作提示">
-        <span className="controls-subtitle-desktop">WASD／方向鍵、滑鼠點擊、左搖桿移動 · 右搖桿游標 · START：選項</span>
+        <span className="controls-subtitle-desktop">WASD／方向鍵、滑鼠點擊、左搖桿移動 · 右搖桿游標 · ESC／START：選項</span>
         <span className="controls-subtitle-touch">上半部點擊前往 · 下半部按住移動 · START：選項</span>
       </p>
 
       <section className="movement-status" aria-live="polite">
         {interactionJustTriggered ? "INTERACTIVE" : moving ? "MOVING" : "FACING"}
       </section>
+
+      <button
+        className={`minimap-hud${minimapCollapsed ? " is-collapsed" : ""}`}
+        type="button"
+        aria-label={minimapCollapsed ? "展開小地圖" : "收折小地圖"}
+        aria-expanded={!minimapCollapsed}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          setMinimapCollapsed((collapsed) => !collapsed);
+        }}
+      >
+        <span className="minimap-frame" aria-hidden="true">
+          <span
+            className="minimap-map-content"
+            style={{
+              width: `${88 * (WORLD.width / Math.max(WORLD.width, WORLD.height))}%`,
+              height: `${88 * (WORLD.height / Math.max(WORLD.width, WORLD.height))}%`,
+            }}
+          >
+            <canvas ref={minimapCanvasRef} className="minimap-map-layer" />
+            <span
+              ref={minimapPlayerMarkerRef}
+              className="minimap-player-marker"
+              style={{
+                left: `${clamp(SPAWN.x / WORLD.width, 0, 1) * 100}%`,
+                top: `${clamp(SPAWN.y / WORLD.height, 0, 1) * 100}%`,
+              }}
+            />
+          </span>
+          <span className="minimap-north">N</span>
+          <span className="minimap-toggle-mark" />
+        </span>
+      </button>
 
       <button
         className={`mobile-interaction-trigger${

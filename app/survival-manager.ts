@@ -4,7 +4,9 @@ export type SurvivalValues = Record<SurvivalMetric, number>;
 
 export type SurvivalEffects = Partial<Record<SurvivalMetric, number>>;
 
-export type SurvivalRequirementComparison = "atLeast" | "below";
+export type SurvivalRequirementComparison = "atLeast" | "below" | "atMost";
+
+export type SurvivalRequirementMatchMode = "all" | "any";
 
 export type SurvivalRequirementRule = {
   comparison: SurvivalRequirementComparison;
@@ -13,7 +15,9 @@ export type SurvivalRequirementRule = {
 
 export type SurvivalRequirements = Partial<
   Record<SurvivalMetric, SurvivalRequirementRule>
->;
+> & {
+  mode?: SurvivalRequirementMatchMode;
+};
 
 export type UnmetSurvivalRequirement = SurvivalRequirementRule & {
   metric: SurvivalMetric;
@@ -216,16 +220,26 @@ export function getUnmetSurvivalRequirements(
   requirements?: SurvivalRequirements,
 ): UnmetSurvivalRequirement[] {
   if (!requirements) return [];
-  return METRICS.flatMap((metric) => {
+  const results = METRICS.flatMap((metric) => {
     const rule = requirements[metric];
     if (!rule) return [];
     const value = clampValue(Number(rule.value));
     if (!Number.isFinite(value)) return [];
-    const comparison = rule.comparison === "below" ? "below" : "atLeast";
+    const comparison = rule.comparison === "below"
+      ? "below"
+      : rule.comparison === "atMost"
+        ? "atMost"
+        : "atLeast";
     const actual = values[metric];
-    const met = comparison === "below" ? actual < value : actual >= value;
-    return met ? [] : [{ metric, comparison, value, actual }];
+    const met = comparison === "below"
+      ? actual < value
+      : comparison === "atMost"
+        ? actual <= value
+        : actual >= value;
+    return [{ metric, comparison, value, actual, met }];
   });
+  if (requirements.mode === "any" && results.some(({ met }) => met)) return [];
+  return results.flatMap(({ met, ...failure }) => met ? [] : [failure]);
 }
 
 export function applySurvivalEffects(

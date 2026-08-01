@@ -93,10 +93,25 @@ internal static class Program
                     new InteractionUseRequirement
                     {
                         Kind = "item",
-                        ItemId = "transistor",
+                        ItemId = "R0011",
                         Quantity = 3,
                     },
                     new InteractionUseRequirement { Kind = "chapter", Chapter = 4 },
+                })
+            {
+                ShowInTaskbar = false,
+                WindowState = FormWindowState.Minimized,
+                Opacity = 0,
+            };
+            using var dialogueEditor = new DialogueEditorForm(
+                DialogueScript.CreateDefault(),
+                DialogueScript.CreateFailureDefault(),
+                new DialogueScript
+                {
+                    Lines = new List<DialogueLine>
+                    {
+                        new() { Speaker = "Sbaak", Text = "互動已完成。" },
+                    },
                 })
             {
                 ShowInTaskbar = false,
@@ -119,6 +134,9 @@ internal static class Program
                     requirementsEditor.Show(form);
                     System.Windows.Forms.Application.DoEvents();
                     requirementsEditor.Close();
+                    dialogueEditor.Show(form);
+                    System.Windows.Forms.Application.DoEvents();
+                    dialogueEditor.Close();
                     audioEditor?.Show(form);
                 }
                 catch (Exception exception)
@@ -249,6 +267,14 @@ internal static class EditorSelfTest
         var imagePath = Path.Combine(projectRoot, "Assets", "map", "map_test01.png");
         var scene = SceneJson.Load(scenePath);
         SceneJson.Validate(scene);
+        if (
+            ItemCatalog.All.Count != 24 ||
+            ItemCatalog.Find("crystal-shard")?.Id != "R0001" ||
+            ItemCatalog.Find("R0012")?.Name != "外星果實"
+        )
+        {
+            throw new InvalidDataException("道具分類流水號、舊 ID 遷移或外星果實目錄不正確。");
+        }
 
         using var image = ImageLoader.Load(imagePath);
         if (image.Width != scene.Image.Width || image.Height != scene.Image.Height)
@@ -272,10 +298,16 @@ internal static class EditorSelfTest
         multiPointInteractable.Type = "gather";
         multiPointInteractable.SurvivalRequirements = new SurvivalRequirements
         {
+            Mode = "any",
             Stamina = new SurvivalRequirementRule
             {
+                Comparison = "atMost",
+                Value = 99,
+            },
+            Spirit = new SurvivalRequirementRule
+            {
                 Comparison = "below",
-                Value = 75,
+                Value = 50,
             },
         };
         multiPointInteractable.SurvivalEffects = new SurvivalEffects
@@ -289,7 +321,7 @@ internal static class EditorSelfTest
         multiPointInteractable.DailyInteractionLimit = 3;
         multiPointInteractable.ItemReward = new InteractionItemReward
         {
-            ItemId = "metal-parts",
+            ItemId = "R0002",
             Quantity = 4,
             Delivery = "world",
         };
@@ -302,9 +334,18 @@ internal static class EditorSelfTest
                 new() { Speaker = "Echo", Text = "條件尚未達成。" },
             },
         };
+        multiPointInteractable.CompletionDialogue = new DialogueScript
+        {
+            CharacterDelaySeconds = 0.02f,
+            Speakers = new List<string> { "Sbaak", "Echo" },
+            Lines = new List<DialogueLine>
+            {
+                new() { Speaker = "Sbaak", Text = "互動已完成。" },
+            },
+        };
         multiPointInteractable.UseRequirements = new List<InteractionUseRequirement>
         {
-            new() { Kind = "item", ItemId = "transistor", Quantity = 3 },
+            new() { Kind = "item", ItemId = "R0011", Quantity = 3 },
             new() { Kind = "chapter", Chapter = 4 },
         };
         var expectedInteractionPointCount = interactionPoints.Count;
@@ -314,24 +355,26 @@ internal static class EditorSelfTest
             multiPointRoundTrip.Interactables[0].EffectiveInteractionPoints.Count !=
             expectedInteractionPointCount ||
             multiPointRoundTrip.Interactables[0].InteractionHintPoint is not { X: 150, Y: 150 } ||
-            multiPointRoundTrip.Interactables[0].SurvivalRequirements.Stamina is not
-                { Comparison: "below", Value: 75 } ||
+            multiPointRoundTrip.Interactables[0].SurvivalRequirements is not
+                { Mode: "any", Stamina: { Comparison: "atMost", Value: 99 } } ||
             multiPointRoundTrip.Interactables[0].SurvivalEffects.Stamina != -4 ||
             multiPointRoundTrip.Interactables[0].SurvivalEffects.TimeMinutes != 480 ||
             multiPointRoundTrip.Interactables[0].DailyInteractionLimit != 3 ||
             multiPointRoundTrip.Interactables[0].ItemReward is not
-                { ItemId: "metal-parts", Quantity: 4, Delivery: "world" } ||
+                { ItemId: "R0002", Quantity: 4, Delivery: "world" } ||
             multiPointRoundTrip.Interactables[0].FailureDialogue.Lines.FirstOrDefault() is not
                 { Speaker: "Echo", Text: "條件尚未達成。" } ||
+            multiPointRoundTrip.Interactables[0].CompletionDialogue?.Lines.FirstOrDefault() is not
+                { Speaker: "Sbaak", Text: "互動已完成。" } ||
             multiPointRoundTrip.Interactables[0].UseRequirements?.Count != 2 ||
             multiPointRoundTrip.Interactables[0].UseRequirements?[0] is not
-                { Kind: "item", ItemId: "transistor", Quantity: 3 } ||
+                { Kind: "item", ItemId: "R0011", Quantity: 3 } ||
             multiPointRoundTrip.Interactables[0].UseRequirements?[1] is not
                 { Kind: "chapter", Chapter: 4 }
         )
         {
             throw new InvalidDataException(
-                "Interaction Points, hint Point, survival settings, item reward, requirements, or failure dialogue did not survive JSON round-trip.");
+                "Interaction Points, hint Point, survival settings, item reward, requirements, or dialogue phases did not survive JSON round-trip.");
         }
 
         using (var requirementsEditor = new SurvivalEffectEditorForm(
@@ -341,10 +384,14 @@ internal static class EditorSelfTest
             multiPointInteractable.DailyInteractionLimit,
             multiPointInteractable.UseRequirements))
         {
-            if (requirementsEditor.UseRequirements.Count != 2)
+            if (
+                requirementsEditor.UseRequirements.Count != 2 ||
+                requirementsEditor.Requirements.Mode != "any" ||
+                requirementsEditor.Requirements.Stamina is not
+                    { Comparison: "atMost", Value: 99 })
             {
                 throw new InvalidDataException(
-                    "Use requirement editor did not preserve multiple conditions.");
+                    "Requirement editor did not preserve match mode, comparison, or multiple conditions.");
             }
         }
 

@@ -6,6 +6,7 @@ import {
   HOTBAR_ASSIGNMENTS_STORAGE_KEY,
   HOTBAR_SLOT_COUNT,
   assignHotbarSlot,
+  getHotbarSelectionHintMode,
   loadHotbarAssignments,
   normalizeHotbarAssignments,
   saveHotbarAssignments,
@@ -30,24 +31,24 @@ test("快捷工具列固定七格並保留目前預設指派", () => {
   assert.equal(HOTBAR_SLOT_COUNT, 7);
   assert.equal(DEFAULT_HOTBAR_ASSIGNMENTS.length, 7);
   assert.deepEqual(normalizeHotbarAssignments(undefined), [
-    "medkit",
-    "water-bottle",
-    "emergency-ration",
-    "lantern",
-    "crystal-shard",
-    "utility-rope",
-    "navigation-data",
+    "T0005",
+    "R0004",
+    "R0005",
+    "T0006",
+    "R0001",
+    "T0001",
+    "Q0001",
   ]);
 });
 
 test("道具可指派、覆蓋及移除快捷格，不會改變背包資料", () => {
-  const inventory = { "water-bottle": 3, "alien-spore": 2 };
+  const inventory = { R0004: 3, R0006: 2 };
   let assignments = normalizeHotbarAssignments(DEFAULT_HOTBAR_ASSIGNMENTS);
-  assignments = assignHotbarSlot(assignments, 0, "alien-spore");
-  assert.equal(assignments[0], "alien-spore");
+  assignments = assignHotbarSlot(assignments, 0, "R0006");
+  assert.equal(assignments[0], "R0006");
   assignments = assignHotbarSlot(assignments, 0, null);
   assert.equal(assignments[0], null);
-  assert.deepEqual(inventory, { "water-bottle": 3, "alien-spore": 2 });
+  assert.deepEqual(inventory, { R0004: 3, R0006: 2 });
 });
 
 test("未知道具不會進入快捷格，七格指派可保存與讀回", () => {
@@ -59,11 +60,24 @@ test("未知道具不會進入快捷格，七格指派可保存與讀回", () =>
       "unknown-item",
     );
     assert.equal(assignments[3], null);
-    const saved = assignHotbarSlot(assignments, 3, "water-bottle");
+    const saved = assignHotbarSlot(assignments, 3, "R0004");
     saveHotbarAssignments(saved);
     assert.equal(values.has(HOTBAR_ASSIGNMENTS_STORAGE_KEY), true);
     assert.deepEqual(loadHotbarAssignments(), saved);
   } finally {
     delete globalThis.window;
   }
+});
+
+test("快捷格沒有庫存時顯示暫無此道具，不顯示Y鍵使用提示", () => {
+  assert.equal(getHotbarSelectionHintMode("R0004", 3), "use");
+  assert.equal(getHotbarSelectionHintMode("R0004", 0), "unavailable");
+  assert.equal(getHotbarSelectionHintMode(null, 0), "unassigned");
+});
+
+test("舊版英文道具 ID 會自動遷移成新版分類流水號", () => {
+  assert.deepEqual(
+    normalizeHotbarAssignments(["medkit", "water-bottle", "time-crystal"]),
+    ["T0005", "R0004", "M0001", null, null, null, null],
+  );
 });

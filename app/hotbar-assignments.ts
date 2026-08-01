@@ -1,24 +1,33 @@
-import { ITEM_BY_ID } from "./item-database.ts";
+import { resolveItemId } from "./item-database.ts";
 
 export const HOTBAR_SLOT_COUNT = 7;
 export const HOTBAR_ASSIGNMENTS_STORAGE_KEY = "echoes:hotbar-assignments:v1";
 export const DEFAULT_HOTBAR_ASSIGNMENTS: readonly (string | null)[] = [
-  "medkit",
-  "water-bottle",
-  "emergency-ration",
-  "lantern",
-  "crystal-shard",
-  "utility-rope",
-  "navigation-data",
+  "T0005",
+  "R0004",
+  "R0005",
+  "T0006",
+  "R0001",
+  "T0001",
+  "Q0001",
 ];
+
+export type HotbarSelectionHintMode = "use" | "unavailable" | "unassigned";
+
+export function getHotbarSelectionHintMode(
+  itemId: string | null,
+  itemCount: number,
+): HotbarSelectionHintMode {
+  if (!itemId) return "unassigned";
+  return itemCount > 0 ? "use" : "unavailable";
+}
 
 export function normalizeHotbarAssignments(value: unknown) {
   if (!Array.isArray(value)) return [...DEFAULT_HOTBAR_ASSIGNMENTS];
   return Array.from({ length: HOTBAR_SLOT_COUNT }, (_, index) => {
     const itemId = value[index];
-    return typeof itemId === "string" && ITEM_BY_ID.has(itemId)
-      ? itemId
-      : null;
+    if (typeof itemId !== "string") return null;
+    return resolveItemId(itemId);
   });
 }
 
@@ -55,6 +64,6 @@ export function assignHotbarSlot(
     return normalizeHotbarAssignments(assignments);
   }
   const next = normalizeHotbarAssignments(assignments);
-  next[slotIndex] = itemId !== null && ITEM_BY_ID.has(itemId) ? itemId : null;
+  next[slotIndex] = itemId === null ? null : resolveItemId(itemId);
   return next;
 }

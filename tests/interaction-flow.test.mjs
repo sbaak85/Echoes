@@ -28,23 +28,27 @@ test("互動 Tween 優先使用互動提示點，未設定時才回到多邊形�
 });
 
 test("複數道具與章節需求採 AND 判定，任一不足即回報失敗", () => {
-  const knownItems = new Set(["ruin-key", "transistor", "welding-tool"]);
+  const itemIds = new Map([
+    ["ruin-key", "Q0004"],
+    ["transistor", "R0011"],
+    ["welding-tool", "T0007"],
+  ]);
   const requirements = normalizeInteractionUseRequirements(
     [
       { kind: "item", itemId: "ruin-key", quantity: 1 },
       { kind: "chapter", chapter: 4 },
     ],
-    (itemId) => knownItems.has(itemId),
+    (itemId) => itemIds.get(itemId) ?? null,
   );
 
   assert.deepEqual(
-    getUnmetInteractionUseRequirements(requirements, { "ruin-key": 1 }, 4),
+    getUnmetInteractionUseRequirements(requirements, { Q0004: 1 }, 4),
     [],
   );
   assert.deepEqual(
     getUnmetInteractionUseRequirements(requirements, {}, 3),
     [
-      { kind: "item", itemId: "ruin-key", quantity: 1, actual: 0 },
+      { kind: "item", itemId: "Q0004", quantity: 1, actual: 0 },
       { kind: "chapter", chapter: 4, actual: 3 },
     ],
   );
@@ -71,28 +75,50 @@ test("互動失敗會使用獨立失敗腳本，舊場景則取得安全預設�
   );
 });
 
+test("互動完成後只播放明確設定且含有效句子的第三套腳本", () => {
+  const completion = {
+    characterDelaySeconds: 0.02,
+    lines: [{ speaker: "Sbaak", text: "總算完成了。" }],
+  };
+  assert.equal(
+    selectInteractionDialogue({ completionDialogue: completion }, "completion"),
+    completion,
+  );
+  assert.equal(selectInteractionDialogue({}, "completion"), null);
+  assert.equal(
+    selectInteractionDialogue(
+      { completionDialogue: { lines: [{ text: "   " }] } },
+      "completion",
+    ),
+    null,
+  );
+});
+
 test("互動道具獎勵只接受已登記道具、1 至 99 個與兩種發放方式", () => {
-  const knownItems = new Set(["water-bottle", "metal-parts"]);
-  const isKnownItem = (itemId) => knownItems.has(itemId);
+  const itemIds = new Map([
+    ["water-bottle", "R0004"],
+    ["metal-parts", "R0002"],
+  ]);
+  const resolveItemId = (itemId) => itemIds.get(itemId) ?? null;
 
   assert.deepEqual(
     normalizeInteractionItemReward(
       { itemId: "water-bottle", quantity: 3, delivery: "world" },
-      isKnownItem,
+      resolveItemId,
     ),
-    { itemId: "water-bottle", quantity: 3, delivery: "world" },
+    { itemId: "R0004", quantity: 3, delivery: "world" },
   );
   assert.deepEqual(
     normalizeInteractionItemReward(
       { itemId: "metal-parts", quantity: 200, delivery: "invalid" },
-      isKnownItem,
+      resolveItemId,
     ),
-    { itemId: "metal-parts", quantity: 99, delivery: "inventory" },
+    { itemId: "R0002", quantity: 99, delivery: "inventory" },
   );
   assert.equal(
     normalizeInteractionItemReward(
       { itemId: "unknown", quantity: 1, delivery: "inventory" },
-      isKnownItem,
+      resolveItemId,
     ),
     null,
   );

@@ -154,6 +154,9 @@ public sealed class SceneInteractable
     public DialogueScript Dialogue { get; set; } = DialogueScript.CreateDefault();
     public DialogueScript FailureDialogue { get; set; } = DialogueScript.CreateFailureDefault();
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DialogueScript? CompletionDialogue { get; set; }
+
     [JsonIgnore]
     public IReadOnlyList<InteractionPoint> EffectiveInteractionPoints
     {
@@ -221,6 +224,8 @@ public sealed class SurvivalRequirementRule
 
 public sealed class SurvivalRequirements
 {
+    public string Mode { get; set; } = "all";
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SurvivalRequirementRule? Stamina { get; set; }
 
@@ -235,6 +240,7 @@ public sealed class SurvivalRequirements
 
     public SurvivalRequirements Clone() => new()
     {
+        Mode = Mode,
         Stamina = Stamina?.Clone(),
         Hunger = Hunger?.Clone(),
         Thirst = Thirst?.Clone(),
@@ -274,40 +280,76 @@ public sealed class InteractionUseRequirement
 
 public sealed record ItemCatalogEntry(string Id, string Name)
 {
-    public override string ToString() => Name;
+    public override string ToString() => string.IsNullOrWhiteSpace(Id) ? Name : $"{Id}｜{Name}";
 }
 
 public static class ItemCatalog
 {
+    private static readonly IReadOnlyDictionary<string, string> LegacyIds =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["crystal-shard"] = "R0001",
+            ["metal-parts"] = "R0002",
+            ["fiber-bundle"] = "R0003",
+            ["water-bottle"] = "R0004",
+            ["emergency-ration"] = "R0005",
+            ["alien-spore"] = "R0006",
+            ["battery"] = "R0007",
+            ["energy-cell"] = "R0008",
+            ["metal-scrap"] = "R0009",
+            ["synthetic-cloth"] = "R0010",
+            ["transistor"] = "R0011",
+            ["utility-rope"] = "T0001",
+            ["scanner-parts"] = "T0002",
+            ["repair-kit"] = "T0003",
+            ["tracking-module"] = "T0004",
+            ["medkit"] = "T0005",
+            ["lantern"] = "T0006",
+            ["welding-tool"] = "T0007",
+            ["navigation-data"] = "Q0001",
+            ["memory-charm"] = "Q0002",
+            ["ancient-plate"] = "Q0003",
+            ["ruin-key"] = "Q0004",
+            ["time-crystal"] = "M0001",
+        };
+
     public static readonly IReadOnlyList<ItemCatalogEntry> All = new ItemCatalogEntry[]
     {
-        new("crystal-shard", "藍色晶體碎片"),
-        new("metal-parts", "金屬零件"),
-        new("fiber-bundle", "纖維束"),
-        new("water-bottle", "淨水瓶"),
-        new("emergency-ration", "緊急口糧"),
-        new("alien-spore", "外星種子"),
-        new("utility-rope", "繩索"),
-        new("scanner-parts", "掃描器零件"),
-        new("repair-kit", "修理工具"),
-        new("tracking-module", "訊號模組"),
-        new("time-crystal", "時間定位晶體"),
-        new("navigation-data", "飛船導航資料"),
-        new("memory-charm", "遺留下的記憶物"),
-        new("ancient-plate", "古代符號板"),
-        new("medkit", "醫療包"),
-        new("lantern", "照明燈"),
-        new("battery", "電池組"),
-        new("energy-cell", "能量單元"),
-        new("metal-scrap", "金屬碎片"),
-        new("synthetic-cloth", "合成布料"),
-        new("ruin-key", "遺跡鑰匙"),
-        new("transistor", "電晶體"),
-        new("welding-tool", "銲槍工具"),
+        new("R0001", "藍色晶體碎片"),
+        new("R0002", "金屬零件"),
+        new("R0003", "纖維束"),
+        new("R0004", "淨水瓶"),
+        new("R0005", "緊急口糧"),
+        new("R0006", "外星種子"),
+        new("R0007", "電池組"),
+        new("R0008", "能量單元"),
+        new("R0009", "金屬碎片"),
+        new("R0010", "合成布料"),
+        new("R0011", "電晶體"),
+        new("R0012", "外星果實"),
+        new("T0001", "繩索"),
+        new("T0002", "掃描器零件"),
+        new("T0003", "修理工具"),
+        new("T0004", "訊號模組"),
+        new("T0005", "醫療包"),
+        new("T0006", "照明燈"),
+        new("T0007", "銲槍工具"),
+        new("Q0001", "飛船導航資料"),
+        new("Q0002", "遺留下的記憶物"),
+        new("Q0003", "古代符號板"),
+        new("Q0004", "遺跡鑰匙"),
+        new("M0001", "時間定位晶體"),
     };
 
-    public static ItemCatalogEntry? Find(string? id) =>
-        All.FirstOrDefault(item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+    public static ItemCatalogEntry? Find(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return null;
+        var currentId = LegacyIds.TryGetValue(id.Trim(), out var migratedId)
+            ? migratedId
+            : id.Trim();
+        return All.FirstOrDefault(item =>
+            item.Id.Equals(currentId, StringComparison.OrdinalIgnoreCase));
+    }
 }
 
 public sealed record InteractionTypeDefaults(
@@ -477,6 +519,12 @@ public static class SceneJson
             interactable.NormalizeInteractionPoints();
             interactable.SurvivalRequirements ??= new SurvivalRequirements();
             interactable.SurvivalEffects ??= new SurvivalEffects();
+            interactable.SurvivalRequirements.Mode =
+                "any".Equals(
+                    interactable.SurvivalRequirements.Mode,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "any"
+                    : "all";
             NormalizeRequirement(interactable.SurvivalRequirements.Stamina);
             NormalizeRequirement(interactable.SurvivalRequirements.Hunger);
             NormalizeRequirement(interactable.SurvivalRequirements.Thirst);
@@ -490,11 +538,13 @@ public static class SceneJson
                 : Math.Clamp(interactable.DailyInteractionLimit.Value, 1, 10);
             if (interactable.ItemReward is not null)
             {
-                if (ItemCatalog.Find(interactable.ItemReward.ItemId) is null)
+                var rewardItem = ItemCatalog.Find(interactable.ItemReward.ItemId);
+                if (rewardItem is null)
                 {
                     throw new InvalidDataException(
                         $"互動多邊形 {interactable.Id} 設定了未知道具 {interactable.ItemReward.ItemId}。");
                 }
+                interactable.ItemReward.ItemId = rewardItem.Id;
                 interactable.ItemReward.Quantity = Math.Clamp(
                     interactable.ItemReward.Quantity,
                     1,
@@ -522,11 +572,13 @@ public static class SceneJson
                         requirement.Quantity = 1;
                         continue;
                     }
-                    if (ItemCatalog.Find(requirement.ItemId) is null)
+                    var requiredItem = ItemCatalog.Find(requirement.ItemId);
+                    if (requiredItem is null)
                     {
                         throw new InvalidDataException(
                             $"互動多邊形 {interactable.Id} 設定了未知需求道具 {requirement.ItemId}。");
                     }
+                    requirement.ItemId = requiredItem.Id;
                     requirement.Quantity = Math.Clamp(requirement.Quantity, 1, 99);
                     requirement.Chapter = 1;
                 }
@@ -539,6 +591,14 @@ public static class SceneJson
             interactable.FailureDialogue ??= DialogueScript.CreateFailureDefault();
             NormalizeDialogue(interactable.Dialogue, "...");
             NormalizeDialogue(interactable.FailureDialogue, "目前無法使用。");
+            if (interactable.CompletionDialogue is not null)
+            {
+                NormalizeOptionalDialogue(interactable.CompletionDialogue);
+                if (interactable.CompletionDialogue.Lines.Count == 0)
+                {
+                    interactable.CompletionDialogue = null;
+                }
+            }
         }
 
         foreach (var guide in document.MovementGuides)
@@ -559,7 +619,9 @@ public static class SceneJson
         if (rule is null) return;
         rule.Comparison = rule.Comparison.Equals("below", StringComparison.OrdinalIgnoreCase)
             ? "below"
-            : "atLeast";
+            : rule.Comparison.Equals("atMost", StringComparison.OrdinalIgnoreCase)
+                ? "atMost"
+                : "atLeast";
         rule.Value = Math.Clamp(rule.Value, 0, 100);
     }
 
@@ -586,6 +648,37 @@ public static class SceneJson
             });
         }
         else if (string.IsNullOrWhiteSpace(dialogue.Lines[0].Speaker))
+        {
+            dialogue.Lines[0].Speaker = dialogue.Speakers[0];
+        }
+    }
+
+    private static void NormalizeOptionalDialogue(DialogueScript dialogue)
+    {
+        dialogue.CharacterDelaySeconds = Math.Clamp(dialogue.CharacterDelaySeconds, 0, 2);
+        dialogue.Speakers ??= new List<string>();
+        dialogue.Lines ??= new List<DialogueLine>();
+        dialogue.Speakers = dialogue.Speakers
+            .Where(speaker => !string.IsNullOrWhiteSpace(speaker))
+            .Select(speaker => speaker.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (dialogue.Speakers.Count == 0)
+        {
+            dialogue.Speakers.AddRange(new[] { "Sbaak", "Echo" });
+        }
+        dialogue.Lines = dialogue.Lines
+            .Where(line => !string.IsNullOrWhiteSpace(line.Text))
+            .Select(line => new DialogueLine
+            {
+                Speaker = line.Speaker?.Trim() ?? "",
+                Text = line.Text.Trim(),
+            })
+            .ToList();
+        if (
+            dialogue.Lines.Count > 0 &&
+            string.IsNullOrWhiteSpace(dialogue.Lines[0].Speaker)
+        )
         {
             dialogue.Lines[0].Speaker = dialogue.Speakers[0];
         }
