@@ -978,6 +978,62 @@ html.dialogue-cursor-active .dialogue-box * {
   outline: none;
 }
 
+.mobile-interaction-trigger {
+  position: absolute;
+  z-index: 10;
+  right: clamp(64px, 15vw, 104px);
+  bottom: clamp(100px, 15vh, 154px);
+  display: none;
+  width: 66px;
+  height: 66px;
+  padding: 13px;
+  place-items: center;
+  border: 1px solid rgba(225, 255, 250, 0.48);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(214, 255, 248, 0.24), transparent 34%),
+    rgba(7, 24, 28, 0.68);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.32),
+    inset 0 0 12px rgba(180, 255, 245, 0.08);
+  color: #e8fffb;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(7px) scale(0.9);
+  transition: opacity 100ms linear, transform 100ms ease-out;
+  -webkit-tap-highlight-color: transparent;
+  backdrop-filter: blur(9px);
+}
+
+.mobile-interaction-trigger.is-visible {
+  opacity: 0.76;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.mobile-interaction-trigger:active {
+  opacity: 1;
+  transform: scale(0.9);
+}
+
+.mobile-interaction-trigger svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: rgba(221, 255, 249, 0.08);
+  stroke: currentColor;
+  stroke-width: 3.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 5px rgba(197, 255, 247, 0.58));
+}
+
+.mobile-interaction-trigger .mobile-interaction-object {
+  fill: rgba(130, 239, 224, 0.52);
+  stroke-width: 2.5;
+}
+
 .game-shell.is-fullscreen .survival-hud:not(.is-inventory-open),
 .game-shell:fullscreen .survival-hud:not(.is-inventory-open) {
   top: 14px;
@@ -3113,6 +3169,10 @@ html.dialogue-cursor-active .dialogue-box * {
 }
 
 @media (max-width: 680px), (hover: none) and (pointer: coarse) {
+  .mobile-interaction-trigger {
+    display: grid;
+  }
+
   .fullscreen-trigger {
     display: grid;
   }

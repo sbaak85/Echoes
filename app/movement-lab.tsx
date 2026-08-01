@@ -1964,6 +1964,7 @@ export function MovementLab() {
   const sceneInteractablesRef = useRef<SceneInteractable[]>(
     STATIC_SCENE_INTERACTABLES,
   );
+  const mobileInteractionActionRef = useRef<() => void>(() => {});
   const droppedWorldItemSequenceRef = useRef(0);
   const optionsGamepadModeRef = useRef<OptionsGamepadMode>("dpad");
   const inventoryGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
@@ -2008,6 +2009,10 @@ export function MovementLab() {
   );
   const [activeKeyboardKeys, setActiveKeyboardKeys] = useState<string[]>([]);
   const [interactionJustTriggered, setInteractionJustTriggered] = useState(false);
+  const [mobileInteractionTarget, setMobileInteractionTarget] = useState<{
+    id: string;
+    label: string;
+  } | null>(null);
   const [survivalState, setSurvivalState] = useState<SurvivalGameState>(
     INITIAL_SURVIVAL_STATE,
   );
@@ -3144,6 +3149,7 @@ export function MovementLab() {
     let activePromptTargetId: string | null = null;
     let previousPlayerPromptTargetId: string | null = null;
     let previousCursorPromptTargetId: string | null = null;
+    let mobileInteractionTargetId: string | null = null;
     const interactionHintAnimation = new Map<
       string,
       { opacity: number; emphasis: number; lastTime: number }
@@ -4128,6 +4134,36 @@ export function MovementLab() {
       );
     };
 
+    mobileInteractionActionRef.current = () => {
+      if (dialoguePlaybackRef.current) {
+        advanceDialogue();
+        return;
+      }
+
+      const target = findInteractableTouching(
+        player,
+        sizeRef.current * 0.14,
+        sceneInteractablesRef.current,
+        collectedWorldItemIdsRef.current,
+      );
+      if (!target) return;
+
+      if (
+        target.type === "pickup" ||
+        getInteractionPoints(target).length === 0
+      ) {
+        triggerInteraction(target, "pointer");
+        return;
+      }
+
+      assignWorldAction(
+        getInteractableCenter(target),
+        "pointer",
+        true,
+        target,
+      );
+    };
+
     const activateVirtualCursorUi = (): "activated" | "blocked" | "none" => {
       if (!virtualCursorControlsEnabledRef.current || !virtualCursorVisible) {
         return "none";
@@ -4533,6 +4569,15 @@ export function MovementLab() {
         sceneInteractablesRef.current,
         collectedWorldItemIdsRef.current,
       );
+      const nextMobileInteractionTargetId = playerTarget?.id ?? null;
+      if (mobileInteractionTargetId !== nextMobileInteractionTargetId) {
+        mobileInteractionTargetId = nextMobileInteractionTargetId;
+        setMobileInteractionTarget(
+          playerTarget
+            ? { id: playerTarget.id, label: playerTarget.label }
+            : null,
+        );
+      }
       const activeDialogueTargetId =
         dialoguePlaybackRef.current?.interactable.id ?? null;
       const zoom = getSceneZoom(viewportWidth, viewportHeight);
@@ -5973,6 +6018,7 @@ export function MovementLab() {
       bgmDisposed = true;
       requestBgmPlaybackRef.current = () => {};
       debugItemSpawnHandlerRef.current = () => false;
+      mobileInteractionActionRef.current = () => {};
       stopFootsteps();
       stopDialogueTyping();
       if (interactionFeedbackTimer !== null) {
@@ -6915,6 +6961,39 @@ export function MovementLab() {
       <section className="movement-status" aria-live="polite">
         {interactionJustTriggered ? "INTERACTIVE" : moving ? "MOVING" : "FACING"}
       </section>
+
+      <button
+        className={`mobile-interaction-trigger${
+          mobileInteractionTarget &&
+          !optionsOpen &&
+          !inventoryOpen &&
+          !dialogueView
+            ? " is-visible"
+            : ""
+        }`}
+        type="button"
+        aria-label={
+          mobileInteractionTarget
+            ? `與${mobileInteractionTarget.label}互動`
+            : "目前沒有可互動物件"
+        }
+        disabled={
+          !mobileInteractionTarget ||
+          optionsOpen ||
+          inventoryOpen ||
+          Boolean(dialogueView)
+        }
+        onClick={(event) => {
+          event.stopPropagation();
+          mobileInteractionActionRef.current();
+        }}
+      >
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+          <path className="mobile-interaction-object" d="M42 8l4 4-4 4-4-4z" />
+          <path d="M15 36V24a4 4 0 0 1 8 0v8-15a4 4 0 0 1 8 0v14-12a4 4 0 0 1 8 0v13-8a4 4 0 0 1 8 0v14l4-5c3-4 9 0 6 4L47 51c-3 4-7 6-13 6h-5c-7 0-11-3-15-8l-7-9c-3-4 2-9 6-5z" />
+          <path d="M23 31v7M31 30v8M39 31v7" />
+        </svg>
+      </button>
 
       {!optionsOpen && !inventoryOpen && !dialogueView ? (
         <button
