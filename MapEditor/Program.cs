@@ -76,6 +76,33 @@ internal static class Program
                     WindowState = FormWindowState.Minimized,
                     Opacity = 0,
                 };
+            using var requirementsEditor = new SurvivalEffectEditorForm(
+                "gather",
+                new SurvivalRequirements
+                {
+                    Stamina = new SurvivalRequirementRule
+                    {
+                        Comparison = "atLeast",
+                        Value = 20,
+                    },
+                },
+                new SurvivalEffects { Stamina = -4, Hunger = -2, Thirst = -2 },
+                3,
+                new[]
+                {
+                    new InteractionUseRequirement
+                    {
+                        Kind = "item",
+                        ItemId = "transistor",
+                        Quantity = 3,
+                    },
+                    new InteractionUseRequirement { Kind = "chapter", Chapter = 4 },
+                })
+            {
+                ShowInTaskbar = false,
+                WindowState = FormWindowState.Minimized,
+                Opacity = 0,
+            };
             using var timer = new System.Windows.Forms.Timer { Interval = 1800 };
             timer.Tick += (_, _) =>
             {
@@ -89,6 +116,9 @@ internal static class Program
                 try
                 {
                     form.RunLayerRenameUiSelfTest();
+                    requirementsEditor.Show(form);
+                    System.Windows.Forms.Application.DoEvents();
+                    requirementsEditor.Close();
                     audioEditor?.Show(form);
                 }
                 catch (Exception exception)

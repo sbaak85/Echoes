@@ -13,7 +13,7 @@
   },
   "grid": {
     "size": 5,
-    "visible": true,
+    "visible": false,
     "snap": false
   },
   "playerSpawn": {
@@ -701,29 +701,6 @@
       ]
     },
     {
-      "id": "collision-002",
-      "label": "\u77E9\u5F62\u78B0\u649E 3",
-      "shape": "rectangle",
-      "points": [
-        {
-          "x": 294,
-          "y": 504
-        },
-        {
-          "x": 392,
-          "y": 504
-        },
-        {
-          "x": 392,
-          "y": 560
-        },
-        {
-          "x": 294,
-          "y": 560
-        }
-      ]
-    },
-    {
       "id": "collision-004",
       "label": "\u591A\u908A\u5F62\u78B0\u649E 4",
       "shape": "polygon",
@@ -887,12 +864,71 @@
           "y": 668
         }
       ]
+    },
+    {
+      "id": "collision-002",
+      "label": "\u591A\u908A\u5F62\u78B0\u649E 9",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 294.349,
+          "y": 569.0604
+        },
+        {
+          "x": 320.41248,
+          "y": 583.65594
+        },
+        {
+          "x": 354.12122,
+          "y": 587.8261
+        },
+        {
+          "x": 376.01453,
+          "y": 578.7908
+        },
+        {
+          "x": 399.29788,
+          "y": 558.98254
+        },
+        {
+          "x": 406.24817,
+          "y": 542.6494
+        },
+        {
+          "x": 405.90063,
+          "y": 523.8837
+        },
+        {
+          "x": 378.4471,
+          "y": 506.8556
+        },
+        {
+          "x": 352.03613,
+          "y": 498.5153
+        },
+        {
+          "x": 316.93735,
+          "y": 499.90533
+        },
+        {
+          "x": 292.26392,
+          "y": 509.98322
+        },
+        {
+          "x": 278.3634,
+          "y": 532.22406
+        },
+        {
+          "x": 278.3634,
+          "y": 548.90466
+        }
+      ]
     }
   ],
   "interactables": [
     {
       "id": "interaction-001",
-      "label": "\u71DF\u706B\u5C0D\u8A71\u6E2C\u8A66",
+      "label": "\u71DF\u706B",
       "shape": "polygon",
       "points": [
         {
@@ -926,13 +962,22 @@
       ],
       "type": "dialogue",
       "verb": "\u4E92\u52D5",
-      "survivalRequirements": {},
+      "survivalRequirements": {
+        "stamina": {
+          "comparison": "below",
+          "value": 99
+        },
+        "spirit": {
+          "comparison": "below",
+          "value": 99
+        }
+      },
       "survivalEffects": {
-        "stamina": 0,
+        "stamina": 5,
         "hunger": 0,
         "thirst": 0,
-        "spirit": 0,
-        "timeMinutes": 0
+        "spirit": 5,
+        "timeMinutes": 30
       },
       "interactionPoints": [
         {
@@ -977,11 +1022,24 @@
             "text": "\u4E0D\u80FD\u8B93\u706B\u5806\u7184\u6EC5\u4E86..."
           }
         ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
       }
     },
     {
       "id": "interaction-002",
-      "label": "\u4E92\u52D5\u5340\u57DF 2",
+      "label": "\u4E3B\u63A7\u96FB\u8166",
       "shape": "polygon",
       "points": [
         {
@@ -1063,11 +1121,24 @@
             "text": "\u6211\u9084\u9700\u8981\u66F4\u591A\u6578\u64DA...\u3002"
           }
         ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
       }
     },
     {
       "id": "interaction-003",
-      "label": "\u4E92\u52D5\u5340\u57DF 3",
+      "label": "\u9032\u51FA\u53E3_\u897F\u5357",
       "shape": "polygon",
       "points": [
         {
@@ -1118,11 +1189,24 @@
             "text": "\u73FE\u5728\u9084\u7121\u6CD5\u904E\u53BB\u90A3\u88E1\u3002"
           }
         ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
       }
     },
     {
       "id": "interaction-004",
-      "label": "\u4E92\u52D5\u5340\u57DF 4",
+      "label": "\u9032\u51FA\u53E3_\u6771\u5357",
       "shape": "polygon",
       "points": [
         {
@@ -1169,11 +1253,24 @@
             "text": "\u6B64\u8DEF\u4E0D\u901A"
           }
         ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
       }
     },
     {
       "id": "interaction-005",
-      "label": "\u4E92\u52D5\u5340\u57DF 5",
+      "label": "\u9032\u51FA\u53E3_\u8259\u9580",
       "shape": "polygon",
       "points": [
         {
@@ -1254,6 +1351,19 @@
           {
             "speaker": "Sbaak",
             "text": "\u73FE\u5728\u9084\u6709\u5F88\u591A\u4E8B\u8981\u505A\u3002"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }
@@ -1368,7 +1478,7 @@
     },
     {
       "id": "interaction-007",
-      "label": "\u4E92\u52D5\u5340\u57DF 7",
+      "label": "\u679C\u6A39",
       "shape": "polygon",
       "points": [
         {
@@ -1465,6 +1575,19 @@
           {
             "speaker": "",
             "text": "\u5473\u9053\u5F9E\u4F86\u6C92\u5403\u904E\uFF0C\u4F46\u80FD\u8B93\u6211\u98FD\u8179\u3002"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }

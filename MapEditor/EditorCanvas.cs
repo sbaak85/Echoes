@@ -492,6 +492,37 @@ public sealed class EditorCanvas : Control
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    public void UpdateSelectedInteractionConfiguration(
+        string type,
+        string verb,
+        SurvivalRequirements requirements,
+        SurvivalEffects effects,
+        int? dailyLimit,
+        IEnumerable<InteractionUseRequirement> useRequirements)
+    {
+        var interactable = SelectedInteractable;
+        if (interactable is null) return;
+        type = string.IsNullOrWhiteSpace(type) ? "dialogue" : type.Trim();
+        var defaults = InteractionTypeDefaults.Get(type);
+        verb = string.IsNullOrWhiteSpace(verb) ? defaults.Verb : verb.Trim();
+        dailyLimit = dailyLimit is null ? null : Math.Clamp(dailyLimit.Value, 1, 10);
+        var requirementList = useRequirements
+            .Select(requirement => requirement.Clone())
+            .ToList();
+        PerformMutation(() =>
+        {
+            interactable.Type = type;
+            interactable.Verb = verb;
+            interactable.SurvivalRequirements = requirements.Clone();
+            interactable.SurvivalEffects = effects.Clone();
+            interactable.DailyInteractionLimit = dailyLimit;
+            interactable.UseRequirements = requirementList.Count == 0
+                ? null
+                : requirementList;
+        });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public void UpdateSelectedItemReward(InteractionItemReward? reward)
     {
         var interactable = SelectedInteractable;

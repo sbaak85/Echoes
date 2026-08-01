@@ -1167,17 +1167,34 @@ public sealed class MainForm : Form
         var selectedInteractable = _canvas.SelectedInteractable;
         if (selectedInteractable is null) return;
         var selectedType = (_interactionTypeCombo.SelectedItem as InteractionTypeItem)?.Id ?? selectedInteractable.Type;
-        _canvas.UpdateSelectedInteractable(selectedType, _interactionVerbText.Text);
-        var interactable = _canvas.SelectedInteractable;
-        if (interactable is null) return;
+        var selectedDefaults = InteractionTypeDefaults.Get(selectedType);
+        var typeChanged = !selectedInteractable.Type.Equals(
+            selectedType,
+            StringComparison.OrdinalIgnoreCase);
+        var requirements = typeChanged
+            ? new SurvivalRequirements()
+            : selectedInteractable.SurvivalRequirements.Clone();
+        var effects = typeChanged
+            ? selectedDefaults.Effects.Clone()
+            : selectedInteractable.SurvivalEffects.Clone();
+        var dailyLimit = typeChanged
+            ? selectedDefaults.DailyLimit
+            : selectedInteractable.DailyInteractionLimit;
+        var useRequirements = typeChanged
+            ? Array.Empty<InteractionUseRequirement>()
+            : selectedInteractable.UseRequirements?
+                .Select(requirement => requirement.Clone())
+                .ToArray() ?? Array.Empty<InteractionUseRequirement>();
         using var editor = new SurvivalEffectEditorForm(
             selectedType,
-            interactable.SurvivalRequirements,
-            interactable.SurvivalEffects,
-            interactable.DailyInteractionLimit,
-            interactable.UseRequirements);
+            requirements,
+            effects,
+            dailyLimit,
+            useRequirements);
         if (editor.ShowDialog(this) != DialogResult.OK) return;
-        _canvas.UpdateSelectedSurvivalSettings(
+        _canvas.UpdateSelectedInteractionConfiguration(
+            selectedType,
+            _interactionVerbText.Text,
             editor.Requirements,
             editor.Effects,
             editor.DailyLimit,

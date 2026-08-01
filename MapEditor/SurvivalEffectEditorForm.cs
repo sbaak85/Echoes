@@ -21,6 +21,18 @@ public sealed class SurvivalEffectEditorForm : Form
         public NumericUpDown Value { get; } = CreateRequirementValueInput();
     }
 
+    private static readonly UseRequirementChoice[] UseRequirementChoiceItems =
+        ItemCatalog.All
+            .Select(item => new UseRequirementChoice("item", item.Id, $"道具｜{item.Name}"))
+            .Append(new UseRequirementChoice("chapter", "chapter", "進度｜當前章節"))
+            .ToArray();
+
+    private static readonly object[] UseRequirementComboItems =
+        UseRequirementChoiceItems.Cast<object>().ToArray();
+
+    private static readonly object[] RequirementAmountItems =
+        Enumerable.Range(1, 99).Cast<object>().ToArray();
+
     private readonly RequirementControls _staminaRequirement = new();
     private readonly RequirementControls _hungerRequirement = new();
     private readonly RequirementControls _thirstRequirement = new();
@@ -84,6 +96,7 @@ public sealed class SurvivalEffectEditorForm : Form
         int? dailyLimit,
         IEnumerable<InteractionUseRequirement>? useRequirements)
     {
+        SuspendLayout();
         _defaults = InteractionTypeDefaults.Get(interactionType);
         Text = "互動需求與完成效果";
         StartPosition = FormStartPosition.CenterParent;
@@ -105,6 +118,9 @@ public sealed class SurvivalEffectEditorForm : Form
         };
         var requirementPage = CreateTab("使用需求");
         var effectPage = CreateTab("完成效果");
+        tabs.SuspendLayout();
+        requirementPage.SuspendLayout();
+        effectPage.SuspendLayout();
         tabs.TabPages.Add(requirementPage);
         tabs.TabPages.Add(effectPage);
         Controls.Add(tabs);
@@ -123,6 +139,11 @@ public sealed class SurvivalEffectEditorForm : Form
         Controls.Add(saveButton);
         AcceptButton = saveButton;
         CancelButton = cancelButton;
+
+        requirementPage.ResumeLayout(false);
+        effectPage.ResumeLayout(false);
+        tabs.ResumeLayout(false);
+        ResumeLayout(false);
     }
 
     private void BuildRequirementsPage(
@@ -189,10 +210,12 @@ public sealed class SurvivalEffectEditorForm : Form
         amountHeader.SetBounds(254, 2, 92, 20);
         _useRequirementList.Controls.Add(amountHeader);
         page.Controls.Add(_useRequirementList);
+        _useRequirementList.SuspendLayout();
         foreach (var requirement in useRequirements)
         {
-            AddUseRequirementRow(requirement);
+            AddUseRequirementRow(requirement, refreshLayout: false);
         }
+        _useRequirementList.ResumeLayout(false);
         _useRequirementsExpanded = useRequirements.Count is > 0 and <= 2;
         RefreshUseRequirementLayout();
 
@@ -205,47 +228,45 @@ public sealed class SurvivalEffectEditorForm : Form
         page.Controls.Add(clearButton);
     }
 
-    private static IEnumerable<UseRequirementChoice> UseRequirementChoices()
-    {
-        foreach (var item in ItemCatalog.All)
-        {
-            yield return new UseRequirementChoice("item", item.Id, $"道具｜{item.Name}");
-        }
-        yield return new UseRequirementChoice("chapter", "chapter", "進度｜當前章節");
-    }
-
-    private void AddUseRequirementRow(InteractionUseRequirement requirement)
+    private void AddUseRequirementRow(
+        InteractionUseRequirement requirement,
+        bool refreshLayout = true)
     {
         var controls = new UseRequirementControls();
+        controls.Row.SuspendLayout();
         controls.Row.Height = 38;
         controls.Row.Width = 378;
         controls.Row.BackColor = Color.FromArgb(25, 28, 34);
         controls.Target.SetBounds(4, 5, 240, 28);
-        controls.Target.Items.AddRange(UseRequirementChoices().Cast<object>().ToArray());
-        controls.Target.SelectedIndex = controls.Target.Items
-            .Cast<UseRequirementChoice>()
+        controls.Target.BeginUpdate();
+        controls.Target.Items.AddRange(UseRequirementComboItems);
+        controls.Target.SelectedIndex = UseRequirementChoiceItems
             .Select((choice, index) => new { choice, index })
             .FirstOrDefault(entry =>
                 entry.choice.Kind.Equals(requirement.Kind, StringComparison.OrdinalIgnoreCase) &&
                 (entry.choice.Kind == "chapter" ||
                  entry.choice.Id.Equals(requirement.ItemId, StringComparison.OrdinalIgnoreCase)))
             ?.index ?? 0;
+        controls.Target.EndUpdate();
         controls.Amount.SetBounds(250, 5, 76, 28);
-        for (var value = 1; value <= 99; value++) controls.Amount.Items.Add(value);
+        controls.Amount.BeginUpdate();
+        controls.Amount.Items.AddRange(RequirementAmountItems);
         controls.Amount.SelectedIndex = Math.Clamp(
             requirement.Kind.Equals("chapter", StringComparison.OrdinalIgnoreCase)
                 ? requirement.Chapter - 1
                 : requirement.Quantity - 1,
             0,
             98);
+        controls.Amount.EndUpdate();
         controls.Remove.SetBounds(334, 5, 36, 28);
         controls.Remove.Click += (_, _) => RemoveUseRequirementRow(controls);
         controls.Row.Controls.Add(controls.Target);
         controls.Row.Controls.Add(controls.Amount);
         controls.Row.Controls.Add(controls.Remove);
+        controls.Row.ResumeLayout(false);
         _useRequirementRows.Add(controls);
         _useRequirementList.Controls.Add(controls.Row);
-        RefreshUseRequirementLayout();
+        if (refreshLayout) RefreshUseRequirementLayout();
     }
 
     private void RemoveUseRequirementRow(UseRequirementControls controls)
@@ -271,7 +292,7 @@ public sealed class SurvivalEffectEditorForm : Form
         UseRequirementControls controls)
     {
         var choice = controls.Target.SelectedItem as UseRequirementChoice ??
-            UseRequirementChoices().First();
+            UseRequirementChoiceItems[0];
         var amount = Math.Max(1, controls.Amount.SelectedIndex + 1);
         return choice.Kind == "chapter"
             ? new InteractionUseRequirement

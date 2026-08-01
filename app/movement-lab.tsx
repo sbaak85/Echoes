@@ -4630,6 +4630,23 @@ export function MovementLab() {
         context.beginPath();
         context.arc(0, 0, radius * 1.85, 0, Math.PI * 2);
         context.stroke();
+
+        const interactionName = interactable.label.trim();
+        if (interactionName && emphasis > 0.001) {
+          const labelOffset = 50 / zoom;
+          context.globalAlpha = animation.opacity * emphasis;
+          context.font = `600 ${16 / zoom}px "Microsoft JhengHei UI", system-ui, sans-serif`;
+          context.textAlign = "center";
+          context.textBaseline = "bottom";
+          context.lineJoin = "round";
+          context.lineWidth = 3 / zoom;
+          context.strokeStyle = "rgba(5, 12, 18, 0.82)";
+          context.strokeText(interactionName, 0, -labelOffset);
+          context.shadowColor = "rgba(255, 255, 255, 0.48)";
+          context.shadowBlur = 6 / zoom;
+          context.fillStyle = "rgba(255, 255, 255, 0.98)";
+          context.fillText(interactionName, 0, -labelOffset);
+        }
         context.restore();
       });
     };
