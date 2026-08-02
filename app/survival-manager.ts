@@ -62,6 +62,35 @@ const ZERO_GAME_OVER_MINUTES: Record<SurvivalGameOverReason, number> = {
 
 const clampValue = (value: number) => Math.max(0, Math.min(100, value));
 
+export function formatElapsedGameHours(gameMinutes: number) {
+  const normalizedMinutes = Number.isFinite(gameMinutes)
+    ? Math.max(0, gameMinutes)
+    : 0;
+  const hours = Math.round((normalizedMinutes / 60) * 100) / 100;
+  return String(hours);
+}
+
+export function getElapsedClockHandMotion(
+  startGameMinutes: number,
+  elapsedGameMinutes: number,
+) {
+  const normalizedStart = Number.isFinite(startGameMinutes)
+    ? ((startGameMinutes % (24 * 60)) + 24 * 60) % (24 * 60)
+    : 0;
+  const normalizedElapsed = Number.isFinite(elapsedGameMinutes)
+    ? Math.max(0, elapsedGameMinutes)
+    : 0;
+  const minute = normalizedStart % 60;
+  const hour = Math.floor(normalizedStart / 60) % 12;
+
+  return {
+    minuteStartDegrees: minute * 6,
+    minuteTravelDegrees: normalizedElapsed * 6,
+    hourStartDegrees: hour * 30 + minute * 0.5,
+    hourTravelDegrees: normalizedElapsed * 0.5,
+  };
+}
+
 export function createInitialSurvivalState(): SurvivalGameState {
   return {
     values: { stamina: 100, hunger: 100, thirst: 100, spirit: 100 },

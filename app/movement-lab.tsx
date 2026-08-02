@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent as ReactFormEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -61,8 +62,10 @@ import {
   getUnmetInteractionUseRequirements,
   normalizeInteractionItemReward,
   normalizeInteractionUseRequirements,
+  resolveWeightedDialogueLines,
   selectInteractionDialogue,
   selectInteractionFeedbackPoint,
+  selectPreferredInteractionTarget,
   shouldCompleteAfterDialogue,
   type InteractionDialogueScript,
   type InteractionItemReward,
@@ -76,6 +79,8 @@ import {
   createInitialSurvivalState,
   createInteractionUsageState,
   ensureInteractionUsageCycle,
+  formatElapsedGameHours,
+  getElapsedClockHandMotion,
   getCharacterStatuses,
   getGameClock,
   getUnmetSurvivalRequirements,
@@ -1117,10 +1122,13 @@ function findInteractableAt(
   interactables: readonly SceneInteractable[],
   collectedWorldItems?: ReadonlySet<string>,
 ): SceneInteractable | null {
-  let nearest: SceneInteractable | null = null;
-  let nearestDistance = Number.POSITIVE_INFINITY;
+  const candidates: Array<{
+    interactable: SceneInteractable;
+    distance: number;
+    sourceIndex: number;
+  }> = [];
 
-  interactables.forEach((interactable) => {
+  interactables.forEach((interactable, sourceIndex) => {
     if (
       interactable.worldItemKind === "placed" &&
       interactable.worldItemId &&
@@ -1130,20 +1138,24 @@ function findInteractableAt(
     }
     if (interactable.points && interactable.points.length >= 3) {
       if (pointInPolygon(point, interactable.points)) {
-        nearest = interactable;
-        nearestDistance = 0;
+        candidates.push({ interactable, distance: 0, sourceIndex });
       }
       return;
     }
     if (!interactable.position) return;
     const distance = Math.hypot(point.x - interactable.position.x, point.y - interactable.position.y);
-    if (distance <= (interactable.pickRadius ?? 32) && distance < nearestDistance) {
-      nearest = interactable;
-      nearestDistance = distance;
+    if (distance <= (interactable.pickRadius ?? 32)) {
+      candidates.push({ interactable, distance, sourceIndex });
     }
   });
 
-  return nearest;
+  candidates.sort(
+    (left, right) =>
+      left.distance - right.distance || right.sourceIndex - left.sourceIndex,
+  );
+  return selectPreferredInteractionTarget(
+    candidates.map((candidate) => candidate.interactable),
+  );
 }
 
 function findInteractableTouching(
@@ -1152,12 +1164,14 @@ function findInteractableTouching(
   interactables: readonly SceneInteractable[],
   collectedWorldItems?: ReadonlySet<string>,
 ) {
-  return interactables.find((interactable) =>
-    (interactable.worldItemKind !== "placed" ||
-      !interactable.worldItemId ||
-      !collectedWorldItems?.has(interactable.worldItemId)) &&
-    isTouchingInteractable(point, radius, interactable),
-  ) ?? null;
+  const touchingTargets = interactables.filter(
+    (interactable) =>
+      (interactable.worldItemKind !== "placed" ||
+        !interactable.worldItemId ||
+        !collectedWorldItems?.has(interactable.worldItemId)) &&
+      isTouchingInteractable(point, radius, interactable),
+  );
+  return selectPreferredInteractionTarget(touchingTargets);
 }
 
 function isTouchingInteractable(
@@ -2118,6 +2132,7 @@ export function MovementLab() {
   const worldItemSpawnMotionsRef = useRef<Map<string, WorldItemSpawnMotion>>(
     new Map(),
   );
+  const worldItemLandingAudioPlayedRef = useRef<Set<string>>(new Set());
   const sceneInteractablesRef = useRef<SceneInteractable[]>(
     STATIC_SCENE_INTERACTABLES,
   );
@@ -2132,6 +2147,10 @@ export function MovementLab() {
   );
   const survivalValueTweenSequenceRef = useRef(0);
   const survivalValueTweenExpiryTimerRef = useRef<number | null>(null);
+  const timeElapsedNoticeTimerRef = useRef<number | null>(null);
+  const timeElapsedNoticeSequenceRef = useRef(0);
+  const timeElapsedNoticeActiveRef = useRef(false);
+  const timeElapsedNoticeDismissingRef = useRef(false);
   const interactionUsageRef = useRef<InteractionUsageState>(
     createInteractionUsageState(INITIAL_SURVIVAL_STATE.gameMinutes),
   );
@@ -2186,6 +2205,12 @@ export function MovementLab() {
       >
     >
   >({});
+  const [timeElapsedNotice, setTimeElapsedNotice] = useState<{
+    startGameMinutes: number;
+    gameMinutes: number;
+    sequence: number;
+    dismissing: boolean;
+  } | null>(null);
   const gameClock = getGameClock(survivalState.gameMinutes);
   const [survivalExpanded, setSurvivalExpanded] = useState(true);
   const [questCollapsed, setQuestCollapsed] = useState(false);
@@ -2222,6 +2247,51 @@ export function MovementLab() {
     visible: boolean;
   } | null>(null);
   const [dialogueView, setDialogueView] = useState<DialogueView>(null);
+
+  const showTimeElapsedNotice = (
+    startGameMinutes: number,
+    gameMinutes: number,
+  ) => {
+    if (!(gameMinutes > 0)) return;
+    if (timeElapsedNoticeTimerRef.current !== null) {
+      window.clearTimeout(timeElapsedNoticeTimerRef.current);
+    }
+    timeElapsedNoticeActiveRef.current = true;
+    timeElapsedNoticeDismissingRef.current = false;
+    timeElapsedNoticeSequenceRef.current += 1;
+    setTimeElapsedNotice({
+      startGameMinutes,
+      gameMinutes,
+      sequence: timeElapsedNoticeSequenceRef.current,
+      dismissing: false,
+    });
+    timeElapsedNoticeTimerRef.current = window.setTimeout(() => {
+      timeElapsedNoticeTimerRef.current = null;
+      timeElapsedNoticeActiveRef.current = false;
+      timeElapsedNoticeDismissingRef.current = false;
+      setTimeElapsedNotice(null);
+    }, 3350);
+  };
+
+  const dismissTimeElapsedNotice = () => {
+    if (
+      !timeElapsedNoticeActiveRef.current ||
+      timeElapsedNoticeDismissingRef.current
+    ) return;
+    timeElapsedNoticeDismissingRef.current = true;
+    if (timeElapsedNoticeTimerRef.current !== null) {
+      window.clearTimeout(timeElapsedNoticeTimerRef.current);
+    }
+    setTimeElapsedNotice((current) =>
+      current ? { ...current, dismissing: true } : current,
+    );
+    timeElapsedNoticeTimerRef.current = window.setTimeout(() => {
+      timeElapsedNoticeTimerRef.current = null;
+      timeElapsedNoticeActiveRef.current = false;
+      timeElapsedNoticeDismissingRef.current = false;
+      setTimeElapsedNotice(null);
+    }, 1000);
+  };
 
   const applyDroppedWorldItems = (items: readonly DroppedWorldItem[]) => {
     const nextItems = [...items];
@@ -2362,6 +2432,9 @@ export function MovementLab() {
     }
     if (survivalValueTweenExpiryTimerRef.current !== null) {
       window.clearTimeout(survivalValueTweenExpiryTimerRef.current);
+    }
+    if (timeElapsedNoticeTimerRef.current !== null) {
+      window.clearTimeout(timeElapsedNoticeTimerRef.current);
     }
   }, []);
 
@@ -2756,6 +2829,7 @@ export function MovementLab() {
         placement.position,
       ),
     );
+    worldItemLandingAudioPlayedRef.current.delete(droppedWorldItemId);
     const nextInventory = removeInventoryItem(
       playerInventoryRef.current,
       item.id,
@@ -2981,7 +3055,9 @@ export function MovementLab() {
     dialogue: InteractionDialogueScript | undefined = interactable.dialogue,
   ) => {
     hideHotbarSelectionHint();
-    const lines = dialogue?.lines?.filter((line) => line.text.trim()) ?? [];
+    const lines = resolveWeightedDialogueLines(
+      dialogue?.lines?.filter((line) => line.text.trim()) ?? [],
+    );
     const effectiveLines = lines.length > 0 ? lines : [{ speaker: "", text: "..." }];
     const normalized = {
       ...interactable,
@@ -3041,6 +3117,7 @@ export function MovementLab() {
 
   const setOptionsPanelOpen = (open: boolean) => {
     if (open) {
+      dismissTimeElapsedNotice();
       inventoryOpenRef.current = false;
       setInventoryOpen(false);
     }
@@ -3086,6 +3163,7 @@ export function MovementLab() {
   };
 
   const setInventoryPanelOpen = (open: boolean) => {
+    if (open) dismissTimeElapsedNotice();
     inventoryOpenRef.current = open;
     if (!open) {
       const pendingDrag = pendingInventoryDragRef.current;
@@ -3887,6 +3965,33 @@ export function MovementLab() {
         activationDistance: 48,
         createdFromInventory: false,
       };
+      const spawnDirection = {
+        x: placement.position.x - player.x,
+        y: placement.position.y - player.y,
+      };
+      const spawnDistance = Math.max(
+        1,
+        Math.hypot(spawnDirection.x, spawnDirection.y),
+      );
+      const spawnLanding = {
+        x: placement.position.x - (spawnDirection.x / spawnDistance) * 20,
+        y: placement.position.y - (spawnDirection.y / spawnDistance) * 20,
+      };
+      const facingVector = getDirectionVector(currentFacing);
+      const spawnStart = {
+        x: player.x + facingVector.x * 8,
+        y: player.y - sizeRef.current * 0.42,
+      };
+      worldItemSpawnMotionsRef.current.set(
+        worldItemId,
+        createWorldItemSpawnMotion(
+          performance.now(),
+          spawnStart,
+          spawnLanding,
+          placement.position,
+        ),
+      );
+      worldItemLandingAudioPlayedRef.current.delete(worldItemId);
       const nextDroppedWorldItems = [
         ...droppedWorldItemsRef.current,
         droppedWorldItem,
@@ -3989,6 +4094,7 @@ export function MovementLab() {
           placement.position,
         ),
       );
+      worldItemLandingAudioPlayedRef.current.delete(rewardWorldItemId);
       const nextDroppedWorldItems = [
         ...droppedWorldItemsRef.current,
         droppedWorldItem,
@@ -4027,6 +4133,8 @@ export function MovementLab() {
         Number(interactable.survivalEffects?.timeMinutes ?? 0),
       );
       if (elapsedGameMinutes > 0 || interactable.survivalEffects) {
+        const interactionStartGameMinutes =
+          survivalStateRef.current.gameMinutes;
         let nextSurvival = survivalStateRef.current;
         if (elapsedGameMinutes > 0) {
           nextSurvival = advanceSurvivalByGameMinutes(
@@ -4041,6 +4149,12 @@ export function MovementLab() {
         survivalStateRef.current = nextSurvival;
         setSurvivalState(nextSurvival);
         saveSurvivalState(nextSurvival);
+        if (elapsedGameMinutes > 0) {
+          showTimeElapsedNotice(
+            interactionStartGameMinutes,
+            elapsedGameMinutes,
+          );
+        }
       }
       const usage = recordInteractionUse(
         refreshInteractionUsageCycle(),
@@ -4097,6 +4211,9 @@ export function MovementLab() {
 
           if (interactable.worldItemKind === "dropped") {
             worldItemSpawnMotionsRef.current.delete(interactable.worldItemId);
+            worldItemLandingAudioPlayedRef.current.delete(
+              interactable.worldItemId,
+            );
             const nextDroppedWorldItems =
               droppedWorldItemsRef.current.filter(
                 (worldItem) =>
@@ -4128,6 +4245,7 @@ export function MovementLab() {
           } catch {
             // 無法使用本機儲存時，本次遊戲工作階段仍保留真實數量。
           }
+          playOneShotAudio("worldItemPickedUp");
 
           hotbarUseSequenceRef.current += 1;
           setHotbarFeedback({
@@ -4862,8 +4980,22 @@ export function MovementLab() {
             drawRotation = pose.rotation;
             drawScaleX = pose.scaleX;
             drawScaleY = pose.scaleY;
+            if (
+              pose.phase !== "flight" &&
+              !worldItemLandingAudioPlayedRef.current.has(
+                interactable.worldItemId,
+              )
+            ) {
+              worldItemLandingAudioPlayedRef.current.add(
+                interactable.worldItemId,
+              );
+              playOneShotAudio("worldItemLanded");
+            }
             if (pose.finished) {
               worldItemSpawnMotionsRef.current.delete(interactable.worldItemId);
+              worldItemLandingAudioPlayedRef.current.delete(
+                interactable.worldItemId,
+              );
             }
           }
         }
@@ -6498,6 +6630,33 @@ export function MovementLab() {
     });
   };
 
+  const handleUiInputClickCapture = (event: ReactMouseEvent<HTMLElement>) => {
+    if (!(event.target instanceof Element)) return;
+    const inputTarget = event.target.closest(
+      [
+        ".inventory-dialog button",
+        ".inventory-context-menu button",
+        ".inventory-hotbar .hotbar-slot",
+        ".inventory-trigger",
+        ".quest-collapse",
+        ".survival-toggle-hitbox",
+        ".minimap-hud",
+        ".options-trigger",
+        ".options-close",
+      ].join(","),
+    );
+    if (inputTarget) playOneShotAudio("uiInput");
+  };
+
+  const handleUiInputContextMenuCapture = (
+    event: ReactMouseEvent<HTMLElement>,
+  ) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest(".inventory-item, .hotbar-slot")) {
+      playOneShotAudio("uiInput");
+    }
+  };
+
   const openHotbarContextMenu = (
     event: ReactMouseEvent<HTMLButtonElement>,
     slotIndex: number,
@@ -6553,6 +6712,7 @@ export function MovementLab() {
     currentStoryChapterRef.current = progress.story.currentChapter;
     droppedWorldItemSequenceRef.current = 0;
     worldItemSpawnMotionsRef.current.clear();
+    worldItemLandingAudioPlayedRef.current.clear();
     activeHotbarSlotRef.current = 0;
     selectedInventoryIndexRef.current = DEFAULT_SELECTED_INVENTORY_INDEX;
     applyDroppedWorldItems(progress.droppedWorldItems);
@@ -6604,6 +6764,20 @@ export function MovementLab() {
   const contextHotbarItem = contextHotbarItemId
     ? ITEM_BY_ID.get(contextHotbarItemId) ?? null
     : null;
+  const timeElapsedClockMotion = timeElapsedNotice
+    ? getElapsedClockHandMotion(
+        timeElapsedNotice.startGameMinutes,
+        timeElapsedNotice.gameMinutes,
+      )
+    : null;
+  const timeElapsedClockStyle = timeElapsedClockMotion
+    ? ({
+        "--clock-minute-start": `${timeElapsedClockMotion.minuteStartDegrees}deg`,
+        "--clock-minute-travel": `${timeElapsedClockMotion.minuteTravelDegrees}deg`,
+        "--clock-hour-start": `${timeElapsedClockMotion.hourStartDegrees}deg`,
+        "--clock-hour-travel": `${timeElapsedClockMotion.hourTravelDegrees}deg`,
+      } as CSSProperties)
+    : undefined;
 
   return (
     <div
@@ -6626,6 +6800,8 @@ export function MovementLab() {
       <main
         ref={gameShellRef}
         className={`game-shell${stageFullscreen ? " is-fullscreen" : ""}`}
+        onClickCapture={handleUiInputClickCapture}
+        onContextMenuCapture={handleUiInputContextMenuCapture}
       >
       <canvas
         ref={canvasRef}
@@ -6697,6 +6873,26 @@ export function MovementLab() {
           <span className="dialogue-text">{dialogueView.text}</span>
           <span className="dialogue-next" aria-hidden="true" />
         </button>
+      ) : null}
+
+      {timeElapsedNotice ? (
+        <section
+          key={timeElapsedNotice.sequence}
+          className={`time-elapsed-notice${timeElapsedNotice.dismissing ? " is-dismissing" : ""}`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="time-elapsed-notice-content">
+            <span
+              className="time-elapsed-clock-icon"
+              style={timeElapsedClockStyle}
+              aria-hidden="true"
+            />
+            <span>
+              時間經過了 {formatElapsedGameHours(timeElapsedNotice.gameMinutes)} 小時
+            </span>
+          </div>
+        </section>
       ) : null}
 
       <section className="top-left-hud" aria-label="場景資訊">
@@ -7164,7 +7360,10 @@ export function MovementLab() {
         <div
           className="options-overlay"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setOptionsPanelOpen(false);
+            if (event.target === event.currentTarget) {
+              playOneShotAudio("uiInput");
+              setOptionsPanelOpen(false);
+            }
           }}
         >
           <section

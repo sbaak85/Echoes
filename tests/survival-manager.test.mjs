@@ -8,6 +8,8 @@ import {
   createInitialSurvivalState,
   createInteractionUsageState,
   ensureInteractionUsageCycle,
+  formatElapsedGameHours,
+  getElapsedClockHandMotion,
   getCharacterStatuses,
   getGameClock,
   getMealCurveRate,
@@ -16,6 +18,28 @@ import {
   isInteractionLocked,
   recordInteractionUse,
 } from "../app/survival-manager.ts";
+
+test("elapsed interaction time is formatted as compact game hours", () => {
+  assert.equal(formatElapsedGameHours(60), "1");
+  assert.equal(formatElapsedGameHours(90), "1.5");
+  assert.equal(formatElapsedGameHours(480), "8");
+  assert.equal(formatElapsedGameHours(Number.NaN), "0");
+});
+
+test("elapsed clock hands start at the prior time and rotate by actual elapsed minutes", () => {
+  assert.deepEqual(getElapsedClockHandMotion(8 * 60 + 35, 60), {
+    minuteStartDegrees: 210,
+    minuteTravelDegrees: 360,
+    hourStartDegrees: 257.5,
+    hourTravelDegrees: 30,
+  });
+  assert.deepEqual(getElapsedClockHandMotion(23 * 60 + 50, 30), {
+    minuteStartDegrees: 300,
+    minuteTravelDegrees: 180,
+    hourStartDegrees: 355,
+    hourTravelDegrees: 15,
+  });
+});
 
 test("one real hour advances one game day and applies the approved natural drain", () => {
   const result = advanceSurvivalState(createInitialSurvivalState(), 3600);

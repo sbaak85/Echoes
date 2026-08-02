@@ -104,7 +104,27 @@ internal static class Program
                 Opacity = 0,
             };
             using var dialogueEditor = new DialogueEditorForm(
-                DialogueScript.CreateDefault(),
+                new DialogueScript
+                {
+                    Speakers = new List<string> { "Sbaak", "Echo" },
+                    Lines = new List<DialogueLine>
+                    {
+                        new()
+                        {
+                            Speaker = "Sbaak",
+                            Text = "今天似乎會有不同的事發生。",
+                            RandomGroupId = "random-group-1",
+                            Weight = 1,
+                        },
+                        new()
+                        {
+                            Speaker = "Echo",
+                            Text = "也許只是你的錯覺。",
+                            RandomGroupId = "random-group-1",
+                            Weight = 3,
+                        },
+                    },
+                },
                 DialogueScript.CreateFailureDefault(),
                 new DialogueScript
                 {
@@ -131,13 +151,15 @@ internal static class Program
                 try
                 {
                     form.RunLayerRenameUiSelfTest();
-                    requirementsEditor.Show(form);
+                    requirementsEditor.Show();
                     System.Windows.Forms.Application.DoEvents();
                     requirementsEditor.Close();
-                    dialogueEditor.Show(form);
+                    dialogueEditor.Show();
                     System.Windows.Forms.Application.DoEvents();
+                    dialogueEditor.RunCellEditingUiSelfTest();
                     dialogueEditor.Close();
-                    audioEditor?.Show(form);
+                    audioEditor?.Show();
+                    timer.Start();
                 }
                 catch (Exception exception)
                 {
@@ -148,7 +170,6 @@ internal static class Program
                     System.Windows.Forms.Application.ExitThread();
                 }
             };
-            timer.Start();
             System.Windows.Forms.Application.Run(form);
             if (smokeTestFailure is null) return 0;
             EditorDiagnostics.Log("UI smoke test failure", smokeTestFailure);
@@ -331,7 +352,20 @@ internal static class EditorSelfTest
             Speakers = new List<string> { "Sbaak", "Echo" },
             Lines = new List<DialogueLine>
             {
-                new() { Speaker = "Echo", Text = "條件尚未達成。" },
+                new()
+                {
+                    Speaker = "Echo",
+                    Text = "條件尚未達成。",
+                    RandomGroupId = "random-group-1",
+                    Weight = 1,
+                },
+                new()
+                {
+                    Speaker = "Sbaak",
+                    Text = "現在還不行。",
+                    RandomGroupId = "random-group-1",
+                    Weight = 4,
+                },
             },
         };
         multiPointInteractable.CompletionDialogue = new DialogueScript
@@ -363,7 +397,19 @@ internal static class EditorSelfTest
             multiPointRoundTrip.Interactables[0].ItemReward is not
                 { ItemId: "R0002", Quantity: 4, Delivery: "world" } ||
             multiPointRoundTrip.Interactables[0].FailureDialogue.Lines.FirstOrDefault() is not
-                { Speaker: "Echo", Text: "條件尚未達成。" } ||
+                {
+                    Speaker: "Echo",
+                    Text: "條件尚未達成。",
+                    RandomGroupId: "random-group-1",
+                    Weight: 1,
+                } ||
+            multiPointRoundTrip.Interactables[0].FailureDialogue.Lines.ElementAtOrDefault(1) is not
+                {
+                    Speaker: "Sbaak",
+                    Text: "現在還不行。",
+                    RandomGroupId: "random-group-1",
+                    Weight: 4,
+                } ||
             multiPointRoundTrip.Interactables[0].CompletionDialogue?.Lines.FirstOrDefault() is not
                 { Speaker: "Sbaak", Text: "互動已完成。" } ||
             multiPointRoundTrip.Interactables[0].UseRequirements?.Count != 2 ||
@@ -374,7 +420,7 @@ internal static class EditorSelfTest
         )
         {
             throw new InvalidDataException(
-                "Interaction Points, hint Point, survival settings, item reward, requirements, or dialogue phases did not survive JSON round-trip.");
+                "Interaction Points, hint Point, survival settings, item reward, requirements, dialogue phases, or weighted dialogue groups did not survive JSON round-trip.");
         }
 
         using (var requirementsEditor = new SurvivalEffectEditorForm(

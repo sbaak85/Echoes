@@ -288,6 +288,174 @@ button {
   50% { opacity: 1; transform: translateY(3px); }
 }
 
+.time-elapsed-notice {
+  position: absolute;
+  z-index: 15;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(820px, 72%);
+  min-height: 64px;
+  color: rgba(255, 255, 255, 0.94);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.07) 13%,
+    rgba(255, 255, 255, 0.15) 34%,
+    rgba(255, 255, 255, 0.15) 66%,
+    rgba(255, 255, 255, 0.07) 87%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.72);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: time-elapsed-notice-cycle 3350ms linear both;
+}
+
+.time-elapsed-notice::before,
+.time-elapsed-notice::after {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.78) 18%,
+    rgba(255, 255, 255, 0.92) 50%,
+    rgba(255, 255, 255, 0.78) 82%,
+    transparent 100%
+  );
+  content: "";
+}
+
+.time-elapsed-notice::before { top: 0; }
+.time-elapsed-notice::after { bottom: 0; }
+
+.time-elapsed-notice.is-dismissing {
+  animation: time-elapsed-notice-dismiss 1s ease-in both;
+}
+
+.time-elapsed-notice-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  font-size: clamp(18px, 1.55vw, 25px);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.time-elapsed-clock-icon {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 255, 255, 0.96) 0 2px,
+    transparent 2.5px
+  );
+  box-shadow:
+    0 0 10px rgba(255, 255, 255, 0.18),
+    inset 0 0 8px rgba(255, 255, 255, 0.08);
+}
+
+.time-elapsed-clock-icon::before,
+.time-elapsed-clock-icon::after {
+  position: absolute;
+  bottom: 50%;
+  left: calc(50% - 1px);
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  content: "";
+  transform-origin: 50% 100%;
+  will-change: transform;
+}
+
+.time-elapsed-clock-icon::before {
+  height: 10px;
+  transform: rotate(var(--clock-minute-start));
+  animation: time-elapsed-minute-hand 2s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+.time-elapsed-clock-icon::after {
+  height: 7px;
+  transform: rotate(var(--clock-hour-start));
+  animation: time-elapsed-hour-hand 2s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+@keyframes time-elapsed-minute-hand {
+  from {
+    transform: rotate(var(--clock-minute-start));
+  }
+  to {
+    transform: rotate(
+      calc(var(--clock-minute-start) + var(--clock-minute-travel))
+    );
+  }
+}
+
+@keyframes time-elapsed-hour-hand {
+  from {
+    transform: rotate(var(--clock-hour-start));
+  }
+  to {
+    transform: rotate(
+      calc(var(--clock-hour-start) + var(--clock-hour-travel))
+    );
+  }
+}
+
+@keyframes time-elapsed-notice-cycle {
+  0% {
+    clip-path: inset(0 50% 0 50%);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.22, 0.8, 0.28, 1);
+  }
+  10.45% {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+    animation-timing-function: linear;
+  }
+  70.15% {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+    animation-timing-function: ease-in;
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    opacity: 0;
+  }
+}
+
+@keyframes time-elapsed-notice-dismiss {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@media (max-width: 680px), (hover: none) and (pointer: coarse) {
+  .time-elapsed-notice {
+    width: min(620px, 90%);
+    min-height: 52px;
+  }
+
+  .time-elapsed-notice-content {
+    gap: 11px;
+    font-size: clamp(15px, 4.2vw, 20px);
+  }
+
+  .time-elapsed-clock-icon {
+    width: 28px;
+    height: 28px;
+  }
+}
+
 html.gamepad-cursor-active,
 html.gamepad-cursor-active * {
   cursor: none !important;
@@ -1183,17 +1351,6 @@ html.dialogue-cursor-active .dialogue-box * {
     opacity 160ms ease;
 }
 
-.minimap-map-content::after {
-  position: absolute;
-  z-index: 2;
-  inset: -1px;
-  background:
-    linear-gradient(to right, rgba(1, 6, 9, 0.94), transparent 13%, transparent 87%, rgba(1, 6, 9, 0.94)),
-    linear-gradient(to bottom, rgba(1, 6, 9, 0.94), transparent 13%, transparent 87%, rgba(1, 6, 9, 0.94));
-  content: "";
-  pointer-events: none;
-}
-
 .minimap-map-layer {
   position: absolute;
   z-index: 1;
@@ -1203,7 +1360,7 @@ html.dialogue-cursor-active .dialogue-box * {
   height: 100%;
   opacity: 0.94;
   filter: saturate(0.7) drop-shadow(0 0 2px rgba(164, 255, 243, 0.28));
-  mask-image: radial-gradient(circle at center, #000 0 62%, rgba(0, 0, 0, 0.88) 76%, transparent 100%);
+  mask-image: radial-gradient(circle at center, #000 0 66%, rgba(0, 0, 0, 0.82) 80%, transparent 100%);
   image-rendering: auto;
 }
 

@@ -49,6 +49,12 @@ Included in version 1:
   Daily interaction limits can be unlimited or 1-10 uses and reset at 06:00.
   Operation defaults to `-5/-3/-3/0`; gather defaults to `-4/-2/-2/-1`
   with three daily uses; general interaction defaults to `-1/-1/-1/0`.
+- The dialogue script editor supports Shift-click multi-selection and weighted
+  random groups in all three dialogue tabs. Selected non-contiguous lines are
+  pulled together beneath the first selected line; each grouped line has a
+  weight from 1-999 (default 1), and only one line is chosen from that group
+  whenever the dialogue starts. Groups can also be dissolved back into normal
+  lines without deleting their text.
 - Each interaction polygon can optionally reward any registered item after a
   successful complete interaction. The reward setting selects the item,
   quantity (1-99), and whether it is placed directly in the backpack or

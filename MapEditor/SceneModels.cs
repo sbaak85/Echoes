@@ -409,6 +409,8 @@ public sealed class DialogueScript
         {
             Speaker = line.Speaker,
             Text = line.Text,
+            RandomGroupId = line.RandomGroupId,
+            Weight = line.Weight,
         }).ToList(),
     };
 }
@@ -417,6 +419,8 @@ public sealed class DialogueLine
 {
     public string Speaker { get; set; } = "";
     public string Text { get; set; } = "...";
+    public string? RandomGroupId { get; set; }
+    public int? Weight { get; set; }
 }
 
 public sealed class MovementGuide
@@ -651,6 +655,7 @@ public static class SceneJson
         {
             dialogue.Lines[0].Speaker = dialogue.Speakers[0];
         }
+        NormalizeDialogueRandomGroups(dialogue.Lines);
     }
 
     private static void NormalizeOptionalDialogue(DialogueScript dialogue)
@@ -673,6 +678,10 @@ public static class SceneJson
             {
                 Speaker = line.Speaker?.Trim() ?? "",
                 Text = line.Text.Trim(),
+                RandomGroupId = string.IsNullOrWhiteSpace(line.RandomGroupId)
+                    ? null
+                    : line.RandomGroupId.Trim(),
+                Weight = line.Weight,
             })
             .ToList();
         if (
@@ -681,6 +690,36 @@ public static class SceneJson
         )
         {
             dialogue.Lines[0].Speaker = dialogue.Speakers[0];
+        }
+        NormalizeDialogueRandomGroups(dialogue.Lines);
+    }
+
+    private static void NormalizeDialogueRandomGroups(List<DialogueLine> lines)
+    {
+        foreach (var line in lines)
+        {
+            line.Speaker = line.Speaker?.Trim() ?? "";
+            line.Text = string.IsNullOrWhiteSpace(line.Text) ? "..." : line.Text.Trim();
+            line.RandomGroupId = string.IsNullOrWhiteSpace(line.RandomGroupId)
+                ? null
+                : line.RandomGroupId.Trim();
+            line.Weight = line.RandomGroupId is null
+                ? null
+                : Math.Clamp(line.Weight ?? 1, 1, 999);
+        }
+
+        var validGroups = lines
+            .Where(line => line.RandomGroupId is not null)
+            .GroupBy(line => line.RandomGroupId!, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() >= 2)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in lines.Where(line =>
+                     line.RandomGroupId is not null &&
+                     !validGroups.Contains(line.RandomGroupId)))
+        {
+            line.RandomGroupId = null;
+            line.Weight = null;
         }
     }
 }

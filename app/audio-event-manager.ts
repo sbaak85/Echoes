@@ -89,6 +89,42 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 1,
       "delaySeconds": 0
+    },
+    "uiInput": {
+      "label": "介面輸入點擊",
+      "trigger": "玩家點擊背包內的操作按鈕、道具頁籤、換頁箭頭、道具格或其右鍵選單；點擊快捷工具格或其右鍵選單；展開／收折任務、生存計量、小地圖；以及開啟／關閉背包或 Options 介面時播放。只要 Click 成立就播放，不要求操作成功。",
+      "sourceAssetPaths": [
+        "Assets/Audio/InPut.mp3"
+      ],
+      "sources": [
+        "./audio/ui-input.mp3"
+      ],
+      "volume": 0.7,
+      "delaySeconds": 0
+    },
+    "worldItemLanded": {
+      "label": "場上道具觸地",
+      "trigger": "互動獎勵、Debug 生成或背包丟棄的道具完成主要拋物線，第一次碰到場上地面的瞬間播放一次；飛行途中、後續小彈跳與滑動階段不重複播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/Drop.mp3"
+      ],
+      "sources": [
+        "./audio/world-item-drop.mp3"
+      ],
+      "volume": 0.85,
+      "delaySeconds": 0
+    },
+    "worldItemPickedUp": {
+      "label": "場上道具拾取成功",
+      "trigger": "玩家成功拾取固定場景道具或場上 Spawn／背包丟棄的道具，且道具數量已加入背包並從場上移除後播放一次；只有接觸、點擊失敗、重複拾取或背包數量未增加時不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/Pick.mp3"
+      ],
+      "sources": [
+        "./audio/world-item-pickup.mp3"
+      ],
+      "volume": 0.9,
+      "delaySeconds": 0
     }
   }
   /* AUDIO_EVENT_CONFIG_END */

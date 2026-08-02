@@ -5,10 +5,74 @@ import {
   getUnmetInteractionUseRequirements,
   normalizeInteractionItemReward,
   normalizeInteractionUseRequirements,
+  resolveWeightedDialogueLines,
   selectInteractionDialogue,
   selectInteractionFeedbackPoint,
+  selectPreferredInteractionTarget,
   shouldCompleteAfterDialogue,
 } from "../app/interaction-flow.ts";
+
+test("角色或游標同時接觸互動多邊形與道具時，優先選擇可拾取道具", () => {
+  const fruitTree = { id: "fruit-tree", type: "gather" };
+  const spawnedFruit = { id: "spawned-fruit", type: "pickup" };
+
+  assert.equal(
+    selectPreferredInteractionTarget([fruitTree, spawnedFruit]),
+    spawnedFruit,
+  );
+  assert.equal(selectPreferredInteractionTarget([fruitTree]), fruitTree);
+  assert.equal(selectPreferredInteractionTarget([]), null);
+});
+
+test("抽選群組會依權重只保留一句，未填權重時預設為 1", () => {
+  const lines = [
+    { speaker: "Sbaak", text: "固定開場。" },
+    { speaker: "Echo", text: "常見句。", randomGroupId: "greeting", weight: 3 },
+    { speaker: "Echo", text: "稀有句。", randomGroupId: "GREETING" },
+    { speaker: "Sbaak", text: "固定結尾。" },
+  ];
+
+  assert.deepEqual(
+    resolveWeightedDialogueLines(lines, () => 0.1).map((line) => line.text),
+    ["固定開場。", "常見句。", "固定結尾。"],
+  );
+  assert.deepEqual(
+    resolveWeightedDialogueLines(lines, () => 0.99).map((line) => line.text),
+    ["固定開場。", "稀有句。", "固定結尾。"],
+  );
+});
+
+test("跨行抽選群組以最先出現的位置播放，並按 1:3:6 權重分段抽選", () => {
+  const lines = [
+    { text: "群組第一句", randomGroupId: "random-group-1", weight: 1 },
+    { text: "固定句" },
+    { text: "群組第二句", randomGroupId: "random-group-1", weight: 3 },
+    { text: "群組第三句", randomGroupId: "random-group-1", weight: 6 },
+  ];
+
+  assert.deepEqual(
+    resolveWeightedDialogueLines(lines, () => 0).map((line) => line.text),
+    ["群組第一句", "固定句"],
+  );
+  assert.deepEqual(
+    resolveWeightedDialogueLines(lines, () => 0.11).map((line) => line.text),
+    ["群組第二句", "固定句"],
+  );
+  assert.deepEqual(
+    resolveWeightedDialogueLines(lines, () => 0.5).map((line) => line.text),
+    ["群組第三句", "固定句"],
+  );
+});
+
+test("只有一個成員的舊群組資料仍按普通句子播放", () => {
+  const line = {
+    speaker: "Sbaak",
+    text: "不要遺失我。",
+    randomGroupId: "orphan-group",
+    weight: 8,
+  };
+  assert.deepEqual(resolveWeightedDialogueLines([line], () => 0.5), [line]);
+});
 
 test("操作、採集與移動互動只要有腳本，都必須先完成對話再結算", () => {
   for (const type of ["dialogue", "operation", "gather", "move", "interaction"]) {

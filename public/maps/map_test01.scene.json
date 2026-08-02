@@ -1086,13 +1086,19 @@
       ],
       "type": "operation",
       "verb": "\u64CD\u4F5C",
-      "survivalRequirements": {},
+      "survivalRequirements": {
+        "mode": "all",
+        "spirit": {
+          "comparison": "atLeast",
+          "value": 20
+        }
+      },
       "survivalEffects": {
         "stamina": -5,
         "hunger": -3,
         "thirst": -3,
         "spirit": 0,
-        "timeMinutes": 0
+        "timeMinutes": 60
       },
       "interactionPoints": [
         {
@@ -1165,7 +1171,9 @@
       ],
       "type": "move",
       "verb": "\u79FB\u52D5",
-      "survivalRequirements": {},
+      "survivalRequirements": {
+        "mode": "all"
+      },
       "survivalEffects": {
         "stamina": 0,
         "hunger": 0,
@@ -1229,7 +1237,9 @@
       ],
       "type": "move",
       "verb": "\u79FB\u52D5",
-      "survivalRequirements": {},
+      "survivalRequirements": {
+        "mode": "all"
+      },
       "survivalEffects": {
         "stamina": 0,
         "hunger": 0,
@@ -1318,9 +1328,10 @@
       "type": "move",
       "verb": "\u79FB\u52D5",
       "survivalRequirements": {
+        "mode": "all",
         "stamina": {
-          "comparison": "below",
-          "value": 75
+          "comparison": "atMost",
+          "value": 99
         }
       },
       "survivalEffects": {
@@ -1410,6 +1421,7 @@
       "type": "gather",
       "verb": "\u63A1\u96C6",
       "survivalRequirements": {
+        "mode": "all",
         "stamina": {
           "comparison": "atLeast",
           "value": 20
@@ -1483,50 +1495,52 @@
       "shape": "polygon",
       "points": [
         {
-          "x": 305,
-          "y": 615
+          "x": 290.03568,
+          "y": 624.26385
         },
         {
-          "x": 400,
-          "y": 615
+          "x": 394.53568,
+          "y": 624.26385
         },
         {
-          "x": 465,
-          "y": 570
+          "x": 466.03568,
+          "y": 574.76385
         },
         {
-          "x": 465,
-          "y": 515
+          "x": 466.03568,
+          "y": 514.26385
         },
         {
-          "x": 435,
-          "y": 485
+          "x": 433.03568,
+          "y": 481.26385
         },
         {
-          "x": 390,
-          "y": 475
+          "x": 383.53568,
+          "y": 470.26385
         },
         {
-          "x": 305,
-          "y": 475
+          "x": 290.03568,
+          "y": 470.26385
         },
         {
-          "x": 250,
-          "y": 530
+          "x": 229.53568,
+          "y": 530.76385
         },
         {
-          "x": 250,
-          "y": 580
+          "x": 229.53568,
+          "y": 585.76385
         }
       ],
       "type": "gather",
       "verb": "\u63A1\u96C6",
-      "survivalRequirements": {},
+      "survivalRequirements": {
+        "mode": "all"
+      },
       "survivalEffects": {
-        "stamina": -4,
-        "hunger": -2,
-        "thirst": -2,
-        "spirit": -1,
+        "stamina": -3,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
         "timeMinutes": 0
       },
       "dailyInteractionLimit": 1,
@@ -1538,33 +1552,33 @@
       "interactionPoints": [
         {
           "facing": "NW",
-          "x": 419.5688,
-          "y": 586.38324
-        },
-        {
-          "facing": "W",
-          "x": 445.96564,
-          "y": 558.90894
+          "x": 420.43948,
+          "y": 591.27716
         },
         {
           "facing": "N",
-          "x": 354.92343,
-          "y": 613.8575
+          "x": 339.51038,
+          "y": 624.08624
         },
         {
           "facing": "NE",
-          "x": 277.88773,
-          "y": 595.0026
+          "x": 261.86215,
+          "y": 604.40076
         },
         {
           "facing": "E",
-          "x": 251.49088,
-          "y": 569.68317
+          "x": 229.05305,
+          "y": 554.6403
+        },
+        {
+          "facing": "W",
+          "x": 451.60812,
+          "y": 551.3594
         }
       ],
       "interactionHintPoint": {
-        "x": 339.46475,
-        "y": 508.49805
+        "x": 336.22946,
+        "y": 507.0671
       },
       "activationDistance": 52,
       "dialogue": {
@@ -1593,7 +1607,21 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+            "text": "\u9019\u68F5\u6A39\u4E00\u5929\u53EA\u6703\u7D50\u4E00\u6B21\u679C\u5BE6\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 2
+          },
+          {
+            "speaker": "",
+            "text": "\u770B\u8D77\u4F86\u5B83\u4ECA\u5929\u5DF2\u7D93\u4E0D\u6703\u518D\u7D50\u679C\u4E86\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "",
+            "text": "\u4F3C\u4E4E\u9084\u8981\u7B49\u5230\u660E\u5929\u624D\u6703\u518D\u7D50\u679C\u4E86\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           }
         ]
       }
