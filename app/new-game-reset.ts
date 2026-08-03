@@ -20,10 +20,16 @@ import {
   saveDroppedWorldItems,
 } from "./world-item-placements.ts";
 import {
+  createInitialItemPointProgress,
+  saveItemPointProgress,
+  type ItemPointProgress,
+} from "./item-point-manager.ts";
+import {
   createInitialStoryProgress,
   saveStoryProgress,
   type StoryProgress,
 } from "./story-progress.ts";
+import { saveQuestSaveData } from "./quest-runtime-manager.ts";
 
 export type NewGameProgress = {
   survival: SurvivalGameState;
@@ -31,6 +37,7 @@ export type NewGameProgress = {
   inventory: PlayerInventory;
   collectedWorldItemIds: Set<string>;
   droppedWorldItems: [];
+  itemPointProgress: ItemPointProgress;
   hotbarAssignments: (string | null)[];
   story: StoryProgress;
 };
@@ -43,6 +50,7 @@ export function createNewGameProgress(): NewGameProgress {
     inventory: { ...INITIAL_PLAYER_INVENTORY },
     collectedWorldItemIds: new Set<string>(),
     droppedWorldItems: [],
+    itemPointProgress: createInitialItemPointProgress(),
     hotbarAssignments: [...DEFAULT_HOTBAR_ASSIGNMENTS],
     story: createInitialStoryProgress(),
   };
@@ -55,7 +63,9 @@ export function resetStoredNewGameProgress(): NewGameProgress {
   savePlayerInventory(progress.inventory);
   saveCollectedWorldItemIds(progress.collectedWorldItemIds);
   saveDroppedWorldItems(progress.droppedWorldItems);
+  saveItemPointProgress(progress.itemPointProgress);
   saveHotbarAssignments(progress.hotbarAssignments);
   saveStoryProgress(progress.story);
+  saveQuestSaveData({ schemaVersion: 1, quests: {} });
   return progress;
 }

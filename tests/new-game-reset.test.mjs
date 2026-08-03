@@ -8,7 +8,7 @@ import {
 import { DEFAULT_HOTBAR_ASSIGNMENTS } from "../app/hotbar-assignments.ts";
 import { INITIAL_PLAYER_INVENTORY } from "../app/item-database.ts";
 
-test("新遊戲進度回到第一天 06:00 與完整生存值", () => {
+test("新遊戲進度回到第三章第 3 天 06:00 與完整生存值", () => {
   const progress = createNewGameProgress();
   assert.equal(progress.survival.gameMinutes, 360);
   assert.deepEqual(progress.survival.values, {
@@ -19,6 +19,7 @@ test("新遊戲進度回到第一天 06:00 與完整生存值", () => {
   });
   assert.equal(progress.survival.gameOverReason, null);
   assert.deepEqual(progress.interactionUsage.counts, {});
+  assert.deepEqual(progress.interactionUsage.completedOnceIds, []);
 });
 
 test("新遊戲會重建初始資源並清空場景進度", () => {
@@ -27,7 +28,11 @@ test("新遊戲會重建初始資源並清空場景進度", () => {
   assert.deepEqual(progress.hotbarAssignments, DEFAULT_HOTBAR_ASSIGNMENTS);
   assert.equal(progress.collectedWorldItemIds.size, 0);
   assert.deepEqual(progress.droppedWorldItems, []);
-  assert.deepEqual(progress.story, { currentChapter: 1 });
+  assert.deepEqual(progress.story, {
+    currentChapter: 3,
+    completedEventIds: [],
+    storyFlags: {},
+  });
 });
 
 test("重新開始只覆寫遊戲進度儲存，不清除 Options 偏好", () => {

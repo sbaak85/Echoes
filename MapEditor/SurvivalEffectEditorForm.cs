@@ -12,6 +12,21 @@ public sealed class SurvivalEffectEditorForm : Form
         public Panel Row { get; } = new();
         public ComboBox Target { get; } = new() { DropDownStyle = ComboBoxStyle.DropDownList };
         public ComboBox Amount { get; } = new() { DropDownStyle = ComboBoxStyle.DropDownList };
+        public Button StageSettings { get; } = CreateButton("設定…", 0, 0, 136, 28);
+        public InteractionUseRequirement StageRequirement { get; set; } = new()
+        {
+            Kind = "questStage",
+            StageMode = "CurrentStageOnly",
+        };
+        public Button Remove { get; } = CreateButton("×", 0, 0, 32, 28);
+    }
+
+    private sealed class RewardControls
+    {
+        public Panel Row { get; } = new();
+        public ComboBox Item { get; } = new() { DropDownStyle = ComboBoxStyle.DropDownList };
+        public NumericUpDown Quantity { get; } = new() { Minimum = 1, Maximum = 99, Value = 1 };
+        public ComboBox Delivery { get; } = new() { DropDownStyle = ComboBoxStyle.DropDownList };
         public Button Remove { get; } = CreateButton("×", 0, 0, 32, 28);
     }
 
@@ -21,17 +36,13 @@ public sealed class SurvivalEffectEditorForm : Form
         public NumericUpDown Value { get; } = CreateRequirementValueInput();
     }
 
-    private static readonly UseRequirementChoice[] UseRequirementChoiceItems =
-        ItemCatalog.All
-            .Select(item => new UseRequirementChoice("item", item.Id, $"道具｜{item.Name}"))
-            .Append(new UseRequirementChoice("chapter", "chapter", "進度｜當前章節"))
-            .ToArray();
-
-    private static readonly object[] UseRequirementComboItems =
-        UseRequirementChoiceItems.Cast<object>().ToArray();
-
     private static readonly object[] RequirementAmountItems =
         Enumerable.Range(1, 99).Cast<object>().ToArray();
+
+    private readonly UseRequirementChoice[] _useRequirementChoiceItems;
+    private readonly object[] _useRequirementComboItems;
+    private readonly UseRequirementChoice[] _questChoiceItems;
+    private readonly QuestCatalogEntry[] _quests;
 
     private readonly RequirementControls _staminaRequirement = new();
     private readonly RequirementControls _hungerRequirement = new();
@@ -67,6 +78,16 @@ public sealed class SurvivalEffectEditorForm : Form
     };
     private readonly List<UseRequirementControls> _useRequirementRows = new();
     private bool _useRequirementsExpanded;
+    private readonly Button _rewardToggle = CreateButton("", 18, 378, 350, 32);
+    private readonly Button _addRewardButton = CreateButton("＋", 378, 378, 46, 32);
+    private readonly Panel _rewardList = new()
+    {
+        AutoScroll = true,
+        BackColor = Color.FromArgb(19, 22, 27),
+        BorderStyle = BorderStyle.FixedSingle,
+    };
+    private readonly List<RewardControls> _rewardRows = new();
+    private bool _rewardsExpanded;
     private readonly InteractionTypeDefaults _defaults;
 
     public SurvivalRequirements Requirements => new()
@@ -87,29 +108,72 @@ public sealed class SurvivalEffectEditorForm : Form
         TimeMinutes = (float)_timeHours.Value * 60,
     };
 
-    public int? DailyLimit => _dailyLimit.SelectedIndex <= 0
+    public string? InteractionLimitMode => _dailyLimit.SelectedIndex == 1
+        ? "once"
+        : null;
+
+    public int? DailyLimit => _dailyLimit.SelectedIndex < 2
         ? null
-        : _dailyLimit.SelectedIndex;
+        : _dailyLimit.SelectedIndex - 1;
 
     public List<InteractionUseRequirement> UseRequirements =>
         _useRequirementRows.Select(ReadUseRequirement).ToList();
+
+    public List<InteractionItemReward> ItemRewards =>
+        _rewardRows.Select(ReadReward).ToList();
 
     public SurvivalEffectEditorForm(
         string interactionType,
         SurvivalRequirements requirements,
         SurvivalEffects effects,
         int? dailyLimit,
-        IEnumerable<InteractionUseRequirement>? useRequirements)
+        string? interactionLimitMode,
+        IEnumerable<InteractionUseRequirement>? useRequirements,
+        IEnumerable<InteractionItemReward>? itemRewards,
+        IEnumerable<QuestCatalogEntry>? quests)
     {
         SuspendLayout();
+        SetStyle(
+            ControlStyles.AllPaintingInWmPaint |
+            ControlStyles.OptimizedDoubleBuffer,
+            true);
         _defaults = InteractionTypeDefaults.Get(interactionType);
+        var useRequirementList = useRequirements?
+            .Select(requirement => requirement.Clone())
+            .ToList() ?? new List<InteractionUseRequirement>();
+        var questList = (quests ?? Array.Empty<QuestCatalogEntry>())
+            .Concat(useRequirementList
+                .Where(requirement =>
+                    requirement.Kind.Equals("quest", StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(requirement.QuestId))
+                .Select(requirement => new QuestCatalogEntry(
+                    requirement.QuestId.Trim(),
+                    "（目前場景使用中）")))
+            .GroupBy(quest => quest.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderBy(quest => quest.Id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        _questChoiceItems = questList
+            .Select(quest => new UseRequirementChoice(
+                "quest",
+                quest.Id,
+                $"{quest.Id}｜{quest.Name}"))
+            .ToArray();
+        _quests = questList;
+        _useRequirementChoiceItems = ItemCatalog.All
+            .Select(item => new UseRequirementChoice("item", item.Id, $"道具｜{item.Name}"))
+            .Append(new UseRequirementChoice("chapter", "chapter", "進度｜當前章節"))
+            .Append(new UseRequirementChoice("quest", "quest", "進度｜需求任務"))
+            .Append(new UseRequirementChoice("questStage", "questStage", "進度｜任務階段"))
+            .ToArray();
+        _useRequirementComboItems = _useRequirementChoiceItems.Cast<object>().ToArray();
         Text = "互動需求與完成效果";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(520, 670);
+        ClientSize = new Size(520, 760);
         BackColor = Color.FromArgb(25, 28, 34);
         ForeColor = Color.FromArgb(226, 230, 234);
         Font = new Font("Microsoft JhengHei UI", 9F);
@@ -119,7 +183,7 @@ public sealed class SurvivalEffectEditorForm : Form
             Left = 18,
             Top = 18,
             Width = 464,
-            Height = 590,
+            Height = 680,
         };
         var requirementPage = CreateTab("使用需求");
         var effectPage = CreateTab("完成效果");
@@ -133,13 +197,18 @@ public sealed class SurvivalEffectEditorForm : Form
         BuildRequirementsPage(
             requirementPage,
             requirements ?? new SurvivalRequirements(),
-            useRequirements?.Select(requirement => requirement.Clone()).ToList() ?? new());
-        BuildEffectsPage(effectPage, effects ?? new SurvivalEffects(), dailyLimit);
+            useRequirementList);
+        BuildEffectsPage(
+            effectPage,
+            effects ?? new SurvivalEffects(),
+            dailyLimit,
+            interactionLimitMode,
+            itemRewards?.Select(reward => reward.Clone()).ToList() ?? new());
 
-        var cancelButton = CreateButton("取消", 326, 620, 82, 34);
+        var cancelButton = CreateButton("取消", 326, 710, 82, 34);
         cancelButton.DialogResult = DialogResult.Cancel;
         Controls.Add(cancelButton);
-        var saveButton = CreateButton("儲存", 416, 620, 86, 34);
+        var saveButton = CreateButton("儲存", 416, 710, 86, 34);
         saveButton.DialogResult = DialogResult.OK;
         Controls.Add(saveButton);
         AcceptButton = saveButton;
@@ -165,7 +234,8 @@ public sealed class SurvivalEffectEditorForm : Form
         explanation.SetBounds(18, 18, 410, 44);
         page.Controls.Add(explanation);
 
-        AddFieldLabel(page, "條件組合", 69);
+        var matchModeLabel = AddFieldLabel(page, "條件組合", 69);
+        matchModeLabel.Width = 106;
         _requirementMatchMode.SetBounds(136, 66, 286, 28);
         _requirementMatchMode.Items.AddRange(new object[]
         {
@@ -222,7 +292,7 @@ public sealed class SurvivalEffectEditorForm : Form
         _useRequirementList.Controls.Add(targetHeader);
         var amountHeader = new Label
         {
-            Text = "數量／章節",
+            Text = "數量／章節／任務／階段",
             AutoSize = false,
             ForeColor = Color.FromArgb(145, 158, 170),
         };
@@ -257,31 +327,29 @@ public sealed class SurvivalEffectEditorForm : Form
         controls.Row.Height = 38;
         controls.Row.Width = 378;
         controls.Row.BackColor = Color.FromArgb(25, 28, 34);
-        controls.Target.SetBounds(4, 5, 240, 28);
+        controls.Target.SetBounds(4, 5, 180, 28);
         controls.Target.BeginUpdate();
-        controls.Target.Items.AddRange(UseRequirementComboItems);
-        controls.Target.SelectedIndex = UseRequirementChoiceItems
+        controls.Target.Items.AddRange(_useRequirementComboItems);
+        controls.Target.SelectedIndex = _useRequirementChoiceItems
             .Select((choice, index) => new { choice, index })
             .FirstOrDefault(entry =>
                 entry.choice.Kind.Equals(requirement.Kind, StringComparison.OrdinalIgnoreCase) &&
-                (entry.choice.Kind == "chapter" ||
+                (entry.choice.Kind is "chapter" or "quest" or "questStage" ||
+                 entry.choice.Kind == "item" &&
                  entry.choice.Id.Equals(requirement.ItemId, StringComparison.OrdinalIgnoreCase)))
             ?.index ?? 0;
         controls.Target.EndUpdate();
-        controls.Amount.SetBounds(250, 5, 76, 28);
-        controls.Amount.BeginUpdate();
-        controls.Amount.Items.AddRange(RequirementAmountItems);
-        controls.Amount.SelectedIndex = Math.Clamp(
-            requirement.Kind.Equals("chapter", StringComparison.OrdinalIgnoreCase)
-                ? requirement.Chapter - 1
-                : requirement.Quantity - 1,
-            0,
-            98);
-        controls.Amount.EndUpdate();
+        controls.Amount.SetBounds(190, 5, 136, 28);
+        controls.StageSettings.SetBounds(190, 5, 136, 28);
+        controls.StageSettings.Click += (_, _) => EditStageRequirement(controls);
+        ConfigureRequirementAmount(controls, requirement);
+        controls.Target.SelectedIndexChanged += (_, _) =>
+            ConfigureRequirementAmount(controls, null);
         controls.Remove.SetBounds(334, 5, 36, 28);
         controls.Remove.Click += (_, _) => RemoveUseRequirementRow(controls);
         controls.Row.Controls.Add(controls.Target);
         controls.Row.Controls.Add(controls.Amount);
+        controls.Row.Controls.Add(controls.StageSettings);
         controls.Row.Controls.Add(controls.Remove);
         controls.Row.ResumeLayout(false);
         _useRequirementRows.Add(controls);
@@ -304,17 +372,89 @@ public sealed class SurvivalEffectEditorForm : Form
             _useRequirementRows[index].Row.SetBounds(4, 24 + index * 40, 378, 38);
         }
         _useRequirementToggle.Text =
-            $"{(_useRequirementsExpanded ? "▼" : "▶")} 道具／章節需求（{_useRequirementRows.Count}）";
+            $"{(_useRequirementsExpanded ? "▼" : "▶")} 道具／章節／任務需求（{_useRequirementRows.Count}）";
         _useRequirementList.Visible = _useRequirementsExpanded;
     }
 
-    private static InteractionUseRequirement ReadUseRequirement(
+    private void ConfigureRequirementAmount(
+        UseRequirementControls controls,
+        InteractionUseRequirement? existing)
+    {
+        var choice = controls.Target.SelectedItem as UseRequirementChoice ??
+            _useRequirementChoiceItems[0];
+        controls.Amount.BeginUpdate();
+        controls.Amount.Items.Clear();
+        if (choice.Kind == "questStage")
+        {
+            controls.StageRequirement = existing?.Kind.Equals(
+                "questStage",
+                StringComparison.OrdinalIgnoreCase) == true
+                ? existing.Clone()
+                : new InteractionUseRequirement
+                {
+                    Kind = "questStage",
+                    QuestId = _quests.FirstOrDefault()?.Id ?? "",
+                    StageId = _quests.FirstOrDefault()?.StageEntries.FirstOrDefault()?.Id ?? "",
+                    StageMode = "CurrentStageOnly",
+                };
+            controls.Amount.Visible = false;
+            controls.StageSettings.Visible = true;
+            RefreshStageRequirementButton(controls);
+        }
+        else if (choice.Kind == "quest")
+        {
+            controls.Amount.Visible = true;
+            controls.StageSettings.Visible = false;
+            controls.Amount.DropDownStyle = ComboBoxStyle.DropDown;
+            controls.Amount.Items.AddRange(_questChoiceItems.Cast<object>().ToArray());
+            var questId = existing?.QuestId?.Trim() ?? "";
+            var selectedIndex = _questChoiceItems
+                .Select((quest, index) => new { quest, index })
+                .FirstOrDefault(entry => entry.quest.Id.Equals(
+                    questId,
+                    StringComparison.OrdinalIgnoreCase))
+                ?.index ?? -1;
+            if (selectedIndex >= 0)
+            {
+                controls.Amount.SelectedIndex = selectedIndex;
+            }
+            else
+            {
+                controls.Amount.Text = questId;
+            }
+            controls.Amount.Enabled = true;
+        }
+        else
+        {
+            controls.Amount.Visible = true;
+            controls.StageSettings.Visible = false;
+            controls.Amount.DropDownStyle = ComboBoxStyle.DropDownList;
+            controls.Amount.Items.AddRange(RequirementAmountItems);
+            var amount = choice.Kind == "chapter"
+                ? existing?.Chapter ?? 1
+                : existing?.Quantity ?? 1;
+            controls.Amount.SelectedIndex = Math.Clamp(amount - 1, 0, 98);
+            controls.Amount.Enabled = true;
+        }
+        controls.Amount.EndUpdate();
+    }
+
+    private InteractionUseRequirement ReadUseRequirement(
         UseRequirementControls controls)
     {
         var choice = controls.Target.SelectedItem as UseRequirementChoice ??
-            UseRequirementChoiceItems[0];
+            _useRequirementChoiceItems[0];
         var amount = Math.Max(1, controls.Amount.SelectedIndex + 1);
-        return choice.Kind == "chapter"
+        var selectedQuest = controls.Amount.SelectedItem as UseRequirementChoice;
+        return choice.Kind == "questStage"
+            ? controls.StageRequirement.Clone()
+            : choice.Kind == "quest"
+            ? new InteractionUseRequirement
+            {
+                Kind = "quest",
+                QuestId = selectedQuest?.Id ?? controls.Amount.Text.Trim(),
+            }
+            : choice.Kind == "chapter"
             ? new InteractionUseRequirement
             {
                 Kind = "chapter",
@@ -328,7 +468,35 @@ public sealed class SurvivalEffectEditorForm : Form
             };
     }
 
-    private void BuildEffectsPage(Control page, SurvivalEffects effects, int? dailyLimit)
+    private void EditStageRequirement(UseRequirementControls controls)
+    {
+        using var editor = new QuestStageRequirementEditorForm(_quests, controls.StageRequirement);
+        if (editor.ShowDialog(this) != DialogResult.OK) return;
+        controls.StageRequirement = editor.Requirement;
+        RefreshStageRequirementButton(controls);
+    }
+
+    private static void RefreshStageRequirementButton(UseRequirementControls controls)
+    {
+        var requirement = controls.StageRequirement;
+        controls.StageSettings.Text = string.IsNullOrWhiteSpace(requirement.StageId)
+            ? "設定…"
+            : $"{ModeShortLabel(requirement.StageMode)}｜{requirement.StageId}";
+    }
+
+    private static string ModeShortLabel(string mode) => mode switch
+    {
+        "UnlockFromStage" => "永久",
+        "UnlockUntilCondition" => "直到關閉",
+        _ => "本階段",
+    };
+
+    private void BuildEffectsPage(
+        Control page,
+        SurvivalEffects effects,
+        int? dailyLimit,
+        string? interactionLimitMode,
+        IReadOnlyCollection<InteractionItemReward> itemRewards)
     {
         var explanation = new Label
         {
@@ -353,10 +521,21 @@ public sealed class SurvivalEffectEditorForm : Form
         page.Controls.Add(_timeHours);
 
         AddFieldLabel(page, "每日允許互動次數", 290);
+        page.Controls.OfType<Label>().Last().Text = "互動次數限制";
         _dailyLimit.SetBounds(186, 287, 236, 28);
         _dailyLimit.Items.Add("無限");
-        for (var value = 1; value <= 10; value++) _dailyLimit.Items.Add(value.ToString());
-        _dailyLimit.SelectedIndex = Math.Clamp(dailyLimit ?? 0, 0, 10);
+        _dailyLimit.Items.Add("唯一一次（不重置）");
+        for (var value = 1; value <= 10; value++)
+        {
+            _dailyLimit.Items.Add($"每日 {value} 次");
+        }
+        _dailyLimit.SelectedIndex = "once".Equals(
+            interactionLimitMode,
+            StringComparison.OrdinalIgnoreCase)
+            ? 1
+            : dailyLimit is null
+                ? 0
+                : Math.Clamp(dailyLimit.Value + 1, 2, 11);
         page.Controls.Add(_dailyLimit);
 
         var resetTime = new Label
@@ -365,12 +544,131 @@ public sealed class SurvivalEffectEditorForm : Form
             AutoSize = false,
             ForeColor = Color.FromArgb(129, 222, 211),
         };
-        resetTime.SetBounds(186, 320, 236, 24);
+        resetTime.SetBounds(186, 320, 236, 40);
+        void RefreshLimitHint()
+        {
+            resetTime.Text = _dailyLimit.SelectedIndex switch
+            {
+                1 => "完成後永久鎖定；只有重新開始新遊戲才會重置。",
+                >= 2 => "每日次數於遊戲時間 06:00 自動重置。",
+                _ => "不限制互動次數。",
+            };
+        }
+        _dailyLimit.SelectedIndexChanged += (_, _) => RefreshLimitHint();
+        RefreshLimitHint();
         page.Controls.Add(resetTime);
 
         var defaultsButton = CreateButton($"套用「{_defaults.Label}」預設值", 18, 370, 210, 34);
         defaultsButton.Click += (_, _) => ApplyDefaults();
         page.Controls.Add(defaultsButton);
+
+        _rewardToggle.SetBounds(18, 420, 350, 32);
+        _rewardToggle.Click += (_, _) =>
+        {
+            _rewardsExpanded = !_rewardsExpanded;
+            RefreshRewardLayout();
+        };
+        page.Controls.Add(_rewardToggle);
+        _addRewardButton.SetBounds(378, 420, 46, 32);
+        _addRewardButton.Click += (_, _) =>
+        {
+            AddRewardRow(new InteractionItemReward
+            {
+                ItemId = ItemCatalog.All[0].Id,
+                Quantity = 1,
+                Delivery = "inventory",
+            });
+            _rewardsExpanded = true;
+            RefreshRewardLayout();
+        };
+        page.Controls.Add(_addRewardButton);
+        _rewardList.SetBounds(18, 460, 406, 160);
+        page.Controls.Add(_rewardList);
+        _rewardList.SuspendLayout();
+        foreach (var reward in itemRewards)
+        {
+            AddRewardRow(reward, refreshLayout: false);
+        }
+        _rewardList.ResumeLayout(false);
+        _rewardsExpanded = itemRewards.Count > 0;
+        RefreshRewardLayout();
+    }
+
+    private void AddRewardRow(
+        InteractionItemReward reward,
+        bool refreshLayout = true)
+    {
+        var controls = new RewardControls();
+        controls.Row.SuspendLayout();
+        controls.Row.Height = 38;
+        controls.Row.Width = 378;
+        controls.Row.BackColor = Color.FromArgb(25, 28, 34);
+        controls.Item.SetBounds(4, 5, 172, 28);
+        controls.Item.Items.AddRange(ItemCatalog.All.Cast<object>().ToArray());
+        controls.Item.SelectedIndex = Math.Max(
+            0,
+            ItemCatalog.All
+                .Select((item, index) => new { item.Id, index })
+                .FirstOrDefault(entry => entry.Id.Equals(
+                    reward.ItemId,
+                    StringComparison.OrdinalIgnoreCase))
+                ?.index ?? 0);
+        controls.Quantity.SetBounds(182, 5, 48, 28);
+        controls.Quantity.Value = Math.Clamp(
+            reward.Quantity,
+            (int)controls.Quantity.Minimum,
+            (int)controls.Quantity.Maximum);
+        controls.Delivery.SetBounds(236, 5, 94, 28);
+        controls.Delivery.Items.AddRange(new object[]
+        {
+            "直接進背包",
+            "Spawn 場上",
+        });
+        controls.Delivery.SelectedIndex = reward.Delivery.Equals(
+            "world",
+            StringComparison.OrdinalIgnoreCase)
+            ? 1
+            : 0;
+        controls.Remove.SetBounds(338, 5, 32, 28);
+        controls.Remove.Click += (_, _) => RemoveRewardRow(controls);
+        controls.Row.Controls.Add(controls.Item);
+        controls.Row.Controls.Add(controls.Quantity);
+        controls.Row.Controls.Add(controls.Delivery);
+        controls.Row.Controls.Add(controls.Remove);
+        controls.Row.ResumeLayout(false);
+        _rewardRows.Add(controls);
+        _rewardList.Controls.Add(controls.Row);
+        if (refreshLayout) RefreshRewardLayout();
+    }
+
+    private void RemoveRewardRow(RewardControls controls)
+    {
+        _rewardRows.Remove(controls);
+        _rewardList.Controls.Remove(controls.Row);
+        controls.Row.Dispose();
+        RefreshRewardLayout();
+    }
+
+    private void RefreshRewardLayout()
+    {
+        for (var index = 0; index < _rewardRows.Count; index++)
+        {
+            _rewardRows[index].Row.SetBounds(4, 4 + index * 40, 378, 38);
+        }
+        _rewardToggle.Text =
+            $"{(_rewardsExpanded ? "▼" : "▶")} 完成後產生道具（{_rewardRows.Count} 種）";
+        _rewardList.Visible = _rewardsExpanded;
+    }
+
+    private static InteractionItemReward ReadReward(RewardControls controls)
+    {
+        var item = controls.Item.SelectedItem as ItemCatalogEntry ?? ItemCatalog.All[0];
+        return new InteractionItemReward
+        {
+            ItemId = item.Id,
+            Quantity = (int)controls.Quantity.Value,
+            Delivery = controls.Delivery.SelectedIndex == 1 ? "world" : "inventory",
+        };
     }
 
     private IEnumerable<RequirementControls> RequirementRows()
@@ -477,7 +775,7 @@ public sealed class SurvivalEffectEditorForm : Form
         page.Controls.Add(input);
     }
 
-    private static void AddFieldLabel(Control page, string text, int top)
+    private static Label AddFieldLabel(Control page, string text, int top)
     {
         var label = new Label
         {
@@ -487,6 +785,7 @@ public sealed class SurvivalEffectEditorForm : Form
         };
         label.SetBounds(18, top, 162, 26);
         page.Controls.Add(label);
+        return label;
     }
 
     private void ApplyDefaults()
@@ -496,7 +795,9 @@ public sealed class SurvivalEffectEditorForm : Form
         _thirst.Value = (decimal)_defaults.Effects.Thirst;
         _spirit.Value = (decimal)_defaults.Effects.Spirit;
         _timeHours.Value = (decimal)_defaults.Effects.TimeMinutes / 60;
-        _dailyLimit.SelectedIndex = _defaults.DailyLimit ?? 0;
+        _dailyLimit.SelectedIndex = _defaults.DailyLimit is null
+            ? 0
+            : Math.Clamp(_defaults.DailyLimit.Value + 1, 2, 11);
     }
 
     private static Button CreateButton(string text, int left, int top, int width, int height)

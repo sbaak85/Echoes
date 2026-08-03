@@ -13,12 +13,12 @@
   },
   "grid": {
     "size": 5,
-    "visible": false,
-    "snap": false
+    "visible": true,
+    "snap": true
   },
   "playerSpawn": {
-    "x": 648,
-    "y": 684,
+    "x": 680,
+    "y": 670,
     "facing": "S"
   },
   "navMesh": [
@@ -27,8 +27,8 @@
       "label": "Main plateau",
       "points": [
         {
-          "x": 602,
-          "y": 280
+          "x": 595,
+          "y": 285
         },
         {
           "x": 630,
@@ -39,16 +39,16 @@
           "y": 280
         },
         {
-          "x": 672,
-          "y": 266
+          "x": 665,
+          "y": 300
         },
         {
-          "x": 700,
-          "y": 266
+          "x": 695,
+          "y": 290
         },
         {
-          "x": 728,
-          "y": 280
+          "x": 715,
+          "y": 300
         },
         {
           "x": 728,
@@ -135,24 +135,20 @@
           "y": 572
         },
         {
-          "x": 1160,
-          "y": 592
+          "x": 1150,
+          "y": 600
         },
         {
-          "x": 1148,
-          "y": 592
+          "x": 1150,
+          "y": 605
         },
         {
-          "x": 1148,
-          "y": 604
+          "x": 1240,
+          "y": 675
         },
         {
-          "x": 1236,
-          "y": 672
-        },
-        {
-          "x": 1192,
-          "y": 704
+          "x": 1195,
+          "y": 705
         },
         {
           "x": 1212,
@@ -163,32 +159,16 @@
           "y": 764
         },
         {
-          "x": 1120,
-          "y": 744
-        },
-        {
           "x": 1100,
-          "y": 756
+          "y": 730
         },
         {
-          "x": 1030,
-          "y": 710
+          "x": 1050,
+          "y": 765
         },
         {
-          "x": 1008,
-          "y": 724
-        },
-        {
-          "x": 1008,
-          "y": 740
-        },
-        {
-          "x": 1076,
-          "y": 784
-        },
-        {
-          "x": 1044,
-          "y": 804
+          "x": 1050,
+          "y": 805
         },
         {
           "x": 1024,
@@ -217,10 +197,6 @@
         {
           "x": 892,
           "y": 936
-        },
-        {
-          "x": 840,
-          "y": 966
         },
         {
           "x": 784,
@@ -323,12 +299,12 @@
           "y": 672
         },
         {
-          "x": 24,
-          "y": 644
+          "x": 20,
+          "y": 640
         },
         {
-          "x": 70,
-          "y": 616
+          "x": 60,
+          "y": 610
         },
         {
           "x": 108,
@@ -475,12 +451,8 @@
       "label": "South road",
       "points": [
         {
-          "x": 776,
-          "y": 1000
-        },
-        {
-          "x": 824,
-          "y": 968
+          "x": 815,
+          "y": 970
         },
         {
           "x": 860,
@@ -664,8 +636,8 @@
           "y": 336
         },
         {
-          "x": 728,
-          "y": 308
+          "x": 715,
+          "y": 300
         }
       ]
     },
@@ -794,20 +766,24 @@
       "shape": "polygon",
       "points": [
         {
-          "x": 216,
-          "y": 648
+          "x": 240,
+          "y": 650
         },
         {
-          "x": 216,
-          "y": 666
+          "x": 220,
+          "y": 680
         },
         {
-          "x": 108,
-          "y": 594
+          "x": 205,
+          "y": 670
         },
         {
-          "x": 108,
-          "y": 576
+          "x": 95,
+          "y": 590
+        },
+        {
+          "x": 120,
+          "y": 570
         }
       ]
     },
@@ -840,28 +816,28 @@
       "shape": "polygon",
       "points": [
         {
-          "x": 1108,
-          "y": 680
+          "x": 1040,
+          "y": 770
         },
         {
-          "x": 1128,
-          "y": 664
+          "x": 1105,
+          "y": 725
         },
         {
-          "x": 1128,
-          "y": 656
+          "x": 1105,
+          "y": 705
         },
         {
-          "x": 1108,
-          "y": 644
+          "x": 1045,
+          "y": 665
         },
         {
-          "x": 1088,
-          "y": 660
+          "x": 985,
+          "y": 710
         },
         {
-          "x": 1088,
-          "y": 668
+          "x": 985,
+          "y": 735
         }
       ]
     },
@@ -932,20 +908,20 @@
       "shape": "polygon",
       "points": [
         {
-          "x": 760,
-          "y": 564
+          "x": 755,
+          "y": 580
         },
         {
-          "x": 824,
-          "y": 528
+          "x": 820,
+          "y": 530
         },
         {
-          "x": 888,
-          "y": 560
+          "x": 890,
+          "y": 570
         },
         {
-          "x": 892,
-          "y": 612
+          "x": 890,
+          "y": 615
         },
         {
           "x": 852,
@@ -956,8 +932,8 @@
           "y": 656
         },
         {
-          "x": 756,
-          "y": 616
+          "x": 755,
+          "y": 615
         }
       ],
       "type": "dialogue",
@@ -1016,7 +992,21 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "...\u71DF\u706B\u5F88\u6EAB\u6696\u3002"
+            "text": "...\u71DF\u706B\u5F88\u6EAB\u6696\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 2
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u5728\u71DF\u706B\u524D\u4F11\u606F\u4E00\u4E0B\uFF0C\u80FD\u8B93\u8EAB\u9AD4\u6EAB\u6696\u4E00\u9EDE...",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u5728\u71DF\u706B\u524D\u4F11\u606F\u4E00\u4E0B\uFF0C\u80FD\u7A0D\u5FAE\u6062\u5FA9\u8EAB\u9AD4\u7684\u75B2\u618A\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           },
           {
             "speaker": "Sbaak",
@@ -1033,7 +1023,48 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+            "text": "(\u76EF\u8457\u6EAB\u6696\u7684\u9918\u706B) \u73FE\u5728\u5148\u4E0D\u8981\u4F11\u606F\u6BD4\u8F03\u597D...",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "(\u76EF\u8457\u770B\u4E86\u4E00\u773C) \u71DF\u706B\u9084\u5F88\u6EAB\u6696\uFF0C\u4F46\u73FE\u5728\u5148\u4E0D\u9700\u8981\u4F11\u606F\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "(\u6DFB\u4E86\u4E00\u9EDE\u4E7E\u6750\u7D66\u71DF\u706B) \u6211\u9084\u883B\u6709\u7CBE\u795E\u4E86\uFF0C\u73FE\u5728\u5148\u4E0D\u8981\u6D6A\u8CBB\u6642\u9593\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          }
+        ]
+      },
+      "completionDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u8A72\u8D77\u8EAB\u4E86\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u4E0D\u80FD\u518D\u4F11\u606F\u4E0B\u53BB\u4E86\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u8A72\u8D77\u4F86\u4E86\uFF0C\u9084\u6709\u5F88\u591A\u4E8B\u8981\u505A\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           }
         ]
       }
@@ -1100,6 +1131,20 @@
         "spirit": 0,
         "timeMinutes": 60
       },
+      "dailyInteractionLimit": 5,
+      "useRequirements": [
+        {
+          "kind": "questStage",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_001",
+          "stageId": "QUEST_CH03_MAIN_001_STAGE_02",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
       "interactionPoints": [
         {
           "facing": "NW",
@@ -1121,11 +1166,27 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u4ECA\u5929\u6C92\u6709\u4EFB\u4F55\u9032\u5C55...\u3002"
+            "text": "\u4ECA\u5929\u6C92\u6709\u4EFB\u4F55\u9032\u5C55...\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           },
           {
             "speaker": "Sbaak",
-            "text": "\u6211\u9084\u9700\u8981\u66F4\u591A\u6578\u64DA...\u3002"
+            "text": "\u4ECA\u5929\u9084\u6709\u4E00\u5806\u5B8C\u5168\u4E0D\u7406\u89E3\u7684\u8A0A\u606F...\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u6211\u9084\u9700\u8981\u66F4\u591A\u6578\u64DA...\u3002",
+            "randomGroupId": "random-group-2",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u6211\u9084\u9700\u8981\u62FF\u5230\u66F4\u591A\u8CC7\u6599...\u3002",
+            "randomGroupId": "random-group-2",
+            "weight": 1
           }
         ]
       },
@@ -1138,7 +1199,21 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+            "text": "\u73FE\u5728\u8CC7\u6599\u5728\u9032\u884C\u5206\u6790...\u66AB\u6642\u7121\u6CD5\u4F7F\u7528\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u4ECA\u5929\u5DF2\u7D93\u5DE5\u4F5C\u592A\u4E45\u4E86...",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u4ECA\u5929\u6211\u5DF2\u7D93\u7121\u6CD5\u518D\u5C08\u5FC3\u8655\u7406\u4E86...\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           }
         ]
       }
@@ -1341,6 +1416,19 @@
         "spirit": 0,
         "timeMinutes": 480
       },
+      "useRequirements": [
+        {
+          "kind": "questStage",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_001",
+          "stageId": "QUEST_CH03_MAIN_001_STAGE_03",
+          "stageMode": "UnlockFromStage",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
       "interactionPoints": [
         {
           "facing": "NW",
@@ -1362,7 +1450,21 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u73FE\u5728\u9084\u6709\u5F88\u591A\u4E8B\u8981\u505A\u3002"
+            "text": "\u597D\u50CF\u6709\u9EDE\u7D2F\u4E86\uFF0C\u53BB\u7761\u4E00\u6703\u5427...",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u4ECA\u5929\u4E5F\u5DEE\u4E0D\u591A\u8A72\u53BB\u7761\u4E86\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u61C9\u8A72\u5148\u7761\u4E00\u4E0B\u4E86\uFF0C\u660E\u5929\u624D\u6709\u66F4\u591A\u9AD4\u529B\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           }
         ]
       },
@@ -1375,7 +1477,48 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+            "text": "\u73FE\u5728\u9084\u6709\u5F88\u591A\u4E8B\u8981\u505A\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u73FE\u5728\u7761\u89BA\u7684\u8A71\u6703\u640D\u5931\u5F88\u591A\u6642\u9593...",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u8EAB\u9AD4\u72C0\u6CC1\u9084\u53EF\u4EE5\uFF0C\u5148\u4E0D\u9700\u8981\u7761\u89BA\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          }
+        ]
+      },
+      "completionDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u7761\u8DB3\u4E868\u5C0F\u6642...\u8A72\u505A\u4E8B\u4E86\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u597D\u597D\u7761\u4E86\u4E00\u89BA\uFF0C\u6BD4\u8F03\u6709\u7CBE\u795E\u4E86\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u4F11\u606F\u4E86\u4E00\u665A\uFF0C\u8A72\u7E7C\u7E8C\u6574\u7406\u4E86\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           }
         ]
       }
@@ -1386,24 +1529,24 @@
       "shape": "polygon",
       "points": [
         {
-          "x": 585,
+          "x": 590,
           "y": 360
         },
         {
-          "x": 605,
+          "x": 610,
           "y": 375
         },
         {
-          "x": 605,
+          "x": 610,
           "y": 400
         },
         {
           "x": 535,
-          "y": 445
+          "y": 450
         },
         {
-          "x": 495,
-          "y": 445
+          "x": 500,
+          "y": 450
         },
         {
           "x": 485,
@@ -1435,26 +1578,41 @@
         "timeMinutes": 0
       },
       "dailyInteractionLimit": 3,
-      "itemReward": {
-        "itemId": "R0001",
-        "quantity": 1,
-        "delivery": "world"
-      },
+      "itemRewards": [
+        {
+          "itemId": "R0001",
+          "quantity": 1,
+          "delivery": "world"
+        }
+      ],
+      "useRequirements": [
+        {
+          "kind": "quest",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_001",
+          "stageId": "",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
       "interactionPoints": [
         {
-          "facing": "N",
-          "x": 530.5433,
-          "y": 443.08603
-        },
-        {
           "facing": "NW",
-          "x": 566.0982,
-          "y": 424.23114
+          "x": 567.05835,
+          "y": 425.0143
         },
         {
           "facing": "W",
-          "x": 587.64667,
-          "y": 402.68268
+          "x": 595.2069,
+          "y": 394.7807
+        },
+        {
+          "facing": "N",
+          "x": 525.0093,
+          "y": 449.68774
         }
       ],
       "interactionHintPoint": {
@@ -1471,7 +1629,21 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u795E\u79D8\u7684\u7926\u77F3\uFF0C\u53EF\u4EE5\u63D0\u4F9B\u6211\u767C\u96FB\u3002"
+            "text": "\u795E\u79D8\u7684\u7926\u77F3\uFF0C\u53EF\u4EE5\u63D0\u4F9B\u6211\u767C\u96FB\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u795E\u79D8\u7684\u7926\u77F3\uFF0C\u96B1\u96B1\u767C\u51FA\u85CD\u8272\u7684\u5E7D\u5149...",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u9752\u85CD\u7684\u795E\u7955\u7926\u77F3\uFF0C\u653E\u5165\u5171\u632F\u6A5F\u53EF\u4EE5\u7522\u751F\u96FB\u80FD\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           }
         ]
       },
@@ -1484,7 +1656,21 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u6211\u5DF2\u7D93\u6C92\u6709\u529B\u6C23\u505A\u9019\u500B\u4E86\u2026\u2026"
+            "text": "\u6211\u5DF2\u7D93\u6C92\u6709\u529B\u6C23\u505A\u9019\u500B\u4E86\u2026",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u6BCF\u5929\u6316\u63983\u584A\u7926\u77F3\u662F\u6211\u7684\u6975\u9650\u4E86...",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u8EAB\u4E0A\u9084\u6709\u50B7...\u4E0D\u8981\u518D\u52C9\u5F37\u6316\u6398\u4E86\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           }
         ]
       }
@@ -1544,11 +1730,26 @@
         "timeMinutes": 0
       },
       "dailyInteractionLimit": 1,
-      "itemReward": {
-        "itemId": "R0012",
-        "quantity": 1,
-        "delivery": "world"
-      },
+      "itemRewards": [
+        {
+          "itemId": "R0012",
+          "quantity": 1,
+          "delivery": "world"
+        }
+      ],
+      "useRequirements": [
+        {
+          "kind": "questStage",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_001",
+          "stageId": "QUEST_CH03_MAIN_001_STAGE_03",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
       "interactionPoints": [
         {
           "facing": "NW",
@@ -1612,16 +1813,286 @@
             "weight": 2
           },
           {
-            "speaker": "",
+            "speaker": "Sbaak",
             "text": "\u770B\u8D77\u4F86\u5B83\u4ECA\u5929\u5DF2\u7D93\u4E0D\u6703\u518D\u7D50\u679C\u4E86\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
-            "speaker": "",
+            "speaker": "Sbaak",
             "text": "\u4F3C\u4E4E\u9084\u8981\u7B49\u5230\u660E\u5929\u624D\u6703\u518D\u7D50\u679C\u4E86\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "interaction-008",
+      "label": "\u8CA8\u6AC3\u7BB1",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 585,
+          "y": 485
+        },
+        {
+          "x": 655,
+          "y": 435
+        },
+        {
+          "x": 700,
+          "y": 435
+        },
+        {
+          "x": 770,
+          "y": 485
+        },
+        {
+          "x": 770,
+          "y": 545
+        },
+        {
+          "x": 695,
+          "y": 605
+        },
+        {
+          "x": 660,
+          "y": 605
+        },
+        {
+          "x": 585,
+          "y": 550
+        }
+      ],
+      "type": "operation",
+      "verb": "\u64CD\u4F5C",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionLimitMode": "once",
+      "itemRewards": [
+        {
+          "itemId": "R0005",
+          "quantity": 2,
+          "delivery": "world"
+        },
+        {
+          "itemId": "R0004",
+          "quantity": 2,
+          "delivery": "world"
+        }
+      ],
+      "useRequirements": [
+        {
+          "kind": "quest",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_001",
+          "stageId": "",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
+      "interactionPoints": [
+        {
+          "facing": "NE",
+          "x": 637.22455,
+          "y": 565.3931
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 660.1837,
+        "y": 478.6547
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u6211\u770B\u770B...\u53E3\u7CE7...\u8DDF\u6DE8\u6C34...\u6709\u4E86!"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u6AA2\u67E5\u904E\u4E86\uFF0C\u5DF2\u7D93\u6C92\u6771\u897F\u4E86\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u627E\u5230\u4E86\uFF0C\u6771\u897F\u6211\u5DF2\u7D93\u62FF\u597D\u4E86\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u5DF2\u7D93\u6C92\u6709\u4EFB\u4F55\u6771\u897F\u4E86\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          }
+        ]
+      },
+      "completionDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "",
+            "text": "\u641C\u7D22\u5B8C\u6210"
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u597D\u4E86\uFF0C\u628A\u9019\u4E9B\u53E3\u7CE7\u6536\u597D\u3002"
+          }
+        ]
+      }
+    },
+    {
+      "id": "interaction-009",
+      "label": "\u51B7\u51DD\u6C34\u6536\u96C6\u5668",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1050,
+          "y": 800
+        },
+        {
+          "x": 950,
+          "y": 735
+        },
+        {
+          "x": 950,
+          "y": 695
+        },
+        {
+          "x": 980,
+          "y": 660
+        },
+        {
+          "x": 1025,
+          "y": 660
+        },
+        {
+          "x": 1090,
+          "y": 610
+        },
+        {
+          "x": 1135,
+          "y": 640
+        },
+        {
+          "x": 1155,
+          "y": 695
+        },
+        {
+          "x": 1155,
+          "y": 725
+        }
+      ],
+      "type": "gather",
+      "verb": "\u63A1\u96C6",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": -2,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "dailyInteractionLimit": 3,
+      "itemRewards": [
+        {
+          "itemId": "R0004",
+          "quantity": 1,
+          "delivery": "world"
+        },
+        {
+          "itemId": "R0004",
+          "quantity": 1,
+          "delivery": "world"
+        }
+      ],
+      "useRequirements": [
+        {
+          "kind": "questStage",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_001",
+          "stageId": "QUEST_CH03_MAIN_001_STAGE_03",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
+      "interactionPoints": [
+        {
+          "facing": "E",
+          "x": 962.96094,
+          "y": 727.97485
+        },
+        {
+          "facing": "NE",
+          "x": 998.2705,
+          "y": 761.9766
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 1029.2134,
+        "y": 686.85547
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "..."
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }
@@ -1649,16 +2120,89 @@
       "label": "\u5F37\u5236\u5F15\u5C0E\u7DDA 2",
       "points": [
         {
-          "x": 790,
-          "y": 1010
+          "x": 800,
+          "y": 1020
         },
         {
-          "x": 845,
+          "x": 850,
           "y": 1075
         }
       ],
-      "width": 75,
+      "width": 65,
       "bidirectional": true
+    }
+  ],
+  "storyTriggers": [
+    {
+      "id": "story-trigger-001",
+      "label": "\u5DE6\u4E0B\u9053\u8DEF\u30FB\u5C1A\u672A\u6E96\u5099\u597D",
+      "points": [
+        {
+          "x": 175,
+          "y": 1005
+        },
+        {
+          "x": 257,
+          "y": 953
+        },
+        {
+          "x": 375,
+          "y": 1035
+        },
+        {
+          "x": 295,
+          "y": 1100
+        }
+      ],
+      "once": true,
+      "dialogueId": "chapter03-lower-left-not-ready"
+    }
+  ],
+  "itemPoints": [
+    {
+      "id": "item-point-001",
+      "label": "ItemPoint 1",
+      "itemId": "T0007",
+      "quantity": 1,
+      "spawnPolicy": "once",
+      "showOnMinimap": true,
+      "spawnRequirement": {
+        "questId": "QUEST_CH03_MAIN_001",
+        "stageId": "QUEST_CH03_MAIN_001_STAGE_03",
+        "stageMode": "CurrentStageOnly"
+      },
+      "x": 361.299,
+      "y": 753.3392
+    },
+    {
+      "id": "item-point-002",
+      "label": "ItemPoint 2",
+      "itemId": "R0009",
+      "quantity": 1,
+      "spawnPolicy": "once",
+      "showOnMinimap": true,
+      "spawnRequirement": {
+        "questId": "QUEST_CH03_MAIN_001",
+        "stageId": "QUEST_CH03_MAIN_001_STAGE_03",
+        "stageMode": "CurrentStageOnly"
+      },
+      "x": 424.4574,
+      "y": 926.7689
+    },
+    {
+      "id": "item-point-003",
+      "label": "ItemPoint 3",
+      "itemId": "Q0001",
+      "quantity": 1,
+      "spawnPolicy": "once",
+      "showOnMinimap": true,
+      "spawnRequirement": {
+        "questId": "QUEST_CH03_MAIN_001",
+        "stageId": "QUEST_CH03_MAIN_001_STAGE_03",
+        "stageMode": "CurrentStageOnly"
+      },
+      "x": 686.0829,
+      "y": 895.794
     }
   ],
   "worldLayout": {

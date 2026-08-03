@@ -88,6 +88,7 @@ internal static class Program
                 },
                 new SurvivalEffects { Stamina = -4, Hunger = -2, Thirst = -2 },
                 3,
+                null,
                 new[]
                 {
                     new InteractionUseRequirement
@@ -97,12 +98,53 @@ internal static class Program
                         Quantity = 3,
                     },
                     new InteractionUseRequirement { Kind = "chapter", Chapter = 4 },
-                })
+                },
+                new[]
+                {
+                    new InteractionItemReward
+                    {
+                        ItemId = "R0005",
+                        Quantity = 2,
+                        Delivery = "inventory",
+                    },
+                    new InteractionItemReward
+                    {
+                        ItemId = "R0004",
+                        Quantity = 2,
+                        Delivery = "world",
+                    },
+                },
+                QuestCatalog.Load(projectRoot))
             {
                 ShowInTaskbar = false,
                 WindowState = FormWindowState.Minimized,
                 Opacity = 0,
             };
+            using var itemPointSpawnRequirementEditor =
+                new ItemPointSpawnRequirementEditorForm(
+                    new[]
+                    {
+                        new QuestCatalogEntry(
+                            "QUEST_UI_TEST",
+                            "UI 測試任務",
+                            new[]
+                            {
+                                new QuestStageCatalogEntry(
+                                    "QUEST_UI_TEST_STAGE_01",
+                                    "第一階段"),
+                            }),
+                    },
+                    new ItemPointSpawnRequirement
+                    {
+                        QuestId = "QUEST_UI_TEST",
+                        StageId = "QUEST_UI_TEST_STAGE_01",
+                        StageMode = "CurrentStageOnly",
+                    })
+                {
+                    ShowInTaskbar = false,
+                    WindowState = FormWindowState.Minimized,
+                    Opacity = 0,
+                };
             using var dialogueEditor = new DialogueEditorForm(
                 new DialogueScript
                 {
@@ -154,6 +196,9 @@ internal static class Program
                     requirementsEditor.Show();
                     System.Windows.Forms.Application.DoEvents();
                     requirementsEditor.Close();
+                    itemPointSpawnRequirementEditor.Show();
+                    System.Windows.Forms.Application.DoEvents();
+                    itemPointSpawnRequirementEditor.Close();
                     dialogueEditor.Show();
                     System.Windows.Forms.Application.DoEvents();
                     dialogueEditor.RunCellEditingUiSelfTest();
@@ -289,9 +334,10 @@ internal static class EditorSelfTest
         var scene = SceneJson.Load(scenePath);
         SceneJson.Validate(scene);
         if (
-            ItemCatalog.All.Count != 24 ||
+            ItemCatalog.All.Count != 25 ||
             ItemCatalog.Find("crystal-shard")?.Id != "R0001" ||
-            ItemCatalog.Find("R0012")?.Name != "外星果實"
+            ItemCatalog.Find("R0012")?.Name != "外星果實" ||
+            ItemCatalog.Find("R0100")?.Name != "全回復道具（測試用）"
         )
         {
             throw new InvalidDataException("道具分類流水號、舊 ID 遷移或外星果實目錄不正確。");
@@ -305,10 +351,70 @@ internal static class EditorSelfTest
 
         var roundTrip = SceneJson.Deserialize(SceneJson.Serialize(scene));
         SceneJson.Validate(roundTrip);
+        var itemPointDocument = SceneJson.Deserialize(SceneJson.Serialize(roundTrip));
+        itemPointDocument.ItemPoints.Add(new SceneItemPoint
+        {
+            Id = "item-point-self-test",
+            Label = "測試道具點",
+            X = itemPointDocument.PlayerSpawn.X,
+            Y = itemPointDocument.PlayerSpawn.Y,
+            ItemId = "R0001",
+            Quantity = 3,
+            SpawnPolicy = "daily",
+            ShowOnMinimap = true,
+            SpawnRequirement = new ItemPointSpawnRequirement
+            {
+                QuestId = "QUEST_SELF_TEST",
+                StageId = "QUEST_SELF_TEST_STAGE_02",
+                StageMode = "UnlockFromStage",
+            },
+        });
+        var itemPointRoundTrip = SceneJson.Deserialize(SceneJson.Serialize(itemPointDocument));
+        SceneJson.Validate(itemPointRoundTrip);
+        if (itemPointRoundTrip.ItemPoints.SingleOrDefault(item => item.Id == "item-point-self-test") is not
+            {
+                Id: "item-point-self-test",
+                ItemId: "R0001",
+                Quantity: 3,
+                SpawnPolicy: "daily",
+                ShowOnMinimap: true,
+                SpawnRequirement:
+                {
+                    QuestId: "QUEST_SELF_TEST",
+                    StageId: "QUEST_SELF_TEST_STAGE_02",
+                    StageMode: "UnlockFromStage",
+                },
+            })
+        {
+            throw new InvalidDataException("ItemPoint 未能正確通過場景 JSON round-trip。");
+        }
+        if (
+            roundTrip.StoryTriggers.FirstOrDefault() is not
+                {
+                    Id: "story-trigger-001",
+                    Once: true,
+                    DialogueId: "chapter03-lower-left-not-ready",
+                }
+        )
+        {
+            throw new InvalidDataException("劇情觸發區未能正確讀取或通過 JSON round-trip。");
+        }
 
         var multiPointDocument = SceneJson.Deserialize(SceneJson.Serialize(roundTrip));
         var multiPointInteractable = multiPointDocument.Interactables.FirstOrDefault()
             ?? throw new InvalidDataException("Interaction Point self-test requires an interactable.");
+        if (multiPointInteractable.Dialogue.Lines.Count == 0)
+        {
+            multiPointInteractable.Dialogue.Lines.Add(new DialogueLine
+            {
+                Speaker = "",
+                Text = "無發話者旁白。",
+            });
+        }
+        else
+        {
+            multiPointInteractable.Dialogue.Lines[0].Speaker = "";
+        }
         var interactionPoints = multiPointInteractable.EnsureInteractionPoints();
         if (interactionPoints.Count == 0)
         {
@@ -339,12 +445,22 @@ internal static class EditorSelfTest
             Spirit = -1,
             TimeMinutes = 480,
         };
-        multiPointInteractable.DailyInteractionLimit = 3;
+        multiPointInteractable.DailyInteractionLimit = null;
+        multiPointInteractable.InteractionLimitMode = "once";
         multiPointInteractable.ItemReward = new InteractionItemReward
         {
             ItemId = "R0002",
             Quantity = 4,
             Delivery = "world",
+        };
+        multiPointInteractable.ItemRewards = new List<InteractionItemReward>
+        {
+            new()
+            {
+                ItemId = "R0004",
+                Quantity = 2,
+                Delivery = "inventory",
+            },
         };
         multiPointInteractable.FailureDialogue = new DialogueScript
         {
@@ -381,6 +497,16 @@ internal static class EditorSelfTest
         {
             new() { Kind = "item", ItemId = "R0011", Quantity = 3 },
             new() { Kind = "chapter", Chapter = 4 },
+            new() { Kind = "quest", QuestId = "QUEST_TEST_ACTIVE" },
+            new()
+            {
+                Kind = "questStage",
+                QuestId = "QUEST_TEST_ACTIVE",
+                StageId = "QUEST_TEST_ACTIVE_STAGE_02",
+                StageMode = "UnlockUntilCondition",
+                DisableQuestId = "QUEST_TEST_CLOSE",
+                DisableStageId = "QUEST_TEST_CLOSE_STAGE_01",
+            },
         };
         var expectedInteractionPointCount = interactionPoints.Count;
         var multiPointRoundTrip = SceneJson.Deserialize(SceneJson.Serialize(multiPointDocument));
@@ -388,14 +514,20 @@ internal static class EditorSelfTest
         if (
             multiPointRoundTrip.Interactables[0].EffectiveInteractionPoints.Count !=
             expectedInteractionPointCount ||
+            multiPointRoundTrip.Interactables[0].Dialogue.Lines[0].Speaker != "" ||
             multiPointRoundTrip.Interactables[0].InteractionHintPoint is not { X: 150, Y: 150 } ||
             multiPointRoundTrip.Interactables[0].SurvivalRequirements is not
                 { Mode: "any", Stamina: { Comparison: "atMost", Value: 99 } } ||
             multiPointRoundTrip.Interactables[0].SurvivalEffects.Stamina != -4 ||
             multiPointRoundTrip.Interactables[0].SurvivalEffects.TimeMinutes != 480 ||
-            multiPointRoundTrip.Interactables[0].DailyInteractionLimit != 3 ||
-            multiPointRoundTrip.Interactables[0].ItemReward is not
+            multiPointRoundTrip.Interactables[0].InteractionLimitMode != "once" ||
+            multiPointRoundTrip.Interactables[0].DailyInteractionLimit is not null ||
+            multiPointRoundTrip.Interactables[0].ItemReward is not null ||
+            multiPointRoundTrip.Interactables[0].ItemRewards?.Count != 2 ||
+            multiPointRoundTrip.Interactables[0].ItemRewards?.FirstOrDefault() is not
                 { ItemId: "R0002", Quantity: 4, Delivery: "world" } ||
+            multiPointRoundTrip.Interactables[0].ItemRewards?.ElementAtOrDefault(1) is not
+                { ItemId: "R0004", Quantity: 2, Delivery: "inventory" } ||
             multiPointRoundTrip.Interactables[0].FailureDialogue.Lines.FirstOrDefault() is not
                 {
                     Speaker: "Echo",
@@ -412,11 +544,22 @@ internal static class EditorSelfTest
                 } ||
             multiPointRoundTrip.Interactables[0].CompletionDialogue?.Lines.FirstOrDefault() is not
                 { Speaker: "Sbaak", Text: "互動已完成。" } ||
-            multiPointRoundTrip.Interactables[0].UseRequirements?.Count != 2 ||
+            multiPointRoundTrip.Interactables[0].UseRequirements?.Count != 4 ||
             multiPointRoundTrip.Interactables[0].UseRequirements?[0] is not
                 { Kind: "item", ItemId: "R0011", Quantity: 3 } ||
             multiPointRoundTrip.Interactables[0].UseRequirements?[1] is not
-                { Kind: "chapter", Chapter: 4 }
+                { Kind: "chapter", Chapter: 4 } ||
+            multiPointRoundTrip.Interactables[0].UseRequirements?[2] is not
+                { Kind: "quest", QuestId: "QUEST_TEST_ACTIVE" } ||
+            multiPointRoundTrip.Interactables[0].UseRequirements?[3] is not
+                {
+                    Kind: "questStage",
+                    QuestId: "QUEST_TEST_ACTIVE",
+                    StageId: "QUEST_TEST_ACTIVE_STAGE_02",
+                    StageMode: "UnlockUntilCondition",
+                    DisableQuestId: "QUEST_TEST_CLOSE",
+                    DisableStageId: "QUEST_TEST_CLOSE_STAGE_01",
+                }
         )
         {
             throw new InvalidDataException(
@@ -424,14 +567,55 @@ internal static class EditorSelfTest
         }
 
         using (var requirementsEditor = new SurvivalEffectEditorForm(
-            multiPointInteractable.Type,
-            multiPointInteractable.SurvivalRequirements,
-            multiPointInteractable.SurvivalEffects,
-            multiPointInteractable.DailyInteractionLimit,
-            multiPointInteractable.UseRequirements))
+            multiPointRoundTrip.Interactables[0].Type,
+            multiPointRoundTrip.Interactables[0].SurvivalRequirements,
+            multiPointRoundTrip.Interactables[0].SurvivalEffects,
+            multiPointRoundTrip.Interactables[0].DailyInteractionLimit,
+            multiPointRoundTrip.Interactables[0].InteractionLimitMode,
+            multiPointRoundTrip.Interactables[0].UseRequirements,
+            multiPointRoundTrip.Interactables[0].ItemRewards,
+            new[]
+            {
+                new QuestCatalogEntry(
+                    "QUEST_TEST_ACTIVE",
+                    "測試進行中任務",
+                    new[]
+                    {
+                        new QuestStageCatalogEntry(
+                            "QUEST_TEST_ACTIVE_STAGE_02",
+                            "測試啟用階段"),
+                    }),
+                new QuestCatalogEntry(
+                    "QUEST_TEST_CLOSE",
+                    "測試關閉任務",
+                    new[]
+                    {
+                        new QuestStageCatalogEntry(
+                            "QUEST_TEST_CLOSE_STAGE_01",
+                            "測試關閉階段"),
+                    }),
+            }))
         {
             if (
-                requirementsEditor.UseRequirements.Count != 2 ||
+                requirementsEditor.UseRequirements.Count != 4 ||
+                requirementsEditor.UseRequirements[2] is not
+                    { Kind: "quest", QuestId: "QUEST_TEST_ACTIVE" } ||
+                requirementsEditor.UseRequirements[3] is not
+                    {
+                        Kind: "questStage",
+                        QuestId: "QUEST_TEST_ACTIVE",
+                        StageId: "QUEST_TEST_ACTIVE_STAGE_02",
+                        StageMode: "UnlockUntilCondition",
+                        DisableQuestId: "QUEST_TEST_CLOSE",
+                        DisableStageId: "QUEST_TEST_CLOSE_STAGE_01",
+                    } ||
+                requirementsEditor.ItemRewards.Count != 2 ||
+                requirementsEditor.ItemRewards[0] is not
+                    { ItemId: "R0002", Quantity: 4, Delivery: "world" } ||
+                requirementsEditor.ItemRewards[1] is not
+                    { ItemId: "R0004", Quantity: 2, Delivery: "inventory" } ||
+                requirementsEditor.InteractionLimitMode != "once" ||
+                requirementsEditor.DailyLimit is not null ||
                 requirementsEditor.Requirements.Mode != "any" ||
                 requirementsEditor.Requirements.Stamina is not
                     { Comparison: "atMost", Value: 99 })

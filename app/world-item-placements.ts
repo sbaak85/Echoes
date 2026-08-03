@@ -23,18 +23,9 @@ export type DroppedWorldItem = WorldItemPlacement & {
  * 場景上的可拾取道具配置。
  * id 是一次性拾取紀錄鍵；已發布後不可任意更名。
  */
-export const WORLD_ITEM_PLACEMENTS: readonly WorldItemPlacement[] = [
-  {
-    id: "map-test01-blue-crystal-shard-001",
-    sceneId: "map_test01",
-    itemId: "R0001",
-    quantity: 1,
-    position: { x: 735, y: 670 },
-    interactionPoint: { x: 700, y: 682, facing: "E" },
-    pickRadius: 30,
-    activationDistance: 52,
-  },
-];
+// 場景預置道具清單。測試用的藍色晶體碎片已取消；
+// 互動區、ItemPoint 與玩家丟棄所產生的道具不受影響。
+export const WORLD_ITEM_PLACEMENTS: readonly WorldItemPlacement[] = [];
 
 export const COLLECTED_WORLD_ITEMS_STORAGE_KEY =
   "echoes:collected-world-items:v1";

@@ -241,7 +241,12 @@ export class AudioEventManager {
   }
 
   stop(eventName: AudioEventName, options: StopOptions = {}) {
-    const runtime = this.getRuntime(eventName);
+    // Stopping an event is intentionally idempotent. React development mode
+    // can dispose an AudioEventManager while an earlier play promise is still
+    // settling; that late cleanup must not throw and interrupt unrelated UI
+    // cleanup such as ending a story SKIP transition.
+    const runtime = this.runtimes.get(eventName);
+    if (!runtime || this.disposed) return;
     this.cancelPendingPlay(runtime);
     runtime.audio.pause();
     if (options.reset ?? true) runtime.audio.currentTime = 0;

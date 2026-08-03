@@ -55,11 +55,23 @@ Included in version 1:
   weight from 1-999 (default 1), and only one line is chosen from that group
   whenever the dialogue starts. Groups can also be dissolved back into normal
   lines without deleting their text.
-- Each interaction polygon can optionally reward any registered item after a
-  successful complete interaction. The reward setting selects the item,
-  quantity (1-99), and whether it is placed directly in the backpack or
-  spawned nearby in the scene as a persistent pickup stack. Dialogue, survival
-  requirements, and daily-use limits are resolved before the reward is issued.
+- The requirement editor can require registered items, a chapter number, or an
+  active `QUEST_...` quest. Quest choices are loaded from
+  `public/quests/quest-data.json`; the interaction is enabled only while that
+  quest is accepted and currently active.
+- 任務階段需求同樣從 `quest-data.json` 讀取 Quest 與 Stage，可設定
+  `CurrentStageOnly`（僅指定階段）、`UnlockFromStage`（到達後持續啟用）
+  或 `UnlockUntilCondition`（到達後啟用，直到另一個任務階段成立）。
+- ItemPoint 圖層提供「Spawn 需求設定…」：未設定時照原有規則從一開始
+  生成；可設定 `CurrentStageOnly`（只在指定階段生成）或
+  `UnlockFromStage`（到達指定階段後持續允許生成）。任務階段資格會先於
+  唯一一次、每日 06:00、進入地圖等既有生成週期判斷。
+- Each interaction polygon can reward multiple different registered items after
+  a successful complete interaction. Every reward row independently selects the
+  item, quantity (1-99), and whether it is placed directly in the backpack or
+  spawned nearby in the scene as a persistent pickup stack. These rows now live
+  in the `完成效果` tab. Dialogue, requirements, and daily-use limits are
+  resolved before all rewards are issued together.
 - Overlap-safe selection. Right-click an overlapping area and choose a named
   shape from `選取重疊圖形`, or hold `Alt` and left-click repeatedly to cycle
   through interaction, collision, NavMesh, and movement-guide layers.

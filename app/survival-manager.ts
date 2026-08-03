@@ -43,12 +43,14 @@ export type CharacterStatus = {
 export type InteractionUsageState = {
   cycle: number;
   counts: Record<string, number>;
+  completedOnceIds: string[];
 };
 
 export const SURVIVAL_STORAGE_KEY = "echoes:survival-state:v1";
 export const INTERACTION_USAGE_STORAGE_KEY = "echoes:interaction-usage:v1";
 export const GAME_DAY_REAL_SECONDS = 60 * 60;
 export const GAME_START_TIME_MINUTES = 6 * 60;
+export const GAME_START_DAY = 3;
 export const DAILY_RESET_TIME_MINUTES = 6 * 60;
 export const MEAL_CENTERS = [8, 12, 18] as const;
 
@@ -68,6 +70,22 @@ export function formatElapsedGameHours(gameMinutes: number) {
     : 0;
   const hours = Math.round((normalizedMinutes / 60) * 100) / 100;
   return String(hours);
+}
+
+/**
+ * Duration for the short blackout that masks an interaction which advances
+ * the game clock. The interaction still uses its real configured minutes;
+ * this only controls the presentation pacing.
+ */
+export function getTimePassTransitionHoldMs(gameMinutes: number) {
+  const normalizedMinutes = Number.isFinite(gameMinutes)
+    ? Math.max(0, gameMinutes)
+    : 0;
+  if (normalizedMinutes < 60) return 0;
+  if (normalizedMinutes >= 24 * 60) return 800;
+  if (normalizedMinutes >= 8 * 60) return 400;
+  if (normalizedMinutes >= 4 * 60) return 200;
+  return 100;
 }
 
 export function getElapsedClockHandMotion(
@@ -148,7 +166,7 @@ export function saveSurvivalState(state: SurvivalGameState) {
 
 export function getGameClock(gameMinutes: number) {
   const elapsed = Math.max(0, gameMinutes - GAME_START_TIME_MINUTES);
-  const day = Math.floor(elapsed / (24 * 60)) + 1;
+  const day = Math.floor(elapsed / (24 * 60)) + GAME_START_DAY;
   const minutesInDay = ((Math.floor(gameMinutes) % (24 * 60)) + 24 * 60) % (24 * 60);
   return {
     day,
@@ -254,7 +272,7 @@ export function getUnmetSurvivalRequirements(
     if (!rule) return [];
     const value = clampValue(Number(rule.value));
     if (!Number.isFinite(value)) return [];
-    const comparison = rule.comparison === "below"
+    const comparison: SurvivalRequirementComparison = rule.comparison === "below"
       ? "below"
       : rule.comparison === "atMost"
         ? "atMost"
@@ -364,7 +382,11 @@ export function getInteractionCycle(gameMinutes: number) {
 }
 
 export function createInteractionUsageState(gameMinutes: number): InteractionUsageState {
-  return { cycle: getInteractionCycle(gameMinutes), counts: {} };
+  return {
+    cycle: getInteractionCycle(gameMinutes),
+    counts: {},
+    completedOnceIds: [],
+  };
 }
 
 export function normalizeInteractionUsageState(
@@ -374,15 +396,25 @@ export function normalizeInteractionUsageState(
   const currentCycle = getInteractionCycle(gameMinutes);
   if (!value || typeof value !== "object") return createInteractionUsageState(gameMinutes);
   const candidate = value as Partial<InteractionUsageState>;
-  if (candidate.cycle !== currentCycle || !candidate.counts || typeof candidate.counts !== "object") {
-    return createInteractionUsageState(gameMinutes);
-  }
   const counts: Record<string, number> = {};
-  for (const [id, count] of Object.entries(candidate.counts)) {
-    const normalized = Math.max(0, Math.floor(Number(count)));
-    if (Number.isFinite(normalized)) counts[id] = normalized;
+  if (
+    candidate.cycle === currentCycle &&
+    candidate.counts &&
+    typeof candidate.counts === "object"
+  ) {
+    for (const [id, count] of Object.entries(candidate.counts)) {
+      const normalized = Math.max(0, Math.floor(Number(count)));
+      if (Number.isFinite(normalized)) counts[id] = normalized;
+    }
   }
-  return { cycle: currentCycle, counts };
+  const completedOnceIds = Array.from(new Set(
+    Array.isArray(candidate.completedOnceIds)
+      ? candidate.completedOnceIds.filter(
+          (id): id is string => typeof id === "string" && id.length > 0,
+        )
+      : [],
+  ));
+  return { cycle: currentCycle, counts, completedOnceIds };
 }
 
 export function ensureInteractionUsageCycle(
@@ -390,7 +422,9 @@ export function ensureInteractionUsageCycle(
   gameMinutes: number,
 ) {
   const cycle = getInteractionCycle(gameMinutes);
-  return state.cycle === cycle ? state : { cycle, counts: {} };
+  return state.cycle === cycle
+    ? state
+    : { ...state, cycle, counts: {} };
 }
 
 export function loadInteractionUsageState(gameMinutes: number) {
@@ -420,7 +454,11 @@ export function isInteractionLocked(
   state: InteractionUsageState,
   interactableId: string,
   limit: unknown,
+  limitMode?: unknown,
 ) {
+  if (limitMode === "once") {
+    return state.completedOnceIds.includes(interactableId);
+  }
   const normalizedLimit = normalizeDailyInteractionLimit(limit);
   return normalizedLimit !== null && (state.counts[interactableId] ?? 0) >= normalizedLimit;
 }
@@ -429,7 +467,15 @@ export function recordInteractionUse(
   state: InteractionUsageState,
   interactableId: string,
   limit: unknown,
+  limitMode?: unknown,
 ) {
+  if (limitMode === "once") {
+    if (state.completedOnceIds.includes(interactableId)) return state;
+    return {
+      ...state,
+      completedOnceIds: [...state.completedOnceIds, interactableId],
+    };
+  }
   const normalizedLimit = normalizeDailyInteractionLimit(limit);
   if (normalizedLimit === null) return state;
   return {

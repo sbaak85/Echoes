@@ -65,11 +65,11 @@ test("Debug 道具生成指令支援 ID、數量與生成去向", () => {
   assert.equal(getItemDebugSpawnDelivery(worldItem), "world");
 });
 
-test("中央道具資料庫固定保留 100 欄，現有 24 項道具都有分類流水號與英文名稱", () => {
+test("中央道具資料庫固定保留 100 欄，現有 25 項道具都有分類流水號與英文名稱", () => {
   assert.equal(validateItemDatabase(), true);
   assert.equal(ITEM_DATABASE.length, ITEM_DATABASE_CAPACITY);
   assert.equal(ITEM_DATABASE_CAPACITY, 100);
-  assert.equal(ITEM_DEFINITIONS.length, 24);
+  assert.equal(ITEM_DEFINITIONS.length, 25);
   ITEM_DEFINITIONS.forEach((item) => {
     assert.match(item.id, /^[RTQM]\d{4}$/);
     assert.ok(item.englishName.length > 0);
@@ -102,7 +102,7 @@ test("每項道具都有轉移、丟棄與每格堆疊量標籤", () => {
   );
 });
 
-test("每項道具都有生存影響欄位，四種消耗品使用正確設定", () => {
+test("每項道具都有生存影響欄位，五種消耗品使用正確設定", () => {
   ITEM_DEFINITIONS.forEach((item) => {
     assert.equal(typeof item.survivalEffects, "object");
   });
@@ -122,6 +122,24 @@ test("每項道具都有生存影響欄位，四種消耗品使用正確設定",
     ITEM_DEFINITIONS.find((item) => item.id === "R0012")?.survivalEffects,
     { stamina: 20, hunger: 50, thirst: 40 },
   );
+  assert.deepEqual(
+    ITEM_DEFINITIONS.find((item) => item.id === "R0100")?.survivalEffects,
+    { stamina: 100, hunger: 100, thirst: 100, spirit: 100 },
+  );
+});
+
+test("全回復測試道具會將四項生存計量恢復至100並消耗一個", () => {
+  const survival = createInitialSurvivalState();
+  survival.values = { stamina: 1, hunger: 20, thirst: 45, spirit: 70 };
+  const result = useSurvivalInventoryItem({ R0100: 100 }, survival, "R0100");
+  assert.equal(result.status, "success");
+  assert.deepEqual(result.survival.values, {
+    stamina: 100,
+    hunger: 100,
+    thirst: 100,
+    spirit: 100,
+  });
+  assert.equal(result.inventory.R0100, 99);
 });
 
 test("外星果實會恢復體力20、飢餓50、口渴40並消耗一個", () => {
@@ -187,6 +205,7 @@ test("回復目標已滿時無法使用且不消耗道具，未設定效果也�
     "R0005",
     "R0006",
     "R0012",
+    "R0100",
   ]) {
     const fullResult = useSurvivalInventoryItem(
       { [itemId]: 2 },
@@ -262,6 +281,7 @@ test("重新開始時所有已登記道具至少各有一個，既有複數數�
   );
   assert.equal(INITIAL_PLAYER_INVENTORY["R0004"], 3);
   assert.equal(INITIAL_PLAYER_INVENTORY["R0005"], 4);
+  assert.equal(INITIAL_PLAYER_INVENTORY.R0100, 100);
 });
 
 test("不合法、未知或數量為零的道具不會混入玩家狀態", () => {
@@ -277,44 +297,11 @@ test("不合法、未知或數量為零的道具不會混入玩家狀態", () =>
   );
 });
 
-test("藍色晶體拾取後增加1，玩家數量與場景拾取狀態都能保存", () => {
-  installMemoryLocalStorage();
-  try {
-    const placement = WORLD_ITEM_PLACEMENTS.find(
-      (entry) => entry.itemId === "R0001",
-    );
-    assert.ok(placement);
-    assert.equal(placement.quantity, 1);
-
-    const initialInventory = loadPlayerInventory();
-    const initialCrystalCount = initialInventory["R0001"] ?? 0;
-    assert.equal(initialCrystalCount, 1);
-
-    const pickedInventory = grantInventoryItem(
-      initialInventory,
-      placement.itemId,
-      placement.quantity,
-    );
-    const collectedIds = new Set([placement.id]);
-    savePlayerInventory(pickedInventory);
-    saveCollectedWorldItemIds(collectedIds);
-
-    const restoredInventory = loadPlayerInventory();
-    const restoredCollectedIds = loadCollectedWorldItemIds();
-    assert.equal(
-      restoredInventory["R0001"],
-      initialCrystalCount + placement.quantity,
-    );
-    assert.equal(
-      getOwnedItemStacks(restoredInventory).find(
-        (stack) => stack.definition.id === "R0001",
-      )?.count,
-      initialCrystalCount + placement.quantity,
-    );
-    assert.equal(restoredCollectedIds.has(placement.id), true);
-  } finally {
-    delete globalThis.window;
-  }
+test("重新開始時不在場上預置測試用藍色晶體碎片", () => {
+  assert.equal(
+    WORLD_ITEM_PLACEMENTS.some((entry) => entry.itemId === "R0001"),
+    false,
+  );
 });
 
 test("同一道具可逐次丟棄、歸零移除，再逐個拾回並保存", () => {

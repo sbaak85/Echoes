@@ -2,15 +2,136 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  evaluateInteractionStageRequirement,
   getUnmetInteractionUseRequirements,
   normalizeInteractionItemReward,
+  normalizeInteractionItemRewards,
   normalizeInteractionUseRequirements,
   resolveWeightedDialogueLines,
   selectInteractionDialogue,
   selectInteractionFeedbackPoint,
   selectPreferredInteractionTarget,
+  shouldExposeInteraction,
   shouldCompleteAfterDialogue,
 } from "../app/interaction-flow.ts";
+
+test("任務階段需求支援本階段、永久解鎖與條件關閉", () => {
+  const currentOnly = {
+    kind: "questStage",
+    questId: "QUEST_CH03_MAIN_001",
+    stageId: "QUEST_CH03_MAIN_001_STAGE_02",
+    stageMode: "CurrentStageOnly",
+  };
+  assert.equal(
+    evaluateInteractionStageRequirement(
+      currentOnly,
+      (_questId, stageId) => stageId.endsWith("STAGE_02"),
+      () => false,
+    ),
+    true,
+  );
+  assert.equal(
+    evaluateInteractionStageRequirement(
+      currentOnly,
+      () => false,
+      () => true,
+    ),
+    false,
+  );
+
+  const unlockFromStage = { ...currentOnly, stageMode: "UnlockFromStage" };
+  assert.equal(
+    evaluateInteractionStageRequirement(
+      unlockFromStage,
+      () => false,
+      (questId) => questId === "QUEST_CH03_MAIN_001",
+    ),
+    true,
+  );
+
+  const untilCondition = {
+    ...currentOnly,
+    stageMode: "UnlockUntilCondition",
+    disableQuestId: "QUEST_CH03_MAIN_002",
+    disableStageId: "QUEST_CH03_MAIN_002_STAGE_01",
+  };
+  assert.equal(
+    evaluateInteractionStageRequirement(
+      untilCondition,
+      () => false,
+      (questId) => questId === "QUEST_CH03_MAIN_001",
+    ),
+    true,
+  );
+  assert.equal(
+    evaluateInteractionStageRequirement(
+      untilCondition,
+      () => false,
+      () => true,
+    ),
+    false,
+  );
+});
+
+test("only item, chapter, or quest failures hide and deactivate interactions", () => {
+  assert.equal(shouldExposeInteraction(false), true);
+  assert.equal(shouldExposeInteraction(true), false);
+});
+
+test("quest requirements only pass while the quest is active", () => {
+  const requirements = normalizeInteractionUseRequirements(
+    [{ kind: "quest", questId: " QUEST_CH03_001 " }],
+    () => null,
+  );
+
+  assert.deepEqual(requirements, [
+    { kind: "quest", questId: "QUEST_CH03_001" },
+  ]);
+  assert.deepEqual(
+    getUnmetInteractionUseRequirements(
+      requirements,
+      {},
+      3,
+      (questId) => questId === "QUEST_CH03_001",
+    ),
+    [],
+  );
+  assert.deepEqual(
+    getUnmetInteractionUseRequirements(requirements, {}, 3, () => false),
+    [{ kind: "quest", questId: "QUEST_CH03_001", actual: 0 }],
+  );
+});
+
+test("multiple interaction rewards normalize independently and support legacy data", () => {
+  const itemIds = new Map([
+    ["ration", "R0003"],
+    ["water", "R0004"],
+  ]);
+  const resolveItemId = (itemId) => itemIds.get(itemId) ?? null;
+
+  assert.deepEqual(
+    normalizeInteractionItemRewards(
+      [
+        { itemId: "ration", quantity: 2, delivery: "inventory" },
+        { itemId: "water", quantity: 2, delivery: "world" },
+      ],
+      null,
+      resolveItemId,
+    ),
+    [
+      { itemId: "R0003", quantity: 2, delivery: "inventory" },
+      { itemId: "R0004", quantity: 2, delivery: "world" },
+    ],
+  );
+  assert.deepEqual(
+    normalizeInteractionItemRewards(
+      undefined,
+      { itemId: "water", quantity: 1, delivery: "inventory" },
+      resolveItemId,
+    ),
+    [{ itemId: "R0004", quantity: 1, delivery: "inventory" }],
+  );
+});
 
 test("角色或游標同時接觸互動多邊形與道具時，優先選擇可拾取道具", () => {
   const fruitTree = { id: "fruit-tree", type: "gather" };

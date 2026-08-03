@@ -13,6 +13,7 @@ public enum EditorTool
     CollisionRectangle,
     CollisionCircle,
     InteractionPolygon,
+    StoryTriggerPolygon,
     MovementGuide,
     PlayerSpawn,
 }
@@ -23,7 +24,9 @@ public enum SceneLayerKind
     NavMesh,
     Collision,
     Interactable,
+    StoryTrigger,
     MovementGuide,
+    ItemPoint,
 }
 
 public readonly record struct LayerSelection(SceneLayerKind Kind, int Index)
@@ -60,6 +63,16 @@ public sealed class EditorCanvas : Control
     private readonly ToolStripMenuItem _deleteInteractionPointContextItem = new("刪除互動 Point");
     private readonly ToolStripMenuItem _interactionHintPointContextItem = new("新增互動提示點");
     private readonly ToolStripMenuItem _deleteInteractionHintPointContextItem = new("刪除互動提示點");
+    private readonly ContextMenuStrip _worldPointContextMenu = new();
+    private readonly ToolStripMenuItem _moveSpawnContextItem = new("移動出生點至此");
+    private readonly ToolStripMenuItem _addItemPointContextItem = new("在此處加入 ItemPoint");
+    private readonly ToolStripMenuItem _assignItemPointItemContextItem = new("指定此 Item 生成");
+    private readonly ToolStripTextBox _itemPointQuantityContextTextBox = new()
+    {
+        Text = "1",
+        ToolTipText = "輸入 1～99 後按 Enter",
+    };
+    private readonly ToolStripMenuItem _deleteItemPointContextItem = new("刪除此 ItemPoint");
 
     private Bitmap? _sceneImage;
     private SceneDocument _document = new();
@@ -81,10 +94,13 @@ public sealed class EditorCanvas : Control
     private PointF _contextInsertPoint;
     private PointF _contextInteractionPoint;
     private PointF _contextInteractionHintPoint;
+    private PointF _contextWorldPoint;
+    private int _contextItemPointIndex = -1;
     private bool _panning;
     private bool _spacePressed;
     private bool _endingCapture;
     private bool _paintFailureReported;
+    private bool _fastRenderOnce;
     private string? _mutationBefore;
 
     public EditorCanvas()
@@ -148,6 +164,25 @@ public sealed class EditorCanvas : Control
         });
         _nodeContextMenu.BackColor = Color.FromArgb(35, 39, 47);
         _nodeContextMenu.ForeColor = Color.WhiteSmoke;
+        _moveSpawnContextItem.Click += (_, _) => SetPlayerSpawnAtContext();
+        _addItemPointContextItem.Click += (_, _) => AddItemPointAtContext();
+        _deleteItemPointContextItem.Click += (_, _) => DeleteItemPointAtContext();
+        _itemPointQuantityContextTextBox.KeyDown += (_, eventArgs) =>
+        {
+            if (eventArgs.KeyCode != Keys.Enter) return;
+            eventArgs.Handled = true;
+            eventArgs.SuppressKeyPress = true;
+            SetItemPointQuantityAtContext(_itemPointQuantityContextTextBox.Text);
+        };
+        _worldPointContextMenu.Items.AddRange(new ToolStripItem[]
+        {
+            _moveSpawnContextItem,
+            _addItemPointContextItem,
+            _assignItemPointItemContextItem,
+            _deleteItemPointContextItem,
+        });
+        _worldPointContextMenu.BackColor = Color.FromArgb(35, 39, 47);
+        _worldPointContextMenu.ForeColor = Color.WhiteSmoke;
         UpdateCursor();
     }
 
@@ -169,6 +204,14 @@ public sealed class EditorCanvas : Control
     public MovementGuide? SelectedMovementGuide =>
         _selection.Kind == SceneLayerKind.MovementGuide && IsValidSelection(_selection)
             ? _document.MovementGuides[_selection.Index]
+            : null;
+    public StoryTriggerZone? SelectedStoryTrigger =>
+        _selection.Kind == SceneLayerKind.StoryTrigger && IsValidSelection(_selection)
+            ? _document.StoryTriggers[_selection.Index]
+            : null;
+    public SceneItemPoint? SelectedItemPoint =>
+        _selection.Kind == SceneLayerKind.ItemPoint && IsValidSelection(_selection)
+            ? _document.ItemPoints[_selection.Index]
             : null;
     public bool CanInsertNode => CanEditSelectedVertex(requireMoreThanThreePoints: false);
     public bool CanDeleteNode => CanEditSelectedVertex(requireMoreThanThreePoints: true);
@@ -289,8 +332,12 @@ public sealed class EditorCanvas : Control
                     _document.Collisions[_selection.Index].Label = label;
                 else if (_selection.Kind == SceneLayerKind.Interactable)
                     _document.Interactables[_selection.Index].Label = label;
-                else
+                else if (_selection.Kind == SceneLayerKind.StoryTrigger)
+                    _document.StoryTriggers[_selection.Index].Label = label;
+                else if (_selection.Kind == SceneLayerKind.MovementGuide)
                     _document.MovementGuides[_selection.Index].Label = label;
+                else
+                    _document.ItemPoints[_selection.Index].Label = label;
             }
         });
     }
@@ -323,9 +370,17 @@ public sealed class EditorCanvas : Control
             {
                 _document.Interactables.RemoveAt(_selection.Index);
             }
+            else if (_selection.Kind == SceneLayerKind.StoryTrigger)
+            {
+                _document.StoryTriggers.RemoveAt(_selection.Index);
+            }
             else if (_selection.Kind == SceneLayerKind.MovementGuide)
             {
                 _document.MovementGuides.RemoveAt(_selection.Index);
+            }
+            else if (_selection.Kind == SceneLayerKind.ItemPoint)
+            {
+                _document.ItemPoints.RemoveAt(_selection.Index);
             }
 
             _selection = LayerSelection.None;
@@ -343,6 +398,52 @@ public sealed class EditorCanvas : Control
         }
 
         DeleteSelection();
+    }
+
+    public void UpdateSelectedItemPoint(
+        float x,
+        float y,
+        string itemId,
+        int quantity,
+        string spawnPolicy,
+        bool showOnMinimap)
+    {
+        var itemPoint = SelectedItemPoint;
+        var item = ItemCatalog.Find(itemId);
+        if (itemPoint is null || item is null) return;
+        var position = ClampToWorld(new PointF(x, y));
+        if (!IsPointInsideNavMesh(position))
+        {
+            StatusChanged?.Invoke(this, "ItemPoint 必須位於 NavMesh 範圍內，位置未變更。");
+            return;
+        }
+        PerformMutation(() =>
+        {
+            itemPoint.X = position.X;
+            itemPoint.Y = position.Y;
+            itemPoint.ItemId = item.Id;
+            itemPoint.Quantity = Math.Clamp(quantity, 1, 99);
+            itemPoint.SpawnPolicy = spawnPolicy switch
+            {
+                "daily" => "daily",
+                "sceneEntry" => "sceneEntry",
+                _ => "once",
+            };
+            itemPoint.ShowOnMinimap = showOnMinimap;
+        });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void UpdateSelectedItemPointSpawnRequirement(
+        ItemPointSpawnRequirement? requirement)
+    {
+        var itemPoint = SelectedItemPoint;
+        if (itemPoint is null) return;
+        PerformMutation(() =>
+        {
+            itemPoint.SpawnRequirement = requirement?.Clone();
+        });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void InsertNodeAfterSelection()
@@ -430,7 +531,11 @@ public sealed class EditorCanvas : Control
                     ScalePointAround(interactionHintPoint, center, factor);
                 }
             }
-            else
+            else if (_selection.Kind == SceneLayerKind.StoryTrigger)
+            {
+                ScalePoints(_document.StoryTriggers[_selection.Index].Points, factor);
+            }
+            else if (_selection.Kind == SceneLayerKind.MovementGuide)
             {
                 ScalePoints(_document.MovementGuides[_selection.Index].Points, factor);
             }
@@ -463,25 +568,46 @@ public sealed class EditorCanvas : Control
                 interactable.SurvivalRequirements = new SurvivalRequirements();
                 interactable.SurvivalEffects = defaults.Effects.Clone();
                 interactable.DailyInteractionLimit = defaults.DailyLimit;
+                interactable.InteractionLimitMode = null;
             }
         });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void UpdateSelectedStoryTrigger(string dialogueId, bool once)
+    {
+        if (SelectedStoryTrigger is null) return;
+        dialogueId = dialogueId.Trim();
+        PerformMutation(() =>
+        {
+            SelectedStoryTrigger.DialogueId = dialogueId;
+            SelectedStoryTrigger.Once = once;
+        });
     }
 
     public void UpdateSelectedSurvivalSettings(
         SurvivalRequirements requirements,
         SurvivalEffects effects,
         int? dailyLimit,
+        string? interactionLimitMode,
         IEnumerable<InteractionUseRequirement> useRequirements)
     {
         var interactable = SelectedInteractable;
         if (interactable is null) return;
-        dailyLimit = dailyLimit is null ? null : Math.Clamp(dailyLimit.Value, 1, 10);
+        interactionLimitMode = "once".Equals(
+            interactionLimitMode,
+            StringComparison.OrdinalIgnoreCase)
+            ? "once"
+            : null;
+        dailyLimit = interactionLimitMode == "once" || dailyLimit is null
+            ? null
+            : Math.Clamp(dailyLimit.Value, 1, 10);
         PerformMutation(() =>
         {
             interactable.SurvivalRequirements = requirements.Clone();
             interactable.SurvivalEffects = effects.Clone();
             interactable.DailyInteractionLimit = dailyLimit;
+            interactable.InteractionLimitMode = interactionLimitMode;
             var requirementList = useRequirements
                 .Select(requirement => requirement.Clone())
                 .ToList();
@@ -498,16 +624,28 @@ public sealed class EditorCanvas : Control
         SurvivalRequirements requirements,
         SurvivalEffects effects,
         int? dailyLimit,
-        IEnumerable<InteractionUseRequirement> useRequirements)
+        string? interactionLimitMode,
+        IEnumerable<InteractionUseRequirement> useRequirements,
+        IEnumerable<InteractionItemReward> itemRewards)
     {
         var interactable = SelectedInteractable;
         if (interactable is null) return;
         type = string.IsNullOrWhiteSpace(type) ? "dialogue" : type.Trim();
         var defaults = InteractionTypeDefaults.Get(type);
         verb = string.IsNullOrWhiteSpace(verb) ? defaults.Verb : verb.Trim();
-        dailyLimit = dailyLimit is null ? null : Math.Clamp(dailyLimit.Value, 1, 10);
+        interactionLimitMode = "once".Equals(
+            interactionLimitMode,
+            StringComparison.OrdinalIgnoreCase)
+            ? "once"
+            : null;
+        dailyLimit = interactionLimitMode == "once" || dailyLimit is null
+            ? null
+            : Math.Clamp(dailyLimit.Value, 1, 10);
         var requirementList = useRequirements
             .Select(requirement => requirement.Clone())
+            .ToList();
+        var rewardList = itemRewards
+            .Select(reward => reward.Clone())
             .ToList();
         PerformMutation(() =>
         {
@@ -516,18 +654,15 @@ public sealed class EditorCanvas : Control
             interactable.SurvivalRequirements = requirements.Clone();
             interactable.SurvivalEffects = effects.Clone();
             interactable.DailyInteractionLimit = dailyLimit;
+            interactable.InteractionLimitMode = interactionLimitMode;
             interactable.UseRequirements = requirementList.Count == 0
                 ? null
                 : requirementList;
+            interactable.ItemRewards = rewardList.Count == 0
+                ? null
+                : rewardList;
+            interactable.ItemReward = null;
         });
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    public void UpdateSelectedItemReward(InteractionItemReward? reward)
-    {
-        var interactable = SelectedInteractable;
-        if (interactable is null) return;
-        PerformMutation(() => interactable.ItemReward = reward?.Clone());
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -730,6 +865,13 @@ public sealed class EditorCanvas : Control
                 Label = "Overlap interaction",
                 Points = overlapPoints.Select(point => point.Clone()).ToList(),
             });
+            var overlapNavMeshIndex = _document.NavMesh.Count;
+            _document.NavMesh.Add(new NavMeshRegion
+            {
+                Id = "self-test-overlap-navmesh",
+                Label = "Overlap NavMesh",
+                Points = overlapPoints.Select(point => point.Clone()).ToList(),
+            });
             var overlapCandidates = GetHitTestCandidates(new PointF(12, 12));
             if (
                 !overlapCandidates.Contains(
@@ -740,6 +882,36 @@ public sealed class EditorCanvas : Control
             {
                 throw new InvalidOperationException(
                     "Overlapping interaction and collision shapes were not both selectable.");
+            }
+
+            var interactionOrder = overlapCandidates.IndexOf(
+                new LayerSelection(SceneLayerKind.Interactable, overlapInteractableIndex));
+            var collisionOrder = overlapCandidates.IndexOf(
+                new LayerSelection(SceneLayerKind.Collision, overlapCollisionIndex));
+            var navMeshOrder = overlapCandidates.IndexOf(
+                new LayerSelection(SceneLayerKind.NavMesh, overlapNavMeshIndex));
+            if (!(interactionOrder >= 0 && interactionOrder < collisionOrder && collisionOrder < navMeshOrder))
+            {
+                throw new InvalidOperationException(
+                    "Overlapping shapes did not follow the visual layer order: interaction, collision, NavMesh.");
+            }
+
+            _document.MovementGuides.Clear();
+            var itemPointIndex = _document.ItemPoints.Count;
+            _document.ItemPoints.Add(new SceneItemPoint
+            {
+                Id = "self-test-selected-item-point",
+                Label = "Selected ItemPoint",
+                X = _document.PlayerSpawn.X,
+                Y = _document.PlayerSpawn.Y,
+                ItemId = "R0001",
+                Quantity = 1,
+            });
+            _selection = new LayerSelection(SceneLayerKind.ItemPoint, itemPointIndex);
+            using (var selectionBitmap = new Bitmap(64, 64))
+            using (var selectionGraphics = Graphics.FromImage(selectionBitmap))
+            {
+                DrawSelectionHandles(selectionGraphics);
             }
 
             SceneJson.Validate(_document);
@@ -781,16 +953,22 @@ public sealed class EditorCanvas : Control
             {
                 e.Graphics.ResetTransform();
                 e.Graphics.ResetClip();
-                e.Graphics.Clear(BackColor);
+                var noticeBounds = new Rectangle(
+                    Math.Max(12, ClientRectangle.Width / 2 - 210),
+                    Math.Max(12, ClientRectangle.Height - 58),
+                    420,
+                    38);
+                using var noticeBackground = new SolidBrush(Color.FromArgb(220, 34, 38, 45));
+                e.Graphics.FillRectangle(noticeBackground, noticeBounds);
                 TextRenderer.DrawText(
                     e.Graphics,
-                    "場景暫時無法重繪，請放開滑鼠後再試一次。",
+                    "本次重繪已略過；場景內容仍保留。",
                     Font,
-                    ClientRectangle,
+                    noticeBounds,
                     Color.FromArgb(255, 205, 110),
                     TextFormatFlags.HorizontalCenter |
                     TextFormatFlags.VerticalCenter |
-                    TextFormatFlags.WordBreak);
+                    TextFormatFlags.SingleLine);
             }
             catch
             {
@@ -798,6 +976,17 @@ public sealed class EditorCanvas : Control
                 // next scheduled paint to recreate it instead of closing the app.
             }
         }
+        finally
+        {
+            _fastRenderOnce = false;
+        }
+    }
+
+    internal void RequestFastRender()
+    {
+        if (IsDisposed || Disposing) return;
+        _fastRenderOnce = true;
+        Invalidate();
     }
 
     protected override void Dispose(bool disposing)
@@ -807,6 +996,7 @@ public sealed class EditorCanvas : Control
             _renderTimer.Stop();
             _renderTimer.Dispose();
             _nodeContextMenu.Dispose();
+            _worldPointContextMenu.Dispose();
             _sceneImage?.Dispose();
             _sceneImage = null;
         }
@@ -834,7 +1024,7 @@ public sealed class EditorCanvas : Control
         }
 
         var interactionActive =
-            _panning || _dragMode != DragMode.None || _shapeStart.HasValue;
+            _fastRenderOnce || _panning || _dragMode != DragMode.None || _shapeStart.HasValue;
         graphics.InterpolationMode = interactionActive
             ? InterpolationMode.Bilinear
             : _zoom >= 1.5f
@@ -853,7 +1043,9 @@ public sealed class EditorCanvas : Control
         DrawNavMesh(graphics);
         DrawCollisions(graphics);
         DrawInteractables(graphics);
+        DrawStoryTriggers(graphics);
         DrawMovementGuides(graphics);
+        DrawItemPoints(graphics);
         DrawSpawn(graphics);
         DrawDraft(graphics);
         DrawSelectionHandles(graphics);
@@ -1025,6 +1217,27 @@ public sealed class EditorCanvas : Control
         graphics.DrawEllipse(outline, center.X - radius, center.Y - radius, radius * 2, radius * 2);
     }
 
+    private void DrawStoryTriggers(Graphics graphics)
+    {
+        using var fill = new SolidBrush(Color.FromArgb(62, 185, 104, 255));
+        using var outline = new Pen(Color.FromArgb(245, 206, 145, 255), 2.5f / _zoom)
+        {
+            DashStyle = DashStyle.DashDot,
+        };
+
+        for (var index = 0; index < _document.StoryTriggers.Count; index++)
+        {
+            var points = ToPointFArray(_document.StoryTriggers[index].Points);
+            if (points.Length < 3) continue;
+            graphics.FillPolygon(fill, points);
+            graphics.DrawPolygon(outline, points);
+            if (_selection == new LayerSelection(SceneLayerKind.StoryTrigger, index))
+            {
+                DrawSelectedOutline(graphics, points);
+            }
+        }
+    }
+
     private void DrawMovementGuides(Graphics graphics)
     {
         for (var index = 0; index < _document.MovementGuides.Count; index++)
@@ -1095,6 +1308,51 @@ public sealed class EditorCanvas : Control
         graphics.DrawLine(directionPen, spawn.X, spawn.Y, end.X, end.Y);
     }
 
+    private void DrawItemPoints(Graphics graphics)
+    {
+        using var labelFont = new Font("Segoe UI", 8f, FontStyle.Bold);
+        using var labelBrush = new SolidBrush(Color.FromArgb(235, 255, 245, 184));
+        for (var index = 0; index < _document.ItemPoints.Count; index++)
+        {
+            var point = _document.ItemPoints[index];
+            var selected = _selection == new LayerSelection(SceneLayerKind.ItemPoint, index);
+            var radius = (selected ? 10f : 8f) / _zoom;
+            using var fill = new SolidBrush(
+                selected
+                    ? Color.FromArgb(245, 255, 207, 73)
+                    : Color.FromArgb(220, 255, 169, 56));
+            using var outline = new Pen(Color.FromArgb(245, 255, 252, 222), (selected ? 3f : 2f) / _zoom);
+            var diamond = new[]
+            {
+                new PointF(point.X, point.Y - radius),
+                new PointF(point.X + radius, point.Y),
+                new PointF(point.X, point.Y + radius),
+                new PointF(point.X - radius, point.Y),
+            };
+            graphics.FillPolygon(fill, diamond);
+            graphics.DrawPolygon(outline, diamond);
+            if (point.ShowOnMinimap)
+            {
+                using var minimapPen = new Pen(Color.FromArgb(230, 94, 247, 236), 1.5f / _zoom)
+                {
+                    DashStyle = DashStyle.Dot,
+                };
+                graphics.DrawEllipse(
+                    minimapPen,
+                    point.X - radius * 1.7f,
+                    point.Y - radius * 1.7f,
+                    radius * 3.4f,
+                    radius * 3.4f);
+            }
+            graphics.DrawString(
+                $"{point.Label} · {point.ItemId} ×{point.Quantity}",
+                labelFont,
+                labelBrush,
+                point.X + 12f / _zoom,
+                point.Y - 18f / _zoom);
+        }
+    }
+
     private void DrawDraft(Graphics graphics)
     {
         using var pen = new Pen(Color.FromArgb(245, 255, 226, 101), 2f / _zoom)
@@ -1144,6 +1402,9 @@ public sealed class EditorCanvas : Control
     private void DrawSelectionHandles(Graphics graphics)
     {
         if (!IsValidSelection(_selection)) return;
+        // ItemPoint already draws its own selected diamond/ring and has no polygon
+        // vertices. Never treat its index as a MovementGuide index.
+        if (_selection.Kind == SceneLayerKind.ItemPoint) return;
 
         if (_selection.Kind == SceneLayerKind.Collision)
         {
@@ -1177,8 +1438,11 @@ public sealed class EditorCanvas : Control
             {
                 SceneLayerKind.NavMesh => _document.NavMesh[_selection.Index].Points,
                 SceneLayerKind.Interactable => _document.Interactables[_selection.Index].Points,
-                _ => _document.MovementGuides[_selection.Index].Points,
+                SceneLayerKind.StoryTrigger => _document.StoryTriggers[_selection.Index].Points,
+                SceneLayerKind.MovementGuide => _document.MovementGuides[_selection.Index].Points,
+                _ => null,
             };
+            if (points is null) return;
             for (var index = 0; index < points.Count; index++)
             {
                 var point = points[index];
@@ -1274,6 +1538,7 @@ public sealed class EditorCanvas : Control
 
         if (e.Button == MouseButtons.Right && _tool == EditorTool.Select)
         {
+            if (TryShowWorldPointContextMenu(e.Location, rawWorld)) return;
             ShowNodeContextMenu(e.Location, rawWorld);
             return;
         }
@@ -1285,6 +1550,7 @@ public sealed class EditorCanvas : Control
             case EditorTool.NavMeshPolygon:
             case EditorTool.CollisionPolygon:
             case EditorTool.InteractionPolygon:
+            case EditorTool.StoryTriggerPolygon:
             case EditorTool.MovementGuide:
                 if (e.Clicks >= 2)
                 {
@@ -1602,9 +1868,21 @@ public sealed class EditorCanvas : Control
                 interactionHintPoint.Y += deltaY;
             }
         }
-        else
+        else if (_selection.Kind == SceneLayerKind.StoryTrigger)
+        {
+            MovePoints(_document.StoryTriggers[_selection.Index].Points, deltaX, deltaY);
+        }
+        else if (_selection.Kind == SceneLayerKind.MovementGuide)
         {
             MovePoints(_document.MovementGuides[_selection.Index].Points, deltaX, deltaY);
+        }
+        else if (_selection.Kind == SceneLayerKind.ItemPoint)
+        {
+            var itemPoint = _document.ItemPoints[_selection.Index];
+            var next = ClampToWorld(new PointF(itemPoint.X + deltaX, itemPoint.Y + deltaY));
+            if (!IsPointInsideNavMesh(next)) return false;
+            itemPoint.X = next.X;
+            itemPoint.Y = next.Y;
         }
 
         return true;
@@ -1669,6 +1947,20 @@ public sealed class EditorCanvas : Control
                     Dialogue = DialogueScript.CreateDefault(),
                 });
                 _selection = new LayerSelection(SceneLayerKind.Interactable, index);
+                _selectedVertex = -1;
+            }
+            else if (_tool == EditorTool.StoryTriggerPolygon)
+            {
+                var index = _document.StoryTriggers.Count;
+                _document.StoryTriggers.Add(new StoryTriggerZone
+                {
+                    Id = NextId("story-trigger", _document.StoryTriggers.Select(item => item.Id)),
+                    Label = $"劇情觸發區 {index + 1}",
+                    Points = points,
+                    Once = true,
+                    DialogueId = "",
+                });
+                _selection = new LayerSelection(SceneLayerKind.StoryTrigger, index);
                 _selectedVertex = -1;
             }
             else
@@ -1765,6 +2057,15 @@ public sealed class EditorCanvas : Control
     private List<LayerSelection> GetHitTestCandidates(PointF point)
     {
         var candidates = new List<LayerSelection>();
+        var itemPointHitRadius = 13f / _zoom;
+        for (var index = _document.ItemPoints.Count - 1; index >= 0; index--)
+        {
+            var itemPoint = _document.ItemPoints[index];
+            if (Distance(point, new PointF(itemPoint.X, itemPoint.Y)) <= itemPointHitRadius)
+            {
+                candidates.Add(new LayerSelection(SceneLayerKind.ItemPoint, index));
+            }
+        }
         for (var index = _document.MovementGuides.Count - 1; index >= 0; index--)
         {
             var guide = _document.MovementGuides[index];
@@ -1779,6 +2080,14 @@ public sealed class EditorCanvas : Control
                     candidates.Add(new LayerSelection(SceneLayerKind.MovementGuide, index));
                     break;
                 }
+            }
+        }
+
+        for (var index = _document.StoryTriggers.Count - 1; index >= 0; index--)
+        {
+            if (PointInPolygon(point, _document.StoryTriggers[index].Points))
+            {
+                candidates.Add(new LayerSelection(SceneLayerKind.StoryTrigger, index));
             }
         }
 
@@ -1832,25 +2141,174 @@ public sealed class EditorCanvas : Control
         return -1;
     }
 
+    private bool TryShowWorldPointContextMenu(Point screenLocation, PointF world)
+    {
+        if (!IsInsideWorld(world)) return false;
+        _contextWorldPoint = SnapAndClamp(world);
+        var topmostHit = HitTest(world);
+        _contextItemPointIndex = topmostHit.Kind == SceneLayerKind.ItemPoint
+            ? topmostHit.Index
+            : -1;
+
+        if (_contextItemPointIndex >= 0)
+        {
+            SelectLayer(new LayerSelection(SceneLayerKind.ItemPoint, _contextItemPointIndex));
+            var itemPoint = _document.ItemPoints[_contextItemPointIndex];
+            PopulateItemPointItemMenu(itemPoint);
+            _moveSpawnContextItem.Visible = false;
+            _addItemPointContextItem.Visible = false;
+            _assignItemPointItemContextItem.Visible = true;
+            _deleteItemPointContextItem.Visible = true;
+            _worldPointContextMenu.Show(this, screenLocation);
+            return true;
+        }
+
+        // NavMesh is drawn beneath collision, interaction, story-trigger and guide layers.
+        // Its world menu must not intercept a right-click that visually belongs to one of
+        // those upper layers.
+        if (topmostHit.Kind != SceneLayerKind.NavMesh) return false;
+
+        if (
+            _selection.Kind == SceneLayerKind.NavMesh &&
+            IsValidSelection(_selection) &&
+            (HitSelectedHandle(world) >= 0 ||
+             TryFindNearestSelectedEdge(world, out _, out _)))
+        {
+            return false;
+        }
+
+        if (!IsPointInsideNavMesh(_contextWorldPoint)) return false;
+        _moveSpawnContextItem.Text = "移動出生點至此";
+        _moveSpawnContextItem.Visible = true;
+        _addItemPointContextItem.Visible = true;
+        _assignItemPointItemContextItem.Visible = false;
+        _deleteItemPointContextItem.Visible = false;
+        _worldPointContextMenu.Show(this, screenLocation);
+        return true;
+    }
+
+    private void PopulateItemPointItemMenu(SceneItemPoint itemPoint)
+    {
+        _assignItemPointItemContextItem.DropDownItems.Clear();
+        foreach (var item in ItemCatalog.All)
+        {
+            var menuItem = new ToolStripMenuItem(item.ToString())
+            {
+                Checked = item.Id.Equals(itemPoint.ItemId, StringComparison.OrdinalIgnoreCase),
+                Tag = item.Id,
+            };
+            menuItem.Click += (_, _) =>
+            {
+                if (menuItem.Tag is not string itemId) return;
+                SetItemPointItemAtContext(itemId);
+            };
+            _assignItemPointItemContextItem.DropDownItems.Add(menuItem);
+        }
+        _assignItemPointItemContextItem.DropDownItems.Add(new ToolStripSeparator());
+        _assignItemPointItemContextItem.DropDownItems.Add(new ToolStripLabel("生成數量（1～99）"));
+        _itemPointQuantityContextTextBox.Text = itemPoint.Quantity.ToString();
+        _assignItemPointItemContextItem.DropDownItems.Add(_itemPointQuantityContextTextBox);
+    }
+
+    private void SetPlayerSpawnAtContext()
+    {
+        if (!IsPointInsideNavMesh(_contextWorldPoint)) return;
+        PerformMutation(() =>
+        {
+            _document.PlayerSpawn.X = _contextWorldPoint.X;
+            _document.PlayerSpawn.Y = _contextWorldPoint.Y;
+        });
+        StatusChanged?.Invoke(this, "已將玩家出生點移動到此處。");
+    }
+
+    private void AddItemPointAtContext()
+    {
+        if (!IsPointInsideNavMesh(_contextWorldPoint)) return;
+        var index = _document.ItemPoints.Count;
+        PerformMutation(() =>
+        {
+            _document.ItemPoints.Add(new SceneItemPoint
+            {
+                Id = NextId("item-point", _document.ItemPoints.Select(item => item.Id)),
+                Label = $"ItemPoint {index + 1}",
+                X = _contextWorldPoint.X,
+                Y = _contextWorldPoint.Y,
+                ItemId = ItemCatalog.All.FirstOrDefault()?.Id ?? "R0001",
+                Quantity = 1,
+                SpawnPolicy = "once",
+                ShowOnMinimap = false,
+            });
+            _selection = new LayerSelection(SceneLayerKind.ItemPoint, index);
+            _selectedVertex = -1;
+        });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        StatusChanged?.Invoke(this, "已新增 ItemPoint；請在右側設定道具、數量與生成規則。");
+    }
+
+    private void SetItemPointItemAtContext(string itemId)
+    {
+        if (_contextItemPointIndex < 0 || _contextItemPointIndex >= _document.ItemPoints.Count) return;
+        var item = ItemCatalog.Find(itemId);
+        if (item is null) return;
+        PerformMutation(() => _document.ItemPoints[_contextItemPointIndex].ItemId = item.Id);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        StatusChanged?.Invoke(this, $"此 ItemPoint 已指定生成 {item.Id} · {item.Name}。");
+    }
+
+    private void SetItemPointQuantityAtContext(string text)
+    {
+        if (_contextItemPointIndex < 0 || _contextItemPointIndex >= _document.ItemPoints.Count) return;
+        if (!int.TryParse(text, out var quantity)) quantity = 1;
+        quantity = Math.Clamp(quantity, 1, 99);
+        PerformMutation(() => _document.ItemPoints[_contextItemPointIndex].Quantity = quantity);
+        _itemPointQuantityContextTextBox.Text = quantity.ToString();
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        StatusChanged?.Invoke(this, $"此 ItemPoint 的生成數量已設為 {quantity}。");
+    }
+
+    private void DeleteItemPointAtContext()
+    {
+        if (_contextItemPointIndex < 0 || _contextItemPointIndex >= _document.ItemPoints.Count) return;
+        SelectLayer(new LayerSelection(SceneLayerKind.ItemPoint, _contextItemPointIndex));
+        DeleteSelection();
+        _contextItemPointIndex = -1;
+        StatusChanged?.Invoke(this, "已刪除此 ItemPoint。");
+    }
+
+    private int FindItemPointAt(PointF world)
+    {
+        var threshold = 14f / _zoom;
+        for (var index = _document.ItemPoints.Count - 1; index >= 0; index--)
+        {
+            var point = _document.ItemPoints[index];
+            if (Distance(world, new PointF(point.X, point.Y)) <= threshold) return index;
+        }
+        return -1;
+    }
+
     private void ShowNodeContextMenu(Point screenLocation, PointF world)
     {
         if (!IsInsideWorld(world)) return;
 
-        if (!PrepareNodeContextMenu(world))
+        // A selected vertex/radius handle is rendered above every polygon and remains an
+        // explicit editing target. Otherwise, right-click follows the same top-to-bottom
+        // order as drawing so an underlying NavMesh cannot steal another layer's menu.
+        var selectedHandleHit = HitSelectedHandle(world) >= 0;
+        if (!selectedHandleHit)
         {
             var hit = HitTest(world);
             if (hit != _selection)
             {
                 SelectLayer(hit);
             }
+        }
 
-            if (!PrepareNodeContextMenu(world))
-            {
-                StatusChanged?.Invoke(
-                    this,
-                    "請先選取多邊形，再對準黃色 Node 或邊線按滑鼠右鍵。");
-                return;
-            }
+        if (!PrepareNodeContextMenu(world))
+        {
+            StatusChanged?.Invoke(
+                this,
+                "請先選取多邊形，再對準黃色 Node 或邊線按滑鼠右鍵。");
+            return;
         }
 
         var interactionSelected = _selection.Kind == SceneLayerKind.Interactable && IsValidSelection(_selection);
@@ -1909,7 +2367,9 @@ public sealed class EditorCanvas : Control
             SceneLayerKind.NavMesh => $"NavMesh · {_document.NavMesh[selection.Index].Label}",
             SceneLayerKind.Collision => $"Collision · {_document.Collisions[selection.Index].Label}",
             SceneLayerKind.Interactable => $"互動區域 · {_document.Interactables[selection.Index].Label}",
+            SceneLayerKind.StoryTrigger => $"劇情觸發區 · {_document.StoryTriggers[selection.Index].Label}",
             SceneLayerKind.MovementGuide => $"強制引導線 · {_document.MovementGuides[selection.Index].Label}",
+            SceneLayerKind.ItemPoint => $"ItemPoint · {_document.ItemPoints[selection.Index].Label}",
             _ => "無",
         };
     }
@@ -2151,6 +2611,7 @@ public sealed class EditorCanvas : Control
             SceneLayerKind.NavMesh when IsValidSelection(_selection) => _document.NavMesh[_selection.Index].Points,
             SceneLayerKind.Collision when IsValidSelection(_selection) => _document.Collisions[_selection.Index].Points,
             SceneLayerKind.Interactable when IsValidSelection(_selection) => _document.Interactables[_selection.Index].Points,
+            SceneLayerKind.StoryTrigger when IsValidSelection(_selection) => _document.StoryTriggers[_selection.Index].Points,
             SceneLayerKind.MovementGuide when IsValidSelection(_selection) => _document.MovementGuides[_selection.Index].Points,
             _ => null,
         };
@@ -2169,10 +2630,17 @@ public sealed class EditorCanvas : Control
             return _document.Interactables[_selection.Index].Points;
         }
 
+        if (_selection.Kind == SceneLayerKind.StoryTrigger)
+        {
+            return _document.StoryTriggers[_selection.Index].Points;
+        }
+
         if (_selection.Kind == SceneLayerKind.MovementGuide)
         {
             return _document.MovementGuides[_selection.Index].Points;
         }
+
+        if (_selection.Kind != SceneLayerKind.Collision) return null;
 
         var collision = _document.Collisions[_selection.Index];
         return collision.Shape.Equals("polygon", StringComparison.OrdinalIgnoreCase)
@@ -2209,7 +2677,9 @@ public sealed class EditorCanvas : Control
             SceneLayerKind.NavMesh => selection.Index >= 0 && selection.Index < _document.NavMesh.Count,
             SceneLayerKind.Collision => selection.Index >= 0 && selection.Index < _document.Collisions.Count,
             SceneLayerKind.Interactable => selection.Index >= 0 && selection.Index < _document.Interactables.Count,
+            SceneLayerKind.StoryTrigger => selection.Index >= 0 && selection.Index < _document.StoryTriggers.Count,
             SceneLayerKind.MovementGuide => selection.Index >= 0 && selection.Index < _document.MovementGuides.Count,
+            SceneLayerKind.ItemPoint => selection.Index >= 0 && selection.Index < _document.ItemPoints.Count,
             _ => false,
         };
     }
@@ -2332,6 +2802,9 @@ public sealed class EditorCanvas : Control
             Math.Clamp(point.Y, 0, _document.World.Height));
     }
 
+    private bool IsPointInsideNavMesh(PointF point) =>
+        _document.NavMesh.Any(region => PointInPolygon(point, region.Points));
+
     private static bool IsFinite(PointF point)
     {
         return float.IsFinite(point.X) && float.IsFinite(point.Y);
@@ -2360,7 +2833,7 @@ public sealed class EditorCanvas : Control
 
     private static bool IsPolygonTool(EditorTool tool)
     {
-        return tool is EditorTool.NavMeshPolygon or EditorTool.CollisionPolygon or EditorTool.InteractionPolygon or EditorTool.MovementGuide;
+        return tool is EditorTool.NavMeshPolygon or EditorTool.CollisionPolygon or EditorTool.InteractionPolygon or EditorTool.StoryTriggerPolygon or EditorTool.MovementGuide;
     }
 
     private static void ScalePoints(List<ScenePoint>? points, float factor)

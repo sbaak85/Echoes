@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>ChapterScriptEditor</AssemblyName>
+    <RootNamespace>Echoes.ChapterScriptEditor</RootNamespace>
+    <ApplicationManifest>..\MapEditor\app.manifest</ApplicationManifest>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <DefaultItemExcludes>$(DefaultItemExcludes);runtime\**</DefaultItemExcludes>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\MapEditor\SceneModels.cs" Link="Shared\SceneModels.cs" />
+    <Compile Include="..\MapEditor\DialogueEditorForm.cs" Link="Shared\DialogueEditorForm.cs" />
+  </ItemGroup>
+</Project>

@@ -137,6 +137,36 @@ public sealed class DialogueEditorForm : Form
         CancelButton = cancel;
     }
 
+    public DialogueEditorForm(
+        DialogueScript dialogue,
+        string sectionName,
+        string hintText)
+        : this(dialogue, DialogueScript.CreateFailureDefault(), null)
+    {
+        Text = $"章節對話腳本編輯器 · {sectionName}";
+        while (_tabs.TabPages.Count > 1)
+        {
+            _tabs.TabPages.RemoveAt(_tabs.TabPages.Count - 1);
+        }
+        _tabs.TabPages[0].Text = sectionName;
+        var hint = _tabs.TabPages[0]
+            .Controls
+            .Cast<Control>()
+            .SelectMany(EnumerateControls)
+            .OfType<Label>()
+            .FirstOrDefault();
+        if (hint is not null) hint.Text = hintText;
+    }
+
+    private static IEnumerable<Control> EnumerateControls(Control control)
+    {
+        foreach (Control child in control.Controls)
+        {
+            yield return child;
+            foreach (var descendant in EnumerateControls(child)) yield return descendant;
+        }
+    }
+
     private static NumericUpDown CreateDelayInput() => new()
     {
         Minimum = 0,
@@ -175,10 +205,11 @@ public sealed class DialogueEditorForm : Form
         grid.EnableHeadersVisualStyles = false;
         grid.RowTemplate.Height = 58;
 
-        speakerColumn.HeaderText = "發話者（空白＝延續上一位）";
+        speakerColumn.HeaderText = "發話者（首句空白＝無；其餘空白＝延續上一位）";
         speakerColumn.Width = 215;
         speakerColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
         speakerColumn.FlatStyle = FlatStyle.Flat;
+        speakerColumn.DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox;
         grid.Columns.Add(speakerColumn);
         grid.Columns.Add(new DataGridViewTextBoxColumn
         {
@@ -224,6 +255,8 @@ public sealed class DialogueEditorForm : Form
         grid.CellBeginEdit += GridOnCellBeginEdit;
         grid.CellValidating += GridOnCellValidating;
         grid.CellEndEdit += GridOnCellEndEdit;
+        grid.CellDoubleClick += GridOnCellDoubleClick;
+        grid.EditingControlShowing += GridOnEditingControlShowing;
         grid.DataError += (_, eventArgs) => eventArgs.ThrowException = false;
         RefreshGroupPresentation(grid);
         if (grid.Rows.Count > 0) ApplyGridSelection(grid, new[] { 0 });
@@ -640,7 +673,25 @@ public sealed class DialogueEditorForm : Form
         speakerEditor.DroppedDown = true;
         System.Windows.Forms.Application.DoEvents();
         speakerEditor.DroppedDown = false;
-        grid.EndEdit();
+        if (speakerEditor.DropDownStyle != ComboBoxStyle.DropDown)
+        {
+            throw new InvalidOperationException(
+                "Speaker dropdown did not remain directly editable.");
+        }
+        const string customSpeaker = "自訂測試發話者";
+        speakerEditor.Text = customSpeaker;
+        grid.NotifyCurrentCellDirty(true);
+        if (
+            !grid.EndEdit() ||
+            !string.Equals(
+                Convert.ToString(grid.Rows[0].Cells[SpeakerColumnIndex].Value),
+                customSpeaker,
+                StringComparison.Ordinal)
+        )
+        {
+            throw new InvalidOperationException(
+                "Speaker dropdown did not preserve a directly typed name.");
+        }
 
         grid.CurrentCell = grid.Rows[0].Cells[WeightColumnIndex];
         GridOnCellMouseDown(
@@ -735,10 +786,6 @@ public sealed class DialogueEditorForm : Form
                 MessageBoxIcon.Information);
             return null;
         }
-        if (string.IsNullOrWhiteSpace(result[0].Speaker))
-        {
-            result[0].Speaker = _speakers[0];
-        }
         return result;
     }
 
@@ -755,6 +802,39 @@ public sealed class DialogueEditorForm : Form
             foreach (var speaker in _speakers) column.Items.Add(speaker);
             column.Items.Add(AddSpeakerOption);
         }
+    }
+
+    private string RegisterSpeakerOption(
+        string speaker,
+        DataGridViewComboBoxCell? activeCell = null)
+    {
+        var normalized = speaker.Trim();
+        var existing = _speakers.FirstOrDefault(item =>
+            item.Equals(normalized, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null) return existing;
+
+        _speakers.Add(normalized);
+        foreach (var column in new[]
+        {
+            _successSpeakerColumn,
+            _failureSpeakerColumn,
+            _completionSpeakerColumn,
+        })
+        {
+            if (column.Items.Contains(normalized)) continue;
+            var addOptionIndex = column.Items.IndexOf(AddSpeakerOption);
+            column.Items.Insert(
+                addOptionIndex >= 0 ? addOptionIndex : column.Items.Count,
+                normalized);
+        }
+        if (activeCell is not null && !activeCell.Items.Contains(normalized))
+        {
+            var addOptionIndex = activeCell.Items.IndexOf(AddSpeakerOption);
+            activeCell.Items.Insert(
+                addOptionIndex >= 0 ? addOptionIndex : activeCell.Items.Count,
+                normalized);
+        }
+        return normalized;
     }
 
     private void GridOnCellMouseDown(
@@ -808,10 +888,35 @@ public sealed class DialogueEditorForm : Form
         }
     }
 
-    private static void GridOnCellValidating(
+    private void GridOnCellValidating(
         object? sender,
         DataGridViewCellValidatingEventArgs eventArgs)
     {
+        if (
+            sender is DataGridView speakerGrid &&
+            eventArgs.RowIndex >= 0 &&
+            eventArgs.ColumnIndex == SpeakerColumnIndex
+        )
+        {
+            var speaker = Convert.ToString(eventArgs.FormattedValue)?.Trim() ?? "";
+            if (
+                speaker.Length > 0 &&
+                !speaker.Equals(AddSpeakerOption, StringComparison.Ordinal)
+            )
+            {
+                var cell = (DataGridViewComboBoxCell)speakerGrid
+                    .Rows[eventArgs.RowIndex]
+                    .Cells[SpeakerColumnIndex];
+                var registered = RegisterSpeakerOption(speaker, cell);
+                cell.Value = registered;
+                if (speakerGrid.EditingControl is DataGridViewComboBoxEditingControl editor)
+                {
+                    editor.Text = registered;
+                }
+            }
+            return;
+        }
+
         if (
             sender is not DataGridView grid ||
             eventArgs.RowIndex < 0 ||
@@ -833,6 +938,48 @@ public sealed class DialogueEditorForm : Form
         {
             grid.Rows[eventArgs.RowIndex].ErrorText = "";
         }
+    }
+
+    private static void GridOnEditingControlShowing(
+        object? sender,
+        DataGridViewEditingControlShowingEventArgs eventArgs)
+    {
+        if (
+            sender is not DataGridView grid ||
+            grid.CurrentCell?.ColumnIndex != SpeakerColumnIndex ||
+            eventArgs.Control is not DataGridViewComboBoxEditingControl editor
+        )
+        {
+            return;
+        }
+
+        editor.DropDownStyle = ComboBoxStyle.DropDown;
+        editor.AutoCompleteMode = AutoCompleteMode.None;
+        editor.AutoCompleteSource = AutoCompleteSource.None;
+    }
+
+    private static void GridOnCellDoubleClick(
+        object? sender,
+        DataGridViewCellEventArgs eventArgs)
+    {
+        if (
+            sender is not DataGridView grid ||
+            eventArgs.RowIndex < 0 ||
+            eventArgs.ColumnIndex != SpeakerColumnIndex
+        )
+        {
+            return;
+        }
+
+        grid.CurrentCell = grid.Rows[eventArgs.RowIndex].Cells[SpeakerColumnIndex];
+        if (!grid.BeginEdit(true) ||
+            grid.EditingControl is not DataGridViewComboBoxEditingControl editor)
+        {
+            return;
+        }
+        editor.DroppedDown = false;
+        editor.Focus();
+        editor.SelectAll();
     }
 
     private static void GridOnCellEndEdit(

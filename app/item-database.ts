@@ -405,7 +405,26 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       inventoryRules: { transferable: true, discardable: true, stackSize: 20 },
     },
   },
-  { slot: 25, item: null },
+  {
+    slot: 25,
+    item: {
+      id: "R0100",
+      englishName: "full-recovery-test-item",
+      name: "全回復道具（測試用）",
+      symbol: "✚",
+      category: "resource",
+      description: "測試用全回復道具，使用後會將四項生存計量恢復至上限。",
+      weight: 0.0,
+      usable: true,
+      survivalEffects: {
+        stamina: 100,
+        hunger: 100,
+        thirst: 100,
+        spirit: 100,
+      },
+      inventoryRules: { transferable: true, discardable: true, stackSize: 999 },
+    },
+  },
   { slot: 26, item: null },
   { slot: 27, item: null },
   { slot: 28, item: null },
@@ -551,6 +570,7 @@ const INITIAL_PLAYER_INVENTORY_OVERRIDES: Readonly<PlayerInventory> = {
   T0001: 1,
   T0006: 1,
   Q0001: 1,
+  R0100: 100,
 };
 
 export const INITIAL_PLAYER_INVENTORY: Readonly<PlayerInventory> =

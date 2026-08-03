@@ -17,6 +17,8 @@ public sealed class SceneDocument
     public List<CollisionShape> Collisions { get; set; } = new();
     public List<SceneInteractable> Interactables { get; set; } = new();
     public List<MovementGuide> MovementGuides { get; set; } = new();
+    public List<StoryTriggerZone> StoryTriggers { get; set; } = new();
+    public List<SceneItemPoint> ItemPoints { get; set; } = new();
     public WorldLayout WorldLayout { get; set; } = new();
     public List<SceneConnection> Connections { get; set; } = new();
 
@@ -134,6 +136,14 @@ public sealed class SceneInteractable
     public int? DailyInteractionLimit { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? InteractionLimitMode { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<InteractionItemReward>? ItemRewards { get; set; }
+
+    // Legacy schema support. Validation migrates the former single reward into
+    // ItemRewards so newly saved scenes use the array format.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public InteractionItemReward? ItemReward { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -190,6 +200,50 @@ public sealed class SceneInteractable
             InteractionPoints = null;
         }
     }
+
+    public List<InteractionItemReward> EnsureItemRewards()
+    {
+        ItemRewards ??= new List<InteractionItemReward>();
+        if (ItemReward is not null)
+        {
+            ItemRewards.Insert(0, ItemReward);
+            ItemReward = null;
+        }
+        return ItemRewards;
+    }
+
+    public void NormalizeItemRewards()
+    {
+        if (ItemReward is not null) EnsureItemRewards();
+        if (ItemRewards is { Count: 0 }) ItemRewards = null;
+    }
+}
+
+public sealed class SceneItemPoint : ScenePoint
+{
+    public string Id { get; set; } = "";
+    public string Label { get; set; } = "ItemPoint";
+    public string ItemId { get; set; } = "R0001";
+    public int Quantity { get; set; } = 1;
+    public string SpawnPolicy { get; set; } = "once";
+    public bool ShowOnMinimap { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ItemPointSpawnRequirement? SpawnRequirement { get; set; }
+}
+
+public sealed class ItemPointSpawnRequirement
+{
+    public string QuestId { get; set; } = "";
+    public string StageId { get; set; } = "";
+    public string StageMode { get; set; } = "CurrentStageOnly";
+
+    public ItemPointSpawnRequirement Clone() => new()
+    {
+        QuestId = QuestId,
+        StageId = StageId,
+        StageMode = StageMode,
+    };
 }
 
 public sealed class SurvivalEffects
@@ -266,6 +320,11 @@ public sealed class InteractionUseRequirement
 {
     public string Kind { get; set; } = "item";
     public string ItemId { get; set; } = "";
+    public string QuestId { get; set; } = "";
+    public string StageId { get; set; } = "";
+    public string StageMode { get; set; } = "CurrentStageOnly";
+    public string DisableQuestId { get; set; } = "";
+    public string DisableStageId { get; set; } = "";
     public int Quantity { get; set; } = 1;
     public int Chapter { get; set; } = 1;
 
@@ -273,6 +332,11 @@ public sealed class InteractionUseRequirement
     {
         Kind = Kind,
         ItemId = ItemId,
+        QuestId = QuestId,
+        StageId = StageId,
+        StageMode = StageMode,
+        DisableQuestId = DisableQuestId,
+        DisableStageId = DisableStageId,
         Quantity = Quantity,
         Chapter = Chapter,
     };
@@ -299,6 +363,7 @@ public static class ItemCatalog
             ["metal-scrap"] = "R0009",
             ["synthetic-cloth"] = "R0010",
             ["transistor"] = "R0011",
+            ["full-recovery-test-item"] = "R0100",
             ["utility-rope"] = "T0001",
             ["scanner-parts"] = "T0002",
             ["repair-kit"] = "T0003",
@@ -327,6 +392,7 @@ public static class ItemCatalog
         new("R0010", "合成布料"),
         new("R0011", "電晶體"),
         new("R0012", "外星果實"),
+        new("R0100", "全回復道具（測試用）"),
         new("T0001", "繩索"),
         new("T0002", "掃描器零件"),
         new("T0003", "修理工具"),
@@ -349,6 +415,75 @@ public static class ItemCatalog
             : id.Trim();
         return All.FirstOrDefault(item =>
             item.Id.Equals(currentId, StringComparison.OrdinalIgnoreCase));
+    }
+}
+
+public sealed record QuestStageCatalogEntry(string Id, string Name)
+{
+    public override string ToString() => string.IsNullOrWhiteSpace(Name)
+        ? Id
+        : $"{Id}｜{Name}";
+}
+
+public sealed record QuestCatalogEntry(
+    string Id,
+    string Name,
+    IReadOnlyList<QuestStageCatalogEntry>? Stages = null)
+{
+    public IReadOnlyList<QuestStageCatalogEntry> StageEntries =>
+        Stages ?? Array.Empty<QuestStageCatalogEntry>();
+
+    public override string ToString() => string.IsNullOrWhiteSpace(Name)
+        ? Id
+        : $"{Id}｜{Name}";
+}
+
+public static class QuestCatalog
+{
+    public static IReadOnlyList<QuestCatalogEntry> Load(string? projectRoot)
+    {
+        if (string.IsNullOrWhiteSpace(projectRoot)) return Array.Empty<QuestCatalogEntry>();
+        var path = Path.Combine(projectRoot, "public", "quests", "quest-data.json");
+        if (!File.Exists(path)) return Array.Empty<QuestCatalogEntry>();
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            if (!document.RootElement.TryGetProperty("quests", out var quests) ||
+                quests.ValueKind != JsonValueKind.Array)
+            {
+                return Array.Empty<QuestCatalogEntry>();
+            }
+            return quests.EnumerateArray()
+                .Select(quest => new QuestCatalogEntry(
+                    quest.TryGetProperty("id", out var id)
+                        ? id.GetString()?.Trim() ?? ""
+                        : "",
+                    quest.TryGetProperty("name", out var name)
+                        ? name.GetString()?.Trim() ?? ""
+                        : "",
+                    quest.TryGetProperty("stages", out var stages) &&
+                    stages.ValueKind == JsonValueKind.Array
+                        ? stages.EnumerateArray()
+                            .Select(stage => new QuestStageCatalogEntry(
+                                stage.TryGetProperty("id", out var stageId)
+                                    ? stageId.GetString()?.Trim() ?? ""
+                                    : "",
+                                stage.TryGetProperty("name", out var stageName)
+                                    ? stageName.GetString()?.Trim() ?? ""
+                                    : ""))
+                            .Where(stage => !string.IsNullOrWhiteSpace(stage.Id))
+                            .ToArray()
+                        : Array.Empty<QuestStageCatalogEntry>()))
+                .Where(quest => !string.IsNullOrWhiteSpace(quest.Id))
+                .GroupBy(quest => quest.Id, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .OrderBy(quest => quest.Id, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch
+        {
+            return Array.Empty<QuestCatalogEntry>();
+        }
     }
 }
 
@@ -430,6 +565,15 @@ public sealed class MovementGuide
     public List<ScenePoint> Points { get; set; } = new();
     public float Width { get; set; } = 36;
     public bool Bidirectional { get; set; } = true;
+}
+
+public sealed class StoryTriggerZone
+{
+    public string Id { get; set; } = "";
+    public string Label { get; set; } = "劇情觸發區";
+    public List<ScenePoint> Points { get; set; } = new();
+    public bool Once { get; set; } = true;
+    public string DialogueId { get; set; } = "";
 }
 
 public sealed class SceneConnection
@@ -537,28 +681,35 @@ public static class SceneJson
                 interactable.SurvivalEffects.TimeMinutes,
                 0,
                 7 * 24 * 60);
-            interactable.DailyInteractionLimit = interactable.DailyInteractionLimit is null
+            interactable.InteractionLimitMode = "once".Equals(
+                interactable.InteractionLimitMode,
+                StringComparison.OrdinalIgnoreCase)
+                ? "once"
+                : null;
+            interactable.DailyInteractionLimit = interactable.InteractionLimitMode == "once"
                 ? null
-                : Math.Clamp(interactable.DailyInteractionLimit.Value, 1, 10);
-            if (interactable.ItemReward is not null)
+                : interactable.DailyInteractionLimit is null
+                    ? null
+                    : Math.Clamp(interactable.DailyInteractionLimit.Value, 1, 10);
+            interactable.NormalizeItemRewards();
+            if (interactable.ItemRewards is { Count: > 0 })
             {
-                var rewardItem = ItemCatalog.Find(interactable.ItemReward.ItemId);
-                if (rewardItem is null)
+                foreach (var reward in interactable.ItemRewards)
                 {
-                    throw new InvalidDataException(
-                        $"互動多邊形 {interactable.Id} 設定了未知道具 {interactable.ItemReward.ItemId}。");
-                }
-                interactable.ItemReward.ItemId = rewardItem.Id;
-                interactable.ItemReward.Quantity = Math.Clamp(
-                    interactable.ItemReward.Quantity,
-                    1,
-                    99);
-                interactable.ItemReward.Delivery =
-                    interactable.ItemReward.Delivery.Equals(
+                    var rewardItem = ItemCatalog.Find(reward.ItemId);
+                    if (rewardItem is null)
+                    {
+                        throw new InvalidDataException(
+                            $"互動多邊形 {interactable.Id} 設定了未知道具 {reward.ItemId}。");
+                    }
+                    reward.ItemId = rewardItem.Id;
+                    reward.Quantity = Math.Clamp(reward.Quantity, 1, 99);
+                    reward.Delivery = reward.Delivery.Equals(
                         "world",
                         StringComparison.OrdinalIgnoreCase)
                         ? "world"
                         : "inventory";
+                }
             }
             if (interactable.UseRequirements is { Count: > 0 })
             {
@@ -568,12 +719,73 @@ public static class SceneJson
                         "chapter",
                         StringComparison.OrdinalIgnoreCase)
                         ? "chapter"
-                        : "item";
+                        : requirement.Kind.Equals(
+                            "quest",
+                            StringComparison.OrdinalIgnoreCase)
+                            ? "quest"
+                            : requirement.Kind.Equals(
+                                "questStage",
+                                StringComparison.OrdinalIgnoreCase)
+                                ? "questStage"
+                                : "item";
                     if (requirement.Kind == "chapter")
                     {
                         requirement.ItemId = "";
+                        requirement.QuestId = "";
+                        requirement.StageId = "";
+                        requirement.DisableQuestId = "";
+                        requirement.DisableStageId = "";
                         requirement.Chapter = Math.Clamp(requirement.Chapter, 1, 99);
                         requirement.Quantity = 1;
+                        continue;
+                    }
+                    if (requirement.Kind == "quest")
+                    {
+                        requirement.ItemId = "";
+                        requirement.QuestId = requirement.QuestId.Trim();
+                        requirement.StageId = "";
+                        requirement.DisableQuestId = "";
+                        requirement.DisableStageId = "";
+                        requirement.Quantity = 1;
+                        requirement.Chapter = 1;
+                        if (requirement.QuestId.Length == 0)
+                        {
+                            throw new InvalidDataException(
+                                $"互動多邊形 {interactable.Id} 的需求任務 ID 不可空白。");
+                        }
+                        continue;
+                    }
+                    if (requirement.Kind == "questStage")
+                    {
+                        requirement.ItemId = "";
+                        requirement.QuestId = requirement.QuestId.Trim();
+                        requirement.StageId = requirement.StageId.Trim();
+                        requirement.StageMode = requirement.StageMode switch
+                        {
+                            "UnlockFromStage" => "UnlockFromStage",
+                            "UnlockUntilCondition" => "UnlockUntilCondition",
+                            _ => "CurrentStageOnly",
+                        };
+                        requirement.DisableQuestId = requirement.DisableQuestId.Trim();
+                        requirement.DisableStageId = requirement.DisableStageId.Trim();
+                        requirement.Quantity = 1;
+                        requirement.Chapter = 1;
+                        if (requirement.QuestId.Length == 0 || requirement.StageId.Length == 0)
+                        {
+                            throw new InvalidDataException(
+                                $"互動多邊形 {interactable.Id} 的任務階段條件不可空白。");
+                        }
+                        if (requirement.StageMode == "UnlockUntilCondition" &&
+                            (requirement.DisableQuestId.Length == 0 || requirement.DisableStageId.Length == 0))
+                        {
+                            throw new InvalidDataException(
+                                $"互動多邊形 {interactable.Id} 的關閉任務階段條件不可空白。");
+                        }
+                        if (requirement.StageMode != "UnlockUntilCondition")
+                        {
+                            requirement.DisableQuestId = "";
+                            requirement.DisableStageId = "";
+                        }
                         continue;
                     }
                     var requiredItem = ItemCatalog.Find(requirement.ItemId);
@@ -583,6 +795,10 @@ public static class SceneJson
                             $"互動多邊形 {interactable.Id} 設定了未知需求道具 {requirement.ItemId}。");
                     }
                     requirement.ItemId = requiredItem.Id;
+                    requirement.QuestId = "";
+                    requirement.StageId = "";
+                    requirement.DisableQuestId = "";
+                    requirement.DisableStageId = "";
                     requirement.Quantity = Math.Clamp(requirement.Quantity, 1, 99);
                     requirement.Chapter = 1;
                 }
@@ -616,6 +832,84 @@ public static class SceneJson
                 throw new InvalidDataException($"強制引導線 {guide.Id} 的生效寬度必須大於 0。");
             }
         }
+
+        foreach (var trigger in document.StoryTriggers)
+        {
+            if (trigger.Points.Count < 3)
+            {
+                throw new InvalidDataException($"劇情觸發區 {trigger.Id} 至少需要 3 個 Node。");
+            }
+            trigger.Label = string.IsNullOrWhiteSpace(trigger.Label)
+                ? "劇情觸發區"
+                : trigger.Label.Trim();
+            trigger.DialogueId = trigger.DialogueId?.Trim() ?? "";
+        }
+
+        foreach (var itemPoint in document.ItemPoints)
+        {
+            var item = ItemCatalog.Find(itemPoint.ItemId);
+            if (item is null)
+            {
+                throw new InvalidDataException(
+                    $"ItemPoint {itemPoint.Id} 設定了未知道具 {itemPoint.ItemId}。");
+            }
+            itemPoint.Id = string.IsNullOrWhiteSpace(itemPoint.Id)
+                ? $"item-point-{document.ItemPoints.IndexOf(itemPoint) + 1:000}"
+                : itemPoint.Id.Trim();
+            itemPoint.Label = string.IsNullOrWhiteSpace(itemPoint.Label)
+                ? $"ItemPoint {document.ItemPoints.IndexOf(itemPoint) + 1}"
+                : itemPoint.Label.Trim();
+            itemPoint.ItemId = item.Id;
+            itemPoint.Quantity = Math.Clamp(itemPoint.Quantity, 1, 99);
+            itemPoint.SpawnPolicy = itemPoint.SpawnPolicy switch
+            {
+                "daily" => "daily",
+                "sceneEntry" => "sceneEntry",
+                _ => "once",
+            };
+            if (itemPoint.SpawnRequirement is not null)
+            {
+                itemPoint.SpawnRequirement.QuestId = itemPoint.SpawnRequirement.QuestId.Trim();
+                itemPoint.SpawnRequirement.StageId = itemPoint.SpawnRequirement.StageId.Trim();
+                if (itemPoint.SpawnRequirement.QuestId.Length == 0 ||
+                    itemPoint.SpawnRequirement.StageId.Length == 0)
+                {
+                    throw new InvalidDataException(
+                        $"ItemPoint {itemPoint.Id} 的 Spawn 任務階段需求不完整。");
+                }
+                itemPoint.SpawnRequirement.StageMode =
+                    itemPoint.SpawnRequirement.StageMode.Equals(
+                        "UnlockFromStage",
+                        StringComparison.OrdinalIgnoreCase)
+                        ? "UnlockFromStage"
+                        : "CurrentStageOnly";
+            }
+            itemPoint.X = Math.Clamp(itemPoint.X, 0, document.World.Width);
+            itemPoint.Y = Math.Clamp(itemPoint.Y, 0, document.World.Height);
+            if (!document.NavMesh.Any(region => PointInPolygon(itemPoint, region.Points)))
+            {
+                throw new InvalidDataException(
+                    $"ItemPoint {itemPoint.Id} 必須放在 NavMesh 範圍內。");
+            }
+        }
+    }
+
+    private static bool PointInPolygon(ScenePoint point, IReadOnlyList<ScenePoint> polygon)
+    {
+        if (polygon.Count < 3) return false;
+        var inside = false;
+        for (int current = 0, previous = polygon.Count - 1;
+             current < polygon.Count;
+             previous = current++)
+        {
+            var a = polygon[current];
+            var b = polygon[previous];
+            if ((a.Y > point.Y) == (b.Y > point.Y)) continue;
+            var intersectionX =
+                (b.X - a.X) * (point.Y - a.Y) / (b.Y - a.Y) + a.X;
+            if (point.X < intersectionX) inside = !inside;
+        }
+        return inside;
     }
 
     private static void NormalizeRequirement(SurvivalRequirementRule? rule)
@@ -651,10 +945,6 @@ public static class SceneJson
                 Text = defaultText,
             });
         }
-        else if (string.IsNullOrWhiteSpace(dialogue.Lines[0].Speaker))
-        {
-            dialogue.Lines[0].Speaker = dialogue.Speakers[0];
-        }
         NormalizeDialogueRandomGroups(dialogue.Lines);
     }
 
@@ -684,13 +974,6 @@ public static class SceneJson
                 Weight = line.Weight,
             })
             .ToList();
-        if (
-            dialogue.Lines.Count > 0 &&
-            string.IsNullOrWhiteSpace(dialogue.Lines[0].Speaker)
-        )
-        {
-            dialogue.Lines[0].Speaker = dialogue.Speakers[0];
-        }
         NormalizeDialogueRandomGroups(dialogue.Lines);
     }
 

@@ -37,6 +37,7 @@ yarn-error.log*
 
 # typescript
 next-env.d.ts
+*.tsbuildinfo
 /dist/
 /pages-dist/
 /.wrangler/
@@ -47,6 +48,17 @@ next-env.d.ts
 /MapEditor/obj/
 /MapEditor/publish/
 /MapEditor/runtime/
+/ChapterScriptEditor/bin/
+/ChapterScriptEditor/obj/
+/ChapterScriptEditor/publish/
+/ChapterScriptEditor/runtime/
+/QuestEditor/bin/
+/QuestEditor/obj/
+/QuestEditor/publish/
+/QuestEditor/runtime/
+/app/story-content.backups/
+/app/story-content.ts.bak
+/.codex-remote-attachments/
 /AudioEventManager/bin/
 /AudioEventManager/obj/
 /AudioEventManager/publish/

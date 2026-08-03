@@ -10,6 +10,7 @@ import {
   ensureInteractionUsageCycle,
   formatElapsedGameHours,
   getElapsedClockHandMotion,
+  getTimePassTransitionHoldMs,
   getCharacterStatuses,
   getGameClock,
   getMealCurveRate,
@@ -24,6 +25,15 @@ test("elapsed interaction time is formatted as compact game hours", () => {
   assert.equal(formatElapsedGameHours(90), "1.5");
   assert.equal(formatElapsedGameHours(480), "8");
   assert.equal(formatElapsedGameHours(Number.NaN), "0");
+});
+
+test("time-passing interaction blackout hold scales with the configured hours", () => {
+  assert.equal(getTimePassTransitionHoldMs(59), 0);
+  assert.equal(getTimePassTransitionHoldMs(60), 100);
+  assert.equal(getTimePassTransitionHoldMs(4 * 60), 200);
+  assert.equal(getTimePassTransitionHoldMs(8 * 60), 400);
+  assert.equal(getTimePassTransitionHoldMs(16 * 60), 400);
+  assert.equal(getTimePassTransitionHoldMs(24 * 60), 800);
 });
 
 test("elapsed clock hands start at the prior time and rotate by actual elapsed minutes", () => {
@@ -43,7 +53,7 @@ test("elapsed clock hands start at the prior time and rotate by actual elapsed m
 
 test("one real hour advances one game day and applies the approved natural drain", () => {
   const result = advanceSurvivalState(createInitialSurvivalState(), 3600);
-  assert.deepEqual(getGameClock(result.gameMinutes), { day: 2, hour: 6, minute: 0 });
+  assert.deepEqual(getGameClock(result.gameMinutes), { day: 4, hour: 6, minute: 0 });
   assert.ok(Math.abs(result.values.stamina - 75) < 0.01);
   assert.ok(Math.abs(result.values.hunger - 58) < 0.03);
   assert.ok(Math.abs(result.values.thirst - 52) < 0.01);
@@ -101,6 +111,17 @@ test("interaction effects clamp values and daily usage resets at 06:00", () => {
   assert.equal(isInteractionLocked(usage, "mine", 3), true);
   usage = ensureInteractionUsageCycle(usage, 360 + 24 * 60);
   assert.equal(isInteractionLocked(usage, "mine", 3), false);
+
+  usage = recordInteractionUse(usage, "quest-terminal", null, "once");
+  assert.equal(
+    isInteractionLocked(usage, "quest-terminal", null, "once"),
+    true,
+  );
+  usage = ensureInteractionUsageCycle(usage, 360 + 48 * 60);
+  assert.equal(
+    isInteractionLocked(usage, "quest-terminal", null, "once"),
+    true,
+  );
 });
 
 test("互動需求支援至少、低於與以下，舊資料預設全部成立", () => {
@@ -157,7 +178,7 @@ test("睡眠八小時會推進時鐘並套用期間內的自然消耗", () => {
   const before = createInitialSurvivalState();
   before.values.stamina = 25;
   const after = advanceSurvivalByGameMinutes(before, 8 * 60);
-  assert.deepEqual(getGameClock(after.gameMinutes), { day: 1, hour: 14, minute: 0 });
+  assert.deepEqual(getGameClock(after.gameMinutes), { day: 3, hour: 14, minute: 0 });
   assert.ok(after.values.stamina < 25);
   assert.ok(after.values.hunger < 100);
   assert.ok(after.values.thirst < 100);

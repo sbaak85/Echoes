@@ -1,11 +1,21 @@
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using Echoes.AudioEventTools;
 
 namespace Echoes.MapEditor;
 
 public sealed class MainForm : Form
 {
+    private const int WmSetRedraw = 0x000B;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(
+        IntPtr windowHandle,
+        int message,
+        IntPtr wordParameter,
+        IntPtr longParameter);
+
     private readonly EditorCanvas _canvas = new() { Dock = DockStyle.Fill };
     private readonly Dictionary<EditorTool, ToolStripButton> _toolButtons = new();
     private readonly ListBox _layersList = new();
@@ -43,22 +53,8 @@ public sealed class MainForm : Form
     {
         DropDownStyle = ComboBoxStyle.DropDownList,
     };
-    private readonly ComboBox _interactionRewardItemCombo = new()
-    {
-        DropDownStyle = ComboBoxStyle.DropDownList,
-    };
-    private readonly NumericUpDown _interactionRewardQuantityInput = new()
-    {
-        Minimum = 1,
-        Maximum = 99,
-        Value = 1,
-    };
-    private readonly ComboBox _interactionRewardDeliveryCombo = new()
-    {
-        DropDownStyle = ComboBoxStyle.DropDownList,
-    };
     private readonly TextBox _interactionVerbText = new();
-    private readonly GroupBox _interactionGroup = CreateGroup("互動設定", 350);
+    private readonly GroupBox _interactionGroup = CreateGroup("互動設定", 270);
     private readonly Label _dialogueSummaryLabel = new();
     private readonly Label _survivalSummaryLabel = new();
     private readonly Button _dialogueMoreButton = CreateButton("更多...", 141, 152, 124, 30);
@@ -70,6 +66,50 @@ public sealed class MainForm : Form
         DecimalPlaces = 0,
         Value = 36,
     };
+    private readonly GroupBox _storyTriggerGroup = CreateGroup("劇情觸發區設定", 142);
+    private readonly TextBox _storyTriggerDialogueIdText = new();
+    private readonly CheckBox _storyTriggerOnceCheck = new()
+    {
+        Text = "只能觸發一次",
+        Checked = true,
+        AutoSize = true,
+    };
+    private readonly GroupBox _itemPointGroup = CreateGroup("ItemPoint 圖層", 378);
+    private readonly ListBox _itemPointList = new();
+    private readonly TextBox _itemPointNameText = new();
+    private readonly ComboBox _itemPointItemCombo = new()
+    {
+        DropDownStyle = ComboBoxStyle.DropDownList,
+    };
+    private readonly NumericUpDown _itemPointQuantityInput = new()
+    {
+        Minimum = 1,
+        Maximum = 99,
+        Value = 1,
+    };
+    private readonly ComboBox _itemPointSpawnPolicyCombo = new()
+    {
+        DropDownStyle = ComboBoxStyle.DropDownList,
+    };
+    private readonly NumericUpDown _itemPointXInput = new()
+    {
+        Minimum = 0,
+        Maximum = 100000,
+        DecimalPlaces = 1,
+    };
+    private readonly NumericUpDown _itemPointYInput = new()
+    {
+        Minimum = 0,
+        Maximum = 100000,
+        DecimalPlaces = 1,
+    };
+    private readonly CheckBox _itemPointShowOnMinimapCheck = new()
+    {
+        Text = "在小地圖標記（僅此 ItemPoint 生成物）",
+        AutoSize = true,
+    };
+    private readonly Button _itemPointSpawnRequirementButton =
+        CreateButton("Spawn 需求設定…", 10, 283, 255, 30);
 
     private readonly string? _projectRoot;
     private string? _imagePath;
@@ -131,21 +171,18 @@ public sealed class MainForm : Form
             _dialogueMoreButton.Enabled = true;
         };
 
-        _interactionRewardItemCombo.Items.Add(new ItemCatalogEntry("", "不生成道具"));
         foreach (var item in ItemCatalog.All)
         {
-            _interactionRewardItemCombo.Items.Add(item);
+            _itemPointItemCombo.Items.Add(item);
         }
-        _interactionRewardItemCombo.SelectedIndex = 0;
-        _interactionRewardDeliveryCombo.Items.AddRange(new object[]
+        if (_itemPointItemCombo.Items.Count > 0) _itemPointItemCombo.SelectedIndex = 0;
+        _itemPointSpawnPolicyCombo.Items.AddRange(new object[]
         {
-            new RewardDeliveryItem("inventory", "直接放入背包"),
-            new RewardDeliveryItem("world", "Spawn 在場上"),
+            new ItemPointSpawnPolicyItem("once", "唯一生成一次"),
+            new ItemPointSpawnPolicyItem("daily", "每日 06:00 重新生成"),
+            new ItemPointSpawnPolicyItem("sceneEntry", "進入地圖時重新生成"),
         });
-        _interactionRewardDeliveryCombo.SelectedIndex = 0;
-        _interactionRewardItemCombo.SelectedIndexChanged += (_, _) =>
-            RefreshRewardControlState();
-        RefreshRewardControlState();
+        _itemPointSpawnPolicyCombo.SelectedIndex = 0;
 
         _canvas.DocumentChanged += CanvasOnDocumentChanged;
         _canvas.SelectionChanged += (_, _) =>
@@ -157,6 +194,13 @@ public sealed class MainForm : Form
         _canvas.StatusChanged += (_, statusText) => _statusLabel.Text = statusText;
         _layersList.SelectedIndexChanged += LayersListOnSelectedIndexChanged;
         _layersList.MouseDoubleClick += LayersListOnMouseDoubleClick;
+        _itemPointList.SelectedIndexChanged += ItemPointListOnSelectedIndexChanged;
+        _itemPointList.MouseDoubleClick += (_, _) =>
+        {
+            _itemPointNameText.Focus();
+            _itemPointNameText.SelectAll();
+            _statusLabel.Text = "輸入 ItemPoint 新名稱後按套用。";
+        };
         _layerRenameEditor.KeyDown += LayerRenameEditorOnKeyDown;
         _layerRenameEditor.LostFocus += (_, _) => CommitLayerRename();
         _gridButton.CheckedChanged += (_, _) =>
@@ -255,6 +299,7 @@ public sealed class MainForm : Form
         AddToolButton(toolbar, "碰撞矩形", EditorTool.CollisionRectangle, "拖曳建立矩形 Collision");
         AddToolButton(toolbar, "碰撞圓形", EditorTool.CollisionCircle, "由圓心向外拖曳建立 Collision");
         AddToolButton(toolbar, "互動多邊形", EditorTool.InteractionPolygon, "逐點圈出亮黃色、非阻擋的互動範圍");
+        AddToolButton(toolbar, "劇情觸發區", EditorTool.StoryTriggerPolygon, "逐點圈出紫色、踏入後自動觸發的劇情範圍");
         AddToolButton(toolbar, "強制引導線", EditorTool.MovementGuide, "逐點鋪設雙向箭頭移動引導路徑");
         AddToolButton(toolbar, "出生點", EditorTool.PlayerSpawn, "點擊設定玩家出生位置");
         toolbar.Items.Add(new ToolStripSeparator());
@@ -402,35 +447,13 @@ public sealed class MainForm : Form
         var survivalButton = CreateButton("需求與完成效果...", 10, 202, 255, 30);
         survivalButton.Click += (_, _) => OpenSurvivalEffectEditor();
         _interactionGroup.Controls.Add(survivalButton);
-        var rewardItemLabel = new Label
-        {
-            Text = "互動後生成",
-            AutoSize = false,
-            ForeColor = Color.FromArgb(152, 163, 174),
-        };
-        rewardItemLabel.SetBounds(10, 242, 70, 24);
-        _interactionRewardItemCombo.SetBounds(83, 239, 182, 27);
-        _interactionGroup.Controls.Add(rewardItemLabel);
-        _interactionGroup.Controls.Add(_interactionRewardItemCombo);
-        var rewardQuantityLabel = new Label
-        {
-            Text = "數量",
-            AutoSize = false,
-            ForeColor = Color.FromArgb(152, 163, 174),
-        };
-        rewardQuantityLabel.SetBounds(10, 278, 38, 24);
-        _interactionRewardQuantityInput.SetBounds(50, 275, 58, 27);
-        _interactionRewardDeliveryCombo.SetBounds(116, 275, 149, 27);
-        _interactionGroup.Controls.Add(rewardQuantityLabel);
-        _interactionGroup.Controls.Add(_interactionRewardQuantityInput);
-        _interactionGroup.Controls.Add(_interactionRewardDeliveryCombo);
         var resetLabel = new Label
         {
-            Text = "有限次數於每日 06:00 重置",
+            Text = "需求、完成效果與複數道具獎勵請由上方按鈕設定",
             AutoSize = false,
             ForeColor = Color.FromArgb(130, 140, 150),
         };
-        resetLabel.SetBounds(10, 314, 255, 22);
+        resetLabel.SetBounds(10, 240, 255, 22);
         _interactionGroup.Controls.Add(resetLabel);
         _interactionGroup.Visible = false;
         sidebar.Controls.Add(_interactionGroup);
@@ -451,6 +474,96 @@ public sealed class MainForm : Form
         _movementGuideGroup.Controls.Add(applyGuideButton);
         _movementGuideGroup.Visible = false;
         sidebar.Controls.Add(_movementGuideGroup);
+
+        var storyDialogueLabel = new Label
+        {
+            Text = "對話 ID",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(152, 163, 174),
+        };
+        storyDialogueLabel.SetBounds(10, 30, 70, 24);
+        _storyTriggerDialogueIdText.SetBounds(83, 27, 182, 27);
+        _storyTriggerOnceCheck.SetBounds(83, 62, 150, 24);
+        var applyStoryTriggerButton = CreateButton("套用劇情觸發設定", 10, 96, 255, 30);
+        applyStoryTriggerButton.Click += (_, _) =>
+        {
+            _canvas.UpdateSelectedStoryTrigger(
+                _storyTriggerDialogueIdText.Text,
+                _storyTriggerOnceCheck.Checked);
+            RefreshLayers();
+            RefreshSelectionUi();
+        };
+        _storyTriggerGroup.Controls.Add(storyDialogueLabel);
+        _storyTriggerGroup.Controls.Add(_storyTriggerDialogueIdText);
+        _storyTriggerGroup.Controls.Add(_storyTriggerOnceCheck);
+        _storyTriggerGroup.Controls.Add(applyStoryTriggerButton);
+        _storyTriggerGroup.Visible = false;
+        sidebar.Controls.Add(_storyTriggerGroup);
+
+        _itemPointList.SetBounds(10, 28, 255, 82);
+        _itemPointList.BackColor = Color.FromArgb(20, 23, 29);
+        _itemPointList.ForeColor = Color.FromArgb(226, 230, 234);
+        _itemPointList.BorderStyle = BorderStyle.FixedSingle;
+        _itemPointGroup.Controls.Add(_itemPointList);
+        var itemPointNameLabel = new Label
+        {
+            Text = "名稱",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(152, 163, 174),
+        };
+        itemPointNameLabel.SetBounds(10, 120, 52, 24);
+        _itemPointNameText.SetBounds(62, 117, 203, 27);
+        _itemPointGroup.Controls.Add(itemPointNameLabel);
+        _itemPointGroup.Controls.Add(_itemPointNameText);
+        var itemPointItemLabel = new Label
+        {
+            Text = "道具",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(152, 163, 174),
+        };
+        itemPointItemLabel.SetBounds(10, 154, 52, 24);
+        _itemPointItemCombo.SetBounds(62, 151, 203, 27);
+        _itemPointGroup.Controls.Add(itemPointItemLabel);
+        _itemPointGroup.Controls.Add(_itemPointItemCombo);
+        var itemPointQuantityLabel = new Label
+        {
+            Text = "數量",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(152, 163, 174),
+        };
+        itemPointQuantityLabel.SetBounds(10, 188, 52, 24);
+        _itemPointQuantityInput.SetBounds(62, 185, 58, 27);
+        _itemPointSpawnPolicyCombo.SetBounds(126, 185, 139, 27);
+        _itemPointGroup.Controls.Add(itemPointQuantityLabel);
+        _itemPointGroup.Controls.Add(_itemPointQuantityInput);
+        _itemPointGroup.Controls.Add(_itemPointSpawnPolicyCombo);
+        var itemPointPositionLabel = new Label
+        {
+            Text = "座標",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(152, 163, 174),
+        };
+        itemPointPositionLabel.SetBounds(10, 222, 52, 24);
+        _itemPointXInput.SetBounds(62, 219, 96, 27);
+        _itemPointYInput.SetBounds(169, 219, 96, 27);
+        _itemPointGroup.Controls.Add(itemPointPositionLabel);
+        _itemPointGroup.Controls.Add(_itemPointXInput);
+        _itemPointGroup.Controls.Add(_itemPointYInput);
+        _itemPointShowOnMinimapCheck.SetBounds(10, 253, 255, 24);
+        _itemPointGroup.Controls.Add(_itemPointShowOnMinimapCheck);
+        _itemPointSpawnRequirementButton.Click += (_, _) => EditItemPointSpawnRequirement();
+        _itemPointGroup.Controls.Add(_itemPointSpawnRequirementButton);
+        var applyItemPointButton = CreateButton("套用 ItemPoint", 10, 323, 164, 30);
+        applyItemPointButton.Click += (_, _) => ApplyItemPointSettings();
+        var deleteItemPointButton = CreateButton("刪除", 182, 323, 83, 30);
+        deleteItemPointButton.Click += (_, _) =>
+        {
+            if (_canvas.Selection.Kind != SceneLayerKind.ItemPoint) return;
+            _canvas.DeleteSelection();
+        };
+        _itemPointGroup.Controls.Add(applyItemPointButton);
+        _itemPointGroup.Controls.Add(deleteItemPointButton);
+        sidebar.Controls.Add(_itemPointGroup);
 
         var futureGroup = CreateGroup("場景連接（已預留）", 122);
         var futureLabel = new Label
@@ -785,7 +898,7 @@ public sealed class MainForm : Form
         _sceneIdText.Text = _canvas.Document.SceneId;
         _displayNameText.Text = _canvas.Document.DisplayName;
         _documentInfoLabel.Text =
-            $"NavMesh {_canvas.Document.NavMesh.Count} · Collision {_canvas.Document.Collisions.Count} · 互動 {_canvas.Document.Interactables.Count} · 引導 {_canvas.Document.MovementGuides.Count}";
+            $"NavMesh {_canvas.Document.NavMesh.Count} · Collision {_canvas.Document.Collisions.Count} · 互動 {_canvas.Document.Interactables.Count} · ItemPoint {_canvas.Document.ItemPoints.Count}";
         var previousLoadingState = _loading;
         _loading = true;
         try
@@ -810,7 +923,9 @@ public sealed class MainForm : Form
         try
         {
             _layersList.BeginUpdate();
+            _itemPointList.BeginUpdate();
             _layersList.Items.Clear();
+            _itemPointList.Items.Clear();
             for (var index = 0; index < _canvas.Document.NavMesh.Count; index++)
             {
                 var region = _canvas.Document.NavMesh[index];
@@ -844,6 +959,15 @@ public sealed class MainForm : Form
                     interactable.Label));
             }
 
+            for (var index = 0; index < _canvas.Document.StoryTriggers.Count; index++)
+            {
+                var trigger = _canvas.Document.StoryTriggers[index];
+                _layersList.Items.Add(new LayerListItem(
+                    new LayerSelection(SceneLayerKind.StoryTrigger, index),
+                    $"[劇情觸發區/{(trigger.Once ? "一次" : "重複")}] {trigger.Label}  ({trigger.Points.Count}點)",
+                    trigger.Label));
+            }
+
             for (var index = 0; index < _canvas.Document.MovementGuides.Count; index++)
             {
                 var guide = _canvas.Document.MovementGuides[index];
@@ -853,11 +977,35 @@ public sealed class MainForm : Form
                     guide.Label));
             }
 
+            for (var index = 0; index < _canvas.Document.ItemPoints.Count; index++)
+            {
+                var itemPoint = _canvas.Document.ItemPoints[index];
+                var selection = new LayerSelection(SceneLayerKind.ItemPoint, index);
+                var item = ItemCatalog.Find(itemPoint.ItemId);
+                var policy = FormatItemPointSpawnPolicy(itemPoint.SpawnPolicy);
+                var listItem = new LayerListItem(
+                    selection,
+                    $"[ItemPoint/{policy}] {itemPoint.Label} · {itemPoint.ItemId} ×{itemPoint.Quantity}",
+                    itemPoint.Label);
+                _layersList.Items.Add(listItem);
+                _itemPointList.Items.Add(new LayerListItem(
+                    selection,
+                    $"{itemPoint.Label} · {item?.Name ?? itemPoint.ItemId} ×{itemPoint.Quantity}",
+                    itemPoint.Label));
+            }
+
             var selectedItem = _layersList.Items
                 .Cast<LayerListItem>()
                 .FirstOrDefault(item => item.Selection == _canvas.Selection);
             _layersList.SelectedItem = selectedItem;
+            _itemPointList.SelectedItem = _itemPointList.Items
+                .Cast<LayerListItem>()
+                .FirstOrDefault(item => item.Selection == _canvas.Selection);
+            _itemPointList.SelectedItem = _itemPointList.Items
+                .Cast<LayerListItem>()
+                .FirstOrDefault(item => item.Selection == _canvas.Selection);
             _layersList.EndUpdate();
+            _itemPointList.EndUpdate();
             RefreshDocumentUi();
         }
         finally
@@ -912,30 +1060,26 @@ public sealed class MainForm : Form
                 _dialogueSummaryLabel.Text =
                     $"可互動 {interactable.Dialogue.Lines.Count} · 不可互動 {interactable.FailureDialogue.Lines.Count} · 完成後 {interactable.CompletionDialogue?.Lines.Count ?? 0} 句";
                 var effects = interactable.SurvivalEffects;
-                var limit = interactable.DailyInteractionLimit?.ToString() ?? "無限";
+                var limit = interactable.InteractionLimitMode == "once"
+                    ? "唯一一次"
+                    : interactable.DailyInteractionLimit is int dailyLimitValue
+                        ? $"每日 {dailyLimitValue} 次"
+                        : "無限";
                 _survivalSummaryLabel.Text =
-                    $"需求 {FormatRequirements(interactable.SurvivalRequirements)} · 物/章 {interactable.UseRequirements?.Count ?? 0}\r\n" +
-                    $"效果 體{effects.Stamina:+0.#;-0.#;0} 餓{effects.Hunger:+0.#;-0.#;0} 渴{effects.Thirst:+0.#;-0.#;0} 精{effects.Spirit:+0.#;-0.#;0} 時{effects.TimeMinutes / 60:0.#}h · {limit}次";
-                var rewardItemIndex = _interactionRewardItemCombo.Items
-                    .Cast<ItemCatalogEntry>()
-                    .Select((item, index) => new { item.Id, Index = index })
-                    .FirstOrDefault(item => item.Id.Equals(
-                        interactable.ItemReward?.ItemId ?? "",
-                        StringComparison.OrdinalIgnoreCase))
-                    ?.Index ?? 0;
-                _interactionRewardItemCombo.SelectedIndex = rewardItemIndex;
-                _interactionRewardQuantityInput.Value = Math.Clamp(
-                    interactable.ItemReward?.Quantity ?? 1,
-                    (int)_interactionRewardQuantityInput.Minimum,
-                    (int)_interactionRewardQuantityInput.Maximum);
-                _interactionRewardDeliveryCombo.SelectedIndex =
-                    interactable.ItemReward?.Delivery.Equals(
-                        "world",
-                        StringComparison.OrdinalIgnoreCase) == true
-                        ? 1
-                        : 0;
-                RefreshRewardControlState();
+                    $"需求 {FormatRequirements(interactable.SurvivalRequirements)} · 物/章/任務 {interactable.UseRequirements?.Count ?? 0}\r\n" +
+                    $"效果 體{effects.Stamina:+0.#;-0.#;0} 餓{effects.Hunger:+0.#;-0.#;0} 渴{effects.Thirst:+0.#;-0.#;0} 精{effects.Spirit:+0.#;-0.#;0} 時{effects.TimeMinutes / 60:0.#}h · {limit} · 獎勵 {interactable.ItemRewards?.Count ?? (interactable.ItemReward is null ? 0 : 1)} 種";
                 _dialogueMoreButton.Enabled = true;
+            }
+            else if (_canvas.Selection.Kind == SceneLayerKind.StoryTrigger && _canvas.Selection.Index >= 0)
+            {
+                var trigger = _canvas.Document.StoryTriggers[_canvas.Selection.Index];
+                var node = _canvas.SelectedVertexIndex >= 0
+                    ? $" · Node {_canvas.SelectedVertexIndex + 1}"
+                    : "";
+                _selectionInfoLabel.Text = $"目前選取：劇情觸發區 · {trigger.Id}{node} · 對話 {trigger.DialogueId}";
+                _selectionNameText.Text = trigger.Label;
+                _storyTriggerDialogueIdText.Text = trigger.DialogueId;
+                _storyTriggerOnceCheck.Checked = trigger.Once;
             }
             else if (_canvas.Selection.Kind == SceneLayerKind.MovementGuide && _canvas.Selection.Index >= 0)
             {
@@ -950,6 +1094,46 @@ public sealed class MainForm : Form
                     _movementGuideWidthInput.Minimum,
                     _movementGuideWidthInput.Maximum);
             }
+            else if (_canvas.Selection.Kind == SceneLayerKind.ItemPoint && _canvas.Selection.Index >= 0)
+            {
+                var itemPoint = _canvas.Document.ItemPoints[_canvas.Selection.Index];
+                _selectionInfoLabel.Text = $"已選取 ItemPoint · {itemPoint.Id}";
+                _selectionNameText.Text = itemPoint.Label;
+                _itemPointNameText.Text = itemPoint.Label;
+                _itemPointItemCombo.SelectedIndex = Math.Max(
+                    0,
+                    _itemPointItemCombo.Items
+                        .Cast<ItemCatalogEntry>()
+                        .Select((item, index) => new { item.Id, Index = index })
+                        .FirstOrDefault(item => item.Id.Equals(
+                            itemPoint.ItemId,
+                            StringComparison.OrdinalIgnoreCase))
+                        ?.Index ?? 0);
+                _itemPointQuantityInput.Value = Math.Clamp(
+                    itemPoint.Quantity,
+                    (int)_itemPointQuantityInput.Minimum,
+                    (int)_itemPointQuantityInput.Maximum);
+                _itemPointSpawnPolicyCombo.SelectedIndex = Math.Max(
+                    0,
+                    _itemPointSpawnPolicyCombo.Items
+                        .Cast<ItemPointSpawnPolicyItem>()
+                        .Select((item, index) => new { item.Id, Index = index })
+                        .FirstOrDefault(item => item.Id.Equals(
+                            itemPoint.SpawnPolicy,
+                            StringComparison.OrdinalIgnoreCase))
+                        ?.Index ?? 0);
+                _itemPointXInput.Value = Math.Clamp(
+                    (decimal)itemPoint.X,
+                    _itemPointXInput.Minimum,
+                    _itemPointXInput.Maximum);
+                _itemPointYInput.Value = Math.Clamp(
+                    (decimal)itemPoint.Y,
+                    _itemPointYInput.Minimum,
+                    _itemPointYInput.Maximum);
+                _itemPointShowOnMinimapCheck.Checked = itemPoint.ShowOnMinimap;
+                _itemPointSpawnRequirementButton.Text =
+                    FormatItemPointSpawnRequirement(itemPoint.SpawnRequirement);
+            }
             else
             {
                 _selectionInfoLabel.Text = "尚未選取圖形";
@@ -957,6 +1141,7 @@ public sealed class MainForm : Form
             }
             _interactionGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.Interactable;
             _movementGuideGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.MovementGuide;
+            _storyTriggerGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.StoryTrigger;
         }
         finally
         {
@@ -972,6 +1157,77 @@ public sealed class MainForm : Form
                 ? item.Selection
                 : LayerSelection.None);
     }
+
+    private void ItemPointListOnSelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_syncingSelection) return;
+        if (_itemPointList.SelectedItem is not LayerListItem item) return;
+        _canvas.SelectLayer(item.Selection);
+    }
+
+    private void ApplyItemPointSettings()
+    {
+        var itemPoint = _canvas.SelectedItemPoint;
+        if (
+            itemPoint is null ||
+            _itemPointItemCombo.SelectedItem is not ItemCatalogEntry item ||
+            _itemPointSpawnPolicyCombo.SelectedItem is not ItemPointSpawnPolicyItem policy)
+        {
+            _statusLabel.Text = "請先在 ItemPoint 圖層清單選取一個項目。";
+            return;
+        }
+        var label = _itemPointNameText.Text.Trim();
+        if (label.Length == 0) label = itemPoint.Label;
+        _canvas.RenameSelection(label);
+        _canvas.UpdateSelectedItemPoint(
+            (float)_itemPointXInput.Value,
+            (float)_itemPointYInput.Value,
+            item.Id,
+            (int)_itemPointQuantityInput.Value,
+            policy.Id,
+            _itemPointShowOnMinimapCheck.Checked);
+        _statusLabel.Text =
+            $"已套用 {label}：{item.Id} ×{_itemPointQuantityInput.Value} · {policy.Label}";
+        RefreshLayers();
+        RefreshSelectionUi();
+    }
+
+    private void EditItemPointSpawnRequirement()
+    {
+        var itemPoint = _canvas.SelectedItemPoint;
+        if (itemPoint is null)
+        {
+            _statusLabel.Text = "請先在 ItemPoint 圖層清單選取一個項目。";
+            return;
+        }
+        using var editor = new ItemPointSpawnRequirementEditorForm(
+            QuestCatalog.Load(_projectRoot),
+            itemPoint.SpawnRequirement);
+        if (editor.ShowDialog(this) != DialogResult.OK) return;
+        _canvas.UpdateSelectedItemPointSpawnRequirement(editor.Requirement);
+        _statusLabel.Text = editor.Requirement is null
+            ? $"{itemPoint.Label} 已取消任務階段 Spawn 限制。"
+            : $"{itemPoint.Label} 已設定 {editor.Requirement.StageMode}：{editor.Requirement.StageId}";
+        RefreshLayers();
+        RefreshSelectionUi();
+    }
+
+    private static string FormatItemPointSpawnRequirement(
+        ItemPointSpawnRequirement? requirement)
+    {
+        if (requirement is null) return "Spawn 需求設定…（未限制）";
+        var mode = requirement.StageMode == "UnlockFromStage"
+            ? "到達後持續"
+            : "僅指定階段";
+        return $"Spawn 需求…（{mode}）";
+    }
+
+    private static string FormatItemPointSpawnPolicy(string policy) => policy switch
+    {
+        "daily" => "每日",
+        "sceneEntry" => "進圖",
+        _ => "一次",
+    };
 
     private void LayersListOnMouseDoubleClick(object? sender, MouseEventArgs e)
     {
@@ -1070,6 +1326,7 @@ public sealed class MainForm : Form
             SceneLayerKind.NavMesh,
             SceneLayerKind.Collision,
             SceneLayerKind.Interactable,
+            SceneLayerKind.StoryTrigger,
             SceneLayerKind.MovementGuide,
         };
 
@@ -1104,6 +1361,7 @@ public sealed class MainForm : Form
         SceneLayerKind.NavMesh => _canvas.Document.NavMesh[selection.Index].Label,
         SceneLayerKind.Collision => _canvas.Document.Collisions[selection.Index].Label,
         SceneLayerKind.Interactable => _canvas.Document.Interactables[selection.Index].Label,
+        SceneLayerKind.StoryTrigger => _canvas.Document.StoryTriggers[selection.Index].Label,
         SceneLayerKind.MovementGuide => _canvas.Document.MovementGuides[selection.Index].Label,
         _ => "",
     };
@@ -1112,40 +1370,9 @@ public sealed class MainForm : Form
     {
         if (_canvas.SelectedInteractable is null) return;
         var type = (_interactionTypeCombo.SelectedItem as InteractionTypeItem)?.Id ?? "dialogue";
-        var reward = ReadInteractionItemReward();
         _canvas.UpdateSelectedInteractable(type, _interactionVerbText.Text);
-        _canvas.UpdateSelectedItemReward(reward);
         RefreshLayers();
         RefreshSelectionUi();
-    }
-
-    private InteractionItemReward? ReadInteractionItemReward()
-    {
-        if (
-            _interactionRewardItemCombo.SelectedItem is not ItemCatalogEntry item ||
-            string.IsNullOrWhiteSpace(item.Id)
-        )
-        {
-            return null;
-        }
-        var delivery =
-            (_interactionRewardDeliveryCombo.SelectedItem as RewardDeliveryItem)?.Id ??
-            "inventory";
-        return new InteractionItemReward
-        {
-            ItemId = item.Id,
-            Quantity = (int)_interactionRewardQuantityInput.Value,
-            Delivery = delivery,
-        };
-    }
-
-    private void RefreshRewardControlState()
-    {
-        var enabled =
-            _interactionRewardItemCombo.SelectedItem is ItemCatalogEntry item &&
-            !string.IsNullOrWhiteSpace(item.Id);
-        _interactionRewardQuantityInput.Enabled = enabled;
-        _interactionRewardDeliveryCombo.Enabled = enabled;
     }
 
     private void OpenDialogueEditor()
@@ -1182,26 +1409,61 @@ public sealed class MainForm : Form
         var dailyLimit = typeChanged
             ? selectedDefaults.DailyLimit
             : selectedInteractable.DailyInteractionLimit;
+        var interactionLimitMode = typeChanged
+            ? null
+            : selectedInteractable.InteractionLimitMode;
         var useRequirements = typeChanged
             ? Array.Empty<InteractionUseRequirement>()
             : selectedInteractable.UseRequirements?
                 .Select(requirement => requirement.Clone())
                 .ToArray() ?? Array.Empty<InteractionUseRequirement>();
-        using var editor = new SurvivalEffectEditorForm(
-            selectedType,
-            requirements,
-            effects,
-            dailyLimit,
-            useRequirements);
-        if (editor.ShowDialog(this) != DialogResult.OK) return;
-        _canvas.UpdateSelectedInteractionConfiguration(
-            selectedType,
-            _interactionVerbText.Text,
-            editor.Requirements,
-            editor.Effects,
-            editor.DailyLimit,
-            editor.UseRequirements);
+        var itemRewards = typeChanged
+            ? Array.Empty<InteractionItemReward>()
+            : selectedInteractable.ItemRewards?
+                .Select(reward => reward.Clone())
+                .ToArray() ?? (selectedInteractable.ItemReward is null
+                    ? Array.Empty<InteractionItemReward>()
+                    : new[] { selectedInteractable.ItemReward.Clone() });
+        var quests = QuestCatalog.Load(_projectRoot);
+        SetCanvasRedraw(false);
+        try
+        {
+            using var editor = new SurvivalEffectEditorForm(
+                selectedType,
+                requirements,
+                effects,
+                dailyLimit,
+                interactionLimitMode,
+                useRequirements,
+                itemRewards,
+                quests);
+            if (editor.ShowDialog(this) != DialogResult.OK) return;
+            _canvas.UpdateSelectedInteractionConfiguration(
+                selectedType,
+                _interactionVerbText.Text,
+                editor.Requirements,
+                editor.Effects,
+                editor.DailyLimit,
+                editor.InteractionLimitMode,
+                editor.UseRequirements,
+                editor.ItemRewards);
+        }
+        finally
+        {
+            SetCanvasRedraw(true);
+        }
         RefreshSelectionUi();
+    }
+
+    private void SetCanvasRedraw(bool enabled)
+    {
+        if (_canvas.IsDisposed || !_canvas.IsHandleCreated) return;
+        SendMessage(
+            _canvas.Handle,
+            WmSetRedraw,
+            enabled ? new IntPtr(1) : IntPtr.Zero,
+            IntPtr.Zero);
+        if (enabled) _canvas.RequestFastRender();
     }
 
     private static string FormatRequirements(SurvivalRequirements requirements)
@@ -1295,6 +1557,7 @@ public sealed class MainForm : Form
             EditorTool.CollisionRectangle => "矩形 Collision：按住滑鼠拖曳範圍",
             EditorTool.CollisionCircle => "圓形 Collision：從中心向外拖曳",
             EditorTool.InteractionPolygon => "互動區域：逐點圈出範圍；右鍵可設定互動 Point 與互動提示點",
+            EditorTool.StoryTriggerPolygon => "劇情觸發區：逐點圈出踏入後自動啟動劇情的範圍",
             EditorTool.MovementGuide => "強制引導線：逐點鋪設，雙擊／右鍵／Enter 完成（至少 2 點）",
             EditorTool.PlayerSpawn => "出生點：在場景點擊位置",
             _ => "準備就緒",
@@ -1462,9 +1725,9 @@ public sealed class MainForm : Form
         public override string ToString() => Label;
     }
 
-    private sealed class RewardDeliveryItem
+    private sealed class ItemPointSpawnPolicyItem
     {
-        public RewardDeliveryItem(string id, string label)
+        public ItemPointSpawnPolicyItem(string id, string label)
         {
             Id = id;
             Label = label;

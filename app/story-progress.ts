@@ -1,21 +1,44 @@
 export type StoryProgress = {
   currentChapter: number;
+  completedEventIds: string[];
+  storyFlags: Record<string, boolean>;
 };
 
-export const STORY_PROGRESS_STORAGE_KEY = "echoes:story-progress:v1";
+// v2 introduces chapter-flow completion flags and starts map_test01 at Chapter 3.
+// A new key prevents the earlier placeholder Chapter 1 save from suppressing
+// the first Chapter 3 opening sequence after this upgrade.
+export const STORY_PROGRESS_STORAGE_KEY = "echoes:story-progress:v2";
 
 export function createInitialStoryProgress(): StoryProgress {
-  return { currentChapter: 1 };
+  return { currentChapter: 3, completedEventIds: [], storyFlags: {} };
 }
 
 export function normalizeStoryProgress(value: unknown): StoryProgress {
   const initial = createInitialStoryProgress();
   if (!value || typeof value !== "object" || Array.isArray(value)) return initial;
   const chapter = Number((value as Partial<StoryProgress>).currentChapter);
+  const completedEventIds = Array.isArray(
+    (value as Partial<StoryProgress>).completedEventIds,
+  )
+    ? [...new Set(
+        (value as Partial<StoryProgress>).completedEventIds!.filter(
+          (id): id is string => typeof id === "string" && id.trim().length > 0,
+        ),
+      )]
+    : [];
+  const rawFlags = (value as Partial<StoryProgress>).storyFlags;
+  const storyFlags = rawFlags && typeof rawFlags === "object" && !Array.isArray(rawFlags)
+    ? Object.fromEntries(
+        Object.entries(rawFlags).filter((entry): entry is [string, boolean] =>
+          typeof entry[1] === "boolean"),
+      )
+    : {};
   return {
     currentChapter: Number.isFinite(chapter)
       ? Math.min(99, Math.max(1, Math.floor(chapter)))
       : initial.currentChapter,
+    completedEventIds,
+    storyFlags,
   };
 }
 

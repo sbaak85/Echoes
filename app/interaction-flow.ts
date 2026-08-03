@@ -43,11 +43,44 @@ export type InteractionItemReward = {
 
 export type InteractionUseRequirement =
   | { kind: "item"; itemId: string; quantity: number }
-  | { kind: "chapter"; chapter: number };
+  | { kind: "chapter"; chapter: number }
+  | { kind: "quest"; questId: string }
+  | {
+      kind: "questStage";
+      questId: string;
+      stageId: string;
+      stageMode: InteractionStageMode;
+      disableQuestId?: string;
+      disableStageId?: string;
+    };
+
+export type InteractionStageMode =
+  | "CurrentStageOnly"
+  | "UnlockFromStage"
+  | "UnlockUntilCondition";
 
 export type UnmetInteractionUseRequirement = InteractionUseRequirement & {
   actual: number;
 };
+
+export function evaluateInteractionStageRequirement(
+  requirement: Extract<InteractionUseRequirement, { kind: "questStage" }>,
+  isQuestAtStage: (questId: string, stageId: string) => boolean,
+  hasQuestReachedStage: (questId: string, stageId: string) => boolean,
+): boolean {
+  if (requirement.stageMode === "CurrentStageOnly") {
+    return isQuestAtStage(requirement.questId, requirement.stageId);
+  }
+  if (
+    requirement.stageMode === "UnlockUntilCondition" &&
+    requirement.disableQuestId &&
+    requirement.disableStageId &&
+    hasQuestReachedStage(requirement.disableQuestId, requirement.disableStageId)
+  ) {
+    return false;
+  }
+  return hasQuestReachedStage(requirement.questId, requirement.stageId);
+}
 
 export function shouldCompleteAfterDialogue(
   interactable: InteractionFlowDescriptor,
@@ -144,6 +177,41 @@ export function normalizeInteractionUseRequirements(
         chapter: Math.min(99, Math.max(1, Math.floor(Number(candidate.chapter) || 1))),
       }];
     }
+    if (candidate.kind === "quest") {
+      const questId = typeof candidate.questId === "string"
+        ? candidate.questId.trim()
+        : "";
+      return questId ? [{ kind: "quest", questId }] : [];
+    }
+    if (candidate.kind === "questStage") {
+      const questId = typeof candidate.questId === "string"
+        ? candidate.questId.trim()
+        : "";
+      const stageId = typeof candidate.stageId === "string"
+        ? candidate.stageId.trim()
+        : "";
+      if (!questId || !stageId) return [];
+      const stageMode: InteractionStageMode = candidate.stageMode === "UnlockFromStage"
+        ? "UnlockFromStage"
+        : candidate.stageMode === "UnlockUntilCondition"
+          ? "UnlockUntilCondition"
+          : "CurrentStageOnly";
+      const disableQuestId = typeof candidate.disableQuestId === "string"
+        ? candidate.disableQuestId.trim()
+        : "";
+      const disableStageId = typeof candidate.disableStageId === "string"
+        ? candidate.disableStageId.trim()
+        : "";
+      return [{
+        kind: "questStage",
+        questId,
+        stageId,
+        stageMode,
+        ...(stageMode === "UnlockUntilCondition" && disableQuestId && disableStageId
+          ? { disableQuestId, disableStageId }
+          : {}),
+      }];
+    }
     const itemId = typeof candidate.itemId === "string"
       ? resolveItemId(candidate.itemId)
       : null;
@@ -160,17 +228,33 @@ export function getUnmetInteractionUseRequirements(
   requirements: readonly InteractionUseRequirement[] | undefined,
   inventory: Readonly<Record<string, number>>,
   currentChapter: number,
+  isQuestActive: (questId: string) => boolean = () => false,
+  isQuestStageRequirementMet: (
+    requirement: Extract<InteractionUseRequirement, { kind: "questStage" }>,
+  ) => boolean = () => false,
 ): UnmetInteractionUseRequirement[] {
   if (!requirements?.length) return [];
   return requirements.flatMap((requirement): UnmetInteractionUseRequirement[] => {
     const actual = requirement.kind === "chapter"
       ? Math.max(1, Math.floor(currentChapter))
-      : Math.max(0, Math.floor(inventory[requirement.itemId] ?? 0));
+      : requirement.kind === "quest"
+        ? isQuestActive(requirement.questId) ? 1 : 0
+        : requirement.kind === "questStage"
+          ? isQuestStageRequirementMet(requirement) ? 1 : 0
+        : Math.max(0, Math.floor(inventory[requirement.itemId] ?? 0));
     const required = requirement.kind === "chapter"
       ? requirement.chapter
-      : requirement.quantity;
+      : requirement.kind === "quest" || requirement.kind === "questStage"
+        ? 1
+        : requirement.quantity;
     return actual >= required ? [] : [{ ...requirement, actual }];
   });
+}
+
+export function shouldExposeInteraction(
+  hasUseRequirementFailure: boolean,
+): boolean {
+  return !hasUseRequirementFailure;
 }
 
 export function normalizeInteractionItemReward(
@@ -194,4 +278,20 @@ export function normalizeInteractionItemReward(
     ),
     delivery: candidate.delivery === "world" ? "world" : "inventory",
   };
+}
+
+export function normalizeInteractionItemRewards(
+  value: unknown,
+  legacyValue: unknown,
+  resolveItemId: (itemId: string) => string | null,
+): InteractionItemReward[] {
+  const source = Array.isArray(value)
+    ? value
+    : legacyValue == null
+      ? []
+      : [legacyValue];
+  return source.flatMap((reward) => {
+    const normalized = normalizeInteractionItemReward(reward, resolveItemId);
+    return normalized ? [normalized] : [];
+  });
 }

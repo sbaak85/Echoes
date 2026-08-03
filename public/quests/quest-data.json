@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "chapters": [
+    {
+      "id": "CH03",
+      "name": "\u7B2C\u4E09\u7AE0",
+      "startCondition": "",
+      "openingEventFlowId": "chapter03-start-flow",
+      "completionQuestIds": [
+        "QUEST_CH03_MAIN_001"
+      ],
+      "endingEventFlowId": "",
+      "nextChapterId": ""
+    }
+  ],
+  "quests": [
+    {
+      "id": "QUEST_CH03_MAIN_001",
+      "name": "\u78BA\u8A8D\u71DF\u5730\u72C0\u6CC1",
+      "description": "\u6AA2\u67E5\u57FA\u672C\u88DC\u7D66\u3001\u5DE5\u4F5C\u8A2D\u5099\u53CA\u71DF\u5730\u5468\u570D\u53EF\u5229\u7528\u7684\u8CC7\u6E90\u3002",
+      "chapterId": "CH03",
+      "type": "main",
+      "grantMethod": "afterDialogue",
+      "grantSourceId": "chapter03-section-1",
+      "grantCondition": "",
+      "prerequisiteQuestIds": [],
+      "canAbandon": false,
+      "canReaccept": false,
+      "displayMode": "standard",
+      "completionFlagId": "QUEST_CH03_MAIN_001_COMPLETED",
+      "completionEventFlowId": "",
+      "rewardItemId": "",
+      "rewardItemAmount": 0,
+      "failureDeadline": "",
+      "failureEventId": "",
+      "failureMode": "permanent",
+      "onFailedEventFlowId": "",
+      "stages": [
+        {
+          "id": "QUEST_CH03_MAIN_001_STAGE_01",
+          "name": "\u6AA2\u67E5\u57FA\u672C\u88DC\u7D66",
+          "completionMode": "all",
+          "startEventFlowId": "",
+          "completionEventFlowId": "",
+          "nextStageId": "QUEST_CH03_MAIN_001_STAGE_02",
+          "objectives": [
+            {
+              "id": "QUEST_CH03_MAIN_001_OBJ_01",
+              "displayText": "\u6AA2\u67E5\u8CA8\u6AC3\u7BB1",
+              "type": "interactionSucceeded",
+              "targetId": "interaction-008",
+              "itemRequirements": [],
+              "targetState": "",
+              "requiredAmount": 1,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": false,
+              "showHintIcon": false,
+              "completionEventFlowId": ""
+            },
+            {
+              "id": "QUEST_CH03_MAIN_001_OBJ_02",
+              "displayText": "\u53D6\u5F97 1 \u4EFD\u7DCA\u6025\u53E3\u7CE7\u8207 1 \u7F50\u6DE8\u6C34\u74F6",
+              "type": "compoundCollectItem",
+              "targetId": "",
+              "itemRequirements": [
+                {
+                  "itemId": "R0004",
+                  "requiredAmount": 1
+                },
+                {
+                  "itemId": "R0005",
+                  "requiredAmount": 1
+                }
+              ],
+              "targetState": "",
+              "requiredAmount": 2,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": false,
+              "showHintIcon": false,
+              "completionEventFlowId": ""
+            }
+          ]
+        },
+        {
+          "id": "QUEST_CH03_MAIN_001_STAGE_02",
+          "name": "\u6AA2\u67E5\u5DE5\u4F5C\u8A2D\u5099",
+          "completionMode": "all",
+          "startEventFlowId": "",
+          "completionEventFlowId": "",
+          "nextStageId": "QUEST_CH03_MAIN_001_STAGE_03",
+          "objectives": [
+            {
+              "id": "QUEST_CH03_MAIN_001_OBJ_03",
+              "displayText": "\u6AA2\u67E5\u81E8\u6642\u5DE5\u4F5C\u53F0\u96FB\u8166",
+              "type": "interactionSucceeded",
+              "targetId": "interaction-002",
+              "itemRequirements": [],
+              "targetState": "",
+              "requiredAmount": 1,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": false,
+              "showHintIcon": false,
+              "completionEventFlowId": ""
+            }
+          ]
+        },
+        {
+          "id": "QUEST_CH03_MAIN_001_STAGE_03",
+          "name": "\u78BA\u8A8D\u5468\u570D\u8CC7\u6E90",
+          "completionMode": "all",
+          "startEventFlowId": "",
+          "completionEventFlowId": "",
+          "nextStageId": "",
+          "objectives": [
+            {
+              "id": "QUEST_CH03_MAIN_001_OBJ_06",
+              "displayText": "\u6AA2\u67E5\u51B7\u51DD\u6C34\u6536\u96C6\u5668",
+              "type": "interactionSucceeded",
+              "targetId": "interaction-009",
+              "itemRequirements": [],
+              "targetState": "",
+              "requiredAmount": 1,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": false,
+              "showHintIcon": false,
+              "completionEventFlowId": ""
+            },
+            {
+              "id": "QUEST_CH03_MAIN_001_OBJ_04",
+              "displayText": "\u5C0B\u627E\u4E26\u63A1\u96C6\u5916\u661F\u690D\u7269\u7684\u679C\u5BE6",
+              "type": "collectItem",
+              "targetId": "R0012",
+              "itemRequirements": [],
+              "targetState": "",
+              "requiredAmount": 1,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": false,
+              "showHintIcon": false,
+              "completionEventFlowId": ""
+            },
+            {
+              "id": "QUEST_CH03_MAIN_001_OBJ_05",
+              "displayText": "\u62FE\u53D6\u6563\u843D\u5728\u56DB\u5468\u7684\u96F6\u4EF6",
+              "type": "compoundCollectItem",
+              "targetId": "",
+              "itemRequirements": [
+                {
+                  "itemId": "R0009",
+                  "requiredAmount": 1
+                },
+                {
+                  "itemId": "T0007",
+                  "requiredAmount": 1
+                },
+                {
+                  "itemId": "Q0001",
+                  "requiredAmount": 1
+                }
+              ],
+              "targetState": "",
+              "requiredAmount": 3,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": true,
+              "showHintIcon": false,
+              "completionEventFlowId": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

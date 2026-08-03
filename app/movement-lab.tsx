@@ -10,6 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import mapTest01Scene from "../public/maps/map_test01.scene.json";
+import questDocumentSource from "../public/quests/quest-data.json";
 import {
   AUDIO_EVENT_CONFIG,
   AudioEventManager,
@@ -59,19 +60,26 @@ import {
 } from "./hotbar-assignments";
 import { resetStoredNewGameProgress } from "./new-game-reset";
 import {
+  evaluateInteractionStageRequirement,
   getUnmetInteractionUseRequirements,
-  normalizeInteractionItemReward,
+  normalizeInteractionItemRewards,
   normalizeInteractionUseRequirements,
   resolveWeightedDialogueLines,
   selectInteractionDialogue,
   selectInteractionFeedbackPoint,
   selectPreferredInteractionTarget,
+  shouldExposeInteraction,
   shouldCompleteAfterDialogue,
   type InteractionDialogueScript,
   type InteractionItemReward,
   type InteractionUseRequirement,
 } from "./interaction-flow";
-import { loadStoryProgress } from "./story-progress";
+import {
+  createInitialStoryProgress,
+  loadStoryProgress,
+  saveStoryProgress,
+  type StoryProgress,
+} from "./story-progress";
 import {
   advanceSurvivalByGameMinutes,
   advanceSurvivalState,
@@ -83,6 +91,8 @@ import {
   getElapsedClockHandMotion,
   getCharacterStatuses,
   getGameClock,
+  getInteractionCycle,
+  getTimePassTransitionHoldMs,
   getUnmetSurvivalRequirements,
   getSurvivalSpeedMultiplier,
   hasConfiguredSurvivalEffects,
@@ -104,9 +114,86 @@ import {
   type WorldItemSpawnMotion,
 } from "./world-item-spawn-motion";
 import { buildMiniMapGeometry } from "./minimap-geometry";
+import {
+  createInitialItemPointProgress,
+  isItemPointAvailable,
+  loadItemPointProgress,
+  normalizeSceneItemPoints,
+  recordItemPointCollected,
+  saveItemPointProgress,
+  type ItemPointProgress,
+  type SceneItemPoint,
+} from "./item-point-manager";
+import { DialogueManager } from "./dialogue-manager";
+import { StoryEventManager } from "./story-event-manager";
+import { MainObjectiveMarker } from "./main-objective-marker";
+import {
+  ChapterFlowManager,
+  type ChapterFlowAction,
+} from "./chapter-flow-manager";
+import {
+  CHAPTER_3_START_FLOW,
+  LOWER_LEFT_STORY_ZONE_DIALOGUE,
+  LOWER_LEFT_STORY_ZONE_DIALOGUE_ID,
+  STORY_DIALOGUES,
+} from "./story-content";
+import {
+  QuestRuntimeManager,
+  loadQuestSaveData,
+  saveQuestSaveData,
+  type QuestDocument,
+  type QuestRuntimeEntry,
+} from "./quest-runtime-manager";
+
+const QUEST_DOCUMENT = questDocumentSource as QuestDocument;
 
 type Direction = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
 type Point = { x: number; y: number };
+type QuestHudObjectiveView = {
+  id: string;
+  label: string;
+  current: number;
+  required: number;
+  completed: boolean;
+  showProgress: boolean;
+};
+type QuestHudView = {
+  id: string;
+  title: string;
+  categoryLabel: string;
+  objectives: QuestHudObjectiveView[];
+};
+type QuestHudEventKind = "accepted" | "next" | "completed" | "failed";
+type QuestHudEvent = {
+  kind: QuestHudEventKind;
+  questId: string;
+  sequence: number;
+};
+
+function buildQuestHudView(
+  questId: string,
+  entry: QuestRuntimeEntry,
+): QuestHudView | null {
+  const quest = QUEST_DOCUMENT.quests.find((candidate) => candidate.id === questId);
+  if (!quest) return null;
+  const stage = quest.stages.find((candidate) => candidate.id === entry.currentStageId)
+    ?? quest.stages[0];
+  return {
+    id: quest.id,
+    title: quest.name,
+    categoryLabel: quest.type === "main" || quest.type === "longTermMain"
+      ? "MAIN OBJECTIVE"
+      : "QUEST OBJECTIVE",
+    objectives: (stage?.objectives ?? []).map((objective) => ({
+      id: objective.id,
+      label: objective.displayText,
+      current: entry.objectives[objective.id]?.currentAmount ?? 0,
+      required: Math.max(1, objective.requiredAmount),
+      completed: entry.objectives[objective.id]?.completed === true,
+      showProgress: objective.showProgress === true,
+    })),
+  };
+}
 type TouchEffect = {
   point: Point;
   reachable: boolean;
@@ -143,12 +230,15 @@ type SceneInteractable = {
   survivalRequirements?: SurvivalRequirements;
   survivalEffects?: SurvivalEffects & { timeMinutes?: number };
   dailyInteractionLimit?: number | null;
+  interactionLimitMode?: "once" | null;
+  itemRewards?: InteractionItemReward[];
   itemReward?: InteractionItemReward;
   useRequirements?: InteractionUseRequirement[];
   itemId?: string;
   quantity?: number;
   worldItemId?: string;
-  worldItemKind?: "placed" | "dropped";
+  worldItemKind?: "placed" | "dropped" | "itemPoint";
+  itemPointId?: string;
   dialogue?: InteractionDialogueScript;
   failureDialogue?: InteractionDialogueScript;
   completionDialogue?: InteractionDialogueScript;
@@ -156,7 +246,8 @@ type SceneInteractable = {
 type PendingInteraction = {
   interactable: SceneInteractable;
   interactionPoint?: InteractionPoint;
-  source: "gamepad" | "pointer" | "keyboard";
+  source: "gamepad" | "pointer" | "keyboard" | "mobile";
+  repathAttempts?: number;
 };
 type DialoguePlayback = {
   interactable: SceneInteractable;
@@ -172,6 +263,7 @@ type DialogueTyping = {
   speaker: string;
   delayMilliseconds: number;
   timerId: number | null;
+  resume: () => void;
 };
 type InventoryDragState = {
   itemId: string;
@@ -200,6 +292,14 @@ type MovementGuide = {
   bidirectional?: boolean;
 };
 
+type StoryTriggerZone = {
+  id: string;
+  label: string;
+  points: Point[];
+  once?: boolean;
+  dialogueId: string;
+};
+
 type SceneFile = {
   sceneId: string;
   image: { file: string; width: number; height: number };
@@ -216,6 +316,8 @@ type SceneFile = {
   }>;
   interactables?: SceneInteractable[];
   movementGuides?: MovementGuide[];
+  storyTriggers?: StoryTriggerZone[];
+  itemPoints?: SceneItemPoint[];
 };
 
 const SCENE_DATA = mapTest01Scene as SceneFile;
@@ -588,6 +690,38 @@ const STATIC_SCENE_INTERACTABLES = [
   ...WORLD_ITEM_INTERACTABLES,
 ];
 const SCENE_MOVEMENT_GUIDES = SCENE_DATA.movementGuides ?? [];
+const SCENE_STORY_TRIGGERS = SCENE_DATA.storyTriggers ?? [];
+const SCENE_ITEM_POINTS = normalizeSceneItemPoints(
+  SCENE_DATA.itemPoints,
+  resolveItemId,
+);
+const ITEM_POINT_RUNTIME_POSITIONS = new Map(
+  SCENE_ITEM_POINTS.map((itemPoint) => [
+    itemPoint.id,
+    findNearestSafeItemPointPosition(itemPoint),
+  ]),
+);
+
+function getItemPointInteractable(itemPoint: SceneItemPoint): SceneInteractable | null {
+  const item = ITEM_BY_ID.get(itemPoint.itemId);
+  if (!item) return null;
+  const position = ITEM_POINT_RUNTIME_POSITIONS.get(itemPoint.id) ?? itemPoint;
+  return {
+    id: `item-point:${itemPoint.id}`,
+    label: item.name,
+    position: { x: position.x, y: position.y },
+    interactionPoint: { x: position.x, y: position.y, facing: "S" },
+    pickRadius: 28,
+    activationDistance: 48,
+    type: "pickup",
+    verb: "拾取",
+    itemId: item.id,
+    quantity: itemPoint.quantity,
+    worldItemId: `item-point:${itemPoint.id}`,
+    worldItemKind: "itemPoint",
+    itemPointId: itemPoint.id,
+  };
+}
 
 function getDroppedWorldItemInteractable(
   placement: DroppedWorldItem,
@@ -612,9 +746,24 @@ function getDroppedWorldItemInteractable(
 
 function buildSceneInteractables(
   droppedWorldItems: readonly DroppedWorldItem[],
+  itemPointProgress: ItemPointProgress,
+  gameMinutes: number,
+  sceneEntryCollectedIds: ReadonlySet<string>,
+  stageQuery?: QuestRuntimeManager | null,
 ) {
   return [
     ...STATIC_SCENE_INTERACTABLES,
+    ...SCENE_ITEM_POINTS.flatMap((itemPoint) => {
+      if (!isItemPointAvailable(
+        itemPoint,
+        itemPointProgress,
+        gameMinutes,
+        sceneEntryCollectedIds,
+        stageQuery,
+      )) return [];
+      const interactable = getItemPointInteractable(itemPoint);
+      return interactable ? [interactable] : [];
+    }),
     ...droppedWorldItems.flatMap((placement) => {
       const interactable = getDroppedWorldItemInteractable(placement);
       return interactable ? [interactable] : [];
@@ -727,7 +876,7 @@ const SURVIVAL_STATS = [
   { id: "spirit", label: "精神", symbol: "✦" },
 ] as const;
 
-const SURVIVAL_VALUE_TWEEN_DURATION_MS = 2200;
+const SURVIVAL_VALUE_TWEEN_DURATION_MS = 2500;
 
 type SurvivalMetricId = (typeof SURVIVAL_STATS)[number]["id"];
 type SurvivalDisplayValues = Record<SurvivalMetricId, number>;
@@ -1121,6 +1270,7 @@ function findInteractableAt(
   point: Point,
   interactables: readonly SceneInteractable[],
   collectedWorldItems?: ReadonlySet<string>,
+  isSelectable: (interactable: SceneInteractable) => boolean = () => true,
 ): SceneInteractable | null {
   const candidates: Array<{
     interactable: SceneInteractable;
@@ -1129,6 +1279,7 @@ function findInteractableAt(
   }> = [];
 
   interactables.forEach((interactable, sourceIndex) => {
+    if (!isSelectable(interactable)) return;
     if (
       interactable.worldItemKind === "placed" &&
       interactable.worldItemId &&
@@ -1163,9 +1314,11 @@ function findInteractableTouching(
   radius: number,
   interactables: readonly SceneInteractable[],
   collectedWorldItems?: ReadonlySet<string>,
+  isSelectable: (interactable: SceneInteractable) => boolean = () => true,
 ) {
   const touchingTargets = interactables.filter(
     (interactable) =>
+      isSelectable(interactable) &&
       (interactable.worldItemKind !== "placed" ||
         !interactable.worldItemId ||
         !collectedWorldItems?.has(interactable.worldItemId)) &&
@@ -1302,7 +1455,7 @@ function resolveDialogueSpeaker(
     const speaker = lines[index]?.speaker?.trim();
     if (speaker) return speaker;
   }
-  return interactable.dialogue?.speakers?.[0]?.trim() || "Sbaak";
+  return "";
 }
 
 function distanceToSegment(point: Point, start: Point, end: Point) {
@@ -1418,6 +1571,22 @@ function isWalkable(footPoint: Point, radius: number) {
   return !SCENE_COLLIDERS.some((collider) =>
     circleIntersectsCollider(center, radius, collider),
   );
+}
+
+function findNearestSafeItemPointPosition(itemPoint: SceneItemPoint): Point {
+  const origin = { x: itemPoint.x, y: itemPoint.y };
+  if (isWalkable(origin, 8)) return origin;
+  for (const distance of [10, 18, 28, 40, 56, 76, 100]) {
+    for (let step = 0; step < 24; step += 1) {
+      const angle = (step / 24) * Math.PI * 2;
+      const candidate = {
+        x: clamp(origin.x + Math.cos(angle) * distance, 0, WORLD.width),
+        y: clamp(origin.y + Math.sin(angle) * distance, 0, WORLD.height),
+      };
+      if (isWalkable(candidate, 8)) return candidate;
+    }
+  }
+  return origin;
 }
 
 function findDroppedWorldItemPlacement(
@@ -2084,6 +2253,9 @@ export function MovementLab() {
   const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
   const minimapPlayerMarkerRef = useRef<HTMLSpanElement>(null);
   const gameShellRef = useRef<HTMLElement>(null);
+  const blackScreenImageRef = useRef<HTMLImageElement>(null);
+  const blackScreenOpacityRef = useRef(255);
+  const blackScreenAnimationRef = useRef<number | null>(null);
   const nativeGamepadRef = useRef<NativeGamepadState>(
     EMPTY_NATIVE_GAMEPAD_STATE,
   );
@@ -2129,12 +2301,21 @@ export function MovementLab() {
     DEFAULT_SELECTED_INVENTORY_INDEX,
   );
   const droppedWorldItemsRef = useRef<DroppedWorldItem[]>([]);
+  const itemPointProgressRef = useRef<ItemPointProgress>(
+    createInitialItemPointProgress(),
+  );
+  const sceneEntryCollectedItemPointIdsRef = useRef<Set<string>>(new Set());
   const worldItemSpawnMotionsRef = useRef<Map<string, WorldItemSpawnMotion>>(
     new Map(),
   );
   const worldItemLandingAudioPlayedRef = useRef<Set<string>>(new Set());
   const sceneInteractablesRef = useRef<SceneInteractable[]>(
-    STATIC_SCENE_INTERACTABLES,
+    buildSceneInteractables(
+      [],
+      createInitialItemPointProgress(),
+      INITIAL_SURVIVAL_STATE.gameMinutes,
+      new Set(),
+    ),
   );
   const mobileInteractionActionRef = useRef<() => void>(() => {});
   const droppedWorldItemSequenceRef = useRef(0);
@@ -2151,12 +2332,56 @@ export function MovementLab() {
   const timeElapsedNoticeSequenceRef = useRef(0);
   const timeElapsedNoticeActiveRef = useRef(false);
   const timeElapsedNoticeDismissingRef = useRef(false);
+  const questHudEventSequenceRef = useRef(0);
+  const questGameEventSequenceRef = useRef(0);
+  const questHudEventTimerRef = useRef<number | null>(null);
+  const questObjectiveTweenTimerRef = useRef<number | null>(null);
+  const questStageTransitionTimerRef = useRef<number | null>(null);
+  const questEventNoticeTimerRef = useRef<number | null>(null);
+  const timePassInputLockedRef = useRef(false);
+  const timePassTransitionTimersRef = useRef<number[]>([]);
+  const timePassTransitionWatchdogRef = useRef<number | null>(null);
   const interactionUsageRef = useRef<InteractionUsageState>(
     createInteractionUsageState(INITIAL_SURVIVAL_STATE.gameMinutes),
   );
-  const currentStoryChapterRef = useRef(1);
+  const currentStoryChapterRef = useRef(3);
+  const storyProgressRef = useRef<StoryProgress>(createInitialStoryProgress());
+  const questRuntimeManagerRef = useRef<QuestRuntimeManager | null>(null);
+  const dialogueManagerRef = useRef<DialogueManager<SceneInteractable> | null>(null);
+  const storyEventManagerRef = useRef<StoryEventManager | null>(null);
+  const chapterFlowManagerRef = useRef<ChapterFlowManager | null>(null);
+  const storyReadyEmittedRef = useRef(false);
+  const storyInputLockedRef = useRef(false);
+  const storyFlowActiveRef = useRef(false);
+  const storySkipHoldRef = useRef<{
+    source: "keyboard" | "gamepad" | "touch";
+    revealTimer: number;
+    completeTimer: number | null;
+    revealed: boolean;
+  } | null>(null);
+  const storySkipFinalizeTimerRef = useRef<number | null>(null);
+  const mainObjectiveMarkerTimerRef = useRef<number | null>(null);
+  const storySkipBlackoutGuardRef = useRef(false);
+  const suppressNextStoryClickRef = useRef(false);
 
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [storyReady, setStoryReady] = useState(false);
+  const [storyInputLocked, setStoryInputLocked] = useState(false);
+  const [storyFlowActive, setStoryFlowActive] = useState(false);
+  const [storyFlowPaused, setStoryFlowPaused] = useState(false);
+  const [storyCenteredText, setStoryCenteredText] = useState<{
+    lines: string[];
+    fadeInMs: number;
+    holdMs: number;
+    fadeOutMs: number;
+    sequence: number;
+  } | null>(null);
+  const [storySkipVisible, setStorySkipVisible] = useState(false);
+  const [storySkipSequence, setStorySkipSequence] = useState(0);
+  const [mainObjectiveMarker, setMainObjectiveMarker] = useState<{
+    sequence: number;
+    durationMs: number;
+  } | null>(null);
   const [debugItemSpawnerOpen, setDebugItemSpawnerOpen] = useState(false);
   const [debugItemSpawnCommand, setDebugItemSpawnCommand] = useState("");
   const [survivalFlowPaused, setSurvivalFlowPaused] = useState(false);
@@ -2212,9 +2437,26 @@ export function MovementLab() {
     dismissing: boolean;
   } | null>(null);
   const gameClock = getGameClock(survivalState.gameMinutes);
+  const itemPointRespawnCycle = getInteractionCycle(survivalState.gameMinutes);
   const [survivalExpanded, setSurvivalExpanded] = useState(true);
   const [questCollapsed, setQuestCollapsed] = useState(false);
+  const [activeQuestHud, setActiveQuestHud] = useState<QuestHudView | null>(null);
+  const [questHudEvent, setQuestHudEvent] = useState<QuestHudEvent | null>(null);
+  const [questObjectiveTween, setQuestObjectiveTween] = useState<{
+    questId: string;
+    objectiveId: string;
+    sequence: number;
+  } | null>(null);
+  const [questEventNotice, setQuestEventNotice] = useState<{
+    kind: "accepted" | "completed";
+    sequence: number;
+  } | null>(null);
+  const hasActiveQuest = activeQuestHud !== null;
+  const questPanelCollapsed = !hasActiveQuest || questCollapsed;
   const [minimapCollapsed, setMinimapCollapsed] = useState(false);
+  const [activeMinimapItemPoints, setActiveMinimapItemPoints] = useState<
+    SceneItemPoint[]
+  >(() => SCENE_ITEM_POINTS.filter((itemPoint) => itemPoint.showOnMinimap));
   const [playerInventory, setPlayerInventory] = useState<PlayerInventory>(
     () => ({ ...INITIAL_PLAYER_INVENTORY }),
   );
@@ -2247,6 +2489,65 @@ export function MovementLab() {
     visible: boolean;
   } | null>(null);
   const [dialogueView, setDialogueView] = useState<DialogueView>(null);
+
+  const cancelBlackScreenFade = () => {
+    if (blackScreenAnimationRef.current !== null) {
+      window.cancelAnimationFrame(blackScreenAnimationRef.current);
+      blackScreenAnimationRef.current = null;
+    }
+  };
+
+  const setBlackScreenOpacity = (opacity255: number) => {
+    const next = clamp(Math.round(opacity255), 0, 255);
+    blackScreenOpacityRef.current = next;
+    const image = blackScreenImageRef.current;
+    if (!image) return;
+    image.style.opacity = String(next / 255);
+    image.dataset.opacity = String(next);
+  };
+
+  const fadeBlackScreen = (
+    targetOpacity255: number,
+    durationMs: number,
+    onComplete?: () => void,
+  ) => {
+    cancelBlackScreenFade();
+    const from = blackScreenOpacityRef.current;
+    const target = clamp(Math.round(targetOpacity255), 0, 255);
+    const duration = Math.max(0, durationMs);
+    if (duration === 0 || from === target) {
+      setBlackScreenOpacity(target);
+      onComplete?.();
+      return;
+    }
+    const startedAt = performance.now();
+    const step = (now: number) => {
+      const progress = clamp((now - startedAt) / duration, 0, 1);
+      const eased = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - ((-2 * progress + 2) ** 2) / 2;
+      setBlackScreenOpacity(from + (target - from) * eased);
+      if (progress >= 1) {
+        blackScreenAnimationRef.current = null;
+        setBlackScreenOpacity(target);
+        onComplete?.();
+        return;
+      }
+      blackScreenAnimationRef.current = window.requestAnimationFrame(step);
+    };
+    blackScreenAnimationRef.current = window.requestAnimationFrame(step);
+  };
+
+  const clearTimePassTransition = () => {
+    if (timePassTransitionWatchdogRef.current !== null) {
+      window.clearTimeout(timePassTransitionWatchdogRef.current);
+      timePassTransitionWatchdogRef.current = null;
+    }
+    for (const timerId of timePassTransitionTimersRef.current) {
+      window.clearTimeout(timerId);
+    }
+    timePassTransitionTimersRef.current = [];
+  };
 
   const showTimeElapsedNotice = (
     startGameMinutes: number,
@@ -2293,10 +2594,134 @@ export function MovementLab() {
     }, 1000);
   };
 
+  const getFirstActiveQuestHud = () => {
+    const manager = questRuntimeManagerRef.current;
+    if (!manager) return null;
+    const save = manager.exportSave();
+    for (const quest of QUEST_DOCUMENT.quests) {
+      const entry = save.quests[quest.id];
+      if (entry?.state !== "active") continue;
+      const view = buildQuestHudView(quest.id, entry);
+      if (view) return view;
+    }
+    return null;
+  };
+
+  const showQuestEventNotice = (kind: "accepted" | "completed") => {
+    if (questEventNoticeTimerRef.current !== null) {
+      window.clearTimeout(questEventNoticeTimerRef.current);
+    }
+    questHudEventSequenceRef.current += 1;
+    setQuestEventNotice({
+      kind,
+      sequence: questHudEventSequenceRef.current,
+    });
+    questEventNoticeTimerRef.current = window.setTimeout(() => {
+      questEventNoticeTimerRef.current = null;
+      setQuestEventNotice(null);
+    }, 3350);
+  };
+
+  const triggerQuestHudVisual = (
+    kind: QuestHudEventKind,
+    view: QuestHudView,
+  ) => {
+    if (questHudEventTimerRef.current !== null) {
+      window.clearTimeout(questHudEventTimerRef.current);
+    }
+    questHudEventSequenceRef.current += 1;
+    setActiveQuestHud(view);
+    setQuestCollapsed(false);
+    setQuestHudEvent({
+      kind,
+      questId: view.id,
+      sequence: questHudEventSequenceRef.current,
+    });
+    if (kind === "accepted" || kind === "completed") {
+      showQuestEventNotice(kind);
+    }
+    questHudEventTimerRef.current = window.setTimeout(() => {
+      questHudEventTimerRef.current = null;
+      setQuestHudEvent(null);
+      if (kind !== "accepted") setActiveQuestHud(getFirstActiveQuestHud());
+    }, kind === "accepted" ? 2600 : 3300);
+  };
+
+  const triggerQuestObjectiveTween = (
+    view: QuestHudView,
+    objectiveId: string,
+  ) => {
+    if (questObjectiveTweenTimerRef.current !== null) {
+      window.clearTimeout(questObjectiveTweenTimerRef.current);
+    }
+    questHudEventSequenceRef.current += 1;
+    setActiveQuestHud(view);
+    setQuestCollapsed(false);
+    setQuestObjectiveTween({
+      questId: view.id,
+      objectiveId,
+      sequence: questHudEventSequenceRef.current,
+    });
+    questObjectiveTweenTimerRef.current = window.setTimeout(() => {
+      questObjectiveTweenTimerRef.current = null;
+      setQuestObjectiveTween(null);
+    }, 1000);
+  };
+
+  const triggerQuestStageTransition = (
+    view: QuestHudView,
+    completeTransition: () => void,
+  ) => {
+    if (questHudEventTimerRef.current !== null) {
+      window.clearTimeout(questHudEventTimerRef.current);
+    }
+    if (questStageTransitionTimerRef.current !== null) {
+      window.clearTimeout(questStageTransitionTimerRef.current);
+    }
+    questHudEventSequenceRef.current += 1;
+    setActiveQuestHud(view);
+    setQuestCollapsed(false);
+    setQuestHudEvent({
+      kind: "next",
+      questId: view.id,
+      sequence: questHudEventSequenceRef.current,
+    });
+    questHudEventTimerRef.current = window.setTimeout(() => {
+      questHudEventTimerRef.current = null;
+      setQuestHudEvent((current) =>
+        current?.kind === "next" && current.questId === view.id ? null : current,
+      );
+    }, 2200);
+    questStageTransitionTimerRef.current = window.setTimeout(() => {
+      questStageTransitionTimerRef.current = null;
+      completeTransition();
+    }, 3000);
+  };
+
   const applyDroppedWorldItems = (items: readonly DroppedWorldItem[]) => {
     const nextItems = [...items];
     droppedWorldItemsRef.current = nextItems;
-    sceneInteractablesRef.current = buildSceneInteractables(nextItems);
+    const gameMinutes = survivalStateRef.current.gameMinutes;
+    sceneInteractablesRef.current = buildSceneInteractables(
+      nextItems,
+      itemPointProgressRef.current,
+      gameMinutes,
+      sceneEntryCollectedItemPointIdsRef.current,
+      questRuntimeManagerRef.current,
+    );
+    setActiveMinimapItemPoints(
+      SCENE_ITEM_POINTS.filter(
+        (itemPoint) =>
+          itemPoint.showOnMinimap &&
+          isItemPointAvailable(
+            itemPoint,
+            itemPointProgressRef.current,
+            gameMinutes,
+            sceneEntryCollectedItemPointIdsRef.current,
+            questRuntimeManagerRef.current,
+          ),
+      ),
+    );
   };
 
   useEffect(() => {
@@ -2304,15 +2729,18 @@ export function MovementLab() {
       const loadedInventory = loadPlayerInventory();
       const loadedCollectedWorldItemIds = loadCollectedWorldItemIds();
       const loadedDroppedWorldItems = loadDroppedWorldItems();
+      const loadedItemPointProgress = loadItemPointProgress();
       const loadedHotbarAssignments = loadHotbarAssignments();
       const loadedSurvivalState = loadSurvivalState();
       const loadedInteractionUsage = loadInteractionUsageState(
         loadedSurvivalState.gameMinutes,
       );
       const loadedStoryProgress = loadStoryProgress();
+      const loadedQuestSave = loadQuestSaveData();
       playerInventoryRef.current = loadedInventory;
       collectedWorldItemIdsRef.current = loadedCollectedWorldItemIds;
       droppedWorldItemsRef.current = loadedDroppedWorldItems;
+      itemPointProgressRef.current = loadedItemPointProgress;
       hotbarAssignmentsRef.current = loadedHotbarAssignments;
       survivalStateRef.current = loadedSurvivalState;
       previousSurvivalDisplayValuesRef.current = getSurvivalDisplayValues(
@@ -2320,8 +2748,81 @@ export function MovementLab() {
       );
       interactionUsageRef.current = loadedInteractionUsage;
       currentStoryChapterRef.current = loadedStoryProgress.currentChapter;
+      storyProgressRef.current = loadedStoryProgress;
+      questRuntimeManagerRef.current = new QuestRuntimeManager(
+        QUEST_DOCUMENT,
+        {
+          onStateChanged: (questId, entry) => {
+            const manager = questRuntimeManagerRef.current;
+            if (manager)
+            {
+              saveQuestSaveData(manager.exportSave());
+              applyDroppedWorldItems(droppedWorldItemsRef.current);
+            }
+            if (entry.state === "active") {
+              const view = buildQuestHudView(questId, entry);
+              if (view) setActiveQuestHud(view);
+            }
+          },
+          onQuestStarted: (questId, entry) => {
+            const view = buildQuestHudView(questId, entry);
+            if (view) triggerQuestHudVisual("accepted", view);
+          },
+          onObjectiveCompleted: (questId, objectiveId, _stageId, entry) => {
+            const view = buildQuestHudView(questId, entry);
+            if (view) triggerQuestObjectiveTween(view, objectiveId);
+          },
+          onStageTransitionStarted: (
+            questId,
+            _currentStageId,
+            _nextStageId,
+            entry,
+            completeTransition,
+          ) => {
+            const view = buildQuestHudView(questId, entry);
+            if (view) {
+              triggerQuestStageTransition(view, completeTransition);
+            } else {
+              completeTransition();
+            }
+          },
+          onQuestCompleted: (questId) => {
+            const manager = questRuntimeManagerRef.current;
+            const entry = manager?.exportSave().quests[questId];
+            const view = entry ? buildQuestHudView(questId, entry) : null;
+            if (view) triggerQuestHudVisual("completed", view);
+          },
+          onQuestFailed: (questId, entry) => {
+            const view = buildQuestHudView(questId, entry);
+            if (view) triggerQuestHudVisual("failed", view);
+          },
+          onQuestAbandoned: (questId, entry) => {
+            const view = buildQuestHudView(questId, entry);
+            if (view) triggerQuestHudVisual("failed", view);
+          },
+        },
+        loadedQuestSave,
+      );
+      setActiveQuestHud(getFirstActiveQuestHud());
       sceneInteractablesRef.current = buildSceneInteractables(
         loadedDroppedWorldItems,
+        loadedItemPointProgress,
+        loadedSurvivalState.gameMinutes,
+        sceneEntryCollectedItemPointIdsRef.current,
+        questRuntimeManagerRef.current,
+      );
+      setActiveMinimapItemPoints(
+        SCENE_ITEM_POINTS.filter(
+          (itemPoint) =>
+            itemPoint.showOnMinimap &&
+            isItemPointAvailable(
+              itemPoint,
+              loadedItemPointProgress,
+              loadedSurvivalState.gameMinutes,
+              sceneEntryCollectedItemPointIdsRef.current,
+              questRuntimeManagerRef.current,
+            ),
+        ),
       );
       setPlayerInventory(loadedInventory);
       setCollectedWorldItemIds(loadedCollectedWorldItemIds);
@@ -2330,6 +2831,7 @@ export function MovementLab() {
       setDialogueTextSize(getDefaultDialogueTextSize());
       setQuestCollapsed(getDefaultQuestCollapsed());
       setSurvivalExpanded(getDefaultSurvivalExpanded());
+      setStoryReady(true);
     }, 0);
     return () => window.clearTimeout(hydrationTimer);
   }, []);
@@ -2351,6 +2853,10 @@ export function MovementLab() {
   useEffect(() => {
     collectedWorldItemIdsRef.current = collectedWorldItemIds;
   }, [collectedWorldItemIds]);
+
+  useEffect(() => {
+    applyDroppedWorldItems(droppedWorldItemsRef.current);
+  }, [itemPointRespawnCycle]);
 
   useEffect(() => {
     const fullscreenDocument = document as Document & {
@@ -2435,6 +2941,31 @@ export function MovementLab() {
     }
     if (timeElapsedNoticeTimerRef.current !== null) {
       window.clearTimeout(timeElapsedNoticeTimerRef.current);
+    }
+    if (questHudEventTimerRef.current !== null) {
+      window.clearTimeout(questHudEventTimerRef.current);
+    }
+    if (questObjectiveTweenTimerRef.current !== null) {
+      window.clearTimeout(questObjectiveTweenTimerRef.current);
+    }
+    if (questStageTransitionTimerRef.current !== null) {
+      window.clearTimeout(questStageTransitionTimerRef.current);
+    }
+    if (questEventNoticeTimerRef.current !== null) {
+      window.clearTimeout(questEventNoticeTimerRef.current);
+    }
+    cancelBlackScreenFade();
+    for (const timerId of timePassTransitionTimersRef.current) {
+      window.clearTimeout(timerId);
+    }
+    timePassTransitionTimersRef.current = [];
+    if (timePassTransitionWatchdogRef.current !== null) {
+      window.clearTimeout(timePassTransitionWatchdogRef.current);
+      timePassTransitionWatchdogRef.current = null;
+    }
+    timePassInputLockedRef.current = false;
+    if (mainObjectiveMarkerTimerRef.current !== null) {
+      window.clearTimeout(mainObjectiveMarkerTimerRef.current);
     }
   }, []);
 
@@ -2980,6 +3511,20 @@ export function MovementLab() {
     dialogueTypingRef.current = null;
   };
 
+  const pauseDialogueTyping = () => {
+    const typing = dialogueTypingRef.current;
+    if (!typing || typing.timerId === null) return;
+    window.clearTimeout(typing.timerId);
+    typing.timerId = null;
+    stopDialogueTypingAudio();
+  };
+
+  const resumeDialogueTyping = () => {
+    const typing = dialogueTypingRef.current;
+    if (!typing || typing.visibleCount >= typing.characters.length) return;
+    typing.resume();
+  };
+
   const closeDialogue = () => {
     stopDialogueTyping();
     dialoguePlaybackRef.current = null;
@@ -3016,6 +3561,7 @@ export function MovementLab() {
       speaker,
       delayMilliseconds,
       timerId: null,
+      resume: () => {},
     };
     dialogueTypingRef.current = typing;
 
@@ -3040,6 +3586,21 @@ export function MovementLab() {
       }
     };
 
+    typing.resume = () => {
+      if (
+        dialogueTypingRef.current !== typing ||
+        typing.timerId !== null ||
+        typing.visibleCount >= typing.characters.length
+      ) {
+        return;
+      }
+      requestDialogueTypingAudioPlayback(false);
+      typing.timerId = window.setTimeout(
+        revealNextCharacter,
+        Math.max(0, typing.delayMilliseconds),
+      );
+    };
+
     if (delayMilliseconds <= 0) {
       typing.visibleCount = characters.length;
       setDialogueView({ speaker, text: characters.join("") });
@@ -3049,10 +3610,10 @@ export function MovementLab() {
     }
   };
 
-  const openDialogue = (
+  const presentDialogue = (
     interactable: SceneInteractable,
     onComplete?: () => void,
-    dialogue: InteractionDialogueScript | undefined = interactable.dialogue,
+    dialogue: InteractionDialogueScript | null | undefined = interactable.dialogue,
   ) => {
     hideHotbarSelectionHint();
     const lines = resolveWeightedDialogueLines(
@@ -3082,6 +3643,33 @@ export function MovementLab() {
     playOneShotAudio("dialogueOpened");
     showDialoguePage(playback);
   };
+
+  if (!dialogueManagerRef.current) {
+    dialogueManagerRef.current = new DialogueManager<SceneInteractable>();
+  }
+  const dialogueManager = dialogueManagerRef.current;
+  dialogueManager.setPresenter((request, complete) => {
+    presentDialogue(request.context, complete, request.script);
+    return closeDialogue;
+  });
+  Object.entries(STORY_DIALOGUES).forEach(([dialogueId, script]) => {
+    dialogueManager.register(dialogueId, script);
+  });
+  dialogueManager.register(
+    LOWER_LEFT_STORY_ZONE_DIALOGUE_ID,
+    LOWER_LEFT_STORY_ZONE_DIALOGUE,
+  );
+
+  const openDialogue = (
+    interactable: SceneInteractable,
+    onComplete?: () => void,
+    dialogue: InteractionDialogueScript | null | undefined = interactable.dialogue,
+  ) => dialogueManager.playUnique(
+    `interaction:${interactable.id}`,
+    dialogue ?? { lines: [{ speaker: "", text: "..." }] },
+    interactable,
+    onComplete,
+  );
 
   const advanceDialogue = () => {
     const playback = dialoguePlaybackRef.current;
@@ -3115,7 +3703,237 @@ export function MovementLab() {
     return true;
   };
 
+  const markStoryEventCompleted = (eventId: string) => {
+    const current = storyProgressRef.current;
+    if (current.completedEventIds.includes(eventId)) return;
+    const next = {
+      ...current,
+      completedEventIds: [...current.completedEventIds, eventId],
+    };
+    storyProgressRef.current = next;
+    saveStoryProgress(next);
+  };
+
+  if (!chapterFlowManagerRef.current) {
+    chapterFlowManagerRef.current = new ChapterFlowManager({
+      setInputLocked: (locked) => {
+        storyInputLockedRef.current = locked;
+        setStoryInputLocked(locked);
+        if (locked) setInventoryPanelOpen(false);
+      },
+      setBlack: (visible) => {
+        if (storySkipBlackoutGuardRef.current) return;
+        cancelBlackScreenFade();
+        setBlackScreenOpacity(visible ? 255 : 0);
+      },
+      fadeFromBlack: (durationMs) => {
+        if (storySkipBlackoutGuardRef.current) return;
+        fadeBlackScreen(0, durationMs);
+      },
+      showCenteredText: (action) => {
+        setStoryCenteredText({
+          lines: action.lines,
+          fadeInMs: action.fadeInMs,
+          holdMs: action.holdMs,
+          fadeOutMs: action.fadeOutMs,
+          sequence: Date.now(),
+        });
+      },
+      hideCenteredText: () => setStoryCenteredText(null),
+      playDialogue: (dialogueId) => dialogueManager.playRegistered(
+        dialogueId,
+        {
+          id: `story:${dialogueId}`,
+          label: dialogueId,
+          type: "dialogue",
+        },
+      ),
+      startQuest: (questId) => {
+        const manager = questRuntimeManagerRef.current;
+        if (!manager) return;
+        const clock = getGameClock(survivalStateRef.current.gameMinutes);
+        manager.startQuest(
+          questId,
+          clock.day,
+          clock.hour * 60 + clock.minute,
+        );
+      },
+      showMainObjectiveMarker: (durationMs) => {
+        if (mainObjectiveMarkerTimerRef.current !== null) {
+          window.clearTimeout(mainObjectiveMarkerTimerRef.current);
+        }
+        const sequence = Date.now();
+        const safeDurationMs = Math.max(1, durationMs);
+        setMainObjectiveMarker({ sequence, durationMs: safeDurationMs });
+        mainObjectiveMarkerTimerRef.current = window.setTimeout(() => {
+          mainObjectiveMarkerTimerRef.current = null;
+          setMainObjectiveMarker((current) =>
+            current?.sequence === sequence ? null : current,
+          );
+        }, safeDurationMs);
+      },
+      cancelDialogue: () => dialogueManager.cancelCurrent(),
+      markCompleted: markStoryEventCompleted,
+      isCompleted: (flowId) =>
+        storyProgressRef.current.completedEventIds.includes(flowId),
+      onActiveChanged: (active) => {
+        storyFlowActiveRef.current = active;
+        setStoryFlowActive(active);
+        if (!active) {
+          // ChapterFlowManager 已結束就不應再留下任何劇情遮罩。
+          // 這是 UI 層的最後保險，避免 SKIP 完成與 React 狀態更新
+          // 發生競態時，進度已完成但黑幕仍停在畫面上。
+          storyInputLockedRef.current = false;
+          setStoryInputLocked(false);
+          setStoryFlowPaused(false);
+          setStoryCenteredText(null);
+          setStorySkipVisible(false);
+          cancelBlackScreenFade();
+          setBlackScreenOpacity(0);
+        }
+      },
+      onPausedChanged: setStoryFlowPaused,
+    });
+  }
+  const chapterFlowManager = chapterFlowManagerRef.current;
+
+  if (!storyEventManagerRef.current) {
+    const events = new StoryEventManager();
+    events.on("gameReady", ({ currentChapter }) =>
+      events.emit("chapterStarted", { chapter: currentChapter }));
+    events.on("chapterStarted", async ({ chapter }) => {
+      if (chapter !== 3) {
+        fadeBlackScreen(0, 1000);
+        return;
+      }
+      const started = await chapterFlowManager.run(CHAPTER_3_START_FLOW);
+      if (!started) {
+        fadeBlackScreen(0, 1000);
+      }
+    });
+    events.on("storyZoneEntered", async ({ zoneId }) => {
+      const zone = SCENE_STORY_TRIGGERS.find((item) => item.id === zoneId);
+      if (!zone || storyFlowActiveRef.current) return;
+      const completionId = `story-zone:${zone.id}`;
+      if (
+        zone.once &&
+        storyProgressRef.current.completedEventIds.includes(completionId)
+      ) {
+        return;
+      }
+      const result = await dialogueManager.playRegistered(
+        zone.dialogueId,
+        {
+          id: completionId,
+          label: zone.label,
+          type: "dialogue",
+        },
+      );
+      if (zone.once && result.completed) markStoryEventCompleted(completionId);
+    });
+    storyEventManagerRef.current = events;
+  }
+
+  useEffect(() => {
+    if (!storyReady || storyReadyEmittedRef.current) return;
+    storyReadyEmittedRef.current = true;
+    void storyEventManagerRef.current?.emit("gameReady", {
+      currentChapter: storyProgressRef.current.currentChapter,
+    });
+  }, [storyReady]);
+
+  const cancelStorySkipHold = (suppressClick = false) => {
+    const hold = storySkipHoldRef.current;
+    if (!hold) return;
+    window.clearTimeout(hold.revealTimer);
+    if (hold.completeTimer !== null) window.clearTimeout(hold.completeTimer);
+    if (suppressClick && hold.revealed) {
+      suppressNextStoryClickRef.current = true;
+    }
+    storySkipHoldRef.current = null;
+    setStorySkipVisible(false);
+  };
+
+  const completeStorySkip = (source: "keyboard" | "gamepad" | "touch") => {
+    storySkipHoldRef.current = null;
+    storySkipBlackoutGuardRef.current = true;
+    setStorySkipVisible(false);
+    suppressNextStoryClickRef.current = source === "touch";
+
+    cancelBlackScreenFade();
+    setBlackScreenOpacity(255);
+    // 先建立不可被其他清理工作中斷的視覺結束路徑。即使對話、音效或
+    // ChapterFlow 的取消發生例外，黑幕仍會在一秒後確實移除並歸還操作權。
+    setStoryCenteredText(null);
+    setStoryFlowPaused(false);
+    if (storySkipFinalizeTimerRef.current !== null) {
+      window.clearTimeout(storySkipFinalizeTimerRef.current);
+    }
+    fadeBlackScreen(0, 1000);
+    storySkipFinalizeTimerRef.current = window.setTimeout(() => {
+      storySkipFinalizeTimerRef.current = null;
+      storyInputLockedRef.current = false;
+      storyFlowActiveRef.current = false;
+      setStoryInputLocked(false);
+      setStoryFlowActive(false);
+      setStoryFlowPaused(false);
+      setStoryCenteredText(null);
+      setStorySkipVisible(false);
+      setBlackScreenOpacity(0);
+      storySkipBlackoutGuardRef.current = false;
+    }, 1050);
+
+    // 關閉畫面內容後再通知各管理器取消；這些工作不能阻擋上面的黑幕退場。
+    try {
+      stopDialogueTyping();
+      dialoguePlaybackRef.current = null;
+      document.documentElement.classList.remove("dialogue-cursor-active");
+      setDialogueView(null);
+      dialogueManager.cancelCurrent();
+    } finally {
+      chapterFlowManager.requestSkip();
+    }
+  };
+
+  const beginStorySkipHold = (
+    source: "keyboard" | "gamepad" | "touch",
+  ) => {
+    if (
+      !storyFlowActiveRef.current ||
+      optionsOpenRef.current ||
+      storySkipHoldRef.current
+    ) {
+      return false;
+    }
+    const hold = {
+      source,
+      revealTimer: 0,
+      completeTimer: null as number | null,
+      revealed: false,
+    };
+    hold.revealTimer = window.setTimeout(() => {
+      if (storySkipHoldRef.current !== hold) return;
+      hold.revealed = true;
+      setStorySkipSequence((current) => current + 1);
+      setStorySkipVisible(true);
+      hold.completeTimer = window.setTimeout(() => {
+        if (storySkipHoldRef.current !== hold) return;
+        completeStorySkip(source);
+      }, 2000);
+    }, 1000);
+    storySkipHoldRef.current = hold;
+    return true;
+  };
+
   const setOptionsPanelOpen = (open: boolean) => {
+    if (open && storyFlowActiveRef.current) {
+      cancelStorySkipHold();
+      chapterFlowManager.pause();
+      pauseDialogueTyping();
+    } else if (!open && storyFlowActiveRef.current) {
+      chapterFlowManager.resume();
+      resumeDialogueTyping();
+    }
     if (open) {
       dismissTimeElapsedNotice();
       inventoryOpenRef.current = false;
@@ -3163,6 +3981,7 @@ export function MovementLab() {
   };
 
   const setInventoryPanelOpen = (open: boolean) => {
+    if (open && storyInputLockedRef.current) return;
     if (open) dismissTimeElapsedNotice();
     inventoryOpenRef.current = open;
     if (!open) {
@@ -3484,6 +4303,7 @@ export function MovementLab() {
     let gamepadDpadXRepeatSeconds = 0;
     let gamepadDpadYRepeatSeconds = 0;
     let gameplayHotbarDpadX = 0;
+    const activeStoryTriggerZoneIds = new Set<string>();
     const virtualCursor = { x: 0, y: 0 };
     let virtualCursorPositioned = false;
     let virtualCursorVisible = false;
@@ -3503,6 +4323,8 @@ export function MovementLab() {
     let heldPointerDuration = 0;
     let heldPointerContinuous = false;
     let lastHeldPointerWorldTarget: Point | null = null;
+    let heldPointerFeedback: { point: Point; reachable: boolean } | null = null;
+    let pointerGestureConsumed = false;
     let pointerInteractionTriggeredId: string | null = null;
     let footstepPlaybackRate = 1;
     let footstepPlayPending = false;
@@ -3552,6 +4374,7 @@ export function MovementLab() {
         refreshInteractionUsageCycle(),
         interactable.id,
         interactable.dailyInteractionLimit,
+        interactable.interactionLimitMode,
       );
 
     const getInteractionRequirementFailure = (
@@ -3570,12 +4393,34 @@ export function MovementLab() {
       ),
       playerInventoryRef.current,
       currentStoryChapterRef.current,
+      (questId) =>
+        questRuntimeManagerRef.current?.isQuestActive(questId) ?? false,
+      (requirement) => {
+        return evaluateInteractionStageRequirement(
+          requirement,
+          (questId, stageId) =>
+            questRuntimeManagerRef.current?.isQuestAtStage(questId, stageId) ?? false,
+          (questId, stageId) =>
+            questRuntimeManagerRef.current?.hasQuestReachedStage(questId, stageId) ?? false,
+        );
+      },
     )[0];
+
+    const isInteractableConditionActive = (
+      interactable: SceneInteractable,
+    ) => shouldExposeInteraction(
+      Boolean(getInteractionUseRequirementFailure(interactable)),
+    );
+
+    const isInteractableSelectable = (interactable: SceneInteractable) =>
+      isInteractableConditionActive(interactable) &&
+      !isInteractableLocked(interactable);
 
     const openInteractionFailureDialogue = (
       interactable: SceneInteractable,
       source: PendingInteraction["source"],
     ) => {
+      if (source === "pointer") pointerGestureConsumed = true;
       const failureDialogue = selectInteractionDialogue(interactable, "failure");
       openDialogue(interactable, undefined, failureDialogue);
       if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
@@ -3742,8 +4587,13 @@ export function MovementLab() {
       ) {
         return;
       }
+      if (timePassInputLockedRef.current) {
+        event.preventDefault();
+        return;
+      }
       if (
         event.code === "Backquote" &&
+        !storyInputLockedRef.current &&
         !optionsOpenRef.current &&
         !inventoryOpenRef.current &&
         !dialoguePlaybackRef.current &&
@@ -3765,6 +4615,7 @@ export function MovementLab() {
       }
       if (
         key === "tab" &&
+        !storyInputLockedRef.current &&
         !optionsOpenRef.current &&
         !dialoguePlaybackRef.current
       ) {
@@ -3794,6 +4645,10 @@ export function MovementLab() {
       }
       if (key === "escape") {
         event.preventDefault();
+        if (storyFlowActiveRef.current && !optionsOpenRef.current) {
+          if (!event.repeat) beginStorySkipHold("keyboard");
+          return;
+        }
         if (!event.repeat) {
           pressedKeys.clear();
           setActiveKeyboardKeys([]);
@@ -3803,12 +4658,15 @@ export function MovementLab() {
       }
       if (
         key === "q" &&
+        !storyInputLockedRef.current &&
         !optionsOpenRef.current &&
         !inventoryOpenRef.current &&
         !dialoguePlaybackRef.current
       ) {
         event.preventDefault();
-        if (!event.repeat) setQuestCollapsed((current) => !current);
+        if (!event.repeat && hasActiveQuest) {
+          setQuestCollapsed((current) => !current);
+        }
         return;
       }
       if (event.code === "Space" && dialoguePlaybackRef.current) {
@@ -3819,12 +4677,15 @@ export function MovementLab() {
       if (key === keyboardInteractionKey) {
         event.preventDefault();
         if (!event.repeat) {
-          if (!advanceDialogue()) activateBestInteraction("keyboard");
+          if (!advanceDialogue() && !storyInputLockedRef.current) {
+            activateBestInteraction("keyboard");
+          }
         }
         return;
       }
       if (
         /^[1-7]$/.test(key) &&
+        !storyInputLockedRef.current &&
         !optionsOpenRef.current &&
         !inventoryOpenRef.current &&
         !dialoguePlaybackRef.current
@@ -3835,12 +4696,25 @@ export function MovementLab() {
       }
       if (!MOVEMENT_KEYS.has(key)) return;
       event.preventDefault();
+      if (storyInputLockedRef.current) return;
       pressedKeys.add(key);
       setActiveKeyboardKeys(Array.from(pressedKeys));
     };
 
     const onKeyUp = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
+      if (
+        key === "escape" &&
+        storySkipHoldRef.current?.source === "keyboard"
+      ) {
+        event.preventDefault();
+        const revealed = storySkipHoldRef.current.revealed;
+        cancelStorySkipHold();
+        if (!revealed && storyFlowActiveRef.current) {
+          setOptionsPanelOpen(true);
+        }
+        return;
+      }
       if (!MOVEMENT_KEYS.has(key)) return;
       event.preventDefault();
       pressedKeys.delete(key);
@@ -4008,107 +4882,197 @@ export function MovementLab() {
       return true;
     };
 
-    const grantInteractionItemReward = (interactable: SceneInteractable) => {
-      if (!interactable.itemReward) return true;
-      const reward = normalizeInteractionItemReward(
+    const grantInteractionItemRewards = (interactable: SceneInteractable) => {
+      const configuredRewardCount = Array.isArray(interactable.itemRewards)
+        ? interactable.itemRewards.length
+        : interactable.itemReward
+          ? 1
+          : 0;
+      if (configuredRewardCount === 0) return true;
+
+      const rewards = normalizeInteractionItemRewards(
+        interactable.itemRewards,
         interactable.itemReward,
         resolveItemId,
       );
-      if (!reward) {
-        showInteractionItemFeedback(
-          "互動獎勵設定無效，這次互動沒有消耗額度。",
-        );
-        return false;
-      }
-      const item = ITEM_BY_ID.get(reward.itemId);
-      if (!item) {
-        showInteractionItemFeedback(
-          "找不到互動獎勵道具，這次互動沒有消耗額度。",
-        );
+      if (rewards.length !== configuredRewardCount) {
+        showInteractionItemFeedback("互動獎勵設定不完整，未發放任何道具。");
         return false;
       }
 
-      if (reward.delivery === "inventory") {
-        const nextInventory = grantInventoryItem(
-          playerInventoryRef.current,
+      const resolvedRewards = rewards.flatMap((reward) => {
+        const item = ITEM_BY_ID.get(reward.itemId);
+        return item ? [{ reward, item }] : [];
+      });
+      if (resolvedRewards.length !== rewards.length) {
+        showInteractionItemFeedback("互動獎勵包含未知道具，未發放任何道具。");
+        return false;
+      }
+
+      const spawnOrigin = getInteractionTweenPoint(interactable);
+      const plannedWorldItems: Array<{
+        item: DroppedWorldItem;
+        motion: WorldItemSpawnMotion;
+      }> = [];
+      const nearbyWorldItems = droppedWorldItemsRef.current.filter(
+        (worldItem) => worldItem.sceneId === SCENE_DATA.sceneId,
+      );
+
+      for (const { reward, item } of resolvedRewards) {
+        if (reward.delivery !== "world") continue;
+        const placement = findSpawnedWorldItemPlacement(
+          spawnOrigin,
+          sizeRef.current * 0.14,
+          [...nearbyWorldItems, ...plannedWorldItems.map((entry) => entry.item)],
+        );
+        if (!placement) {
+          showInteractionItemFeedback(
+            `「${item.name}」附近沒有足夠空間，未發放任何獎勵。`,
+          );
+          return false;
+        }
+
+        let rewardWorldItemId = "";
+        do {
+          droppedWorldItemSequenceRef.current += 1;
+          rewardWorldItemId =
+            `interaction-reward:${SCENE_DATA.sceneId}:` +
+            `${interactable.id}:${droppedWorldItemSequenceRef.current}`;
+        } while (
+          droppedWorldItemsRef.current.some(
+            (worldItem) => worldItem.id === rewardWorldItemId,
+          ) ||
+          plannedWorldItems.some((entry) => entry.item.id === rewardWorldItemId)
+        );
+        const droppedWorldItem: DroppedWorldItem = {
+          id: rewardWorldItemId,
+          sceneId: SCENE_DATA.sceneId,
+          itemId: item.id,
+          quantity: reward.quantity,
+          position: placement.position,
+          interactionPoint: placement.interactionPoint,
+          pickRadius: 26,
+          activationDistance: 48,
+          createdFromInventory: false,
+        };
+        plannedWorldItems.push({
+          item: droppedWorldItem,
+          motion: createWorldItemSpawnMotion(
+            performance.now(),
+            spawnOrigin,
+            placement.landing,
+            placement.position,
+          ),
+        });
+      }
+
+      let nextInventory = playerInventoryRef.current;
+      for (const { reward, item } of resolvedRewards) {
+        if (reward.delivery !== "inventory") continue;
+        nextInventory = grantInventoryItem(
+          nextInventory,
           item.id,
           reward.quantity,
         );
+      }
+      if (nextInventory !== playerInventoryRef.current) {
         playerInventoryRef.current = nextInventory;
         setPlayerInventory(nextInventory);
         try {
           savePlayerInventory(nextInventory);
         } catch {
-          // 無法使用本機儲存時，本次工作階段仍保留獎勵。
+          // localStorage 不可用時仍保留本次記憶體狀態。
         }
-        showInteractionItemFeedback(
-          `獲得「${item.name}」×${reward.quantity} · 已放入背包`,
-        );
-        return true;
       }
 
-      const spawnOrigin = getInteractionTweenPoint(interactable);
-      const nearbyWorldItems = droppedWorldItemsRef.current.filter(
-        (worldItem) => worldItem.sceneId === SCENE_DATA.sceneId,
-      );
-      const placement = findSpawnedWorldItemPlacement(
-        spawnOrigin,
-        sizeRef.current * 0.14,
-        nearbyWorldItems,
-      );
-      if (!placement) {
-        showInteractionItemFeedback(
-          `「${item.name}」未生成 · 互動區附近沒有可放置空間，本次不消耗額度`,
-        );
-        return false;
+      if (plannedWorldItems.length > 0) {
+        for (const entry of plannedWorldItems) {
+          worldItemSpawnMotionsRef.current.set(entry.item.id, entry.motion);
+          worldItemLandingAudioPlayedRef.current.delete(entry.item.id);
+        }
+        const nextDroppedWorldItems = [
+          ...droppedWorldItemsRef.current,
+          ...plannedWorldItems.map((entry) => entry.item),
+        ];
+        applyDroppedWorldItems(nextDroppedWorldItems);
+        try {
+          saveDroppedWorldItems(nextDroppedWorldItems);
+        } catch {
+          // localStorage 不可用時仍保留本次記憶體狀態。
+        }
       }
 
-      let rewardWorldItemId = "";
-      do {
-        droppedWorldItemSequenceRef.current += 1;
-        rewardWorldItemId =
-          `interaction-reward:${SCENE_DATA.sceneId}:` +
-          `${interactable.id}:${droppedWorldItemSequenceRef.current}`;
-      } while (
-        droppedWorldItemsRef.current.some(
-          (worldItem) => worldItem.id === rewardWorldItemId,
-        )
-      );
-      const droppedWorldItem: DroppedWorldItem = {
-        id: rewardWorldItemId,
-        sceneId: SCENE_DATA.sceneId,
-        itemId: item.id,
-        quantity: reward.quantity,
-        position: placement.position,
-        interactionPoint: placement.interactionPoint,
-        pickRadius: 26,
-        activationDistance: 48,
-        createdFromInventory: false,
-      };
-      worldItemSpawnMotionsRef.current.set(
-        rewardWorldItemId,
-        createWorldItemSpawnMotion(
-          performance.now(),
-          spawnOrigin,
-          placement.landing,
-          placement.position,
-        ),
-      );
-      worldItemLandingAudioPlayedRef.current.delete(rewardWorldItemId);
-      const nextDroppedWorldItems = [
-        ...droppedWorldItemsRef.current,
-        droppedWorldItem,
-      ];
-      applyDroppedWorldItems(nextDroppedWorldItems);
-      try {
-        saveDroppedWorldItems(nextDroppedWorldItems);
-      } catch {
-        // 無法使用本機儲存時，本次工作階段仍會保留場上獎勵。
-      }
       showInteractionItemFeedback(
-        `「${item.name}」×${reward.quantity} 已生成在場上`,
+        `獲得 ${resolvedRewards
+          .map(({ reward, item }) => `「${item.name}」×${reward.quantity}`)
+          .join("、")}`,
       );
       return true;
+    };
+
+    const scheduleTimePassStep = (callback: () => void, delayMs: number) => {
+      const timerId = window.setTimeout(() => {
+        timePassTransitionTimersRef.current =
+          timePassTransitionTimersRef.current.filter((current) => current !== timerId);
+        callback();
+      }, delayMs);
+      timePassTransitionTimersRef.current.push(timerId);
+    };
+
+    const settleInteractionSurvival = (
+      startGameMinutes: number,
+      elapsedGameMinutes: number,
+      effects: SurvivalEffects | undefined,
+    ) => {
+      let nextSurvival = survivalStateRef.current;
+      if (elapsedGameMinutes > 0) {
+        nextSurvival = advanceSurvivalByGameMinutes(
+          nextSurvival,
+          elapsedGameMinutes,
+        );
+      }
+      nextSurvival = applySurvivalEffects(nextSurvival, effects);
+      survivalStateRef.current = nextSurvival;
+      setSurvivalState(nextSurvival);
+      saveSurvivalState(nextSurvival);
+      if (elapsedGameMinutes > 0) {
+        showTimeElapsedNotice(startGameMinutes, elapsedGameMinutes);
+      }
+    };
+
+    const runTimePassTransition = (
+      startGameMinutes: number,
+      elapsedGameMinutes: number,
+      effects: SurvivalEffects | undefined,
+    ) => {
+      clearTimePassTransition();
+      timePassInputLockedRef.current = true;
+      pressedKeys.clear();
+      setActiveKeyboardKeys([]);
+      fadeBlackScreen(255, 500);
+
+      const holdMs = getTimePassTransitionHoldMs(elapsedGameMinutes);
+      timePassTransitionWatchdogRef.current = window.setTimeout(() => {
+        timePassTransitionWatchdogRef.current = null;
+        cancelBlackScreenFade();
+        setBlackScreenOpacity(0);
+        timePassInputLockedRef.current = false;
+      }, 500 + holdMs + 500 + 250);
+
+      scheduleTimePassStep(() => {
+        try {
+          settleInteractionSurvival(startGameMinutes, elapsedGameMinutes, effects);
+        } catch (error) {
+          console.error("Failed to settle time-passing interaction", error);
+        } finally {
+          scheduleTimePassStep(() => {
+            fadeBlackScreen(0, 500, () => {
+              clearTimePassTransition();
+              timePassInputLockedRef.current = false;
+            });
+          }, holdMs);
+        }
+      }, 500);
     };
 
     const completeInteraction = (
@@ -4123,7 +5087,7 @@ export function MovementLab() {
       // 找不到合法落點時，整次互動保持失敗，避免玩家白白被扣次數。
       if (
         interactable.type !== "pickup" &&
-        !grantInteractionItemReward(interactable)
+        !grantInteractionItemRewards(interactable)
       ) {
         return false;
       }
@@ -4135,24 +5099,17 @@ export function MovementLab() {
       if (elapsedGameMinutes > 0 || interactable.survivalEffects) {
         const interactionStartGameMinutes =
           survivalStateRef.current.gameMinutes;
-        let nextSurvival = survivalStateRef.current;
-        if (elapsedGameMinutes > 0) {
-          nextSurvival = advanceSurvivalByGameMinutes(
-            nextSurvival,
-            elapsedGameMinutes,
-          );
-        }
-        nextSurvival = applySurvivalEffects(
-          nextSurvival,
-          interactable.survivalEffects,
-        );
-        survivalStateRef.current = nextSurvival;
-        setSurvivalState(nextSurvival);
-        saveSurvivalState(nextSurvival);
-        if (elapsedGameMinutes > 0) {
-          showTimeElapsedNotice(
+        if (elapsedGameMinutes >= 60) {
+          runTimePassTransition(
             interactionStartGameMinutes,
             elapsedGameMinutes,
+            interactable.survivalEffects,
+          );
+        } else {
+          settleInteractionSurvival(
+            interactionStartGameMinutes,
+            elapsedGameMinutes,
+            interactable.survivalEffects,
           );
         }
       }
@@ -4160,6 +5117,7 @@ export function MovementLab() {
         refreshInteractionUsageCycle(),
         interactable.id,
         interactable.dailyInteractionLimit,
+        interactable.interactionLimitMode,
       );
       if (usage !== interactionUsageRef.current) {
         interactionUsageRef.current = usage;
@@ -4183,6 +5141,9 @@ export function MovementLab() {
           },
         }),
       );
+      void storyEventManagerRef.current?.emit("interactionCompleted", {
+        interactionId: interactable.id,
+      });
 
       if (
         interactable.type === "pickup" &&
@@ -4190,11 +5151,9 @@ export function MovementLab() {
         interactable.worldItemId
       ) {
         const item = ITEM_BY_ID.get(interactable.itemId);
-        const isPlacedWorldItem =
-          interactable.worldItemKind !== "dropped";
         if (
           item &&
-          (!isPlacedWorldItem ||
+          (interactable.worldItemKind !== "placed" ||
             !collectedWorldItemIdsRef.current.has(interactable.worldItemId))
         ) {
           const quantity = Math.max(
@@ -4209,7 +5168,29 @@ export function MovementLab() {
           playerInventoryRef.current = nextInventory;
           setPlayerInventory(nextInventory);
 
-          if (interactable.worldItemKind === "dropped") {
+          if (
+            interactable.worldItemKind === "itemPoint" &&
+            interactable.itemPointId
+          ) {
+            const itemPoint = SCENE_ITEM_POINTS.find(
+              (candidate) => candidate.id === interactable.itemPointId,
+            );
+            if (itemPoint) {
+              const nextProgress = recordItemPointCollected(
+                itemPoint,
+                itemPointProgressRef.current,
+                survivalStateRef.current.gameMinutes,
+                sceneEntryCollectedItemPointIdsRef.current,
+              );
+              itemPointProgressRef.current = nextProgress;
+              try {
+                saveItemPointProgress(nextProgress);
+              } catch {
+                // 儲存空間不可用時，本次工作階段仍會移除 ItemPoint 道具。
+              }
+              applyDroppedWorldItems(droppedWorldItemsRef.current);
+            }
+          } else if (interactable.worldItemKind === "dropped") {
             worldItemSpawnMotionsRef.current.delete(interactable.worldItemId);
             worldItemLandingAudioPlayedRef.current.delete(
               interactable.worldItemId,
@@ -4245,6 +5226,16 @@ export function MovementLab() {
           } catch {
             // 無法使用本機儲存時，本次遊戲工作階段仍保留真實數量。
           }
+          const questManager = questRuntimeManagerRef.current;
+          if (questManager) {
+            questManager.handleEvent({
+              type: "itemCollected",
+              targetId: item.id,
+              amount: quantity,
+              eventId: `itemCollected:${interactable.worldItemId}`,
+            });
+            saveQuestSaveData(questManager.exportSave());
+          }
           playOneShotAudio("worldItemPickedUp");
 
           hotbarUseSequenceRef.current += 1;
@@ -4270,6 +5261,18 @@ export function MovementLab() {
       }
 
       if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
+      questGameEventSequenceRef.current += 1;
+      const questManager = questRuntimeManagerRef.current;
+      if (questManager) {
+        questManager.handleEvent({
+          type: "interactionSucceeded",
+          targetId: interactable.id,
+          eventId:
+            `interactionSucceeded:${SCENE_DATA.sceneId}:${interactable.id}:` +
+            `${Date.now()}:${questGameEventSequenceRef.current}`,
+        });
+        saveQuestSaveData(questManager.exportSave());
+      }
       const completionDialogue = selectInteractionDialogue(
         interactable,
         "completion",
@@ -4284,14 +5287,13 @@ export function MovementLab() {
       interactable: SceneInteractable,
       source: PendingInteraction["source"],
     ) => {
+      if (source === "pointer") pointerGestureConsumed = true;
       hideHotbarSelectionHint();
       if (isInteractableLocked(interactable)) {
         return openInteractionFailureDialogue(interactable, source);
       }
+      if (!isInteractableConditionActive(interactable)) return false;
       if (getInteractionRequirementFailure(interactable)) {
-        return openInteractionFailureDialogue(interactable, source);
-      }
-      if (getInteractionUseRequirementFailure(interactable)) {
         return openInteractionFailureDialogue(interactable, source);
       }
 
@@ -4331,6 +5333,50 @@ export function MovementLab() {
       return null;
     };
 
+    const findReachablePickupApproach = (
+      interactable: SceneInteractable,
+      attempt = 0,
+    ) => {
+      const target = getInteractableCenter(interactable);
+      const radius = sizeRef.current * 0.14;
+      const contactDistance = Math.max(
+        8,
+        radius + (interactable.pickRadius ?? 32) - 4,
+      );
+      const baseAngle =
+        Math.atan2(player.y - target.y, player.x - target.x) +
+        attempt * (Math.PI / 6);
+      const candidates: Point[] = [];
+      const angleIndices = [
+        0, 3, 6, 9, 12, 15, 18, 21,
+        1, 2, 4, 5, 7, 8, 10, 11,
+        13, 14, 16, 17, 19, 20, 22, 23,
+      ];
+
+      for (const ringScale of [0.92, 0.72]) {
+        for (const angleIndex of angleIndices) {
+          const angle = baseAngle + (angleIndex / 24) * Math.PI * 2;
+          candidates.push({
+            x: target.x + Math.cos(angle) * contactDistance * ringScale,
+            y: target.y + Math.sin(angle) * contactDistance * ringScale,
+          });
+        }
+      }
+
+      const minimumPlayerDistance = attempt > 0 ? 8 : 0;
+      const viableCandidates = candidates.filter(
+        (candidate) =>
+          Math.hypot(candidate.x - player.x, candidate.y - player.y) >
+          minimumPlayerDistance,
+      );
+      const path = findPathFromLimitedCandidates(viableCandidates, 8);
+      if (!path) return null;
+      return {
+        path,
+        destination: path[path.length - 1],
+      };
+    };
+
     const findReachableInteractionPath = (target: Point) => {
       const candidates: Point[] = [target];
       for (const ring of [18, 30, 44, 60, 78]) {
@@ -4351,14 +5397,21 @@ export function MovementLab() {
       showTouchEffect = true,
       forcedInteractable?: SceneInteractable,
       playAcceptedInteractionSound = false,
+      allowInteractableSelection = true,
     ) => {
+      const selectedInteractable = allowInteractableSelection
+        ? forcedInteractable ??
+          findInteractableAt(
+            requestedDestination,
+            sceneInteractablesRef.current,
+            collectedWorldItemIdsRef.current,
+            isInteractableConditionActive,
+          )
+        : null;
       const interactable =
-        forcedInteractable ??
-        findInteractableAt(
-          requestedDestination,
-          sceneInteractablesRef.current,
-          collectedWorldItemIdsRef.current,
-        );
+        selectedInteractable && isInteractableConditionActive(selectedInteractable)
+          ? selectedInteractable
+          : null;
       if (
         source === "pointer" &&
         interactable &&
@@ -4381,20 +5434,6 @@ export function MovementLab() {
         return;
       }
       if (interactable && getInteractionRequirementFailure(interactable)) {
-        autoPath = [];
-        autoDestination = null;
-        pendingInteraction = null;
-        openInteractionFailureDialogue(interactable, source);
-        if (showTouchEffect) {
-          touchEffect = {
-            point: getInteractionTweenPoint(interactable),
-            reachable: false,
-            startedAt: performance.now(),
-          };
-        }
-        return;
-      }
-      if (interactable && getInteractionUseRequirementFailure(interactable)) {
         autoPath = [];
         autoDestination = null;
         pendingInteraction = null;
@@ -4438,18 +5477,24 @@ export function MovementLab() {
       const interactionPoint = interactable
         ? findNearestInteractionPoint(interactable, player)
         : undefined;
-      const destination = interactionPoint ?? requestedDestination;
-      const path = interactable
-        ? interactionPoint
-          ? findReachableInteractionPath(destination)
-          : findPath(player, requestedDestination, sizeRef.current * 0.14)
-        : findPath(player, destination, sizeRef.current * 0.14);
+      const pickupApproach = interactable?.type === "pickup"
+        ? findReachablePickupApproach(interactable)
+        : null;
+      const destination =
+        pickupApproach?.destination ?? interactionPoint ?? requestedDestination;
+      const path = interactable?.type === "pickup"
+        ? pickupApproach?.path ?? null
+        : interactable
+          ? interactionPoint
+            ? findReachableInteractionPath(destination)
+            : findPath(player, requestedDestination, sizeRef.current * 0.14)
+          : findPath(player, destination, sizeRef.current * 0.14);
 
       autoPath = path ?? [];
       autoDestination = path !== null ? destination : null;
       pendingInteraction =
         interactable && path !== null
-          ? { interactable, interactionPoint, source }
+          ? { interactable, interactionPoint, source, repathAttempts: 0 }
           : null;
       if (
         interactable &&
@@ -4507,6 +5552,21 @@ export function MovementLab() {
           currentFacing = interactionPoint.facing;
         }
         triggerInteraction(interactable, source);
+      } else if (isPickup && (pendingInteraction.repathAttempts ?? 0) < 2) {
+        const repathAttempts = (pendingInteraction.repathAttempts ?? 0) + 1;
+        const pickupApproach = findReachablePickupApproach(
+          interactable,
+          repathAttempts,
+        );
+        if (pickupApproach) {
+          pendingInteraction = {
+            ...pendingInteraction,
+            repathAttempts,
+          };
+          autoPath = pickupApproach.path;
+          autoDestination = pickupApproach.destination;
+          return;
+        }
       }
 
       pendingInteraction = null;
@@ -4528,6 +5588,7 @@ export function MovementLab() {
               screenToWorld(virtualCursor),
               sceneInteractablesRef.current,
               collectedWorldItemIdsRef.current,
+              isInteractableSelectable,
             )
         : null;
       const playerTarget = findInteractableTouching(
@@ -4535,6 +5596,7 @@ export function MovementLab() {
         sizeRef.current * 0.14,
         sceneInteractablesRef.current,
         collectedWorldItemIdsRef.current,
+        isInteractableSelectable,
       );
       const lockedPlayerTarget =
         activePromptOwner === "player" &&
@@ -4600,6 +5662,7 @@ export function MovementLab() {
         sizeRef.current * 0.14,
         sceneInteractablesRef.current,
         collectedWorldItemIdsRef.current,
+        isInteractableSelectable,
       );
       if (!target) return;
 
@@ -4607,13 +5670,15 @@ export function MovementLab() {
         target.type === "pickup" ||
         getInteractionPoints(target).length === 0
       ) {
-        triggerInteraction(target, "pointer");
+        // The mobile button is a discrete action and must not share the
+        // canvas pointer-hold de-duplication latch.
+        triggerInteraction(target, "mobile");
         return;
       }
 
       assignWorldAction(
         getInteractableCenter(target),
-        "pointer",
+        "mobile",
         true,
         target,
       );
@@ -4676,7 +5741,8 @@ export function MovementLab() {
     };
 
     const assignHeldPointerAction = (force: boolean) => {
-      if (!heldPointerScreen) return;
+      if (!heldPointerScreen || pointerGestureConsumed) return;
+      if (!force && !heldPointerContinuous) return;
 
       const worldTarget = screenToWorld(heldPointerScreen);
       if (
@@ -4691,13 +5757,30 @@ export function MovementLab() {
       }
 
       lastHeldPointerWorldTarget = worldTarget;
+      const allowInteractableSelection = !heldPointerContinuous;
+      const target = allowInteractableSelection
+        ? findInteractableAt(
+            worldTarget,
+            sceneInteractablesRef.current,
+            collectedWorldItemIdsRef.current,
+            isInteractableConditionActive,
+          )
+        : null;
       assignWorldAction(
         worldTarget,
         "pointer",
         false,
         undefined,
         force,
+        allowInteractableSelection,
       );
+      heldPointerFeedback = {
+        point: target ? getInteractionTweenPoint(target) : worldTarget,
+        reachable: target
+          ? pointerInteractionTriggeredId === target.id ||
+            pendingInteraction?.interactable.id === target.id
+          : autoDestination !== null,
+      };
     };
 
     const updateTouchJoystick = (screenPoint: Point) => {
@@ -4775,6 +5858,8 @@ export function MovementLab() {
       heldPointerDuration = 0;
       heldPointerContinuous = false;
       lastHeldPointerWorldTarget = null;
+      heldPointerFeedback = null;
+      pointerGestureConsumed = false;
       pointerInteractionTriggeredId = null;
       touchEffect = null;
       canvas.setPointerCapture(event.pointerId);
@@ -4785,6 +5870,7 @@ export function MovementLab() {
     const onDialoguePointerDown = (event: PointerEvent) => {
       if (!dialoguePlaybackRef.current || !event.isPrimary) return;
       if (event.pointerType === "mouse" && event.button !== 0) return;
+      if (storyFlowActiveRef.current && event.pointerType === "touch") return;
       if (
         event.target instanceof Element &&
         event.target.closest(".dialogue-box")
@@ -4852,6 +5938,7 @@ export function MovementLab() {
       const releasedScreen = heldPointerScreen;
       const shouldShowTapEffect =
         showTapEffect && !heldPointerContinuous && releasedScreen !== null;
+      const feedback = heldPointerFeedback;
       const hadPointerCapture = canvas.hasPointerCapture(event.pointerId);
 
       heldPointerId = null;
@@ -4860,11 +5947,17 @@ export function MovementLab() {
       heldPointerDuration = 0;
       heldPointerContinuous = false;
       lastHeldPointerWorldTarget = null;
+      heldPointerFeedback = null;
+      pointerGestureConsumed = false;
       pointerInteractionTriggeredId = null;
 
       if (hadPointerCapture) canvas.releasePointerCapture(event.pointerId);
-      if (shouldShowTapEffect) {
-        assignScreenAction(releasedScreen, "pointer");
+      if (shouldShowTapEffect && feedback) {
+        touchEffect = {
+          point: feedback.point,
+          reachable: feedback.reachable,
+          startedAt: performance.now(),
+        };
       }
     };
 
@@ -5061,6 +6154,7 @@ export function MovementLab() {
         sizeRef.current * 0.14,
         sceneInteractablesRef.current,
         collectedWorldItemIdsRef.current,
+        isInteractableSelectable,
       );
       const nextMobileInteractionTargetId = playerTarget?.id ?? null;
       if (mobileInteractionTargetId !== nextMobileInteractionTargetId) {
@@ -5083,6 +6177,11 @@ export function MovementLab() {
           interactable.worldItemId &&
           collectedWorldItemIdsRef.current.has(interactable.worldItemId)
         ) {
+          return;
+        }
+
+        if (!isInteractableConditionActive(interactable)) {
+          interactionHintAnimation.delete(interactable.id);
           return;
         }
 
@@ -5656,12 +6755,14 @@ export function MovementLab() {
         radius,
         sceneInteractablesRef.current,
         collectedWorldItemIdsRef.current,
+        isInteractableSelectable,
       );
       const foundCursorTarget = virtualCursorVisible
         ? findInteractableAt(
             screenToWorld(virtualCursor),
             sceneInteractablesRef.current,
             collectedWorldItemIdsRef.current,
+            isInteractableSelectable,
           )
         : null;
       const playerTarget = foundPlayerTarget && !isInteractableLocked(foundPlayerTarget)
@@ -5884,13 +6985,30 @@ export function MovementLab() {
         gamepadInput.connected &&
         gamepadInput.startPressed &&
         !wasGamepadStartPressed;
-      if (startJustPressed) toggleOptionsPanel();
+      if (startJustPressed && !timePassInputLockedRef.current) {
+        toggleOptionsPanel();
+      }
       wasGamepadStartPressed = gamepadInput.startPressed;
 
       const backJustPressed =
         gamepadInput.connected &&
         gamepadInput.backPressed &&
         !wasGamepadBackPressed;
+      if (
+        backJustPressed &&
+        storyFlowActiveRef.current &&
+        !timePassInputLockedRef.current &&
+        !optionsOpenRef.current
+      ) {
+        beginStorySkipHold("gamepad");
+      }
+      if (
+        !gamepadInput.backPressed &&
+        wasGamepadBackPressed &&
+        storySkipHoldRef.current?.source === "gamepad"
+      ) {
+        cancelStorySkipHold();
+      }
       const leftBumperJustPressed =
         gamepadInput.connected &&
         gamepadInput.leftBumperPressed &&
@@ -5907,7 +7025,12 @@ export function MovementLab() {
           setOptionsPanelOpen(false);
           optionsMenuOpen = false;
         }
-      } else if (backJustPressed && !dialoguePlaybackRef.current) {
+      } else if (
+        backJustPressed &&
+        !timePassInputLockedRef.current &&
+        !storyInputLockedRef.current &&
+        !dialoguePlaybackRef.current
+      ) {
         setInventoryPanelOpen(!inventoryOpenRef.current);
       }
       const inventoryMenuOpen = inventoryOpenRef.current;
@@ -6052,12 +7175,19 @@ export function MovementLab() {
         }
       } else {
         const hotbarDpadHorizontal = Math.sign(gamepadInput.dpadX);
-        if (hotbarDpadHorizontal !== 0 && gameplayHotbarDpadX === 0) {
+        if (
+          !storyInputLockedRef.current &&
+          !timePassInputLockedRef.current &&
+          hotbarDpadHorizontal !== 0 &&
+          gameplayHotbarDpadX === 0
+        ) {
           selectHotbarSlot(hotbarDpadHorizontal);
         }
         gameplayHotbarDpadX = hotbarDpadHorizontal;
 
         if (
+          !storyInputLockedRef.current &&
+          !timePassInputLockedRef.current &&
           gamepadInput.connected &&
           gamepadInput.hotbarUsePressed &&
           !wasGamepadHotbarUsePressed
@@ -6068,14 +7198,19 @@ export function MovementLab() {
 
         if (
           !startJustPressed &&
+          !timePassInputLockedRef.current &&
           gamepadInput.connected &&
           gamepadInput.actionPressed &&
           !wasGamepadActionPressed
         ) {
-          const uiResult = activateVirtualCursorUi();
-          if (uiResult === "none") {
-            if (virtualCursorControlsEnabledRef.current) activateGamepadCursor();
-            activateBestInteraction("gamepad");
+          if (storyInputLockedRef.current) {
+            advanceDialogue();
+          } else {
+            const uiResult = activateVirtualCursorUi();
+            if (uiResult === "none") {
+              if (virtualCursorControlsEnabledRef.current) activateGamepadCursor();
+              activateBestInteraction("gamepad");
+            }
           }
         }
       }
@@ -6114,6 +7249,8 @@ export function MovementLab() {
         1,
       );
       if (
+        storyInputLockedRef.current ||
+        timePassInputLockedRef.current ||
         dialoguePlaybackRef.current ||
         inventoryOpenRef.current ||
         debugItemSpawnerOpenRef.current ||
@@ -6258,10 +7395,22 @@ export function MovementLab() {
               Math.min(18, guideRadius * 0.6),
             );
             if (exitDistance <= exitReleaseDistance) {
-              const replannedPath = pendingInteraction?.interactionPoint
-                ? findReachableInteractionPath(autoDestination)
-                : findPath(player, autoDestination, guideRadius);
+              const pickupApproach =
+                pendingInteraction?.interactable.type === "pickup"
+                  ? findReachablePickupApproach(
+                      pendingInteraction.interactable,
+                      pendingInteraction.repathAttempts ?? 0,
+                    )
+                  : null;
+              const replannedPath = pickupApproach?.path ?? (
+                pendingInteraction?.interactionPoint
+                  ? findReachableInteractionPath(autoDestination)
+                  : findPath(player, autoDestination, guideRadius)
+              );
               autoPath = replannedPath ?? [];
+              if (pickupApproach) {
+                autoDestination = pickupApproach.destination;
+              }
               bypassedAutoMovementGuideId = guideContact.guide.id;
               lockedAutoMovementGuideId = null;
               horizontal = 0;
@@ -6389,6 +7538,7 @@ export function MovementLab() {
 
       const survivalPaused =
         survivalFlowPausedRef.current ||
+        storyFlowActiveRef.current ||
         optionsOpenRef.current ||
         inventoryOpenRef.current ||
         debugItemSpawnerOpenRef.current ||
@@ -6431,6 +7581,20 @@ export function MovementLab() {
       playerPositionRef.current.x = player.x;
       playerPositionRef.current.y = player.y;
       playerFacingRef.current = currentFacing;
+      if (!storyInputLockedRef.current) {
+        const enteredNow = new Set<string>();
+        for (const zone of SCENE_STORY_TRIGGERS) {
+          if (!pointInPolygon(player, zone.points)) continue;
+          enteredNow.add(zone.id);
+          if (!activeStoryTriggerZoneIds.has(zone.id)) {
+            void storyEventManagerRef.current?.emit("storyZoneEntered", {
+              zoneId: zone.id,
+            });
+          }
+        }
+        activeStoryTriggerZoneIds.clear();
+        enteredNow.forEach((id) => activeStoryTriggerZoneIds.add(id));
+      }
       minimapSyncElapsed += deltaTime;
       if (
         minimapPlayerMarker &&
@@ -6710,7 +7874,10 @@ export function MovementLab() {
     collectedWorldItemIdsRef.current = progress.collectedWorldItemIds;
     hotbarAssignmentsRef.current = progress.hotbarAssignments;
     currentStoryChapterRef.current = progress.story.currentChapter;
+    storyProgressRef.current = progress.story;
     droppedWorldItemSequenceRef.current = 0;
+    itemPointProgressRef.current = progress.itemPointProgress;
+    sceneEntryCollectedItemPointIdsRef.current.clear();
     worldItemSpawnMotionsRef.current.clear();
     worldItemLandingAudioPlayedRef.current.clear();
     activeHotbarSlotRef.current = 0;
@@ -6729,6 +7896,67 @@ export function MovementLab() {
     setOptionsPanelOpen(false);
 
     window.setTimeout(() => window.location.reload(), 0);
+  };
+
+  const handleStoryPointerDownCapture = (
+    event: ReactPointerEvent<HTMLElement>,
+  ) => {
+    if (timePassInputLockedRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (event.pointerType !== "touch" || !event.isPrimary) return;
+    beginStorySkipHold("touch");
+  };
+
+  const handleStoryPointerUpCapture = (
+    event: ReactPointerEvent<HTMLElement>,
+  ) => {
+    if (timePassInputLockedRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (
+      event.pointerType !== "touch" ||
+      storySkipHoldRef.current?.source !== "touch"
+    ) {
+      return;
+    }
+    const revealed = storySkipHoldRef.current.revealed;
+    cancelStorySkipHold(revealed);
+    if (revealed) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (
+      dialoguePlaybackRef.current &&
+      event.target instanceof Element &&
+      !event.target.closest(".dialogue-box")
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      advanceDialogue();
+    }
+  };
+
+  const handleGameShellClickCapture = (
+    event: ReactMouseEvent<HTMLElement>,
+  ) => {
+    if (timePassInputLockedRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (suppressNextStoryClickRef.current) {
+      suppressNextStoryClickRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    handleUiInputClickCapture(event);
   };
 
   const draggedInventoryItem = inventoryDrag
@@ -6778,6 +8006,16 @@ export function MovementLab() {
         "--clock-hour-travel": `${timeElapsedClockMotion.hourTravelDegrees}deg`,
       } as CSSProperties)
     : undefined;
+  const questCompletedObjectiveCount = activeQuestHud?.objectives.filter(
+    (objective) => objective.current >= objective.required,
+  ).length ?? 0;
+  const questObjectiveCount = activeQuestHud?.objectives.length ?? 0;
+  const activeQuestHudEvent = questHudEvent?.questId === activeQuestHud?.id
+    ? questHudEvent
+    : null;
+  const activeQuestObjectiveTween = questObjectiveTween?.questId === activeQuestHud?.id
+    ? questObjectiveTween
+    : null;
 
   return (
     <div
@@ -6799,8 +8037,11 @@ export function MovementLab() {
       />
       <main
         ref={gameShellRef}
-        className={`game-shell${stageFullscreen ? " is-fullscreen" : ""}`}
-        onClickCapture={handleUiInputClickCapture}
+        className={`game-shell${stageFullscreen ? " is-fullscreen" : ""}${storyFlowActive ? " is-story-flow" : ""}${storyFlowPaused ? " is-story-flow-paused" : ""}${storyInputLocked ? " is-story-input-locked" : ""}`}
+        onClickCapture={handleGameShellClickCapture}
+        onPointerDownCapture={handleStoryPointerDownCapture}
+        onPointerUpCapture={handleStoryPointerUpCapture}
+        onPointerCancelCapture={() => cancelStorySkipHold(true)}
         onContextMenuCapture={handleUiInputContextMenuCapture}
       >
       <canvas
@@ -6809,6 +8050,52 @@ export function MovementLab() {
         aria-label="八方向角色移動地圖測試場景"
         tabIndex={0}
       />
+
+      <img
+        ref={blackScreenImageRef}
+        className="black-screen-image"
+        src="./ui/black-screen.svg?v=3"
+        alt=""
+        data-opacity="255"
+        style={{ opacity: 1 }}
+        aria-hidden="true"
+      />
+
+      {storyCenteredText ? (
+        <section
+          key={storyCenteredText.sequence}
+          className="story-centered-text"
+          style={{
+            "--story-text-fade-in": `${storyCenteredText.fadeInMs}ms`,
+            "--story-text-fade-out": `${storyCenteredText.fadeOutMs}ms`,
+            "--story-text-fade-out-delay": `${storyCenteredText.fadeInMs + storyCenteredText.holdMs}ms`,
+          } as CSSProperties}
+          aria-live="polite"
+        >
+          {storyCenteredText.lines.map((line, index) => (
+            <p key={`${index}-${line}`}>{line}</p>
+          ))}
+        </section>
+      ) : null}
+
+      {storySkipVisible ? (
+        <section
+          key={storySkipSequence}
+          className="story-skip-progress"
+          role="status"
+          aria-label="正在跳過劇情"
+        >
+          <span>SKIP</span>
+          <i><b /></i>
+        </section>
+      ) : null}
+
+      {mainObjectiveMarker ? (
+        <MainObjectiveMarker
+          key={mainObjectiveMarker.sequence}
+          durationMs={mainObjectiveMarker.durationMs}
+        />
+      ) : null}
 
       {debugItemSpawnerOpen ? (
         <form
@@ -6895,6 +8182,25 @@ export function MovementLab() {
         </section>
       ) : null}
 
+      {questEventNotice ? (
+        <section
+          key={questEventNotice.sequence}
+          className={`time-elapsed-notice quest-event-notice is-${questEventNotice.kind}`}
+          role="status"
+          aria-live="polite"
+          data-quest-event-notice={questEventNotice.kind}
+        >
+          <div className="time-elapsed-notice-content">
+            <span className="quest-event-notice-icon" aria-hidden="true">!</span>
+            <span>
+              {questEventNotice.kind === "completed"
+                ? "任務目標已完成"
+                : "已啟動任務目標"}
+            </span>
+          </div>
+        </section>
+      ) : null}
+
       <section className="top-left-hud" aria-label="場景資訊">
         <p className="eyebrow">Echoes Beyond the Stars</p>
         <h1>地圖測試場景</h1>
@@ -6957,39 +8263,79 @@ export function MovementLab() {
       </aside>
 
       <aside
-        className={`quest-hud${questCollapsed ? " is-collapsed" : ""}`}
-        aria-label="目前任務目標"
+        className={`quest-hud${questPanelCollapsed ? " is-collapsed" : ""}${
+          hasActiveQuest ? "" : " is-empty"
+        }${activeQuestHudEvent ? ` is-event-${activeQuestHudEvent.kind}` : ""}`}
+        aria-label={hasActiveQuest ? activeQuestHud!.title : "沒有進行中的任務"}
+        data-quest-hud-event={activeQuestHudEvent?.kind ?? "idle"}
       >
+        {activeQuestHudEvent && (
+          activeQuestHudEvent.kind === "completed" || activeQuestHudEvent.kind === "failed"
+        ) ? (
+          <span className="quest-event-frame" aria-hidden="true" />
+        ) : null}
         <header className="quest-header">
-          <span className="quest-type-icon" aria-hidden="true">⌂</span>
+          {hasActiveQuest ? (
+            <span className="quest-type-icon" aria-hidden="true">◇</span>
+          ) : null}
           <div className="quest-title">
-            <small>MAIN OBJECTIVE</small>
-            <strong>主線目標：調查未知訊號</strong>
+            <small>{activeQuestHud?.categoryLabel ?? "QUEST STATUS"}</small>
+            <strong>{activeQuestHud?.title ?? "沒有進行中的任務"}</strong>
+            {activeQuestHudEvent && activeQuestHudEvent.kind !== "accepted" ? (
+              <b className="quest-result-label">
+                {activeQuestHudEvent.kind === "next"
+                  ? "NEXT"
+                  : activeQuestHudEvent.kind === "completed"
+                    ? "COMPLETE"
+                    : "FAILED"}
+              </b>
+            ) : null}
           </div>
-          <output className="quest-summary-progress" aria-label="任務總進度">
-            0/2
-          </output>
+          {hasActiveQuest ? (
+            <output className="quest-summary-progress">
+              {questCompletedObjectiveCount}/{questObjectiveCount}
+            </output>
+          ) : null}
         </header>
-        {!questCollapsed ? (
+        {hasActiveQuest && !questPanelCollapsed ? (
           <div className="quest-objectives">
-            <div className="quest-objective">
-              <span>前往訊號來源</span>
-              <output>0/1</output>
-              <i aria-hidden="true"><b style={{ width: "0%" }} /></i>
-            </div>
-            <div className="quest-objective">
-              <span>收集必要物資</span>
-              <output>0/3</output>
-              <i aria-hidden="true"><b style={{ width: "0%" }} /></i>
-            </div>
+            {activeQuestHud!.objectives.map((objective) => {
+              const progress = Math.min(1, objective.current / objective.required);
+              const isCompletionPop = activeQuestObjectiveTween?.objectiveId === objective.id;
+              return (
+                <div
+                  className={`quest-objective${isCompletionPop ? " is-completion-pop" : ""}`}
+                  key={`${objective.id}-${isCompletionPop ? activeQuestObjectiveTween.sequence : 0}`}
+                >
+                  <span
+                    className={`quest-objective-check${objective.completed ? " is-complete" : ""}`}
+                    aria-hidden="true"
+                  >
+                    {objective.completed ? "☑" : "☐"}
+                  </span>
+                  <span className="quest-objective-label">{objective.label}</span>
+                  {objective.showProgress ? (
+                    <output>[{Math.min(objective.current, objective.required)}/{objective.required}]</output>
+                  ) : null}
+                  {objective.showProgress ? (
+                    <i aria-hidden="true"><b style={{ width: `${progress * 100}%` }} /></i>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         ) : null}
         <button
           className="quest-collapse"
           type="button"
-          aria-label={questCollapsed ? "展開任務提示" : "收折任務提示"}
-          aria-expanded={!questCollapsed}
-          onClick={() => setQuestCollapsed((current) => !current)}
+          aria-label={hasActiveQuest
+            ? (questPanelCollapsed ? "展開任務提示" : "收合任務提示")
+            : "沒有進行中的任務"}
+          aria-expanded={hasActiveQuest && !questPanelCollapsed}
+          aria-disabled={!hasActiveQuest}
+          onClick={() => {
+            if (hasActiveQuest) setQuestCollapsed((current) => !current);
+          }}
         >
           <span aria-hidden="true" />
         </button>
@@ -7098,7 +8444,17 @@ export function MovementLab() {
       </section>
 
       {inventoryOpen ? (
-        <div className="inventory-overlay">
+        <div
+          className="inventory-overlay"
+          onPointerDown={(event) => {
+            if (
+              event.target instanceof Element &&
+              event.target.closest(".inventory-body, .inventory-close")
+            ) return;
+            playOneShotAudio("uiInput");
+            setInventoryPanelOpen(false);
+          }}
+        >
           <section
             className="inventory-dialog"
             role="dialog"
@@ -7637,6 +8993,26 @@ export function MovementLab() {
             }}
           >
             <canvas ref={minimapCanvasRef} className="minimap-map-layer" />
+            {activeMinimapItemPoints.map((itemPoint) => (
+              <span
+                key={itemPoint.id}
+                className="minimap-item-point-marker"
+                style={{
+                  left: `${clamp(
+                    (ITEM_POINT_RUNTIME_POSITIONS.get(itemPoint.id)?.x ?? itemPoint.x) /
+                      WORLD.width,
+                    0,
+                    1,
+                  ) * 100}%`,
+                  top: `${clamp(
+                    (ITEM_POINT_RUNTIME_POSITIONS.get(itemPoint.id)?.y ?? itemPoint.y) /
+                      WORLD.height,
+                    0,
+                    1,
+                  ) * 100}%`,
+                }}
+              />
+            ))}
             <span
               ref={minimapPlayerMarkerRef}
               className="minimap-player-marker"
@@ -7716,7 +9092,6 @@ export function MovementLab() {
         className="cursor-layer"
         aria-hidden="true"
       />
-      <div className="game-entry-fade" aria-hidden="true" />
       </main>
     </div>
   );
