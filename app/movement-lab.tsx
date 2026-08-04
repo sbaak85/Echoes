@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -957,6 +958,79 @@ function getDefaultQuestCollapsed() {
 }
 
 const SURVIVAL_PANEL_STATE_STORAGE_KEY = "echoes:survival-panel-state";
+const HUD_PANEL_TWEEN_DURATION_MS = 300;
+
+type ActiveHudPanelTween = {
+  frameId: number;
+  height: number;
+};
+
+const activeHudPanelTweens = new WeakMap<HTMLElement, ActiveHudPanelTween>();
+
+function easeInOutCubic(progress: number) {
+  return progress < 0.5
+    ? 4 * progress ** 3
+    : 1 - (-2 * progress + 2) ** 3 / 2;
+}
+
+function playHudPanelHeightTween(
+  element: HTMLElement | null,
+  previousHeight: number | null,
+) {
+  if (!element || typeof window === "undefined") return previousHeight;
+
+  const previousTween = activeHudPanelTweens.get(element);
+  if (previousTween) {
+    window.cancelAnimationFrame(previousTween.frameId);
+  }
+
+  const startHeight = previousTween?.height ?? previousHeight;
+  element.style.removeProperty("height");
+  const targetHeight = element.offsetHeight;
+  if (startHeight === null || Math.abs(targetHeight - startHeight) < 0.5) {
+    element.style.removeProperty("will-change");
+    activeHudPanelTweens.delete(element);
+    return targetHeight;
+  }
+
+  const tween: ActiveHudPanelTween = {
+    frameId: 0,
+    height: startHeight,
+  };
+  let startedAt: number | null = null;
+  element.style.height = `${startHeight}px`;
+  element.style.willChange = "height";
+
+  const updateTween = (now: number) => {
+    if (!element.isConnected) {
+      activeHudPanelTweens.delete(element);
+      return;
+    }
+    if (startedAt === null) startedAt = now;
+    const progress = Math.min(
+      1,
+      (now - startedAt) / HUD_PANEL_TWEEN_DURATION_MS,
+    );
+    const eased = easeInOutCubic(progress);
+    tween.height = startHeight + (targetHeight - startHeight) * eased;
+    element.style.height = `${tween.height}px`;
+
+    if (progress < 1) {
+      tween.frameId = window.requestAnimationFrame(updateTween);
+      return;
+    }
+
+    element.style.removeProperty("height");
+    element.style.removeProperty("will-change");
+    if (activeHudPanelTweens.get(element) === tween) {
+      activeHudPanelTweens.delete(element);
+    }
+  };
+
+  activeHudPanelTweens.set(element, tween);
+  tween.frameId = window.requestAnimationFrame(updateTween);
+  return targetHeight;
+}
 
 function getDefaultSurvivalExpanded() {
   if (typeof window === "undefined") return true;
@@ -2253,6 +2327,8 @@ export function MovementLab() {
   const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
   const minimapPlayerMarkerRef = useRef<HTMLSpanElement>(null);
   const gameShellRef = useRef<HTMLElement>(null);
+  const survivalHudRef = useRef<HTMLElement>(null);
+  const questHudRef = useRef<HTMLElement>(null);
   const blackScreenImageRef = useRef<HTMLImageElement>(null);
   const blackScreenOpacityRef = useRef(255);
   const blackScreenAnimationRef = useRef<number | null>(null);
@@ -2452,7 +2528,10 @@ export function MovementLab() {
     sequence: number;
   } | null>(null);
   const hasActiveQuest = activeQuestHud !== null;
+  const hasActiveQuestRef = useRef(hasActiveQuest);
   const questPanelCollapsed = !hasActiveQuest || questCollapsed;
+  const previousSurvivalPanelHeightRef = useRef<number | null>(null);
+  const previousQuestPanelHeightRef = useRef<number | null>(null);
   const [minimapCollapsed, setMinimapCollapsed] = useState(false);
   const [activeMinimapItemPoints, setActiveMinimapItemPoints] = useState<
     SceneItemPoint[]
@@ -2490,6 +2569,24 @@ export function MovementLab() {
   } | null>(null);
   const [dialogueView, setDialogueView] = useState<DialogueView>(null);
 
+  useLayoutEffect(() => {
+    previousSurvivalPanelHeightRef.current = playHudPanelHeightTween(
+      survivalHudRef.current,
+      previousSurvivalPanelHeightRef.current,
+    );
+  }, [survivalExpanded]);
+
+  useLayoutEffect(() => {
+    previousQuestPanelHeightRef.current = playHudPanelHeightTween(
+      questHudRef.current,
+      previousQuestPanelHeightRef.current,
+    );
+  }, [questPanelCollapsed]);
+
+  useEffect(() => {
+    hasActiveQuestRef.current = hasActiveQuest;
+  }, [hasActiveQuest]);
+
   const cancelBlackScreenFade = () => {
     if (blackScreenAnimationRef.current !== null) {
       window.cancelAnimationFrame(blackScreenAnimationRef.current);
@@ -2504,6 +2601,7 @@ export function MovementLab() {
     if (!image) return;
     image.style.opacity = String(next / 255);
     image.dataset.opacity = String(next);
+    image.dataset.inputBlocking = next > 0 ? "true" : "false";
   };
 
   const fadeBlackScreen = (
@@ -3980,6 +4078,11 @@ export function MovementLab() {
     });
   };
 
+  const toggleQuestPanel = () => {
+    if (!hasActiveQuestRef.current) return;
+    setQuestCollapsed((current) => !current);
+  };
+
   const setInventoryPanelOpen = (open: boolean) => {
     if (open && storyInputLockedRef.current) return;
     if (open) dismissTimeElapsedNotice();
@@ -4657,15 +4760,19 @@ export function MovementLab() {
         return;
       }
       if (
-        key === "q" &&
+        (key === "q" || key === "r") &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
         !storyInputLockedRef.current &&
         !optionsOpenRef.current &&
         !inventoryOpenRef.current &&
         !dialoguePlaybackRef.current
       ) {
         event.preventDefault();
-        if (!event.repeat && hasActiveQuest) {
-          setQuestCollapsed((current) => !current);
+        if (!event.repeat) {
+          if (key === "q") toggleQuestPanel();
+          else toggleSurvivalPanel();
         }
         return;
       }
@@ -5399,6 +5506,8 @@ export function MovementLab() {
       playAcceptedInteractionSound = false,
       allowInteractableSelection = true,
     ) => {
+      if (blackScreenOpacityRef.current > 0) return;
+
       const selectedInteractable = allowInteractableSelection
         ? forcedInteractable ??
           findInteractableAt(
@@ -5581,6 +5690,8 @@ export function MovementLab() {
         advanceDialogue();
         return;
       }
+      if (blackScreenOpacityRef.current > 0) return;
+
       const canUseCursorForSource =
         source !== "gamepad" || virtualCursorControlsEnabledRef.current;
       const cursorTarget = canUseCursorForSource && virtualCursorVisible
@@ -5828,6 +5939,10 @@ export function MovementLab() {
     const onPointerDown = (event: PointerEvent) => {
       if (!event.isPrimary) return;
       if (event.pointerType === "mouse" && event.button !== 0) return;
+      if (blackScreenOpacityRef.current > 0) {
+        event.preventDefault();
+        return;
+      }
 
       event.preventDefault();
       activeInputMode = "keyboard-mouse";
@@ -5908,6 +6023,13 @@ export function MovementLab() {
       activeInputMode = "keyboard-mouse";
       deactivateGamepadCursor();
       setGamepadInputCursorHidden(false);
+      if (blackScreenOpacityRef.current > 0) {
+        const bounds = canvas.getBoundingClientRect();
+        virtualCursor.x = clamp(event.clientX - bounds.left, 0, viewportWidth);
+        virtualCursor.y = clamp(event.clientY - bounds.top, 0, viewportHeight);
+        virtualCursorVisible = true;
+        return;
+      }
       if (dialoguePlaybackRef.current) {
         const overDialogue =
           event.target instanceof Element &&
@@ -6572,7 +6694,12 @@ export function MovementLab() {
     };
 
     const drawPointerCursor = (time: number) => {
-      if (!virtualCursorControlsEnabledRef.current || !virtualCursorVisible) return;
+      if (
+        !virtualCursorControlsEnabledRef.current ||
+        !virtualCursorVisible
+      ) {
+        return;
+      }
 
       if (dialoguePlaybackRef.current) {
         const pulse = 1 + Math.sin(time / 190) * 0.035;
@@ -7174,6 +7301,17 @@ export function MovementLab() {
           }
         }
       } else {
+        const canToggleGameplayHud =
+          !storyInputLockedRef.current &&
+          !timePassInputLockedRef.current &&
+          !dialoguePlaybackRef.current;
+        if (canToggleGameplayHud && leftBumperJustPressed) {
+          toggleSurvivalPanel();
+        }
+        if (canToggleGameplayHud && rightBumperJustPressed) {
+          toggleQuestPanel();
+        }
+
         const hotbarDpadHorizontal = Math.sign(gamepadInput.dpadX);
         if (
           !storyInputLockedRef.current &&
@@ -8057,6 +8195,9 @@ export function MovementLab() {
         src="./ui/black-screen.svg?v=3"
         alt=""
         data-opacity="255"
+        data-input-blocking="true"
+        data-virtual-cursor-enabled={virtualCursorControlsEnabled ? "true" : "false"}
+        draggable={false}
         style={{ opacity: 1 }}
         aria-hidden="true"
       />
@@ -8213,7 +8354,7 @@ export function MovementLab() {
         </p>
       </section>
 
-      <aside className={`survival-hud${survivalExpanded ? " is-expanded" : ""}${inventoryOpen ? " is-inventory-open" : ""}`} aria-label="生存狀態指示表">
+      <aside ref={survivalHudRef} className={`survival-hud${survivalExpanded ? " is-expanded" : ""}${inventoryOpen ? " is-inventory-open" : ""}`} aria-label="生存狀態指示表">
         <header className="survival-clock">
           <span>
             Day <strong>{gameClock.day}</strong>
@@ -8236,7 +8377,7 @@ export function MovementLab() {
             </span>
           )})}
         </div>
-        <div className="survival-panel">
+        <div className="survival-panel" aria-hidden={!survivalExpanded}>
           {SURVIVAL_STATS.map((stat) => {
             const value = survivalState.values[stat.id];
             const critical = value <= 20;
@@ -8257,12 +8398,14 @@ export function MovementLab() {
           type="button"
           aria-label={survivalExpanded ? "收合生存狀態" : "展開生存狀態"}
           aria-expanded={survivalExpanded}
+          aria-keyshortcuts="R"
           disabled={inventoryOpen}
           onClick={toggleSurvivalPanel}
         />
       </aside>
 
       <aside
+        ref={questHudRef}
         className={`quest-hud${questPanelCollapsed ? " is-collapsed" : ""}${
           hasActiveQuest ? "" : " is-empty"
         }${activeQuestHudEvent ? ` is-event-${activeQuestHudEvent.kind}` : ""}`}
@@ -8333,8 +8476,9 @@ export function MovementLab() {
             : "沒有進行中的任務"}
           aria-expanded={hasActiveQuest && !questPanelCollapsed}
           aria-disabled={!hasActiveQuest}
+          aria-keyshortcuts="Q"
           onClick={() => {
-            if (hasActiveQuest) setQuestCollapsed((current) => !current);
+            toggleQuestPanel();
           }}
         >
           <span aria-hidden="true" />
@@ -8965,7 +9109,7 @@ export function MovementLab() {
       ) : null}
 
       <p className="controls-subtitle" aria-label="操作提示">
-        <span className="controls-subtitle-desktop">WASD／方向鍵、滑鼠點擊、左搖桿移動 · 右搖桿游標 · ESC／START：選項</span>
+        <span className="controls-subtitle-desktop">WASD／方向鍵、滑鼠點擊、左搖桿移動 · 右搖桿游標 · Q／RB：任務 · R／LB：生存 · ESC／START：選項</span>
         <span className="controls-subtitle-touch">上半部點擊前往 · 下半部按住移動 · START：選項</span>
       </p>
 

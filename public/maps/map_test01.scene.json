@@ -1587,9 +1587,20 @@
       ],
       "useRequirements": [
         {
-          "kind": "quest",
+          "kind": "questStage",
           "itemId": "",
           "questId": "QUEST_CH03_MAIN_001",
+          "stageId": "QUEST_CH03_MAIN_001_STAGE_03",
+          "stageMode": "UnlockFromStage",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        },
+        {
+          "kind": "item",
+          "itemId": "T0007",
+          "questId": "",
           "stageId": "",
           "stageMode": "CurrentStageOnly",
           "disableQuestId": "",
@@ -2027,7 +2038,7 @@
         "spirit": 0,
         "timeMinutes": 0
       },
-      "dailyInteractionLimit": 3,
+      "dailyInteractionLimit": 1,
       "itemRewards": [
         {
           "itemId": "R0004",
@@ -2079,7 +2090,7 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "..."
+            "text": "\u6211\u770B\u770B...\u6709\u4E86! \u6210\u529F\u96C6\u6EFF2\u74F6\u7684\u6C34\u91CF\u3002"
           }
         ]
       },
@@ -2092,7 +2103,21 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+            "text": "\u73FE\u5728\u9084\u6C92\u96C6\u5230\u8DB3\u5920\u7684\u6C34\u91CF\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u6642\u9593\u9084\u4E0D\u5920...\u6C34\u9084\u6C92\u51DD\u7D50\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u9084\u8981\u518D\u82B1\u4E00\u9EDE\u6642\u9593...\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           }
         ]
       }
