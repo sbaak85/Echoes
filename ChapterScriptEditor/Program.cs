@@ -108,6 +108,13 @@ internal static class Program
         {
             throw new InvalidDataException("第三章_Start 第一行應保留為無發話者旁白。");
         }
+        var storyTriggerDialogue = thirdChapter.StoryTriggerDialogues.FirstOrDefault(section =>
+            section.Id == "chapter03-lower-left-not-ready")
+            ?? throw new InvalidDataException("既有的第三章劇情多邊形台詞未成功遷移。");
+        if (storyTriggerDialogue.Dialogue.Lines.FirstOrDefault()?.Text != "現在我還沒準備好。")
+        {
+            throw new InvalidDataException("第三章劇情多邊形台詞內容不正確。");
+        }
 
         var source = File.ReadAllText(storyContentPath, Encoding.UTF8);
         var generated = StoryContentCodec.GenerateSource(source, document);
@@ -115,7 +122,8 @@ internal static class Program
             !generated.Contains("chapter03-start", StringComparison.Ordinal) ||
             !generated.Contains("CHAPTER_3_SECTION_1_DIALOGUE_ID", StringComparison.Ordinal) ||
             !generated.Contains("durationMs: 1500", StringComparison.Ordinal) ||
-            !generated.Contains("LOWER_LEFT_STORY_ZONE_DIALOGUE_ID", StringComparison.Ordinal))
+            !generated.Contains("chapter03-lower-left-not-ready", StringComparison.Ordinal) ||
+            generated.Contains("LOWER_LEFT_STORY_ZONE_DIALOGUE_ID", StringComparison.Ordinal))
         {
             throw new InvalidDataException("輸出的 story-content.ts 缺少必要內容。");
         }
@@ -129,6 +137,11 @@ internal static class Program
         if (reloaded.Chapters[2].DialogueSections[0].Dialogue.Lines.Count != 9)
         {
             throw new InvalidDataException("儲存後重新讀取的對話句數不正確。");
+        }
+        if (reloaded.Chapters[2].StoryTriggerDialogues.SingleOrDefault(section =>
+                section.Id == "chapter03-lower-left-not-ready") is null)
+        {
+            throw new InvalidDataException("劇情多邊形台詞未通過儲存與重新讀取測試。");
         }
 
         Console.WriteLine("ChapterScriptEditor self-test passed.");

@@ -80,6 +80,14 @@ public enum InteractionObjectiveMode
 }
 
 [TypeConverter(typeof(LocalizedEnumConverter))]
+public enum CompletionInterfaceAction
+{
+    [Description("無")] None,
+    [Description("開啟")] Open,
+    [Description("關閉")] Close,
+}
+
+[TypeConverter(typeof(LocalizedEnumConverter))]
 public enum FailureMode
 {
     [Description("永久失敗")] Permanent,
@@ -123,6 +131,26 @@ public sealed class LocalizedEnumConverter : EnumConverter
         if (memberName is null) return value.ToString() ?? "";
         return EnumType.GetField(memberName)?.GetCustomAttribute<DescriptionAttribute>()?.Description ?? memberName;
     }
+}
+
+public sealed record QuestInterfaceEntry(string Id, string Label);
+
+public static class QuestInterfaceRegistry
+{
+    public static readonly IReadOnlyList<QuestInterfaceEntry> All = new[]
+    {
+        new QuestInterfaceEntry("Inventory", "背包"),
+        new QuestInterfaceEntry("Options", "選項"),
+    };
+}
+
+public sealed class RegisteredInterfaceIdConverter : StringConverter
+{
+    public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
+    public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => true;
+
+    public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context) =>
+        new(QuestInterfaceRegistry.All.Select(entry => entry.Id).ToArray());
 }
 
 public sealed class QuestItemRequirement
@@ -199,6 +227,10 @@ public sealed class QuestDefinition
 
     [Category("派發"), DisplayName("前置任務 ID")]
     public List<string> PrerequisiteQuestIds { get; set; } = new();
+
+    [Category("派發"), DisplayName("啟動延遲（秒）")]
+    [Description("派發條件成立後，等待指定的現實秒數才讓任務正式啟動。0 代表立即啟動。")]
+    public double StartDelaySeconds { get; set; }
 
     [Category("規則"), DisplayName("可放棄")]
     public bool CanAbandon { get; set; }
@@ -303,6 +335,17 @@ public sealed class QuestObjectiveDefinition
 
     [Category("完成"), DisplayName("完成事件流程 ID")]
     public string CompletionEventFlowId { get; set; } = "";
+
+    [Category("完成"), DisplayName("完成後介面操作")]
+    [Description("此目標第一次完成時，開啟或關閉指定介面。")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public CompletionInterfaceAction CompletionInterfaceAction { get; set; }
+
+    [Category("完成"), DisplayName("目標介面")]
+    [Description("從已登記介面選擇，例如 Inventory 或 Options。")]
+    [TypeConverter(typeof(RegisteredInterfaceIdConverter))]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CompletionInterfaceId { get; set; }
 
     [JsonIgnore]
     [Browsable(false)]

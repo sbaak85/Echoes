@@ -134,8 +134,6 @@ import {
 } from "./chapter-flow-manager";
 import {
   CHAPTER_3_START_FLOW,
-  LOWER_LEFT_STORY_ZONE_DIALOGUE,
-  LOWER_LEFT_STORY_ZONE_DIALOGUE_ID,
   STORY_DIALOGUES,
 } from "./story-content";
 import {
@@ -164,6 +162,10 @@ type QuestHudView = {
   title: string;
   categoryLabel: string;
   objectives: QuestHudObjectiveView[];
+};
+type QuestHistoryView = {
+  id: string;
+  title: string;
 };
 type QuestHudEventKind = "accepted" | "next" | "completed" | "failed";
 type QuestHudEvent = {
@@ -301,6 +303,15 @@ type StoryTriggerZone = {
   points: Point[];
   once?: boolean;
   dialogueId: string;
+  triggerDelaySeconds?: number;
+  startQuestIds?: string[];
+  survivalRequirements?: SurvivalRequirements;
+  survivalEffects?: SurvivalEffects & { timeMinutes?: number };
+  dailyInteractionLimit?: number | null;
+  interactionLimitMode?: "once" | null;
+  itemRewards?: InteractionItemReward[];
+  itemReward?: InteractionItemReward;
+  useRequirements?: InteractionUseRequirement[];
 };
 
 type SceneFile = {
@@ -1526,12 +1537,7 @@ function resolveDialogueSpeaker(
   interactable: SceneInteractable,
   lineIndex: number,
 ) {
-  const lines = interactable.dialogue?.lines ?? [];
-  for (let index = lineIndex; index >= 0; index -= 1) {
-    const speaker = lines[index]?.speaker?.trim();
-    if (speaker) return speaker;
-  }
-  return "";
+  return interactable.dialogue?.lines[lineIndex]?.speaker?.trim() ?? "";
 }
 
 function distanceToSegment(point: Point, start: Point, end: Point) {
@@ -2428,6 +2434,13 @@ export function MovementLab() {
   const questRuntimeManagerRef = useRef<QuestRuntimeManager | null>(null);
   const dialogueManagerRef = useRef<DialogueManager<SceneInteractable> | null>(null);
   const storyEventManagerRef = useRef<StoryEventManager | null>(null);
+  const canActivateStoryTriggerRef = useRef<(zone: StoryTriggerZone) => boolean>(
+    () => false,
+  );
+  const completeStoryTriggerRef = useRef<(zone: StoryTriggerZone) => boolean>(
+    () => false,
+  );
+  const requestStoryTriggerContactCheckRef = useRef<() => void>(() => {});
   const chapterFlowManagerRef = useRef<ChapterFlowManager | null>(null);
   const storyReadyEmittedRef = useRef(false);
   const storyInputLockedRef = useRef(false);
@@ -2520,6 +2533,7 @@ export function MovementLab() {
   const [survivalExpanded, setSurvivalExpanded] = useState(true);
   const [questCollapsed, setQuestCollapsed] = useState(false);
   const [activeQuestHud, setActiveQuestHud] = useState<QuestHudView | null>(null);
+  const [completedQuestHistory, setCompletedQuestHistory] = useState<QuestHistoryView[]>([]);
   const [questHudEvent, setQuestHudEvent] = useState<QuestHudEvent | null>(null);
   const [questObjectiveTween, setQuestObjectiveTween] = useState<{
     questId: string;
@@ -2532,8 +2546,7 @@ export function MovementLab() {
     sequence: number;
   } | null>(null);
   const hasActiveQuest = activeQuestHud !== null;
-  const hasActiveQuestRef = useRef(hasActiveQuest);
-  const questPanelCollapsed = !hasActiveQuest || questCollapsed;
+  const questPanelCollapsed = questCollapsed;
   const previousSurvivalPanelHeightRef = useRef<number | null>(null);
   const previousQuestPanelHeightRef = useRef<number | null>(null);
   const [minimapCollapsed, setMinimapCollapsed] = useState(false);
@@ -2585,11 +2598,7 @@ export function MovementLab() {
       questHudRef.current,
       previousQuestPanelHeightRef.current,
     );
-  }, [questPanelCollapsed, activeQuestHud?.stageId]);
-
-  useEffect(() => {
-    hasActiveQuestRef.current = hasActiveQuest;
-  }, [hasActiveQuest]);
+  }, [questPanelCollapsed, activeQuestHud?.stageId, completedQuestHistory.length]);
 
   const cancelBlackScreenFade = () => {
     if (blackScreenAnimationRef.current !== null) {
@@ -2707,6 +2716,15 @@ export function MovementLab() {
       if (view) return view;
     }
     return null;
+  };
+
+  const getCompletedQuestHistory = (): QuestHistoryView[] => {
+    const manager = questRuntimeManagerRef.current;
+    if (!manager) return [];
+    return manager.getCompletedQuestIds(3).flatMap((questId) => {
+      const quest = QUEST_DOCUMENT.quests.find((candidate) => candidate.id === questId);
+      return quest ? [{ id: quest.id, title: quest.name }] : [];
+    });
   };
 
   const showQuestEventNotice = (kind: "accepted" | "completed") => {
@@ -2863,6 +2881,7 @@ export function MovementLab() {
         QUEST_DOCUMENT,
         {
           onStateChanged: (questId, entry) => {
+            requestStoryTriggerContactCheckRef.current();
             const manager = questRuntimeManagerRef.current;
             if (manager)
             {
@@ -2873,14 +2892,32 @@ export function MovementLab() {
               const view = buildQuestHudView(questId, entry);
               if (view) setActiveQuestHud(view);
             }
+            setCompletedQuestHistory(getCompletedQuestHistory());
           },
           onQuestStarted: (questId, entry) => {
             const view = buildQuestHudView(questId, entry);
             if (view) triggerQuestHudVisual("accepted", view);
           },
-          onObjectiveCompleted: (questId, objectiveId, _stageId, entry) => {
+          onObjectiveCompleted: (questId, objectiveId, _stageId, entry, objective) => {
             const view = buildQuestHudView(questId, entry);
             if (view) triggerQuestObjectiveTween(view, objectiveId);
+            if (
+              objective.completionInterfaceAction &&
+              objective.completionInterfaceAction !== "none" &&
+              objective.completionInterfaceId
+            ) {
+              window.queueMicrotask(() => {
+                const open = objective.completionInterfaceAction === "open";
+                switch (objective.completionInterfaceId) {
+                  case "Inventory":
+                    setInventoryPanelOpen(open);
+                    break;
+                  case "Options":
+                    setOptionsPanelOpen(open);
+                    break;
+                }
+              });
+            }
           },
           onStageTransitionStarted: (
             questId,
@@ -2932,6 +2969,7 @@ export function MovementLab() {
         saveQuestSaveData(questRuntimeManagerRef.current.exportSave());
       }
       setActiveQuestHud(getFirstActiveQuestHud());
+      setCompletedQuestHistory(getCompletedQuestHistory());
       sceneInteractablesRef.current = buildSceneInteractables(
         loadedDroppedWorldItems,
         loadedItemPointProgress,
@@ -2966,6 +3004,7 @@ export function MovementLab() {
 
   useEffect(() => {
     playerInventoryRef.current = playerInventory;
+    requestStoryTriggerContactCheckRef.current();
     const selectedItem =
       ITEM_DATABASE[selectedInventoryIndexRef.current]?.item;
     if (selectedItem && (playerInventory[selectedItem.id] ?? 0) > 0) return;
@@ -3799,10 +3838,6 @@ export function MovementLab() {
   Object.entries(STORY_DIALOGUES).forEach(([dialogueId, script]) => {
     dialogueManager.register(dialogueId, script);
   });
-  dialogueManager.register(
-    LOWER_LEFT_STORY_ZONE_DIALOGUE_ID,
-    LOWER_LEFT_STORY_ZONE_DIALOGUE,
-  );
 
   const openDialogue = (
     interactable: SceneInteractable,
@@ -3896,7 +3931,7 @@ export function MovementLab() {
         const manager = questRuntimeManagerRef.current;
         if (!manager) return;
         const clock = getGameClock(survivalStateRef.current.gameMinutes);
-        manager.startQuest(
+        manager.requestQuestStart(
           questId,
           clock.day,
           clock.hour * 60 + clock.minute,
@@ -3946,6 +3981,7 @@ export function MovementLab() {
     events.on("gameReady", ({ currentChapter }) =>
       events.emit("chapterStarted", { chapter: currentChapter }));
     events.on("chapterStarted", async ({ chapter }) => {
+      requestStoryTriggerContactCheckRef.current();
       if (chapter !== 3) {
         fadeBlackScreen(0, 1000);
         return;
@@ -3973,7 +4009,8 @@ export function MovementLab() {
           type: "dialogue",
         },
       );
-      if (zone.once && result.completed) markStoryEventCompleted(completionId);
+      if (!result.completed || !completeStoryTriggerRef.current(zone)) return;
+      if (zone.once) markStoryEventCompleted(completionId);
     });
     storyEventManagerRef.current = events;
   }
@@ -4125,7 +4162,6 @@ export function MovementLab() {
   };
 
   const toggleQuestPanel = () => {
-    if (!hasActiveQuestRef.current) return;
     setQuestCollapsed((current) => !current);
   };
 
@@ -4468,6 +4504,11 @@ export function MovementLab() {
     let gamepadDpadYRepeatSeconds = 0;
     let gameplayHotbarDpadX = 0;
     const activeStoryTriggerZoneIds = new Set<string>();
+    const eligibleStoryTriggerZoneIds = new Set<string>();
+    let storyTriggerContactCheckRequested = false;
+    requestStoryTriggerContactCheckRef.current = () => {
+      storyTriggerContactCheckRequested = true;
+    };
     const virtualCursor = { x: 0, y: 0 };
     let virtualCursorPositioned = false;
     let virtualCursorVisible = false;
@@ -4529,9 +4570,27 @@ export function MovementLab() {
       if (next !== current) {
         interactionUsageRef.current = next;
         saveInteractionUsageState(next);
+        requestStoryTriggerContactCheckRef.current();
       }
       return next;
     };
+
+    const toStoryTriggerInteractable = (
+      zone: StoryTriggerZone,
+    ): SceneInteractable => ({
+      id: `story-trigger:${zone.id}`,
+      label: zone.label,
+      shape: "polygon",
+      points: zone.points,
+      type: "dialogue",
+      survivalRequirements: zone.survivalRequirements,
+      survivalEffects: zone.survivalEffects,
+      dailyInteractionLimit: zone.dailyInteractionLimit,
+      interactionLimitMode: zone.once ? "once" : zone.interactionLimitMode,
+      itemRewards: zone.itemRewards,
+      itemReward: zone.itemReward,
+      useRequirements: zone.useRequirements,
+    });
 
     const isInteractableLocked = (interactable: SceneInteractable) =>
       isInteractionLocked(
@@ -4568,7 +4627,16 @@ export function MovementLab() {
             questRuntimeManagerRef.current?.hasQuestReachedStage(questId, stageId) ?? false,
         );
       },
+      (questId, questState) =>
+        questRuntimeManagerRef.current?.isQuestInState(questId, questState) ?? false,
     )[0];
+
+    canActivateStoryTriggerRef.current = (zone) => {
+      const trigger = toStoryTriggerInteractable(zone);
+      return !isInteractableLocked(trigger) &&
+        !getInteractionRequirementFailure(trigger) &&
+        !getInteractionUseRequirementFailure(trigger);
+    };
 
     const isInteractableConditionActive = (
       interactable: SceneInteractable,
@@ -5203,6 +5271,7 @@ export function MovementLab() {
       survivalStateRef.current = nextSurvival;
       setSurvivalState(nextSurvival);
       saveSurvivalState(nextSurvival);
+      requestStoryTriggerContactCheckRef.current();
       if (elapsedGameMinutes > 0) {
         showTimeElapsedNotice(startGameMinutes, elapsedGameMinutes);
       }
@@ -5241,6 +5310,59 @@ export function MovementLab() {
           }, holdMs);
         }
       }, 500);
+    };
+
+    completeStoryTriggerRef.current = (zone) => {
+      const trigger = toStoryTriggerInteractable(zone);
+      if (isInteractableLocked(trigger) || !grantInteractionItemRewards(trigger)) {
+        return false;
+      }
+
+      const elapsedGameMinutes = Math.max(
+        0,
+        Number(trigger.survivalEffects?.timeMinutes ?? 0),
+      );
+      if (elapsedGameMinutes > 0 || trigger.survivalEffects) {
+        const interactionStartGameMinutes = survivalStateRef.current.gameMinutes;
+        if (elapsedGameMinutes >= 60) {
+          runTimePassTransition(
+            interactionStartGameMinutes,
+            elapsedGameMinutes,
+            trigger.survivalEffects,
+          );
+        } else {
+          settleInteractionSurvival(
+            interactionStartGameMinutes,
+            elapsedGameMinutes,
+            trigger.survivalEffects,
+          );
+        }
+      }
+
+      const usage = recordInteractionUse(
+        refreshInteractionUsageCycle(),
+        trigger.id,
+        trigger.dailyInteractionLimit,
+        trigger.interactionLimitMode,
+      );
+      if (usage !== interactionUsageRef.current) {
+        interactionUsageRef.current = usage;
+        saveInteractionUsageState(usage);
+      }
+
+      const manager = questRuntimeManagerRef.current;
+      if (manager) {
+        const clock = getGameClock(survivalStateRef.current.gameMinutes);
+        for (const questId of zone.startQuestIds ?? []) {
+          manager.requestQuestStart(
+            questId,
+            clock.day,
+            clock.hour * 60 + clock.minute,
+          );
+        }
+        saveQuestSaveData(manager.exportSave());
+      }
+      return true;
     };
 
     const completeInteraction = (
@@ -7743,12 +7865,30 @@ export function MovementLab() {
         debugItemSpawnerOpenRef.current ||
         Boolean(dialoguePlaybackRef.current);
       if (!survivalPaused && !survivalStateRef.current.gameOverReason) {
-        survivalStateRef.current = advanceSurvivalState(
+        const previousSurvivalValues = survivalStateRef.current.values;
+        const nextSurvivalState = advanceSurvivalState(
           survivalStateRef.current,
           deltaTime,
           actualMovementDistance,
           actualMovementSpeed,
         );
+        const touchingStorySurvivalConditionBecameEligible =
+          SCENE_STORY_TRIGGERS.some((zone) => {
+            if (!activeStoryTriggerZoneIds.has(zone.id)) return false;
+            const wasEligible = getUnmetSurvivalRequirements(
+              previousSurvivalValues,
+              zone.survivalRequirements,
+            ).length === 0;
+            const isEligible = getUnmetSurvivalRequirements(
+              nextSurvivalState.values,
+              zone.survivalRequirements,
+            ).length === 0;
+            return !wasEligible && isEligible;
+          });
+        survivalStateRef.current = nextSurvivalState;
+        if (touchingStorySurvivalConditionBecameEligible) {
+          requestStoryTriggerContactCheckRef.current();
+        }
         refreshInteractionUsageCycle();
       }
       survivalUiElapsed += deltaTime;
@@ -7781,11 +7921,23 @@ export function MovementLab() {
       playerPositionRef.current.y = player.y;
       playerFacingRef.current = currentFacing;
       if (!storyInputLockedRef.current) {
+        const shouldRecheckTouchingStoryTriggers =
+          storyTriggerContactCheckRequested;
+        storyTriggerContactCheckRequested = false;
         const enteredNow = new Set<string>();
         for (const zone of SCENE_STORY_TRIGGERS) {
           if (!pointInPolygon(player, zone.points)) continue;
           enteredNow.add(zone.id);
-          if (!activeStoryTriggerZoneIds.has(zone.id)) {
+          const wasTouching = activeStoryTriggerZoneIds.has(zone.id);
+          if (!wasTouching || shouldRecheckTouchingStoryTriggers) {
+            const wasEligible = eligibleStoryTriggerZoneIds.has(zone.id);
+            const isEligible = canActivateStoryTriggerRef.current(zone);
+            if (isEligible) {
+              eligibleStoryTriggerZoneIds.add(zone.id);
+            } else {
+              eligibleStoryTriggerZoneIds.delete(zone.id);
+            }
+            if (!isEligible || wasEligible) continue;
             void storyEventManagerRef.current?.emit("storyZoneEntered", {
               zoneId: zone.id,
             });
@@ -7793,6 +7945,11 @@ export function MovementLab() {
         }
         activeStoryTriggerZoneIds.clear();
         enteredNow.forEach((id) => activeStoryTriggerZoneIds.add(id));
+        for (const zoneId of [...eligibleStoryTriggerZoneIds]) {
+          if (!enteredNow.has(zoneId)) {
+            eligibleStoryTriggerZoneIds.delete(zoneId);
+          }
+        }
       }
       minimapSyncElapsed += deltaTime;
       if (
@@ -7892,6 +8049,9 @@ export function MovementLab() {
       requestBgmPlaybackRef.current = () => {};
       debugItemSpawnHandlerRef.current = () => false;
       mobileInteractionActionRef.current = () => {};
+      canActivateStoryTriggerRef.current = () => false;
+      completeStoryTriggerRef.current = () => false;
+      requestStoryTriggerContactCheckRef.current = () => {};
       stopFootsteps();
       stopDialogueTyping();
       if (interactionFeedbackTimer !== null) {
@@ -8063,6 +8223,7 @@ export function MovementLab() {
     saveSurvivalState(next);
     saveInteractionUsageState(usage);
     setSurvivalState(next);
+    requestStoryTriggerContactCheckRef.current();
   };
 
   const confirmRestartNewGame = () => {
@@ -8468,11 +8629,11 @@ export function MovementLab() {
       <aside
         ref={questHudRef}
         className={`quest-hud${questPanelCollapsed ? " is-collapsed" : ""}${
-          hasActiveQuest ? "" : " is-empty"
+          hasActiveQuest ? "" : " is-history"
         }${activeQuestHudEvent ? ` is-event-${activeQuestHudEvent.kind}` : ""}${
           questStageEntering ? " is-stage-entering" : ""
         }`}
-        aria-label={hasActiveQuest ? activeQuestHud!.title : "沒有進行中的任務"}
+        aria-label={hasActiveQuest ? activeQuestHud!.title : "任務歷程"}
         data-quest-hud-event={activeQuestHudEvent?.kind ?? "idle"}
       >
         {activeQuestHudEvent && (
@@ -8481,12 +8642,12 @@ export function MovementLab() {
           <span className="quest-event-frame" aria-hidden="true" />
         ) : null}
         <header className="quest-header">
-          {hasActiveQuest ? (
-            <span className="quest-type-icon" aria-hidden="true">◇</span>
-          ) : null}
+          <span className="quest-type-icon" aria-hidden="true">
+            {hasActiveQuest ? "◇" : "✓"}
+          </span>
           <div className="quest-title">
-            <small>{activeQuestHud?.categoryLabel ?? "QUEST STATUS"}</small>
-            <strong>{activeQuestHud?.title ?? "沒有進行中的任務"}</strong>
+            <small>{activeQuestHud?.categoryLabel ?? "QUEST HISTORY"}</small>
+            <strong>{activeQuestHud?.title ?? "任務歷程"}</strong>
             {activeQuestHudEvent && activeQuestHudEvent.kind !== "accepted" ? (
               <b className="quest-result-label">
                 {activeQuestHudEvent.kind === "next"
@@ -8531,14 +8692,25 @@ export function MovementLab() {
             })}
           </div>
         ) : null}
+        {!hasActiveQuest && !questPanelCollapsed ? (
+          <div className="quest-history" aria-label="最近完成的任務">
+            {completedQuestHistory.length > 0 ? (
+              completedQuestHistory.map((quest) => (
+                <div className="quest-history-item" key={quest.id}>
+                  <span className="quest-history-check" aria-hidden="true">☑</span>
+                  <span className="quest-history-title">{quest.title}</span>
+                </div>
+              ))
+            ) : (
+              <p className="quest-history-empty">尚無已完成的任務</p>
+            )}
+          </div>
+        ) : null}
         <button
           className="quest-collapse"
           type="button"
-          aria-label={hasActiveQuest
-            ? (questPanelCollapsed ? "展開任務提示" : "收合任務提示")
-            : "沒有進行中的任務"}
-          aria-expanded={hasActiveQuest && !questPanelCollapsed}
-          aria-disabled={!hasActiveQuest}
+          aria-label={questPanelCollapsed ? "展開任務提示" : "收合任務提示"}
+          aria-expanded={!questPanelCollapsed}
           aria-keyshortcuts="Q"
           onClick={() => {
             toggleQuestPanel();

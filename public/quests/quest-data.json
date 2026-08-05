@@ -24,6 +24,7 @@
       "grantSourceId": "chapter03-section-1",
       "grantCondition": "",
       "prerequisiteQuestIds": [],
+      "startDelaySeconds": 0,
       "canAbandon": false,
       "canReaccept": false,
       "displayMode": "standard",
@@ -180,12 +181,13 @@
       "description": "熟悉背包介面，並實際使用一份補給品。",
       "chapterId": "CH03",
       "type": "main",
-      "grantMethod": "automatic",
-      "grantSourceId": "",
+      "grantMethod": "afterDialogue",
+      "grantSourceId": "chapter03_backpack-teaching",
       "grantCondition": "",
       "prerequisiteQuestIds": [
         "QUEST_CH03_MAIN_001"
       ],
+      "startDelaySeconds": 1,
       "canAbandon": false,
       "canReaccept": false,
       "displayMode": "standard",
@@ -232,7 +234,9 @@
               "interactionMode": "succeeded",
               "showProgress": false,
               "showHintIcon": false,
-              "completionEventFlowId": ""
+              "completionEventFlowId": "",
+              "completionInterfaceAction": "close",
+              "completionInterfaceId": "Inventory"
             }
           ]
         }

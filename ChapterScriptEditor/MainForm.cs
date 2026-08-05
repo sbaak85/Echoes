@@ -20,7 +20,7 @@ public sealed class MainForm : Form
         Text = "Echoes · 章節腳本編輯器";
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(1100, 760);
-        ClientSize = new Size(1420, 900);
+        ClientSize = new Size(1420, 1000);
         BackColor = Theme.Background;
         ForeColor = Theme.Text;
         Font = new Font("Microsoft JhengHei UI", 10F);
@@ -53,7 +53,7 @@ public sealed class MainForm : Form
         };
         var subtitle = new Label
         {
-            Text = "管理章節、黑畫面字幕事件與不依賴互動多邊形的劇情對話段落",
+            Text = "管理章節、黑畫面字幕、章節流程對話與劇情多邊形台詞",
             ForeColor = Theme.Muted,
             AutoSize = true,
             Location = new Point(20, 46),
@@ -124,16 +124,33 @@ public sealed class MainForm : Form
         };
 
         var identity = CreateChapterIdentity(chapter, page);
+        var lowerContent = new SplitContainer
+        {
+            Dock = DockStyle.Fill,
+            Orientation = Orientation.Horizontal,
+            SplitterWidth = 8,
+            BackColor = Theme.Background,
+        };
+        lowerContent.Panel1.Controls.Add(CreateDialogueArea(chapter));
+        lowerContent.Panel2.Controls.Add(CreateStoryTriggerDialogueArea(chapter));
         var content = new SplitContainer
         {
             Dock = DockStyle.Fill,
             Orientation = Orientation.Horizontal,
-            SplitterDistance = 310,
             SplitterWidth = 8,
             BackColor = Theme.Background,
         };
         content.Panel1.Controls.Add(CreateSubtitleArea(chapter));
-        content.Panel2.Controls.Add(CreateDialogueArea(chapter));
+        content.Panel2.Controls.Add(lowerContent);
+        var sectionHeightsInitialized = false;
+        page.Layout += (_, _) =>
+        {
+            if (sectionHeightsInitialized || content.Height < 500) return;
+            sectionHeightsInitialized = true;
+            content.SplitterDistance = (content.Height - content.SplitterWidth) / 3;
+            lowerContent.SplitterDistance =
+                (lowerContent.Height - lowerContent.SplitterWidth) / 2;
+        };
         page.Controls.Add(content);
         page.Controls.Add(identity);
         return page;
@@ -199,6 +216,7 @@ public sealed class MainForm : Form
         var group = CreateGroup("黑畫面白色字幕事件", "可建立多筆；記錄觸發條件、次數與淡入／停留／淡出時間。", out var body);
         var grid = new DataGridView { Dock = DockStyle.Fill };
         Theme.StyleGrid(grid);
+        grid.RowTemplate.Height = 32;
         grid.Columns.Add("name", "事件名稱");
         grid.Columns.Add("trigger", "觸發條件");
         grid.Columns.Add("timing", "演出時間");
@@ -222,11 +240,33 @@ public sealed class MainForm : Form
         return group;
     }
 
-    private Control CreateDialogueArea(ChapterDefinition chapter)
+    private Control CreateDialogueArea(ChapterDefinition chapter) =>
+        CreateDialogueArea(
+            chapter,
+            chapter.DialogueSections,
+            "對話段落小節",
+            "每個小節都是章節流程可呼叫的獨立腳本。",
+            "新增段落");
+
+    private Control CreateStoryTriggerDialogueArea(ChapterDefinition chapter) =>
+        CreateDialogueArea(
+            chapter,
+            chapter.StoryTriggerDialogues,
+            "劇情多邊形台詞",
+            "對話 ID 填入 MapEditor 的劇情觸發多邊形；角色踏入後呼叫此腳本。",
+            "新增劇情台詞");
+
+    private Control CreateDialogueArea(
+        ChapterDefinition chapter,
+        List<DialogueSectionDefinition> sections,
+        string title,
+        string hint,
+        string addButtonText)
     {
-        var group = CreateGroup("對話段落小節", "每個小節都是獨立腳本；可建立第三章_Start、Section 1、Epilogue 等段落。", out var body);
+        var group = CreateGroup(title, hint, out var body);
         var grid = new DataGridView { Dock = DockStyle.Fill };
         Theme.StyleGrid(grid);
+        grid.RowTemplate.Height = 32;
         grid.Columns.Add("name", "段落名稱");
         grid.Columns.Add("id", "對話 ID");
         grid.Columns.Add("count", "句數");
@@ -237,18 +277,21 @@ public sealed class MainForm : Form
         grid.Columns[3].FillWeight = 35;
 
         var buttons = CreateSideButtons(
-            ("新增段落", () => AddDialogueSection(chapter, grid)),
-            ("編輯腳本", () => EditDialogueSection(chapter, grid)),
-            ("重新命名", () => RenameDialogueSection(chapter, grid)),
-            ("複製段落", () => DuplicateDialogueSection(chapter, grid)),
-            ("刪除", () => DeleteDialogueSection(chapter, grid)),
-            ("上移", () => MoveDialogueSection(chapter, grid, -1)),
-            ("下移", () => MoveDialogueSection(chapter, grid, 1)));
-        grid.CellDoubleClick += (_, args) => { if (args.RowIndex >= 0) EditDialogueSection(chapter, grid); };
+            (addButtonText, () => AddDialogueSection(chapter, sections, grid, title)),
+            ("編輯腳本", () => EditDialogueSection(sections, grid)),
+            ("名稱 / ID", () => RenameDialogueSection(sections, grid)),
+            ("複製段落", () => DuplicateDialogueSection(sections, grid)),
+            ("刪除", () => DeleteDialogueSection(sections, grid)),
+            ("上移", () => MoveDialogueSection(sections, grid, -1)),
+            ("下移", () => MoveDialogueSection(sections, grid, 1)));
+        grid.CellDoubleClick += (_, args) =>
+        {
+            if (args.RowIndex >= 0) EditDialogueSection(sections, grid);
+        };
 
         body.Controls.Add(grid);
         body.Controls.Add(buttons);
-        RefreshDialogueGrid(chapter, grid);
+        RefreshDialogueGrid(sections, grid);
         return group;
     }
 
@@ -279,6 +322,8 @@ public sealed class MainForm : Form
             Width = 128,
             FlowDirection = FlowDirection.TopDown,
             Padding = new Padding(8, 0, 0, 0),
+            AutoScroll = true,
+            WrapContents = false,
         };
         foreach (var definition in definitions)
         {
@@ -324,6 +369,13 @@ public sealed class MainForm : Form
                 Name = section.Name + " 複本",
                 Dialogue = section.Dialogue.Clone(),
             }).ToList(),
+            StoryTriggerDialogues = source.StoryTriggerDialogues.Select(section =>
+                new DialogueSectionDefinition
+                {
+                    Id = UniqueId(section.Id + "-copy"),
+                    Name = section.Name + " 複本",
+                    Dialogue = section.Dialogue.Clone(),
+                }).ToList(),
         };
         foreach (var subtitle in copy.SubtitleEvents) subtitle.Id = UniqueId(subtitle.Id + "-copy");
         var index = _document.Chapters.IndexOf(source) + 1;
@@ -339,7 +391,7 @@ public sealed class MainForm : Form
             MessageBox.Show("至少需要保留一個章節。", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
-        if (MessageBox.Show($"確定刪除「{chapter.TabName}」以及其中所有字幕與對話段落？", Text,
+        if (MessageBox.Show($"確定刪除「{chapter.TabName}」以及其中所有字幕、章節對話與劇情多邊形台詞？", Text,
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
         var index = _document.Chapters.IndexOf(chapter);
         _document.Chapters.Remove(chapter);
@@ -394,33 +446,48 @@ public sealed class MainForm : Form
         MarkChanged();
     }
 
-    private void AddDialogueSection(ChapterDefinition chapter, DataGridView grid)
+    private void AddDialogueSection(
+        ChapterDefinition chapter,
+        List<DialogueSectionDefinition> sections,
+        DataGridView grid,
+        string areaTitle)
     {
-        var name = Prompt.Show("新增對話段落", "段落名稱", $"{chapter.TabName}_Section {chapter.DialogueSections.Count + 1}");
+        var name = Prompt.Show(
+            areaTitle,
+            "台詞區塊名稱",
+            $"{chapter.TabName}_Section {sections.Count + 1}");
         if (name is null) return;
+        var suggestedId = UniqueId(Slugify(name));
+        var id = Prompt.Show(
+            areaTitle,
+            "對話 ID（MapEditor 的劇情對話 ID 填寫此值）",
+            suggestedId);
+        if (id is null) return;
         var section = new DialogueSectionDefinition
         {
             Name = name,
-            Id = UniqueId(Slugify(name)),
+            Id = id,
             Dialogue = DialogueScript.CreateDefault(),
         };
         using var editor = CreateDialogueEditor(section);
         if (editor.ShowDialog(this) != DialogResult.OK) return;
         section.Dialogue = editor.SuccessDialogue;
-        chapter.DialogueSections.Add(section);
-        RefreshDialogueGrid(chapter, grid, chapter.DialogueSections.Count - 1);
+        sections.Add(section);
+        RefreshDialogueGrid(sections, grid, sections.Count - 1);
         MarkChanged();
     }
 
-    private void EditDialogueSection(ChapterDefinition chapter, DataGridView grid)
+    private void EditDialogueSection(
+        List<DialogueSectionDefinition> sections,
+        DataGridView grid)
     {
-        var index = SelectedIndex(grid, chapter.DialogueSections.Count);
+        var index = SelectedIndex(grid, sections.Count);
         if (index < 0) return;
-        var section = chapter.DialogueSections[index];
+        var section = sections[index];
         using var editor = CreateDialogueEditor(section);
         if (editor.ShowDialog(this) != DialogResult.OK) return;
         section.Dialogue = editor.SuccessDialogue;
-        RefreshDialogueGrid(chapter, grid, index);
+        RefreshDialogueGrid(sections, grid, index);
         MarkChanged();
     }
 
@@ -430,51 +497,66 @@ public sealed class MainForm : Form
         "本視窗只編輯這個章節段落。每列是一句完整發話；可設定發話者、抽選群組、權重與逐字速度。"
     );
 
-    private void RenameDialogueSection(ChapterDefinition chapter, DataGridView grid)
+    private void RenameDialogueSection(
+        List<DialogueSectionDefinition> sections,
+        DataGridView grid)
     {
-        var index = SelectedIndex(grid, chapter.DialogueSections.Count);
+        var index = SelectedIndex(grid, sections.Count);
         if (index < 0) return;
-        var section = chapter.DialogueSections[index];
+        var section = sections[index];
         var name = Prompt.Show("重新命名對話段落", "段落名稱", section.Name);
         if (name is null) return;
+        var id = Prompt.Show(
+            "修改對話 ID",
+            "對話 ID（MapEditor 的劇情對話 ID 填寫此值）",
+            section.Id);
+        if (id is null) return;
         section.Name = name;
-        RefreshDialogueGrid(chapter, grid, index);
+        section.Id = id;
+        RefreshDialogueGrid(sections, grid, index);
         MarkChanged();
     }
 
-    private void DuplicateDialogueSection(ChapterDefinition chapter, DataGridView grid)
+    private void DuplicateDialogueSection(
+        List<DialogueSectionDefinition> sections,
+        DataGridView grid)
     {
-        var index = SelectedIndex(grid, chapter.DialogueSections.Count);
+        var index = SelectedIndex(grid, sections.Count);
         if (index < 0) return;
-        var source = chapter.DialogueSections[index];
-        chapter.DialogueSections.Insert(index + 1, new DialogueSectionDefinition
+        var source = sections[index];
+        sections.Insert(index + 1, new DialogueSectionDefinition
         {
             Id = UniqueId(source.Id + "-copy"),
             Name = source.Name + " 複本",
             Dialogue = source.Dialogue.Clone(),
         });
-        RefreshDialogueGrid(chapter, grid, index + 1);
+        RefreshDialogueGrid(sections, grid, index + 1);
         MarkChanged();
     }
 
-    private void DeleteDialogueSection(ChapterDefinition chapter, DataGridView grid)
+    private void DeleteDialogueSection(
+        List<DialogueSectionDefinition> sections,
+        DataGridView grid)
     {
-        var index = SelectedIndex(grid, chapter.DialogueSections.Count);
+        var index = SelectedIndex(grid, sections.Count);
         if (index < 0) return;
-        if (MessageBox.Show($"刪除對話段落「{chapter.DialogueSections[index].Name}」？", Text,
+        if (MessageBox.Show($"刪除對話段落「{sections[index].Name}」？", Text,
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
-        chapter.DialogueSections.RemoveAt(index);
-        RefreshDialogueGrid(chapter, grid, Math.Min(index, chapter.DialogueSections.Count - 1));
+        sections.RemoveAt(index);
+        RefreshDialogueGrid(sections, grid, Math.Min(index, sections.Count - 1));
         MarkChanged();
     }
 
-    private void MoveDialogueSection(ChapterDefinition chapter, DataGridView grid, int direction)
+    private void MoveDialogueSection(
+        List<DialogueSectionDefinition> sections,
+        DataGridView grid,
+        int direction)
     {
-        var index = SelectedIndex(grid, chapter.DialogueSections.Count);
+        var index = SelectedIndex(grid, sections.Count);
         var target = index + direction;
-        if (index < 0 || target < 0 || target >= chapter.DialogueSections.Count) return;
-        (chapter.DialogueSections[index], chapter.DialogueSections[target]) = (chapter.DialogueSections[target], chapter.DialogueSections[index]);
-        RefreshDialogueGrid(chapter, grid, target);
+        if (index < 0 || target < 0 || target >= sections.Count) return;
+        (sections[index], sections[target]) = (sections[target], sections[index]);
+        RefreshDialogueGrid(sections, grid, target);
         MarkChanged();
     }
 
@@ -491,10 +573,13 @@ public sealed class MainForm : Form
         SelectRow(grid, selected);
     }
 
-    private static void RefreshDialogueGrid(ChapterDefinition chapter, DataGridView grid, int selected = 0)
+    private static void RefreshDialogueGrid(
+        IReadOnlyList<DialogueSectionDefinition> sections,
+        DataGridView grid,
+        int selected = 0)
     {
         grid.Rows.Clear();
-        foreach (var section in chapter.DialogueSections)
+        foreach (var section in sections)
         {
             var speakers = section.Dialogue.Lines.Select(line => line.Speaker)
                 .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -565,6 +650,7 @@ public sealed class MainForm : Form
         var ids = _document.Chapters.Select(chapter => chapter.Id)
             .Concat(_document.Chapters.SelectMany(chapter => chapter.SubtitleEvents.Select(item => item.Id)))
             .Concat(_document.Chapters.SelectMany(chapter => chapter.DialogueSections.Select(item => item.Id)))
+            .Concat(_document.Chapters.SelectMany(chapter => chapter.StoryTriggerDialogues.Select(item => item.Id)))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var candidate = baseId;
         for (var suffix = 2; ids.Contains(candidate); suffix++) candidate = $"{baseId}-{suffix}";

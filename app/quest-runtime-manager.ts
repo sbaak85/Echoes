@@ -40,6 +40,8 @@ export type QuestObjectiveDefinition = {
   showProgress: boolean;
   showHintIcon: boolean;
   completionEventFlowId?: string;
+  completionInterfaceAction?: "none" | "open" | "close";
+  completionInterfaceId?: string;
 };
 
 export type QuestStageDefinition = {
@@ -59,6 +61,7 @@ export type QuestDefinition = {
   chapterId: string;
   type: "main" | "side" | "longTermMain";
   prerequisiteQuestIds: string[];
+  startDelaySeconds?: number;
   grantMethod: "automatic" | "interaction" | "afterDialogue";
   grantSourceId?: string;
   grantCondition?: string;
@@ -131,12 +134,14 @@ export type QuestRuntimeEntry = {
   startedAtDay: number | null;
   startedAtTime: number | null;
   rewardClaimed: boolean;
+  completedOrder?: number;
 };
 
 export type QuestSaveData = {
   schemaVersion: 1;
   quests: Record<string, QuestRuntimeEntry>;
   processedEventIds?: string[];
+  completionSequence?: number;
 };
 
 export const QUEST_RUNTIME_STORAGE_KEY = "echoes:quest-runtime:v1";
@@ -168,11 +173,13 @@ export type QuestRuntimeHost = {
   onQuestCompleted?: (questId: string) => void;
   onQuestFailed?: (questId: string, entry: QuestRuntimeEntry) => void;
   onQuestAbandoned?: (questId: string, entry: QuestRuntimeEntry) => void;
+  scheduleQuestStart?: (delayMilliseconds: number, start: () => void) => void;
   onObjectiveCompleted?: (
     questId: string,
     objectiveId: string,
     stageId: string,
     entry: QuestRuntimeEntry,
+    objective: QuestObjectiveDefinition,
   ) => void;
   onStageTransitionStarted?: (
     questId: string,
@@ -193,6 +200,7 @@ export class QuestRuntimeManager {
   private readonly definitions = new Map<string, QuestDefinition>();
   private readonly host: QuestRuntimeHost;
   private readonly pendingStageTransitions = new Set<string>();
+  private readonly pendingQuestStarts = new Set<string>();
   private saveData: QuestSaveData;
 
   constructor(
@@ -207,6 +215,10 @@ export class QuestRuntimeManager {
       : emptySave();
     this.saveData.processedEventIds ??= [];
     for (const quest of document.quests) this.ensureEntry(quest);
+    this.saveData.completionSequence = Math.max(
+      this.saveData.completionSequence ?? 0,
+      ...Object.values(this.saveData.quests).map(entry => entry.completedOrder ?? 0),
+    );
     this.refreshAvailability();
   }
 
@@ -220,6 +232,10 @@ export class QuestRuntimeManager {
 
   isQuestActive(questId: string): boolean {
     return this.saveData.quests[questId]?.state === "active";
+  }
+
+  isQuestInState(questId: string, state: QuestState): boolean {
+    return this.saveData.quests[questId]?.state === state;
   }
 
   getCurrentStage(questId: string): string {
@@ -253,6 +269,7 @@ export class QuestRuntimeManager {
     const entry = this.requireEntry(questId);
     if (!["available", "abandoned"].includes(entry.state)) return false;
     if (entry.state === "abandoned" && !definition.canReaccept) return false;
+    this.pendingQuestStarts.delete(questId);
     entry.state = "active";
     entry.startedAtDay = day;
     entry.startedAtTime = time;
@@ -261,6 +278,56 @@ export class QuestRuntimeManager {
     if (definition.stages[0]?.startEventFlowId) this.host.runEventFlow?.(definition.stages[0].startEventFlowId);
     this.host.onQuestStarted?.(questId, structuredClone(entry));
     this.notify(questId);
+    return true;
+  }
+
+  getCompletedQuestIds(limit = 3): string[] {
+    const safeLimit = Math.max(0, Math.floor(limit));
+    const definitionOrder = new Map(
+      [...this.definitions.keys()].map((questId, index) => [questId, index]),
+    );
+    return [...this.definitions.keys()]
+      .filter(questId => this.saveData.quests[questId]?.state === "completed")
+      .sort((left, right) => {
+        const leftEntry = this.saveData.quests[left];
+        const rightEntry = this.saveData.quests[right];
+        const leftOrder = leftEntry.completedOrder == null
+          ? definitionOrder.get(left) ?? 0
+          : 1_000_000 + leftEntry.completedOrder;
+        const rightOrder = rightEntry.completedOrder == null
+          ? definitionOrder.get(right) ?? 0
+          : 1_000_000 + rightEntry.completedOrder;
+        return rightOrder - leftOrder;
+      })
+      .slice(0, safeLimit);
+  }
+
+  requestQuestStart(
+    questId: string,
+    day: number | null = null,
+    time: number | null = null,
+  ): boolean {
+    const definition = this.requireDefinition(questId);
+    const entry = this.requireEntry(questId);
+    if (!["available", "abandoned"].includes(entry.state)) return false;
+    if (entry.state === "abandoned" && !definition.canReaccept) return false;
+    if (this.pendingQuestStarts.has(questId)) return false;
+
+    const delaySeconds = Number.isFinite(definition.startDelaySeconds)
+      ? Math.max(0, definition.startDelaySeconds ?? 0)
+      : 0;
+    if (delaySeconds <= 0) return this.startQuest(questId, day, time);
+
+    this.pendingQuestStarts.add(questId);
+    const start = () => {
+      this.pendingQuestStarts.delete(questId);
+      this.startQuest(questId, day, time);
+    };
+    if (this.host.scheduleQuestStart) {
+      this.host.scheduleQuestStart(delaySeconds * 1000, start);
+    } else {
+      globalThis.setTimeout(start, delaySeconds * 1000);
+    }
     return true;
   }
 
@@ -273,7 +340,7 @@ export class QuestRuntimeManager {
       if (definition.grantMethod !== "automatic") continue;
       const entry = this.requireEntry(definition.id);
       if (entry.state !== "available") continue;
-      if (this.startQuest(definition.id, day, time)) started.push(definition.id);
+      if (this.requestQuestStart(definition.id, day, time)) started.push(definition.id);
     }
     return started;
   }
@@ -283,6 +350,8 @@ export class QuestRuntimeManager {
     const entry = this.requireEntry(questId);
     if (entry.state === "completed") return false;
     entry.state = "completed";
+    this.saveData.completionSequence = (this.saveData.completionSequence ?? 0) + 1;
+    entry.completedOrder = this.saveData.completionSequence;
     if (!entry.rewardClaimed) {
       if (definition.rewardItemId && (definition.rewardItemAmount ?? 0) > 0)
         this.host.giveItem?.(definition.rewardItemId, definition.rewardItemAmount ?? 0);
@@ -501,11 +570,13 @@ export class QuestRuntimeManager {
     entry: QuestRuntimeEntry,
     objectiveId: string,
   ) {
+    const objective = this.findObjective(definition, objectiveId);
     this.host.onObjectiveCompleted?.(
       definition.id,
       objectiveId,
       entry.currentStageId,
       structuredClone(entry),
+      structuredClone(objective),
     );
   }
 

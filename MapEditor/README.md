@@ -59,6 +59,19 @@ Included in version 1:
   active `QUEST_...` quest. Quest choices are loaded from
   `public/quests/quest-data.json`; the interaction is enabled only while that
   quest is accepted and currently active.
+- Story Trigger polygons reuse the same requirements and completion-effects
+  editor. Their automatic entry trigger can be gated by survival meters,
+  inventory items, chapter, active quest, quest stage, and daily/one-time use.
+  After the story dialogue completes, the same configuration can change
+  survival meters, advance game time, grant inventory or world items, and
+  record the configured usage limit. Entry is checked exactly once. While the
+  player remains inside an ineligible zone there is no polling; inventory,
+  survival, chapter, quest-stage, or usage state changes request one contact
+  recheck, and the story starts if that single check finds the player inside.
+- 劇情觸發區主設定提供 `觸發延遲（秒）`，預設為 0；「需求與完成效果」
+  視窗可設定指定任務必須處於已完成、進行中、可啟動等狀態，並在
+  `任務啟動` 頁籤複選對話完整結束後要提出啟動的任務。這一階段僅建立
+  可儲存的場景資料與編輯介面，實際延遲及任務派發流程由遊戲端接線。
 - 任務階段需求同樣從 `quest-data.json` 讀取 Quest 與 Stage，可設定
   `CurrentStageOnly`（僅指定階段）、`UnlockFromStage`（到達後持續啟用）
   或 `UnlockUntilCondition`（到達後啟用，直到另一個任務階段成立）。

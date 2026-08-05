@@ -1231,27 +1231,51 @@ html.dialogue-cursor-active .dialogue-box * {
   transform: translateY(-50%) rotate(180deg);
 }
 
-.quest-hud.is-empty .quest-header {
-  padding-right: 14px;
+.quest-hud.is-history .quest-type-icon {
+  border-color: rgba(173, 184, 181, 0.32);
+  color: rgba(191, 201, 198, 0.74);
+  box-shadow: none;
 }
 
-.quest-hud.is-empty .quest-header strong {
-  color: rgba(224, 231, 228, 0.78);
-  font-weight: 550;
+.quest-hud.is-history .quest-header small,
+.quest-hud.is-history .quest-header strong {
+  color: rgba(190, 201, 198, 0.72);
 }
 
-.quest-hud.is-empty .quest-collapse {
-  cursor: default;
+.quest-history {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px 15px;
 }
 
-.quest-hud.is-empty .quest-collapse:hover,
-.quest-hud.is-empty .quest-collapse:focus-visible {
-  border-color: transparent;
-  background: transparent;
+.quest-history-item {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 26px;
 }
 
-.quest-hud.is-empty .quest-collapse span {
-  display: none;
+.quest-history-check {
+  color: rgba(164, 175, 172, 0.7);
+  font-size: 21px;
+  line-height: 1;
+  text-align: center;
+}
+
+.quest-history-title {
+  overflow: hidden;
+  color: rgba(178, 188, 185, 0.74);
+  font-size: 17px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quest-history-empty {
+  margin: 0;
+  color: rgba(164, 175, 172, 0.58);
+  font-size: 16px;
 }
 
 .quest-objectives {

@@ -102,6 +102,35 @@ test("quest requirements only pass while the quest is active", () => {
   );
 });
 
+test("quest-state requirements preserve completed state and evaluate once on demand", () => {
+  const requirements = normalizeInteractionUseRequirements(
+    [{
+      kind: "questState",
+      questId: " QUEST_CH03_MAIN_001 ",
+      questState: "completed",
+    }],
+    () => null,
+  );
+
+  assert.deepEqual(requirements, [{
+    kind: "questState",
+    questId: "QUEST_CH03_MAIN_001",
+    questState: "completed",
+  }]);
+  assert.deepEqual(
+    getUnmetInteractionUseRequirements(
+      requirements,
+      {},
+      3,
+      () => false,
+      () => false,
+      (questId, state) =>
+        questId === "QUEST_CH03_MAIN_001" && state === "completed",
+    ),
+    [],
+  );
+});
+
 test("multiple interaction rewards normalize independently and support legacy data", () => {
   const itemIds = new Map([
     ["ration", "R0003"],

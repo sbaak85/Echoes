@@ -18,6 +18,11 @@ public sealed class SurvivalEffectEditorForm : Form
             Kind = "questStage",
             StageMode = "CurrentStageOnly",
         };
+        public InteractionUseRequirement StateRequirement { get; set; } = new()
+        {
+            Kind = "questState",
+            QuestState = "completed",
+        };
         public Button Remove { get; } = CreateButton("×", 0, 0, 32, 28);
     }
 
@@ -88,6 +93,13 @@ public sealed class SurvivalEffectEditorForm : Form
     };
     private readonly List<RewardControls> _rewardRows = new();
     private bool _rewardsExpanded;
+    private readonly CheckedListBox _startQuestList = new()
+    {
+        CheckOnClick = true,
+        BackColor = Color.FromArgb(19, 22, 27),
+        ForeColor = Color.FromArgb(226, 230, 234),
+        BorderStyle = BorderStyle.FixedSingle,
+    };
     private readonly InteractionTypeDefaults _defaults;
 
     public SurvivalRequirements Requirements => new()
@@ -122,6 +134,12 @@ public sealed class SurvivalEffectEditorForm : Form
     public List<InteractionItemReward> ItemRewards =>
         _rewardRows.Select(ReadReward).ToList();
 
+    public List<string> StartQuestIds =>
+        _startQuestList.CheckedItems
+            .Cast<QuestCatalogEntry>()
+            .Select(quest => quest.Id)
+            .ToList();
+
     public SurvivalEffectEditorForm(
         string interactionType,
         SurvivalRequirements requirements,
@@ -130,7 +148,9 @@ public sealed class SurvivalEffectEditorForm : Form
         string? interactionLimitMode,
         IEnumerable<InteractionUseRequirement>? useRequirements,
         IEnumerable<InteractionItemReward>? itemRewards,
-        IEnumerable<QuestCatalogEntry>? quests)
+        IEnumerable<QuestCatalogEntry>? quests,
+        IEnumerable<string>? startQuestIds = null,
+        bool showQuestStartOptions = false)
     {
         SuspendLayout();
         SetStyle(
@@ -141,14 +161,22 @@ public sealed class SurvivalEffectEditorForm : Form
         var useRequirementList = useRequirements?
             .Select(requirement => requirement.Clone())
             .ToList() ?? new List<InteractionUseRequirement>();
+        var configuredStartQuestIds = (startQuestIds ?? Array.Empty<string>())
+            .Select(questId => questId.Trim())
+            .Where(questId => questId.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         var questList = (quests ?? Array.Empty<QuestCatalogEntry>())
             .Concat(useRequirementList
                 .Where(requirement =>
-                    requirement.Kind.Equals("quest", StringComparison.OrdinalIgnoreCase) &&
+                    (requirement.Kind.Equals("quest", StringComparison.OrdinalIgnoreCase) ||
+                     requirement.Kind.Equals("questState", StringComparison.OrdinalIgnoreCase)) &&
                     !string.IsNullOrWhiteSpace(requirement.QuestId))
                 .Select(requirement => new QuestCatalogEntry(
                     requirement.QuestId.Trim(),
                     "（目前場景使用中）")))
+            .Concat(configuredStartQuestIds.Select(questId =>
+                new QuestCatalogEntry(questId, "（資料庫中未找到）")))
             .GroupBy(quest => quest.Id, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .OrderBy(quest => quest.Id, StringComparer.OrdinalIgnoreCase)
@@ -164,6 +192,7 @@ public sealed class SurvivalEffectEditorForm : Form
             .Select(item => new UseRequirementChoice("item", item.Id, $"道具｜{item.Name}"))
             .Append(new UseRequirementChoice("chapter", "chapter", "進度｜當前章節"))
             .Append(new UseRequirementChoice("quest", "quest", "進度｜需求任務"))
+            .Append(new UseRequirementChoice("questState", "questState", "進度｜任務狀態"))
             .Append(new UseRequirementChoice("questStage", "questStage", "進度｜任務階段"))
             .ToArray();
         _useRequirementComboItems = _useRequirementChoiceItems.Cast<object>().ToArray();
@@ -187,11 +216,15 @@ public sealed class SurvivalEffectEditorForm : Form
         };
         var requirementPage = CreateTab("使用需求");
         var effectPage = CreateTab("完成效果");
+        var questStartPage = showQuestStartOptions
+            ? CreateTab("任務啟動")
+            : null;
         tabs.SuspendLayout();
         requirementPage.SuspendLayout();
         effectPage.SuspendLayout();
         tabs.TabPages.Add(requirementPage);
         tabs.TabPages.Add(effectPage);
+        if (questStartPage is not null) tabs.TabPages.Add(questStartPage);
         Controls.Add(tabs);
 
         BuildRequirementsPage(
@@ -204,6 +237,10 @@ public sealed class SurvivalEffectEditorForm : Form
             dailyLimit,
             interactionLimitMode,
             itemRewards?.Select(reward => reward.Clone()).ToList() ?? new());
+        if (questStartPage is not null)
+        {
+            BuildQuestStartPage(questStartPage, configuredStartQuestIds);
+        }
 
         var cancelButton = CreateButton("取消", 326, 710, 82, 34);
         cancelButton.DialogResult = DialogResult.Cancel;
@@ -334,14 +371,14 @@ public sealed class SurvivalEffectEditorForm : Form
             .Select((choice, index) => new { choice, index })
             .FirstOrDefault(entry =>
                 entry.choice.Kind.Equals(requirement.Kind, StringComparison.OrdinalIgnoreCase) &&
-                (entry.choice.Kind is "chapter" or "quest" or "questStage" ||
+                (entry.choice.Kind is "chapter" or "quest" or "questState" or "questStage" ||
                  entry.choice.Kind == "item" &&
                  entry.choice.Id.Equals(requirement.ItemId, StringComparison.OrdinalIgnoreCase)))
             ?.index ?? 0;
         controls.Target.EndUpdate();
         controls.Amount.SetBounds(190, 5, 136, 28);
         controls.StageSettings.SetBounds(190, 5, 136, 28);
-        controls.StageSettings.Click += (_, _) => EditStageRequirement(controls);
+        controls.StageSettings.Click += (_, _) => EditSpecialRequirement(controls);
         ConfigureRequirementAmount(controls, requirement);
         controls.Target.SelectedIndexChanged += (_, _) =>
             ConfigureRequirementAmount(controls, null);
@@ -401,6 +438,22 @@ public sealed class SurvivalEffectEditorForm : Form
             controls.StageSettings.Visible = true;
             RefreshStageRequirementButton(controls);
         }
+        else if (choice.Kind == "questState")
+        {
+            controls.StateRequirement = existing?.Kind.Equals(
+                "questState",
+                StringComparison.OrdinalIgnoreCase) == true
+                ? existing.Clone()
+                : new InteractionUseRequirement
+                {
+                    Kind = "questState",
+                    QuestId = _quests.FirstOrDefault()?.Id ?? "",
+                    QuestState = "completed",
+                };
+            controls.Amount.Visible = false;
+            controls.StageSettings.Visible = true;
+            RefreshStateRequirementButton(controls);
+        }
         else if (choice.Kind == "quest")
         {
             controls.Amount.Visible = true;
@@ -448,6 +501,8 @@ public sealed class SurvivalEffectEditorForm : Form
         var selectedQuest = controls.Amount.SelectedItem as UseRequirementChoice;
         return choice.Kind == "questStage"
             ? controls.StageRequirement.Clone()
+            : choice.Kind == "questState"
+            ? controls.StateRequirement.Clone()
             : choice.Kind == "quest"
             ? new InteractionUseRequirement
             {
@@ -468,6 +523,17 @@ public sealed class SurvivalEffectEditorForm : Form
             };
     }
 
+    private void EditSpecialRequirement(UseRequirementControls controls)
+    {
+        var choice = controls.Target.SelectedItem as UseRequirementChoice;
+        if (choice?.Kind == "questState")
+        {
+            EditStateRequirement(controls);
+            return;
+        }
+        EditStageRequirement(controls);
+    }
+
     private void EditStageRequirement(UseRequirementControls controls)
     {
         using var editor = new QuestStageRequirementEditorForm(_quests, controls.StageRequirement);
@@ -476,12 +542,37 @@ public sealed class SurvivalEffectEditorForm : Form
         RefreshStageRequirementButton(controls);
     }
 
+    private void EditStateRequirement(UseRequirementControls controls)
+    {
+        using var editor = new QuestStateRequirementEditorForm(_quests, controls.StateRequirement);
+        if (editor.ShowDialog(this) != DialogResult.OK) return;
+        controls.StateRequirement = editor.Requirement;
+        RefreshStateRequirementButton(controls);
+    }
+
     private static void RefreshStageRequirementButton(UseRequirementControls controls)
     {
         var requirement = controls.StageRequirement;
         controls.StageSettings.Text = string.IsNullOrWhiteSpace(requirement.StageId)
             ? "設定…"
             : $"{ModeShortLabel(requirement.StageMode)}｜{requirement.StageId}";
+    }
+
+    private static void RefreshStateRequirementButton(UseRequirementControls controls)
+    {
+        var requirement = controls.StateRequirement;
+        var state = requirement.QuestState switch
+        {
+            "locked" => "未解鎖",
+            "available" => "可啟動",
+            "active" => "進行中",
+            "failed" => "失敗",
+            "abandoned" => "已放棄",
+            _ => "已完成",
+        };
+        controls.StageSettings.Text = string.IsNullOrWhiteSpace(requirement.QuestId)
+            ? "設定任務狀態…"
+            : $"{state}｜{requirement.QuestId}";
     }
 
     private static string ModeShortLabel(string mode) => mode switch
@@ -639,6 +730,50 @@ public sealed class SurvivalEffectEditorForm : Form
         _rewardRows.Add(controls);
         _rewardList.Controls.Add(controls.Row);
         if (refreshLayout) RefreshRewardLayout();
+    }
+
+    private void BuildQuestStartPage(
+        Control page,
+        IReadOnlyCollection<string> configuredQuestIds)
+    {
+        var explanation = new Label
+        {
+            Text = "劇情對話確實播放完成後，才會向任務系統提出啟動下列任務。任務本身若設定啟動延遲，會再完成該段倒數才正式啟動。",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(154, 166, 177),
+        };
+        explanation.SetBounds(18, 18, 410, 58);
+        page.Controls.Add(explanation);
+
+        var heading = new Label
+        {
+            Text = "完成後啟動任務（可複選）",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(196, 209, 221),
+        };
+        heading.SetBounds(18, 84, 410, 26);
+        page.Controls.Add(heading);
+
+        _startQuestList.SetBounds(18, 114, 410, 470);
+        _startQuestList.Items.AddRange(_quests.Cast<object>().ToArray());
+        for (var index = 0; index < _startQuestList.Items.Count; index++)
+        {
+            if (_startQuestList.Items[index] is QuestCatalogEntry quest &&
+                configuredQuestIds.Contains(quest.Id, StringComparer.OrdinalIgnoreCase))
+            {
+                _startQuestList.SetItemChecked(index, true);
+            }
+        }
+        page.Controls.Add(_startQuestList);
+
+        var hint = new Label
+        {
+            Text = "未勾選任何任務時，劇情區只播放腳本並結算其他完成效果。",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(129, 222, 211),
+        };
+        hint.SetBounds(18, 596, 410, 42);
+        page.Controls.Add(hint);
     }
 
     private void RemoveRewardRow(RewardControls controls)

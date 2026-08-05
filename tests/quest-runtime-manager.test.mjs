@@ -91,6 +91,33 @@ test("quest save restores progress without copying definitions", () => {
   assert.equal(restored.getQuestState("QUEST_TEST"), "active");
 });
 
+test("completed quest history keeps the latest three completion order", () => {
+  const historyDocument = structuredClone(document);
+  historyDocument.quests = ["A", "B", "C", "D"].map((suffix) => {
+    const quest = structuredClone(document.quests[0]);
+    quest.id = `QUEST_${suffix}`;
+    quest.name = `任務 ${suffix}`;
+    quest.stages = [];
+    quest.rewardItemId = "";
+    quest.rewardItemAmount = 0;
+    return quest;
+  });
+  const manager = new QuestRuntimeManager(historyDocument);
+  for (const questId of ["QUEST_B", "QUEST_D", "QUEST_A", "QUEST_C"]) {
+    manager.completeQuest(questId);
+  }
+
+  assert.deepEqual(
+    manager.getCompletedQuestIds(3),
+    ["QUEST_C", "QUEST_A", "QUEST_D"],
+  );
+  const restored = new QuestRuntimeManager(historyDocument, {}, manager.exportSave());
+  assert.deepEqual(
+    restored.getCompletedQuestIds(3),
+    ["QUEST_C", "QUEST_A", "QUEST_D"],
+  );
+});
+
 test("available automatic quests are truly accepted by the reusable grant pass", () => {
   const manager = new QuestRuntimeManager(document);
   assert.deepEqual(manager.startAvailableAutomaticQuests(3, 420), ["QUEST_TEST"]);
@@ -99,6 +126,30 @@ test("available automatic quests are truly accepted by the reusable grant pass",
   assert.equal(entry.startedAtDay, 3);
   assert.equal(entry.startedAtTime, 420);
   assert.deepEqual(manager.startAvailableAutomaticQuests(3, 421), []);
+});
+
+test("quest start requests wait for the configured real-time delay", () => {
+  const delayedDocument = structuredClone(document);
+  delayedDocument.quests[0].startDelaySeconds = 1;
+  let scheduledDelay = null;
+  let scheduledStart = null;
+  const manager = new QuestRuntimeManager(delayedDocument, {
+    scheduleQuestStart: (delayMilliseconds, start) => {
+      scheduledDelay = delayMilliseconds;
+      scheduledStart = start;
+    },
+  });
+
+  assert.equal(manager.requestQuestStart("QUEST_TEST", 3, 480), true);
+  assert.equal(manager.getQuestState("QUEST_TEST"), "available");
+  assert.equal(scheduledDelay, 1000);
+  assert.equal(manager.requestQuestStart("QUEST_TEST", 3, 480), false);
+
+  scheduledStart();
+  assert.equal(manager.getQuestState("QUEST_TEST"), "active");
+  const entry = manager.exportSave().quests.QUEST_TEST;
+  assert.equal(entry.startedAtDay, 3);
+  assert.equal(entry.startedAtTime, 480);
 });
 
 test("compound item objective requires every configured item and ignores duplicate events", () => {
@@ -178,9 +229,18 @@ test("stage transition waits for the UI handoff and objective completion signals
   const completedObjectives = [];
   const transitions = [];
   let finishTransition = null;
-  const manager = new QuestRuntimeManager(document, {
-    onObjectiveCompleted: (questId, objectiveId, stageId) => {
-      completedObjectives.push([questId, objectiveId, stageId]);
+  const completionDocument = structuredClone(document);
+  completionDocument.quests[0].stages[0].objectives[0].completionInterfaceAction = "close";
+  completionDocument.quests[0].stages[0].objectives[0].completionInterfaceId = "Inventory";
+  const manager = new QuestRuntimeManager(completionDocument, {
+    onObjectiveCompleted: (questId, objectiveId, stageId, _entry, objective) => {
+      completedObjectives.push([
+        questId,
+        objectiveId,
+        stageId,
+        objective.completionInterfaceAction,
+        objective.completionInterfaceId,
+      ]);
     },
     onStageTransitionStarted: (questId, currentStageId, nextStageId, _entry, complete) => {
       transitions.push([questId, currentStageId, nextStageId]);
@@ -192,7 +252,7 @@ test("stage transition waits for the UI handoff and objective completion signals
   manager.handleEvent({ type: "itemCollected", targetId: "R0001", amount: 2 });
 
   assert.deepEqual(completedObjectives, [
-    ["QUEST_TEST", "QUEST_TEST_OBJ_01", "QUEST_TEST_STAGE_01"],
+    ["QUEST_TEST", "QUEST_TEST_OBJ_01", "QUEST_TEST_STAGE_01", "close", "Inventory"],
   ]);
   assert.deepEqual(transitions, [
     ["QUEST_TEST", "QUEST_TEST_STAGE_01", "QUEST_TEST_STAGE_02"],

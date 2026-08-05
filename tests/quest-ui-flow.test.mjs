@@ -30,13 +30,27 @@ test("inventory opening and successful item use publish quest events", () => {
   assert.match(source, /startAvailableAutomaticQuests\(/);
 });
 
+test("objective completion can open or close registered interfaces once", () => {
+  const completionHandler = source.slice(
+    source.indexOf("onObjectiveCompleted:"),
+    source.indexOf("onStageTransitionStarted:"),
+  );
+  assert.match(completionHandler, /completionInterfaceAction !== "none"/);
+  assert.match(completionHandler, /window\.queueMicrotask/);
+  assert.match(completionHandler, /case "Inventory":[\s\S]*setInventoryPanelOpen\(open\)/);
+  assert.match(completionHandler, /case "Options":[\s\S]*setOptionsPanelOpen\(open\)/);
+});
+
 test("objective completion and delayed next-stage visuals are wired", () => {
   assert.match(source, /kind:\s*"next"/);
   assert.match(source, /}, 3000\);/);
   assert.match(source, /is-completion-pop/);
   assert.match(styles, /quest-objective-completion-pop/);
   assert.match(styles, /quest-header-next-glow/);
-  assert.match(source, /\[questPanelCollapsed, activeQuestHud\?\.stageId\]/);
+  assert.match(
+    source,
+    /\[questPanelCollapsed, activeQuestHud\?\.stageId, completedQuestHistory\.length\]/,
+  );
   assert.match(source, /questStageEntering\s*\?\s*" is-stage-entering"/);
   assert.match(source, /key=\{activeQuestHud!\.stageId\}/);
   assert.match(
@@ -136,9 +150,22 @@ test("gameplay HUD shortcuts map Q and RB to quest, R and LB to survival", () =>
   assert.match(source, /if \(key === "q"\) toggleQuestPanel\(\);\s*else toggleSurvivalPanel\(\);/);
   assert.match(source, /leftBumperJustPressed\) \{\s*toggleSurvivalPanel\(\);/);
   assert.match(source, /rightBumperJustPressed\) \{\s*toggleQuestPanel\(\);/);
-  assert.match(source, /const toggleQuestPanel = \(\) => \{\s*if \(!hasActiveQuestRef\.current\) return;/);
+  assert.match(source, /const toggleQuestPanel = \(\) => \{\s*setQuestCollapsed\(\(current\) => !current\);/);
+  assert.doesNotMatch(source, /if \(!hasActiveQuestRef\.current\) return/);
   assert.match(source, /aria-keyshortcuts="Q"/);
   assert.match(source, /aria-keyshortcuts="R"/);
+});
+
+test("empty quest HUD expands into a three-item completed history", () => {
+  assert.match(source, /const questPanelCollapsed = questCollapsed/);
+  assert.match(source, /manager\.getCompletedQuestIds\(3\)/);
+  assert.match(source, /className="quest-history"/);
+  assert.match(source, /className="quest-history-check"[^>]*>☑</);
+  assert.match(source, /className="quest-history-title"/);
+  assert.match(source, /尚無已完成的任務/);
+  assert.doesNotMatch(source, /aria-disabled=\{!hasActiveQuest\}/);
+  assert.match(styles, /\.quest-history-check\s*{[\s\S]*?rgba\(164, 175, 172, 0\.7\)/);
+  assert.match(styles, /\.quest-history-title\s*{[\s\S]*?rgba\(178, 188, 185, 0\.74\)/);
 });
 
 test("visible black screen absorbs pointer input and blocks world actions", () => {

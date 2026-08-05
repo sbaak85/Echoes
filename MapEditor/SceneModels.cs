@@ -121,7 +121,20 @@ public sealed class WorldLayout
     public int Layer { get; set; }
 }
 
-public sealed class SceneInteractable
+public interface ITriggerConfiguration
+{
+    string Id { get; }
+    SurvivalRequirements SurvivalRequirements { get; set; }
+    SurvivalEffects SurvivalEffects { get; set; }
+    int? DailyInteractionLimit { get; set; }
+    string? InteractionLimitMode { get; set; }
+    List<InteractionItemReward>? ItemRewards { get; set; }
+    InteractionItemReward? ItemReward { get; set; }
+    List<InteractionUseRequirement>? UseRequirements { get; set; }
+    void NormalizeItemRewards();
+}
+
+public sealed class SceneInteractable : ITriggerConfiguration
 {
     public string Id { get; set; } = "";
     public string Label { get; set; } = "Interactable";
@@ -321,6 +334,8 @@ public sealed class InteractionUseRequirement
     public string Kind { get; set; } = "item";
     public string ItemId { get; set; } = "";
     public string QuestId { get; set; } = "";
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? QuestState { get; set; }
     public string StageId { get; set; } = "";
     public string StageMode { get; set; } = "CurrentStageOnly";
     public string DisableQuestId { get; set; } = "";
@@ -333,6 +348,7 @@ public sealed class InteractionUseRequirement
         Kind = Kind,
         ItemId = ItemId,
         QuestId = QuestId,
+        QuestState = QuestState,
         StageId = StageId,
         StageMode = StageMode,
         DisableQuestId = DisableQuestId,
@@ -567,13 +583,54 @@ public sealed class MovementGuide
     public bool Bidirectional { get; set; } = true;
 }
 
-public sealed class StoryTriggerZone
+public sealed class StoryTriggerZone : ITriggerConfiguration
 {
     public string Id { get; set; } = "";
     public string Label { get; set; } = "劇情觸發區";
     public List<ScenePoint> Points { get; set; } = new();
     public bool Once { get; set; } = true;
     public string DialogueId { get; set; } = "";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public float TriggerDelaySeconds { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? StartQuestIds { get; set; }
+
+    public SurvivalRequirements SurvivalRequirements { get; set; } = new();
+    public SurvivalEffects SurvivalEffects { get; set; } = new();
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? DailyInteractionLimit { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? InteractionLimitMode { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<InteractionItemReward>? ItemRewards { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public InteractionItemReward? ItemReward { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<InteractionUseRequirement>? UseRequirements { get; set; }
+
+    public List<InteractionItemReward> EnsureItemRewards()
+    {
+        ItemRewards ??= new List<InteractionItemReward>();
+        if (ItemReward is not null)
+        {
+            ItemRewards.Insert(0, ItemReward);
+            ItemReward = null;
+        }
+        return ItemRewards;
+    }
+
+    public void NormalizeItemRewards()
+    {
+        if (ItemReward is not null) EnsureItemRewards();
+        if (ItemRewards is { Count: 0 }) ItemRewards = null;
+    }
 }
 
 public sealed class SceneConnection
@@ -843,6 +900,19 @@ public static class SceneJson
                 ? "劇情觸發區"
                 : trigger.Label.Trim();
             trigger.DialogueId = trigger.DialogueId?.Trim() ?? "";
+            trigger.TriggerDelaySeconds = Math.Clamp(trigger.TriggerDelaySeconds, 0, 3600);
+            trigger.StartQuestIds = trigger.StartQuestIds?
+                .Select(questId => questId.Trim())
+                .Where(questId => questId.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (trigger.StartQuestIds is { Count: 0 }) trigger.StartQuestIds = null;
+            if (trigger.Once)
+            {
+                trigger.InteractionLimitMode = "once";
+            }
+            NormalizeTriggerConfiguration(trigger, "Story trigger");
+            trigger.Once = trigger.InteractionLimitMode == "once";
         }
 
         foreach (var itemPoint in document.ItemPoints)
@@ -921,6 +991,188 @@ public static class SceneJson
                 ? "atMost"
                 : "atLeast";
         rule.Value = Math.Clamp(rule.Value, 0, 100);
+    }
+
+    private static void NormalizeTriggerConfiguration(
+        ITriggerConfiguration trigger,
+        string ownerLabel)
+    {
+        trigger.SurvivalRequirements ??= new SurvivalRequirements();
+        trigger.SurvivalEffects ??= new SurvivalEffects();
+        trigger.SurvivalRequirements.Mode = "any".Equals(
+            trigger.SurvivalRequirements.Mode,
+            StringComparison.OrdinalIgnoreCase)
+            ? "any"
+            : "all";
+        NormalizeRequirement(trigger.SurvivalRequirements.Stamina);
+        NormalizeRequirement(trigger.SurvivalRequirements.Hunger);
+        NormalizeRequirement(trigger.SurvivalRequirements.Thirst);
+        NormalizeRequirement(trigger.SurvivalRequirements.Spirit);
+        trigger.SurvivalEffects.TimeMinutes = Math.Clamp(
+            trigger.SurvivalEffects.TimeMinutes,
+            0,
+            7 * 24 * 60);
+        trigger.InteractionLimitMode = "once".Equals(
+            trigger.InteractionLimitMode,
+            StringComparison.OrdinalIgnoreCase)
+            ? "once"
+            : null;
+        trigger.DailyInteractionLimit = trigger.InteractionLimitMode == "once"
+            ? null
+            : trigger.DailyInteractionLimit is null
+                ? null
+                : Math.Clamp(trigger.DailyInteractionLimit.Value, 1, 10);
+
+        trigger.NormalizeItemRewards();
+        if (trigger.ItemRewards is { Count: > 0 })
+        {
+            foreach (var reward in trigger.ItemRewards)
+            {
+                var rewardItem = ItemCatalog.Find(reward.ItemId);
+                if (rewardItem is null)
+                {
+                    throw new InvalidDataException(
+                        $"{ownerLabel} {trigger.Id} has an unknown item reward: {reward.ItemId}.");
+                }
+                reward.ItemId = rewardItem.Id;
+                reward.Quantity = Math.Clamp(reward.Quantity, 1, 99);
+                reward.Delivery = reward.Delivery.Equals(
+                    "world",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "world"
+                    : "inventory";
+            }
+        }
+
+        if (trigger.UseRequirements is not { Count: > 0 })
+        {
+            trigger.UseRequirements = null;
+            return;
+        }
+
+        foreach (var requirement in trigger.UseRequirements)
+        {
+            requirement.Kind = requirement.Kind.Equals(
+                "chapter",
+                StringComparison.OrdinalIgnoreCase)
+                ? "chapter"
+                : requirement.Kind.Equals(
+                    "quest",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "quest"
+                    : requirement.Kind.Equals(
+                        "questState",
+                        StringComparison.OrdinalIgnoreCase)
+                        ? "questState"
+                        : requirement.Kind.Equals(
+                        "questStage",
+                        StringComparison.OrdinalIgnoreCase)
+                        ? "questStage"
+                        : "item";
+            if (requirement.Kind == "chapter")
+            {
+                requirement.ItemId = "";
+                requirement.QuestId = "";
+                requirement.QuestState = null;
+                requirement.StageId = "";
+                requirement.DisableQuestId = "";
+                requirement.DisableStageId = "";
+                requirement.Chapter = Math.Clamp(requirement.Chapter, 1, 99);
+                requirement.Quantity = 1;
+                continue;
+            }
+            if (requirement.Kind == "quest")
+            {
+                requirement.ItemId = "";
+                requirement.QuestId = requirement.QuestId.Trim();
+                requirement.QuestState = null;
+                requirement.StageId = "";
+                requirement.DisableQuestId = "";
+                requirement.DisableStageId = "";
+                requirement.Quantity = 1;
+                requirement.Chapter = 1;
+                if (requirement.QuestId.Length == 0)
+                {
+                    throw new InvalidDataException(
+                        $"{ownerLabel} {trigger.Id} has an empty quest requirement.");
+                }
+                continue;
+            }
+            if (requirement.Kind == "questState")
+            {
+                requirement.ItemId = "";
+                requirement.QuestId = requirement.QuestId.Trim();
+                requirement.QuestState = requirement.QuestState switch
+                {
+                    "locked" => "locked",
+                    "available" => "available",
+                    "active" => "active",
+                    "failed" => "failed",
+                    "abandoned" => "abandoned",
+                    _ => "completed",
+                };
+                requirement.StageId = "";
+                requirement.DisableQuestId = "";
+                requirement.DisableStageId = "";
+                requirement.Quantity = 1;
+                requirement.Chapter = 1;
+                if (requirement.QuestId.Length == 0)
+                {
+                    throw new InvalidDataException(
+                        $"{ownerLabel} {trigger.Id} has an empty quest-state requirement.");
+                }
+                continue;
+            }
+            if (requirement.Kind == "questStage")
+            {
+                requirement.ItemId = "";
+                requirement.QuestId = requirement.QuestId.Trim();
+                requirement.QuestState = null;
+                requirement.StageId = requirement.StageId.Trim();
+                requirement.StageMode = requirement.StageMode switch
+                {
+                    "UnlockFromStage" => "UnlockFromStage",
+                    "UnlockUntilCondition" => "UnlockUntilCondition",
+                    _ => "CurrentStageOnly",
+                };
+                requirement.DisableQuestId = requirement.DisableQuestId.Trim();
+                requirement.DisableStageId = requirement.DisableStageId.Trim();
+                requirement.Quantity = 1;
+                requirement.Chapter = 1;
+                if (requirement.QuestId.Length == 0 || requirement.StageId.Length == 0)
+                {
+                    throw new InvalidDataException(
+                        $"{ownerLabel} {trigger.Id} has an incomplete quest-stage requirement.");
+                }
+                if (requirement.StageMode == "UnlockUntilCondition" &&
+                    (requirement.DisableQuestId.Length == 0 || requirement.DisableStageId.Length == 0))
+                {
+                    throw new InvalidDataException(
+                        $"{ownerLabel} {trigger.Id} has an incomplete disable-stage condition.");
+                }
+                if (requirement.StageMode != "UnlockUntilCondition")
+                {
+                    requirement.DisableQuestId = "";
+                    requirement.DisableStageId = "";
+                }
+                continue;
+            }
+
+            var requiredItem = ItemCatalog.Find(requirement.ItemId);
+            if (requiredItem is null)
+            {
+                throw new InvalidDataException(
+                    $"{ownerLabel} {trigger.Id} has an unknown item requirement: {requirement.ItemId}.");
+            }
+            requirement.ItemId = requiredItem.Id;
+            requirement.QuestId = "";
+            requirement.QuestState = null;
+            requirement.StageId = "";
+            requirement.DisableQuestId = "";
+            requirement.DisableStageId = "";
+            requirement.Quantity = Math.Clamp(requirement.Quantity, 1, 99);
+            requirement.Chapter = 1;
+        }
     }
 
     private static void NormalizeDialogue(DialogueScript dialogue, string defaultText)

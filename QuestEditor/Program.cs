@@ -97,7 +97,13 @@ internal static class Program
     private static void RunSelfTest(string projectRoot)
     {
         var source = QuestDataStore.CreateDefault();
-        var quest = new QuestDefinition { Id = "QUEST_TEST", Name = "測試任務", ChapterId = "CH03" };
+        var quest = new QuestDefinition
+        {
+            Id = "QUEST_TEST",
+            Name = "測試任務",
+            ChapterId = "CH03",
+            StartDelaySeconds = 1.5,
+        };
         var stage = new QuestStageDefinition { Id = "QUEST_TEST_STAGE_01", Name = "測試階段" };
         stage.Objectives.Add(new QuestObjectiveDefinition
         {
@@ -106,13 +112,19 @@ internal static class Program
             Type = ObjectiveType.CollectItem,
             TargetId = "R0001",
             RequiredAmount = 3,
+            CompletionInterfaceAction = CompletionInterfaceAction.Close,
+            CompletionInterfaceId = "Inventory",
         });
         quest.Stages.Add(stage);
         source.Quests.Add(quest);
         var path = Path.Combine(Path.GetTempPath(), "EchoesQuestEditor", "quest-data.json");
         QuestDataStore.Save(path, source);
         var loaded = QuestDataStore.Load(path);
-        if (loaded.Quests.Count != 1 || loaded.Quests[0].Stages[0].Objectives[0].RequiredAmount != 3)
+        if (loaded.Quests.Count != 1 ||
+            loaded.Quests[0].Stages[0].Objectives[0].RequiredAmount != 3 ||
+            loaded.Quests[0].Stages[0].Objectives[0].CompletionInterfaceAction != CompletionInterfaceAction.Close ||
+            loaded.Quests[0].Stages[0].Objectives[0].CompletionInterfaceId != "Inventory" ||
+            Math.Abs(loaded.Quests[0].StartDelaySeconds - 1.5) > 0.001)
             throw new InvalidDataException("任務資料往返測試失敗。");
         var issues = QuestValidator.Validate(loaded, QuestReferenceProvider.Load(projectRoot));
         if (issues.Any(issue => issue.Severity == ValidationSeverity.Error))

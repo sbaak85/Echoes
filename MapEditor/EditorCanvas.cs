@@ -574,7 +574,10 @@ public sealed class EditorCanvas : Control
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void UpdateSelectedStoryTrigger(string dialogueId, bool once)
+    public void UpdateSelectedStoryTrigger(
+        string dialogueId,
+        bool once,
+        float triggerDelaySeconds)
     {
         if (SelectedStoryTrigger is null) return;
         dialogueId = dialogueId.Trim();
@@ -582,7 +585,68 @@ public sealed class EditorCanvas : Control
         {
             SelectedStoryTrigger.DialogueId = dialogueId;
             SelectedStoryTrigger.Once = once;
+            SelectedStoryTrigger.TriggerDelaySeconds = Math.Clamp(
+                triggerDelaySeconds,
+                0,
+                3600);
+            SelectedStoryTrigger.InteractionLimitMode = once ? "once" : null;
+            if (once)
+            {
+                SelectedStoryTrigger.DailyInteractionLimit = null;
+            }
         });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void UpdateSelectedStoryTriggerConfiguration(
+        SurvivalRequirements requirements,
+        SurvivalEffects effects,
+        int? dailyLimit,
+        string? interactionLimitMode,
+        IEnumerable<InteractionUseRequirement> useRequirements,
+        IEnumerable<InteractionItemReward> itemRewards,
+        IEnumerable<string> startQuestIds)
+    {
+        var trigger = SelectedStoryTrigger;
+        if (trigger is null) return;
+        interactionLimitMode = "once".Equals(
+            interactionLimitMode,
+            StringComparison.OrdinalIgnoreCase)
+            ? "once"
+            : null;
+        dailyLimit = interactionLimitMode == "once" || dailyLimit is null
+            ? null
+            : Math.Clamp(dailyLimit.Value, 1, 10);
+        var requirementList = useRequirements
+            .Select(requirement => requirement.Clone())
+            .ToList();
+        var rewardList = itemRewards
+            .Select(reward => reward.Clone())
+            .ToList();
+        var questIdList = startQuestIds
+            .Select(questId => questId.Trim())
+            .Where(questId => questId.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        PerformMutation(() =>
+        {
+            trigger.SurvivalRequirements = requirements.Clone();
+            trigger.SurvivalEffects = effects.Clone();
+            trigger.DailyInteractionLimit = dailyLimit;
+            trigger.InteractionLimitMode = interactionLimitMode;
+            trigger.Once = interactionLimitMode == "once";
+            trigger.UseRequirements = requirementList.Count == 0
+                ? null
+                : requirementList;
+            trigger.ItemRewards = rewardList.Count == 0
+                ? null
+                : rewardList;
+            trigger.ItemReward = null;
+            trigger.StartQuestIds = questIdList.Count == 0
+                ? null
+                : questIdList;
+        });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void UpdateSelectedSurvivalSettings(

@@ -13,7 +13,8 @@ public static class StoryContentCodec
     private const string DataEnd = "CHAPTER_SCRIPT_EDITOR_DATA_END */";
     private const string GeneratedBegin = "// CHAPTER_SCRIPT_EDITOR_GENERATED_BEGIN";
     private const string GeneratedEnd = "// CHAPTER_SCRIPT_EDITOR_GENERATED_END";
-    private const string LowerLeftDialogueAnchor = "export const LOWER_LEFT_STORY_ZONE_DIALOGUE_ID";
+    private const string LegacyLowerLeftDialogueAnchor =
+        "export const LOWER_LEFT_STORY_ZONE_DIALOGUE_ID";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -36,6 +37,7 @@ public static class StoryContentCodec
             var document = JsonSerializer.Deserialize<ChapterScriptDocument>(json, JsonOptions)
                 ?? CreateDefault();
             Normalize(document);
+            MigrateLegacyStoryTriggerDialogue(document, source);
             return document;
         }
         catch (Exception exception) when (
@@ -161,6 +163,23 @@ public static class StoryContentCodec
                     throw new InvalidDataException($"對話段落「{section.Name}」至少需要一句有效文字。");
                 }
             }
+            foreach (var section in chapter.StoryTriggerDialogues)
+            {
+                RequireUniqueId(ids, section.Id, $"劇情多邊形對話「{section.Name}」");
+                if (string.IsNullOrWhiteSpace(section.Name))
+                {
+                    throw new InvalidDataException("劇情多邊形對話名稱不可留空。");
+                }
+                section.Dialogue ??= DialogueScript.CreateDefault();
+                section.Dialogue.Speakers ??= new List<string>();
+                section.Dialogue.Lines ??= new List<DialogueLine>();
+                if (section.Dialogue.Lines.Count == 0 ||
+                    section.Dialogue.Lines.All(line => string.IsNullOrWhiteSpace(line.Text)))
+                {
+                    throw new InvalidDataException(
+                        $"劇情多邊形對話「{section.Name}」至少需要一句有效文字。");
+                }
+            }
         }
     }
 
@@ -236,6 +255,10 @@ public static class StoryContentCodec
                             },
                         },
                     },
+                    StoryTriggerDialogues = new List<DialogueSectionDefinition>
+                    {
+                        CreateLegacyLowerLeftStoryTriggerDialogue(),
+                    },
                 },
             },
         };
@@ -246,12 +269,13 @@ public static class StoryContentCodec
         ChapterScriptDocument document)
     {
         var chaptersJson = JsonSerializer.Serialize(document.Chapters, JsonOptions);
-        builder.AppendLine("export const STORY_CHAPTERS = ");
+        builder.AppendLine("export const STORY_CHAPTERS =");
         builder.Append(chaptersJson);
         builder.AppendLine(" as const;");
         builder.AppendLine();
         builder.AppendLine("export const STORY_DIALOGUES: Record<string, InteractionDialogueScript> = {");
-        foreach (var section in document.Chapters.SelectMany(chapter => chapter.DialogueSections))
+        foreach (var section in document.Chapters.SelectMany(chapter =>
+                     chapter.DialogueSections.Concat(chapter.StoryTriggerDialogues)))
         {
             builder.Append("  ");
             builder.Append(ToTsString(section.Id));
@@ -343,6 +367,7 @@ public static class StoryContentCodec
 
     private static void Normalize(ChapterScriptDocument document)
     {
+        document.SchemaVersion = 2;
         document.Chapters ??= new List<ChapterDefinition>();
         foreach (var chapter in document.Chapters)
         {
@@ -351,6 +376,7 @@ public static class StoryContentCodec
             chapter.Title = chapter.Title?.Trim() ?? "";
             chapter.SubtitleEvents ??= new List<SubtitleEventDefinition>();
             chapter.DialogueSections ??= new List<DialogueSectionDefinition>();
+            chapter.StoryTriggerDialogues ??= new List<DialogueSectionDefinition>();
             foreach (var subtitle in chapter.SubtitleEvents)
             {
                 subtitle.Id = subtitle.Id?.Trim() ?? "";
@@ -384,18 +410,60 @@ public static class StoryContentCodec
                     section.Dialogue.Lines[0].Speaker = "";
                 }
             }
+            foreach (var section in chapter.StoryTriggerDialogues)
+            {
+                section.Id = section.Id?.Trim() ?? "";
+                section.Name = section.Name?.Trim() ?? "";
+                section.Dialogue ??= DialogueScript.CreateDefault();
+            }
         }
     }
+
+    private static void MigrateLegacyStoryTriggerDialogue(
+        ChapterScriptDocument document,
+        string source)
+    {
+        if (!source.Contains(LegacyLowerLeftDialogueAnchor, StringComparison.Ordinal) ||
+            document.Chapters.SelectMany(chapter => chapter.StoryTriggerDialogues).Any(section =>
+                section.Id.Equals(
+                    "chapter03-lower-left-not-ready",
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        var chapter = document.Chapters.FirstOrDefault(item => item.ChapterNumber == 3)
+            ?? document.Chapters.FirstOrDefault(item =>
+                item.Id.Equals("chapter03", StringComparison.OrdinalIgnoreCase));
+        chapter?.StoryTriggerDialogues.Add(CreateLegacyLowerLeftStoryTriggerDialogue());
+    }
+
+    private static DialogueSectionDefinition CreateLegacyLowerLeftStoryTriggerDialogue() => new()
+    {
+        Id = "chapter03-lower-left-not-ready",
+        Name = "第三章_左下劇情區_尚未準備好",
+        Dialogue = new DialogueScript
+        {
+            CharacterDelaySeconds = 0.02f,
+            Speakers = new List<string> { "Sbaak" },
+            Lines = new List<DialogueLine>
+            {
+                new() { Speaker = "Sbaak", Text = "現在我還沒準備好。" },
+            },
+        },
+    };
 
     private static string ExtractPreservedTail(string source)
     {
         var generatedEndIndex = source.IndexOf(GeneratedEnd, StringComparison.Ordinal);
         if (generatedEndIndex >= 0)
         {
-            return source[(generatedEndIndex + GeneratedEnd.Length)..].Trim();
+            var tail = source[(generatedEndIndex + GeneratedEnd.Length)..].Trim();
+            return tail.StartsWith(LegacyLowerLeftDialogueAnchor, StringComparison.Ordinal)
+                ? ""
+                : tail;
         }
-        var anchorIndex = source.IndexOf(LowerLeftDialogueAnchor, StringComparison.Ordinal);
-        return anchorIndex >= 0 ? source[anchorIndex..].Trim() : "";
+        return "";
     }
 
     private static string? ExtractBetween(string source, string start, string end)

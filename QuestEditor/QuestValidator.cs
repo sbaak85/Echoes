@@ -49,6 +49,16 @@ internal static class QuestValidator
                 objective => objective.Id,
                 $"{quest.Id} 的 Objective ID",
                 issues);
+            if (!double.IsFinite(quest.StartDelaySeconds) ||
+                quest.StartDelaySeconds < 0 ||
+                quest.StartDelaySeconds > 3600)
+            {
+                issues.Add(new(
+                    ValidationSeverity.Error,
+                    $"{quest.Id} 的啟動延遲必須介於 0 至 3600 秒。",
+                    quest));
+            }
+
             foreach (var stage in quest.Stages)
             {
                 Required(stage.Id, $"{quest.Id} 的 Stage ID 不可空白", stage, issues);
@@ -82,6 +92,7 @@ internal static class QuestValidator
     private static void ValidateObjective(QuestObjectiveDefinition objective, QuestReferenceCatalog references, List<QuestValidationIssue> issues)
     {
         Required(objective.Id, "Objective ID 不可空白", objective, issues);
+        ValidateCompletionInterfaceAction(objective, references, issues);
         if (objective.RequiredAmount < 1)
             issues.Add(new(ValidationSeverity.Error, $"{objective.Id} 的需求數量必須大於 0", objective));
         if (objective.Type == ObjectiveType.CompoundCollectItem)
@@ -114,6 +125,31 @@ internal static class QuestValidator
             issues.Add(new(ValidationSeverity.Error, $"找不到 {kind} ID：{objective.TargetId}", objective));
         if (objective.ShowHintIcon)
             issues.Add(new(ValidationSeverity.Warning, $"{objective.Id} 需要 HintIcon；請在 MapEditor 綁定場景物件", objective));
+    }
+
+    private static void ValidateCompletionInterfaceAction(
+        QuestObjectiveDefinition objective,
+        QuestReferenceCatalog references,
+        List<QuestValidationIssue> issues)
+    {
+        if (objective.CompletionInterfaceAction == CompletionInterfaceAction.None)
+            return;
+
+        if (string.IsNullOrWhiteSpace(objective.CompletionInterfaceId))
+        {
+            issues.Add(new(
+                ValidationSeverity.Error,
+                $"{objective.Id} 已設定完成後介面操作，但尚未指定目標介面",
+                objective));
+            return;
+        }
+
+        var available = references.Get("Interface");
+        if (available.Count > 0 && !references.Contains("Interface", objective.CompletionInterfaceId))
+            issues.Add(new(
+                ValidationSeverity.Error,
+                $"找不到 Interface ID：{objective.CompletionInterfaceId}",
+                objective));
     }
 
     public static string? ReferenceKind(ObjectiveType type) => type switch

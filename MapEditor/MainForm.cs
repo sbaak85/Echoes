@@ -66,8 +66,16 @@ public sealed class MainForm : Form
         DecimalPlaces = 0,
         Value = 36,
     };
-    private readonly GroupBox _storyTriggerGroup = CreateGroup("劇情觸發區設定", 142);
+    private readonly GroupBox _storyTriggerGroup = CreateGroup("劇情觸發區設定", 220);
     private readonly TextBox _storyTriggerDialogueIdText = new();
+    private readonly NumericUpDown _storyTriggerDelayInput = new()
+    {
+        Minimum = 0,
+        Maximum = 3600,
+        DecimalPlaces = 1,
+        Increment = 0.5m,
+        TextAlign = HorizontalAlignment.Right,
+    };
     private readonly CheckBox _storyTriggerOnceCheck = new()
     {
         Text = "只能觸發一次",
@@ -483,20 +491,34 @@ public sealed class MainForm : Form
         };
         storyDialogueLabel.SetBounds(10, 30, 70, 24);
         _storyTriggerDialogueIdText.SetBounds(83, 27, 182, 27);
-        _storyTriggerOnceCheck.SetBounds(83, 62, 150, 24);
-        var applyStoryTriggerButton = CreateButton("套用劇情觸發設定", 10, 96, 255, 30);
+        var storyDelayLabel = new Label
+        {
+            Text = "觸發延遲（秒）",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(152, 163, 174),
+        };
+        storyDelayLabel.SetBounds(10, 65, 105, 24);
+        _storyTriggerDelayInput.SetBounds(118, 62, 147, 27);
+        _storyTriggerOnceCheck.SetBounds(83, 96, 150, 24);
+        var applyStoryTriggerButton = CreateButton("套用劇情觸發設定", 10, 130, 255, 30);
         applyStoryTriggerButton.Click += (_, _) =>
         {
             _canvas.UpdateSelectedStoryTrigger(
                 _storyTriggerDialogueIdText.Text,
-                _storyTriggerOnceCheck.Checked);
+                _storyTriggerOnceCheck.Checked,
+                (float)_storyTriggerDelayInput.Value);
             RefreshLayers();
             RefreshSelectionUi();
         };
         _storyTriggerGroup.Controls.Add(storyDialogueLabel);
         _storyTriggerGroup.Controls.Add(_storyTriggerDialogueIdText);
+        _storyTriggerGroup.Controls.Add(storyDelayLabel);
+        _storyTriggerGroup.Controls.Add(_storyTriggerDelayInput);
         _storyTriggerGroup.Controls.Add(_storyTriggerOnceCheck);
         _storyTriggerGroup.Controls.Add(applyStoryTriggerButton);
+        var storyTriggerEffectsButton = CreateButton("需求與完成效果...", 10, 166, 255, 30);
+        storyTriggerEffectsButton.Click += (_, _) => OpenStoryTriggerEffectEditor();
+        _storyTriggerGroup.Controls.Add(storyTriggerEffectsButton);
         _storyTriggerGroup.Visible = false;
         sidebar.Controls.Add(_storyTriggerGroup);
 
@@ -1079,6 +1101,10 @@ public sealed class MainForm : Form
                 _selectionInfoLabel.Text = $"目前選取：劇情觸發區 · {trigger.Id}{node} · 對話 {trigger.DialogueId}";
                 _selectionNameText.Text = trigger.Label;
                 _storyTriggerDialogueIdText.Text = trigger.DialogueId;
+                _storyTriggerDelayInput.Value = Math.Clamp(
+                    (decimal)trigger.TriggerDelaySeconds,
+                    _storyTriggerDelayInput.Minimum,
+                    _storyTriggerDelayInput.Maximum);
                 _storyTriggerOnceCheck.Checked = trigger.Once;
             }
             else if (_canvas.Selection.Kind == SceneLayerKind.MovementGuide && _canvas.Selection.Index >= 0)
@@ -1452,6 +1478,52 @@ public sealed class MainForm : Form
         {
             SetCanvasRedraw(true);
         }
+        RefreshSelectionUi();
+    }
+
+    private void OpenStoryTriggerEffectEditor()
+    {
+        var trigger = _canvas.SelectedStoryTrigger;
+        if (trigger is null) return;
+        var useRequirements = trigger.UseRequirements?
+            .Select(requirement => requirement.Clone())
+            .ToArray() ?? Array.Empty<InteractionUseRequirement>();
+        var itemRewards = trigger.ItemRewards?
+            .Select(reward => reward.Clone())
+            .ToArray() ?? (trigger.ItemReward is null
+                ? Array.Empty<InteractionItemReward>()
+                : new[] { trigger.ItemReward.Clone() });
+        var quests = QuestCatalog.Load(_projectRoot);
+        SetCanvasRedraw(false);
+        try
+        {
+            using var editor = new SurvivalEffectEditorForm(
+                "dialogue",
+                trigger.SurvivalRequirements.Clone(),
+                trigger.SurvivalEffects.Clone(),
+                trigger.DailyInteractionLimit,
+                trigger.Once ? "once" : trigger.InteractionLimitMode,
+                useRequirements,
+                itemRewards,
+                quests,
+                trigger.StartQuestIds,
+                showQuestStartOptions: true);
+            editor.Text = "劇情觸發需求與完成效果";
+            if (editor.ShowDialog(this) != DialogResult.OK) return;
+            _canvas.UpdateSelectedStoryTriggerConfiguration(
+                editor.Requirements,
+                editor.Effects,
+                editor.DailyLimit,
+                editor.InteractionLimitMode,
+                editor.UseRequirements,
+                editor.ItemRewards,
+                editor.StartQuestIds);
+        }
+        finally
+        {
+            SetCanvasRedraw(true);
+        }
+        RefreshLayers();
         RefreshSelectionUi();
     }
 

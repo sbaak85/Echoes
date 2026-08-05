@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { ChapterFlowManager } from "../app/chapter-flow-manager.ts";
@@ -7,9 +8,134 @@ import {
   CHAPTER_3_START_DIALOGUE,
   CHAPTER_3_START_FLOW,
   CHAPTER_3_SECTION_1_DIALOGUE_ID,
-  LOWER_LEFT_STORY_ZONE_DIALOGUE,
+  STORY_DIALOGUES,
 } from "../app/story-content.ts";
 import { StoryEventManager } from "../app/story-event-manager.ts";
+
+test("ChapterScriptEditor owns chapter-scoped story trigger polygon dialogue", async () => {
+  const [editorSource, codecSource, storyContentSource, movementLabSource] =
+    await Promise.all([
+      readFile(new URL("../ChapterScriptEditor/MainForm.cs", import.meta.url), "utf8"),
+      readFile(
+        new URL("../ChapterScriptEditor/StoryContentCodec.cs", import.meta.url),
+        "utf8",
+      ),
+      readFile(new URL("../app/story-content.ts", import.meta.url), "utf8"),
+      readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+    ]);
+
+  assert.match(editorSource, /CreateStoryTriggerDialogueArea/);
+  assert.match(editorSource, /"劇情多邊形台詞"/);
+  assert.match(editorSource, /StoryTriggerDialogues/);
+  assert.match(editorSource, /lowerContent\.SplitterDistance/);
+  assert.match(
+    codecSource,
+    /chapter\.DialogueSections\.Concat\(chapter\.StoryTriggerDialogues\)/,
+  );
+  assert.match(storyContentSource, /"storyTriggerDialogues": \[/);
+  assert.match(storyContentSource, /"chapter03-lower-left-not-ready": \{/);
+  assert.doesNotMatch(movementLabSource, /LOWER_LEFT_STORY_ZONE_DIALOGUE/);
+});
+
+test("blank dialogue speaker stays blank instead of inheriting the previous line", async () => {
+  const [movementLabSource, dialogueEditorSource] = await Promise.all([
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../MapEditor/DialogueEditorForm.cs", import.meta.url), "utf8"),
+  ]);
+  const resolverSource = movementLabSource.slice(
+    movementLabSource.indexOf("function resolveDialogueSpeaker"),
+    movementLabSource.indexOf("function distanceToSegment"),
+  );
+  assert.match(resolverSource, /lines\[lineIndex\]\?\.speaker\?\.trim\(\) \?\? ""/);
+  assert.doesNotMatch(resolverSource, /for \(|lineIndex; index >= 0/);
+  assert.match(dialogueEditorSource, /發話者（空白＝不顯示發話者）/);
+  assert.doesNotMatch(dialogueEditorSource, /其餘空白＝延續上一位/);
+});
+
+test("story trigger zones reuse interaction requirements and completion effects", async () => {
+  const [movementLabSource, mainFormSource, sceneModelsSource] = await Promise.all([
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../MapEditor/MainForm.cs", import.meta.url), "utf8"),
+    readFile(new URL("../MapEditor/SceneModels.cs", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(movementLabSource, /survivalRequirements\?: SurvivalRequirements/);
+  assert.match(movementLabSource, /useRequirements\?: InteractionUseRequirement\[\]/);
+  assert.match(
+    movementLabSource,
+    /if \(!result\.completed \|\| !completeStoryTriggerRef\.current\(zone\)\) return/,
+  );
+  const storyActivationSource = movementLabSource.slice(
+    movementLabSource.indexOf("canActivateStoryTriggerRef.current ="),
+    movementLabSource.indexOf("const isInteractableConditionActive"),
+  );
+  assert.match(storyActivationSource, /isInteractableLocked\(trigger\)/);
+  assert.match(storyActivationSource, /getInteractionRequirementFailure\(trigger\)/);
+  assert.match(storyActivationSource, /getInteractionUseRequirementFailure\(trigger\)/);
+
+  const storyContactSource = movementLabSource.slice(
+    movementLabSource.indexOf("const shouldRecheckTouchingStoryTriggers"),
+    movementLabSource.indexOf("minimapSyncElapsed += deltaTime"),
+  );
+  assert.doesNotMatch(storyContactSource, /0\.1|setInterval|Elapsed/);
+  assert.match(
+    storyContactSource,
+    /!wasTouching \|\| shouldRecheckTouchingStoryTriggers/,
+  );
+  assert.match(storyContactSource, /canActivateStoryTriggerRef\.current\(zone\)/);
+  assert.match(storyContactSource, /eligibleStoryTriggerZoneIds\.has\(zone\.id\)/);
+  assert.match(storyContactSource, /emit\("storyZoneEntered"/);
+  assert.match(
+    movementLabSource,
+    /touchingStorySurvivalConditionBecameEligible/,
+  );
+  assert.match(
+    movementLabSource,
+    /requestStoryTriggerContactCheckRef\.current\(\)/,
+  );
+
+  const storyCompletionSource = movementLabSource.slice(
+    movementLabSource.indexOf("completeStoryTriggerRef.current ="),
+    movementLabSource.indexOf("const completeInteraction"),
+  );
+  assert.match(storyCompletionSource, /grantInteractionItemRewards\(trigger\)/);
+  assert.match(storyCompletionSource, /settleInteractionSurvival/);
+  assert.match(storyCompletionSource, /runTimePassTransition/);
+  assert.match(storyCompletionSource, /recordInteractionUse/);
+
+  assert.match(mainFormSource, /OpenStoryTriggerEffectEditor/);
+  assert.match(mainFormSource, /new SurvivalEffectEditorForm\(/);
+  assert.match(sceneModelsSource, /class StoryTriggerZone : ITriggerConfiguration/);
+});
+
+test("editors store task and story-trigger delays without assigning a polygon", async () => {
+  const [questModelsSource, mapModelsSource, mapFormSource, questData] =
+    await Promise.all([
+      readFile(new URL("../QuestEditor/QuestModels.cs", import.meta.url), "utf8"),
+      readFile(new URL("../MapEditor/SceneModels.cs", import.meta.url), "utf8"),
+      readFile(new URL("../MapEditor/MainForm.cs", import.meta.url), "utf8"),
+      readFile(new URL("../public/quests/quest-data.json", import.meta.url), "utf8")
+        .then(JSON.parse),
+    ]);
+
+  assert.match(questModelsSource, /StartDelaySeconds/);
+  assert.match(questModelsSource, /啟動延遲（秒）/);
+  assert.match(mapModelsSource, /TriggerDelaySeconds/);
+  assert.match(mapModelsSource, /StartQuestIds/);
+  assert.match(mapModelsSource, /QuestState/);
+  assert.match(mapFormSource, /觸發延遲（秒）/);
+  assert.match(mapFormSource, /showQuestStartOptions: true/);
+  assert.match(questModelsSource, /CompletionInterfaceAction/);
+
+  const nextQuest = questData.quests.find(
+    (quest) => quest.id === "QUEST_CH03_MAIN_002",
+  );
+  assert.equal(nextQuest.startDelaySeconds, 1);
+  assert.equal(
+    questData.quests.some((quest) => quest.startDelaySeconds == null),
+    false,
+  );
+});
 
 test("第三章開場腳本與流程符合第一版規格", () => {
   assert.equal(CHAPTER_3_START_DIALOGUE.lines.length, 9);
@@ -18,8 +144,10 @@ test("第三章開場腳本與流程符合第一版規格", () => {
     ["", "", "???", "飛船輔助系統", "飛船輔助系統", "Sbaak", "飛船輔助系統", "Sbaak", "Sbaak"],
   );
   assert.ok(CHAPTER_3_START_DIALOGUE.lines.at(-1)?.text.trim());
-  assert.equal(LOWER_LEFT_STORY_ZONE_DIALOGUE.lines[0]?.speaker, "Sbaak");
-  assert.equal(LOWER_LEFT_STORY_ZONE_DIALOGUE.lines[0]?.text, "現在我還沒準備好。");
+  const lowerLeftStoryZoneDialogue =
+    STORY_DIALOGUES["chapter03-lower-left-not-ready"];
+  assert.equal(lowerLeftStoryZoneDialogue?.lines[0]?.speaker, "Sbaak");
+  assert.equal(lowerLeftStoryZoneDialogue?.lines[0]?.text, "現在我還沒準備好。");
 
   const centeredText = CHAPTER_3_START_FLOW.actions.find(
     (action) => action.type === "showCenteredText",
@@ -77,7 +205,7 @@ test("DialogueManager 依序播放已登錄腳本", async () => {
     presented.push(request.id);
     completions.push(complete);
   });
-  manager.register("first", LOWER_LEFT_STORY_ZONE_DIALOGUE);
+  manager.register("first", STORY_DIALOGUES["chapter03-lower-left-not-ready"]);
 
   const first = manager.playRegistered("first", undefined);
   const second = manager.play("second", CHAPTER_3_START_DIALOGUE, undefined);
@@ -100,12 +228,12 @@ test("DialogueManager 不會排入相同互動的重複播放", async () => {
 
   const first = manager.playUnique(
     "interaction:campfire",
-    LOWER_LEFT_STORY_ZONE_DIALOGUE,
+    STORY_DIALOGUES["chapter03-lower-left-not-ready"],
     undefined,
   );
   const duplicate = manager.playUnique(
     "interaction:campfire",
-    LOWER_LEFT_STORY_ZONE_DIALOGUE,
+    STORY_DIALOGUES["chapter03-lower-left-not-ready"],
     undefined,
   );
 

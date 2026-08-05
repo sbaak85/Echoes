@@ -941,5 +941,17 @@ internal sealed class MainForm : Form
         {
             throw new InvalidOperationException("新增任務目標類型的外部 ID 清單對應失敗。");
         }
+        var localizedCompletionAction = TypeDescriptor.GetConverter(typeof(CompletionInterfaceAction))
+            .ConvertToString(CompletionInterfaceAction.Close);
+        var registeredInterfaces = new RegisteredInterfaceIdConverter()
+            .GetStandardValues()
+            ?.Cast<string>()
+            .ToArray() ?? Array.Empty<string>();
+        if (localizedCompletionAction != "關閉" ||
+            !registeredInterfaces.Contains("Inventory") ||
+            !registeredInterfaces.Contains("Options"))
+        {
+            throw new InvalidOperationException("完成後介面操作選單初始化失敗。");
+        }
     }
 }

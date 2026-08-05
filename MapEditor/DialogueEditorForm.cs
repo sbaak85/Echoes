@@ -206,7 +206,7 @@ public sealed class DialogueEditorForm : Form
         grid.EnableHeadersVisualStyles = false;
         grid.RowTemplate.Height = 58;
 
-        speakerColumn.HeaderText = "發話者（首句空白＝無；其餘空白＝延續上一位）";
+        speakerColumn.HeaderText = "發話者（空白＝不顯示發話者）";
         speakerColumn.Width = 215;
         speakerColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
         speakerColumn.FlatStyle = FlatStyle.Flat;
@@ -862,7 +862,7 @@ public sealed class DialogueEditorForm : Form
         })
         {
             column.Items.Clear();
-            // 空白是合法值：首句代表無發話者，其餘句代表延續上一位。
+            // 空白是合法值，而且每一句都明確代表不顯示發話者。
             column.Items.Add("");
             foreach (var speaker in _speakers) column.Items.Add(speaker);
             column.Items.Add(AddSpeakerOption);

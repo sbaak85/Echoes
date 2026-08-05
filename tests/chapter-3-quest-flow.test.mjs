@@ -22,11 +22,16 @@ test("inventory tutorial quest uses interface-opened and item-used objectives", 
   assert.ok(quest);
   assert.equal(quest.name, "整理背包");
   assert.deepEqual(quest.prerequisiteQuestIds, [QUEST_ID]);
+  assert.equal(quest.grantMethod, "afterDialogue");
+  assert.equal(quest.grantSourceId, "chapter03_backpack-teaching");
+  assert.equal(quest.startDelaySeconds, 1);
   assert.equal(quest.stages[0].name, "打開介面與使用道具");
   assert.deepEqual(
     quest.stages[0].objectives.map((objective) => [objective.type, objective.targetId]),
     [["interfaceOpened", "Inventory"], ["itemUsed", "R0004"]],
   );
+  assert.equal(quest.stages[0].objectives[1].completionInterfaceAction, "close");
+  assert.equal(quest.stages[0].objectives[1].completionInterfaceId, "Inventory");
 
   const isolatedDocument = {
     schemaVersion: questDocument.schemaVersion,
@@ -39,6 +44,18 @@ test("inventory tutorial quest uses interface-opened and item-used objectives", 
   assert.equal(manager.getQuestState(INVENTORY_QUEST_ID), "active");
   manager.handleEvent({ type: "itemUsed", targetId: "R0004", amount: 1 });
   assert.equal(manager.getQuestState(INVENTORY_QUEST_ID), "completed");
+});
+
+test("story-trigger-002 unlocks after MAIN_001 and hands off MAIN_002 after dialogue", () => {
+  const trigger = scene.storyTriggers.find((candidate) => candidate.id === "story-trigger-002");
+  assert.ok(trigger);
+  assert.equal(trigger.once, true);
+  assert.equal(trigger.dialogueId, "chapter03_backpack-teaching");
+  assert.deepEqual(trigger.startQuestIds, [INVENTORY_QUEST_ID]);
+  assert.deepEqual(
+    trigger.useRequirements.map(({ kind, questId, questState }) => ({ kind, questId, questState })),
+    [{ kind: "questState", questId: QUEST_ID, questState: "completed" }],
+  );
 });
 
 test("第三章第一個主線任務可依正式資料完成三個階段", () => {

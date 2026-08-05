@@ -4,7 +4,7 @@ namespace Echoes.ChapterScriptEditor;
 
 public sealed class ChapterScriptDocument
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
     public List<ChapterDefinition> Chapters { get; set; } = new();
 }
 
@@ -16,6 +16,7 @@ public sealed class ChapterDefinition
     public int ChapterNumber { get; set; }
     public List<SubtitleEventDefinition> SubtitleEvents { get; set; } = new();
     public List<DialogueSectionDefinition> DialogueSections { get; set; } = new();
+    public List<DialogueSectionDefinition> StoryTriggerDialogues { get; set; } = new();
 }
 
 public sealed class SubtitleEventDefinition

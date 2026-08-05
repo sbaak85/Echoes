@@ -46,6 +46,11 @@ export type InteractionUseRequirement =
   | { kind: "chapter"; chapter: number }
   | { kind: "quest"; questId: string }
   | {
+      kind: "questState";
+      questId: string;
+      questState: InteractionQuestState;
+    }
+  | {
       kind: "questStage";
       questId: string;
       stageId: string;
@@ -58,6 +63,14 @@ export type InteractionStageMode =
   | "CurrentStageOnly"
   | "UnlockFromStage"
   | "UnlockUntilCondition";
+
+export type InteractionQuestState =
+  | "locked"
+  | "available"
+  | "active"
+  | "completed"
+  | "failed"
+  | "abandoned";
 
 export type UnmetInteractionUseRequirement = InteractionUseRequirement & {
   actual: number;
@@ -183,6 +196,23 @@ export function normalizeInteractionUseRequirements(
         : "";
       return questId ? [{ kind: "quest", questId }] : [];
     }
+    if (candidate.kind === "questState") {
+      const questId = typeof candidate.questId === "string"
+        ? candidate.questId.trim()
+        : "";
+      if (!questId) return [];
+      const questState: InteractionQuestState = [
+        "locked",
+        "available",
+        "active",
+        "completed",
+        "failed",
+        "abandoned",
+      ].includes(String(candidate.questState))
+        ? candidate.questState as InteractionQuestState
+        : "completed";
+      return [{ kind: "questState", questId, questState }];
+    }
     if (candidate.kind === "questStage") {
       const questId = typeof candidate.questId === "string"
         ? candidate.questId.trim()
@@ -232,6 +262,10 @@ export function getUnmetInteractionUseRequirements(
   isQuestStageRequirementMet: (
     requirement: Extract<InteractionUseRequirement, { kind: "questStage" }>,
   ) => boolean = () => false,
+  isQuestState: (
+    questId: string,
+    questState: InteractionQuestState,
+  ) => boolean = () => false,
 ): UnmetInteractionUseRequirement[] {
   if (!requirements?.length) return [];
   return requirements.flatMap((requirement): UnmetInteractionUseRequirement[] => {
@@ -239,12 +273,16 @@ export function getUnmetInteractionUseRequirements(
       ? Math.max(1, Math.floor(currentChapter))
       : requirement.kind === "quest"
         ? isQuestActive(requirement.questId) ? 1 : 0
+        : requirement.kind === "questState"
+          ? isQuestState(requirement.questId, requirement.questState) ? 1 : 0
         : requirement.kind === "questStage"
           ? isQuestStageRequirementMet(requirement) ? 1 : 0
         : Math.max(0, Math.floor(inventory[requirement.itemId] ?? 0));
     const required = requirement.kind === "chapter"
       ? requirement.chapter
-      : requirement.kind === "quest" || requirement.kind === "questStage"
+      : requirement.kind === "quest" ||
+          requirement.kind === "questState" ||
+          requirement.kind === "questStage"
         ? 1
         : requirement.quantity;
     return actual >= required ? [] : [{ ...requirement, actual }];

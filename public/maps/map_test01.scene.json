@@ -2113,88 +2113,6 @@
           }
         ]
       }
-    },
-    {
-      "id": "interaction-010",
-      "label": "\u4E92\u52D5\u5340\u57DF 10",
-      "shape": "polygon",
-      "points": [
-        {
-          "x": 563.31995,
-          "y": 556.844
-        },
-        {
-          "x": 841.78516,
-          "y": 744.6461
-        },
-        {
-          "x": 633.4759,
-          "y": 892.5133
-        },
-        {
-          "x": 347.45547,
-          "y": 687.442
-        }
-      ],
-      "type": "dialogue",
-      "verb": "\u5C0D\u8A71",
-      "survivalRequirements": {
-        "mode": "all"
-      },
-      "survivalEffects": {
-        "stamina": 0,
-        "hunger": 0,
-        "thirst": 0,
-        "spirit": 0,
-        "timeMinutes": 0
-      },
-      "interactionLimitMode": "once",
-      "useRequirements": [
-        {
-          "kind": "questStage",
-          "itemId": "",
-          "questId": "QUEST_CH03_MAIN_001",
-          "stageId": "QUEST_CH03_MAIN_001_STAGE_03",
-          "stageMode": "CurrentStageOnly",
-          "disableQuestId": "",
-          "disableStageId": "",
-          "quantity": 1,
-          "chapter": 1
-        }
-      ],
-      "activationDistance": 52,
-      "dialogue": {
-        "characterDelaySeconds": 0.02,
-        "speakers": [
-          "Sbaak",
-          "Echo",
-          "\u7CFB\u7D71\u98DB\u8239"
-        ],
-        "lines": [
-          {
-            "speaker": "Sbaak",
-            "text": "\u597D\uFF0C\u6536\u96C6\u5230\u4E00\u9EDE\u5403\u7684\u4E86\uFF0C\u6709\u9EDE\u7D2F...\u6253\u958B\u80CC\u5305\u559D\u9EDE\u6C34\u5427\u3002"
-          },
-          {
-            "speaker": "",
-            "text": "(\u6211\u5617\u8A66\u7FFB\u627E\u80CC\u5305\u88E1\u6536\u96C6\u5230\u7684\u53E3\u7CE7\u8207\u98F2\u6C34)"
-          }
-        ]
-      },
-      "failureDialogue": {
-        "characterDelaySeconds": 0.02,
-        "speakers": [
-          "Sbaak",
-          "Echo",
-          "\u7CFB\u7D71\u98DB\u8239"
-        ],
-        "lines": [
-          {
-            "speaker": "",
-            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
-          }
-        ]
-      }
     }
   ],
   "movementGuides": [
@@ -2254,7 +2172,77 @@
         }
       ],
       "once": true,
-      "dialogueId": "chapter03-lower-left-not-ready"
+      "dialogueId": "chapter03-lower-left-not-ready",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionLimitMode": "once"
+    },
+    {
+      "id": "story-trigger-002",
+      "label": "\u5287\u60C5\u89F8\u767C\u5340 2",
+      "points": [
+        {
+          "x": 549.01495,
+          "y": 567.2668
+        },
+        {
+          "x": 816.1553,
+          "y": 731.5332
+        },
+        {
+          "x": 638.6148,
+          "y": 857.6367
+        },
+        {
+          "x": 348.24484,
+          "y": 680.09625
+        }
+      ],
+      "once": true,
+      "dialogueId": "chapter03_backpack-teaching",
+      "startQuestIds": [
+        "QUEST_CH03_MAIN_002"
+      ],
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionLimitMode": "once",
+      "itemRewards": [
+        {
+          "itemId": "R0004",
+          "quantity": 1,
+          "delivery": "inventory"
+        }
+      ],
+      "useRequirements": [
+        {
+          "kind": "questState",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_001",
+          "questState": "completed",
+          "stageId": "",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ]
     }
   ],
   "itemPoints": [

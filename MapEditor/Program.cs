@@ -400,6 +400,105 @@ internal static class EditorSelfTest
             throw new InvalidDataException("劇情觸發區未能正確讀取或通過 JSON round-trip。");
         }
 
+        var storyConfigurationDocument = SceneJson.Deserialize(SceneJson.Serialize(roundTrip));
+        var configuredStoryTrigger = storyConfigurationDocument.StoryTriggers.First();
+        configuredStoryTrigger.Once = false;
+        configuredStoryTrigger.SurvivalRequirements = new SurvivalRequirements
+        {
+            Mode = "any",
+            Stamina = new SurvivalRequirementRule
+            {
+                Comparison = "atMost",
+                Value = 60,
+            },
+        };
+        configuredStoryTrigger.SurvivalEffects = new SurvivalEffects
+        {
+            Stamina = 10,
+            Hunger = -5,
+            TimeMinutes = 120,
+        };
+        configuredStoryTrigger.DailyInteractionLimit = 2;
+        configuredStoryTrigger.InteractionLimitMode = null;
+        configuredStoryTrigger.TriggerDelaySeconds = 1.5f;
+        configuredStoryTrigger.StartQuestIds = new List<string>
+        {
+            "QUEST_STORY_NEXT",
+        };
+        configuredStoryTrigger.UseRequirements = new List<InteractionUseRequirement>
+        {
+            new() { Kind = "item", ItemId = "R0011", Quantity = 3 },
+            new() { Kind = "chapter", Chapter = 4 },
+            new() { Kind = "quest", QuestId = "QUEST_STORY_ACTIVE" },
+            new()
+            {
+                Kind = "questState",
+                QuestId = "QUEST_STORY_REQUIRED",
+                QuestState = "completed",
+            },
+            new()
+            {
+                Kind = "questStage",
+                QuestId = "QUEST_STORY_ACTIVE",
+                StageId = "QUEST_STORY_ACTIVE_STAGE_02",
+                StageMode = "CurrentStageOnly",
+            },
+        };
+        configuredStoryTrigger.ItemRewards = new List<InteractionItemReward>
+        {
+            new() { ItemId = "R0004", Quantity = 2, Delivery = "inventory" },
+            new() { ItemId = "R0005", Quantity = 1, Delivery = "world" },
+        };
+        var storyConfigurationRoundTrip = SceneJson.Deserialize(
+            SceneJson.Serialize(storyConfigurationDocument));
+        SceneJson.Validate(storyConfigurationRoundTrip);
+        if (
+            storyConfigurationRoundTrip.StoryTriggers.FirstOrDefault() is not
+                {
+                    Once: false,
+                    DailyInteractionLimit: 2,
+                    InteractionLimitMode: null,
+                    TriggerDelaySeconds: 1.5f,
+                    SurvivalRequirements:
+                    {
+                        Mode: "any",
+                        Stamina: { Comparison: "atMost", Value: 60 },
+                    },
+                    SurvivalEffects: { Stamina: 10, Hunger: -5, TimeMinutes: 120 },
+                } storyRoundTripTrigger ||
+            storyRoundTripTrigger.StartQuestIds is not { Count: 1 } ||
+            storyRoundTripTrigger.StartQuestIds[0] != "QUEST_STORY_NEXT" ||
+            storyRoundTripTrigger.UseRequirements?.Count != 5 ||
+            storyRoundTripTrigger.UseRequirements?[0] is not
+                { Kind: "item", ItemId: "R0011", Quantity: 3 } ||
+            storyRoundTripTrigger.UseRequirements?[1] is not
+                { Kind: "chapter", Chapter: 4 } ||
+            storyRoundTripTrigger.UseRequirements?[2] is not
+                { Kind: "quest", QuestId: "QUEST_STORY_ACTIVE" } ||
+            storyRoundTripTrigger.UseRequirements?[3] is not
+                {
+                    Kind: "questState",
+                    QuestId: "QUEST_STORY_REQUIRED",
+                    QuestState: "completed",
+                } ||
+            storyRoundTripTrigger.UseRequirements?[4] is not
+                {
+                    Kind: "questStage",
+                    QuestId: "QUEST_STORY_ACTIVE",
+                    StageId: "QUEST_STORY_ACTIVE_STAGE_02",
+                    StageMode: "CurrentStageOnly",
+                } ||
+            storyRoundTripTrigger.ItemRewards?.Count != 2 ||
+            storyRoundTripTrigger.ItemRewards?[0] is not
+                { ItemId: "R0004", Quantity: 2, Delivery: "inventory" } ||
+            storyRoundTripTrigger.ItemRewards?[1] is not
+                { ItemId: "R0005", Quantity: 1, Delivery: "world" }
+        )
+        {
+            throw new InvalidDataException(
+                "Story trigger requirements, completion effects, limits, or rewards did not survive JSON round-trip.");
+        }
+
         var multiPointDocument = SceneJson.Deserialize(SceneJson.Serialize(roundTrip));
         var multiPointInteractable = multiPointDocument.Interactables.FirstOrDefault()
             ?? throw new InvalidDataException("Interaction Point self-test requires an interactable.");
@@ -594,7 +693,9 @@ internal static class EditorSelfTest
                             "QUEST_TEST_CLOSE_STAGE_01",
                             "測試關閉階段"),
                     }),
-            }))
+            },
+            new[] { "QUEST_TEST_CLOSE" },
+            showQuestStartOptions: true))
         {
             if (
                 requirementsEditor.UseRequirements.Count != 4 ||
@@ -614,6 +715,8 @@ internal static class EditorSelfTest
                     { ItemId: "R0002", Quantity: 4, Delivery: "world" } ||
                 requirementsEditor.ItemRewards[1] is not
                     { ItemId: "R0004", Quantity: 2, Delivery: "inventory" } ||
+                requirementsEditor.StartQuestIds.Count != 1 ||
+                requirementsEditor.StartQuestIds[0] != "QUEST_TEST_CLOSE" ||
                 requirementsEditor.InteractionLimitMode != "once" ||
                 requirementsEditor.DailyLimit is not null ||
                 requirementsEditor.Requirements.Mode != "any" ||
