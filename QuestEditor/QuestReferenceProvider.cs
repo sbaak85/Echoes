@@ -104,6 +104,8 @@ internal static class QuestReferenceProvider
         var source = File.ReadAllText(path);
         foreach (Match match in Regex.Matches(source, "(?<name>[A-Z0-9_]+)_DIALOGUE_ID\\s*=\\s*\"(?<id>[^\"]+)\""))
             catalog.Add("Dialogue", match.Groups["id"].Value, match.Groups["name"].Value);
+        foreach (Match match in Regex.Matches(source, "\"(?<id>chapter[^\"]+)\"\\s*:\\s*\\{"))
+            catalog.Add("Dialogue", match.Groups["id"].Value, "章節對話");
         foreach (Match match in Regex.Matches(source, "(?<name>[A-Z0-9_]+)_FLOW_ID\\s*=\\s*\"(?<id>[^\"]+)\""))
             catalog.Add("EventFlow", match.Groups["id"].Value, match.Groups["name"].Value);
         foreach (Match match in Regex.Matches(source, "\"id\"\\s*:\\s*\"(?<id>chapter[^\"]+)\"\\s*,\\s*\"tabName\"\\s*:\\s*\"(?<name>[^\"]+)\""))

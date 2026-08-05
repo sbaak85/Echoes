@@ -33,6 +33,14 @@ public enum QuestGrantMethod
 }
 
 [TypeConverter(typeof(LocalizedEnumConverter))]
+public enum QuestCompletionTriggerType
+{
+    [Description("無")] None,
+    [Description("播放對話")] Dialogue,
+    [Description("執行事件流程")] EventFlow,
+}
+
+[TypeConverter(typeof(LocalizedEnumConverter))]
 public enum QuestDisplayMode
 {
     [Description("標準")] Standard,
@@ -226,6 +234,8 @@ public sealed class QuestDefinition
     public string GrantCondition { get; set; } = "";
 
     [Category("派發"), DisplayName("前置任務 ID")]
+    [Description("按右側 […] 開啟任務清單；可複選，所有勾選任務都完成後才會開放此任務。")]
+    [Editor(typeof(PrerequisiteQuestIdsEditor), typeof(System.Drawing.Design.UITypeEditor))]
     public List<string> PrerequisiteQuestIds { get; set; } = new();
 
     [Category("派發"), DisplayName("啟動延遲（秒）")]
@@ -244,7 +254,19 @@ public sealed class QuestDefinition
     [Category("完成"), DisplayName("完成旗標 ID")]
     public string CompletionFlagId { get; set; } = "";
 
-    [Category("完成"), DisplayName("完成事件流程 ID")]
+    [Category("完成"), DisplayName("完成後觸發類型")]
+    [Description("任務完成後可播放一段對話，或執行一個事件流程。選擇「無」即不觸發。")]
+    public QuestCompletionTriggerType CompletionTriggerType { get; set; }
+
+    [Category("完成"), DisplayName("完成後觸發 ID")]
+    [Description("依觸發類型填入 Dialogue ID 或 Event Flow ID；也可從視窗下方的外部 ID 清單選取。")]
+    public string CompletionTriggerId { get; set; } = "";
+
+    [Category("完成"), DisplayName("完成後觸發延遲（秒）")]
+    [Description("任務完成並保存完成旗標後，等待指定現實秒數才觸發對話或事件流程。0 代表立即觸發。")]
+    public double CompletionTriggerDelaySeconds { get; set; }
+
+    [Browsable(false)]
     public string CompletionEventFlowId { get; set; } = "";
 
     [Category("獎勵"), DisplayName("獎勵道具 ID")]
@@ -279,6 +301,14 @@ public sealed class QuestStageDefinition
     [Category("基本"), DisplayName("階段名稱")]
     public string Name { get; set; } = "新階段";
 
+    [Category("流程"), DisplayName("啟動延遲（秒）")]
+    [Description("進入此階段後，等待指定的現實秒數才顯示階段目標並開始接受判定。0 代表立即啟動。")]
+    public double StartDelaySeconds { get; set; }
+
+    [Category("流程"), DisplayName("完成延遲（秒）")]
+    [Description("此階段完成條件成立後，等待指定的現實秒數才播放完成演出並切換下一階段。完成紀錄會立即保存。0 代表立即處理。")]
+    public double CompletionDelaySeconds { get; set; }
+
     [Category("流程"), DisplayName("完成方式")]
     public StageCompletionMode CompletionMode { get; set; } = StageCompletionMode.All;
 
@@ -304,6 +334,14 @@ public sealed class QuestObjectiveDefinition
 
     [Category("基本"), DisplayName("顯示文字")]
     public string DisplayText { get; set; } = "新目標";
+
+    [Category("流程"), DisplayName("啟動延遲（秒）")]
+    [Description("所屬階段正式啟動後，再等待指定的現實秒數才顯示並接受此目標判定。0 代表立即啟動。")]
+    public double StartDelaySeconds { get; set; }
+
+    [Category("流程"), DisplayName("完成延遲（秒）")]
+    [Description("目標條件成立後，等待指定的現實秒數才顯示核取與完成演出。完成紀錄會立即保存。0 代表立即顯示。")]
+    public double CompletionDelaySeconds { get; set; }
 
     [Category("判定"), DisplayName("目標類型")]
     public ObjectiveType Type { get; set; } = ObjectiveType.CollectItem;

@@ -30,6 +30,8 @@ export type QuestItemRequirement = {
 export type QuestObjectiveDefinition = {
   id: string;
   displayText: string;
+  startDelaySeconds?: number;
+  completionDelaySeconds?: number;
   type: QuestObjectiveType;
   targetId: string;
   itemRequirements?: QuestItemRequirement[];
@@ -47,6 +49,8 @@ export type QuestObjectiveDefinition = {
 export type QuestStageDefinition = {
   id: string;
   name: string;
+  startDelaySeconds?: number;
+  completionDelaySeconds?: number;
   completionMode: "all" | "any";
   startEventFlowId?: string;
   completionEventFlowId?: string;
@@ -69,6 +73,10 @@ export type QuestDefinition = {
   canReaccept: boolean;
   displayMode: "standard" | "mainProgress";
   completionFlagId?: string;
+  completionTriggerType?: "none" | "dialogue" | "eventFlow";
+  completionTriggerId?: string;
+  completionTriggerDelaySeconds?: number;
+  /** @deprecated Use completionTriggerType/eventFlow + completionTriggerId. */
   completionEventFlowId?: string;
   rewardItemId?: string;
   rewardItemAmount?: number;
@@ -124,6 +132,9 @@ export type QuestObjectiveRuntime = {
   currentAmount: number;
   completed: boolean;
   itemAmounts?: Record<string, number>;
+  availableAtEpochMs?: number;
+  completionAvailableAtEpochMs?: number;
+  completionPresented?: boolean;
 };
 
 export type QuestRuntimeEntry = {
@@ -135,6 +146,13 @@ export type QuestRuntimeEntry = {
   startedAtTime: number | null;
   rewardClaimed: boolean;
   completedOrder?: number;
+  stageAvailableAtEpochMs?: number;
+  stageStartEventExecutedForId?: string;
+  stageCompletionAvailableAtEpochMs?: number;
+  stageCompletionEventExecutedForId?: string;
+  questCompletionPresented?: boolean;
+  completionTriggerAvailableAtEpochMs?: number;
+  completionTriggerCompleted?: boolean;
 };
 
 export type QuestSaveData = {
@@ -166,6 +184,11 @@ export function saveQuestSaveData(saveData: QuestSaveData): void {
 
 export type QuestRuntimeHost = {
   runEventFlow?: (eventFlowId: string) => void;
+  runCompletionTrigger?: (
+    type: "dialogue" | "eventFlow",
+    triggerId: string,
+    sourceQuestId: string,
+  ) => boolean | void | Promise<boolean | void>;
   giveItem?: (itemId: string, amount: number) => void;
   setFlag?: (flagId: string, value: boolean) => void;
   onStateChanged?: (questId: string, entry: QuestRuntimeEntry) => void;
@@ -174,6 +197,7 @@ export type QuestRuntimeHost = {
   onQuestFailed?: (questId: string, entry: QuestRuntimeEntry) => void;
   onQuestAbandoned?: (questId: string, entry: QuestRuntimeEntry) => void;
   scheduleQuestStart?: (delayMilliseconds: number, start: () => void) => void;
+  now?: () => number;
   onObjectiveCompleted?: (
     questId: string,
     objectiveId: string,
@@ -200,7 +224,9 @@ export class QuestRuntimeManager {
   private readonly definitions = new Map<string, QuestDefinition>();
   private readonly host: QuestRuntimeHost;
   private readonly pendingStageTransitions = new Set<string>();
+  private readonly pendingStageCompletionDelays = new Set<string>();
   private readonly pendingQuestStarts = new Set<string>();
+  private readonly pendingCompletionTriggers = new Set<string>();
   private saveData: QuestSaveData;
 
   constructor(
@@ -220,6 +246,12 @@ export class QuestRuntimeManager {
       ...Object.values(this.saveData.quests).map(entry => entry.completedOrder ?? 0),
     );
     this.refreshAvailability();
+    for (const definition of document.quests) {
+      const entry = this.saveData.quests[definition.id];
+      if (!entry) continue;
+      if (entry.state === "active") this.restoreStageActivation(definition, entry);
+      this.restoreCompletionScheduling(definition, entry);
+    }
   }
 
   exportSave(): QuestSaveData {
@@ -275,7 +307,7 @@ export class QuestRuntimeManager {
     entry.startedAtTime = time;
     entry.currentStageId = definition.stages[0]?.id ?? "";
     entry.tracked = true;
-    if (definition.stages[0]?.startEventFlowId) this.host.runEventFlow?.(definition.stages[0].startEventFlowId);
+    this.configureStageActivation(definition, entry);
     this.host.onQuestStarted?.(questId, structuredClone(entry));
     this.notify(questId);
     return true;
@@ -345,24 +377,67 @@ export class QuestRuntimeManager {
     return started;
   }
 
+  startAvailableAfterDialogueQuests(
+    dialogueId: string,
+    day: number | null = null,
+    time: number | null = null,
+  ): string[] {
+    const started: string[] = [];
+    for (const definition of this.definitions.values()) {
+      if (definition.grantMethod !== "afterDialogue") continue;
+      if ((definition.grantSourceId ?? "").toLocaleLowerCase() !== dialogueId.toLocaleLowerCase()) continue;
+      const entry = this.requireEntry(definition.id);
+      if (entry.state !== "available") continue;
+      if (this.requestQuestStart(definition.id, day, time)) started.push(definition.id);
+    }
+    return started;
+  }
+
   completeQuest(questId: string): boolean {
     const definition = this.requireDefinition(questId);
     const entry = this.requireEntry(questId);
     if (entry.state === "completed") return false;
+    this.recordQuestCompletion(definition, entry);
+    this.presentQuestCompletion(definition, entry);
+    return true;
+  }
+
+  private recordQuestCompletion(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+  ) {
     entry.state = "completed";
     this.saveData.completionSequence = (this.saveData.completionSequence ?? 0) + 1;
     entry.completedOrder = this.saveData.completionSequence;
+    entry.questCompletionPresented = false;
     if (!entry.rewardClaimed) {
       if (definition.rewardItemId && (definition.rewardItemAmount ?? 0) > 0)
         this.host.giveItem?.(definition.rewardItemId, definition.rewardItemAmount ?? 0);
       if (definition.completionFlagId) this.host.setFlag?.(definition.completionFlagId, true);
-      if (definition.completionEventFlowId) this.host.runEventFlow?.(definition.completionEventFlowId);
       entry.rewardClaimed = true;
     }
-    this.host.onQuestCompleted?.(questId);
-    this.notify(questId);
     this.refreshAvailability();
-    return true;
+    const trigger = this.getCompletionTrigger(definition);
+    if (trigger) {
+      entry.completionTriggerCompleted = false;
+      entry.completionTriggerAvailableAtEpochMs = this.now() +
+        this.delayMilliseconds(definition.completionTriggerDelaySeconds);
+    } else {
+      entry.completionTriggerCompleted = true;
+      entry.completionTriggerAvailableAtEpochMs = undefined;
+    }
+    this.notify(definition.id);
+    this.scheduleQuestCompletionTrigger(definition, entry);
+  }
+
+  private presentQuestCompletion(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+  ) {
+    if (entry.questCompletionPresented) return;
+    entry.questCompletionPresented = true;
+    this.host.onQuestCompleted?.(definition.id);
+    this.notify(definition.id);
   }
 
   failQuest(questId: string): boolean {
@@ -405,6 +480,7 @@ export class QuestRuntimeManager {
     if (entry.state !== "active") return false;
     const objective = this.findObjective(definition, objectiveId);
     const progress = entry.objectives[objectiveId];
+    if (!this.isObjectiveActive(entry, progress)) return false;
     if (progress.completed) return false;
     progress.currentAmount = Math.max(progress.currentAmount, objective.requiredAmount);
     if (objective.type === "compoundCollectItem") {
@@ -416,10 +492,7 @@ export class QuestRuntimeManager {
       );
     }
     progress.completed = true;
-    if (objective.completionEventFlowId) this.host.runEventFlow?.(objective.completionEventFlowId);
-    this.notifyObjectiveCompleted(definition, entry, objective.id);
-    this.advanceIfComplete(definition, entry);
-    this.notify(questId);
+    this.recordObjectiveCompletion(definition, entry, objective);
     return true;
   }
 
@@ -434,16 +507,18 @@ export class QuestRuntimeManager {
     if (entry.state !== "active") return false;
     const objective = this.findObjective(definition, objectiveId);
     const progress = entry.objectives[objectiveId];
+    if (!this.isObjectiveActive(entry, progress)) return false;
     progress.currentAmount = Math.max(0, amount);
     let completedNow = false;
     if (!progress.completed && progress.currentAmount >= objective.requiredAmount) {
       progress.completed = true;
       completedNow = true;
-      if (objective.completionEventFlowId) this.host.runEventFlow?.(objective.completionEventFlowId);
     }
-    if (completedNow) this.notifyObjectiveCompleted(definition, entry, objective.id);
-    this.advanceIfComplete(definition, entry);
-    this.notify(questId);
+    if (completedNow) {
+      this.recordObjectiveCompletion(definition, entry, objective);
+    } else {
+      this.notify(questId);
+    }
     return true;
   }
 
@@ -454,8 +529,10 @@ export class QuestRuntimeManager {
       const entry = this.requireEntry(definition.id);
       if (entry.state !== "active") continue;
       const stage = definition.stages.find(candidate => candidate.id === entry.currentStageId);
-      if (!stage) continue;
+      if (!stage || !this.isStageActive(entry)) continue;
       for (const objective of stage.objectives) {
+        const progress = entry.objectives[objective.id];
+        if (!progress || !this.isObjectiveActive(entry, progress)) continue;
         if (objective.type === "compoundCollectItem") {
           if (event.type !== "itemCollected") continue;
           const requirement = normalizeItemRequirements(objective).find(
@@ -516,13 +593,52 @@ export class QuestRuntimeManager {
       (candidate) => (progress.itemAmounts?.[candidate.itemId] ?? 0) >= candidate.requiredAmount,
     )) {
       progress.completed = true;
-      if (objective.completionEventFlowId) {
-        this.host.runEventFlow?.(objective.completionEventFlowId);
-      }
-      this.notifyObjectiveCompleted(definition, entry, objective.id);
+      this.recordObjectiveCompletion(definition, entry, objective);
+      return;
     }
     this.advanceIfComplete(definition, entry);
     this.notify(definition.id);
+  }
+
+  private recordObjectiveCompletion(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+    objective: QuestObjectiveDefinition,
+  ) {
+    const progress = entry.objectives[objective.id];
+    if (!progress) return;
+    progress.completed = true;
+    progress.completionPresented = false;
+    progress.completionAvailableAtEpochMs = this.now() +
+      this.delayMilliseconds(objective.completionDelaySeconds);
+
+    // 先保存「條件已完成」，延遲只影響核取演出與後續流程。
+    this.notify(definition.id);
+    this.advanceIfComplete(definition, entry);
+    this.scheduleObjectiveCompletion(definition, entry, objective);
+  }
+
+  private scheduleObjectiveCompletion(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+    objective: QuestObjectiveDefinition,
+  ) {
+    const due = entry.objectives[objective.id]?.completionAvailableAtEpochMs ?? 0;
+    const stageId = entry.currentStageId;
+    this.scheduleAt(due, () => {
+      const current = this.saveData.quests[definition.id];
+      const progress = current?.objectives[objective.id];
+      if (!current || !progress || !progress.completed || progress.completionPresented) return;
+      if (current.currentStageId !== stageId) return;
+      if (current.state !== "active" && current.state !== "completed") return;
+      progress.completionPresented = true;
+      if (objective.completionEventFlowId) {
+        this.host.runEventFlow?.(objective.completionEventFlowId);
+      }
+      this.notifyObjectiveCompleted(definition, current, objective.id);
+      this.advanceIfComplete(definition, current);
+      this.notify(definition.id);
+    });
   }
 
   private advanceIfComplete(definition: QuestDefinition, entry: QuestRuntimeEntry) {
@@ -531,24 +647,61 @@ export class QuestRuntimeManager {
     const states = stage.objectives.map(objective => entry.objectives[objective.id]?.completed === true);
     const completed = stage.completionMode === "any" ? states.some(Boolean) : states.every(Boolean);
     if (!completed) return;
-    if (this.pendingStageTransitions.has(definition.id)) return;
-    if (stage.completionEventFlowId) this.host.runEventFlow?.(stage.completionEventFlowId);
     const next = definition.stages.find(candidate => candidate.id === stage.nextStageId)
       ?? definition.stages[definition.stages.indexOf(stage) + 1];
+
+    entry.stageCompletionAvailableAtEpochMs ??= this.now() +
+      this.delayMilliseconds(stage.completionDelaySeconds);
+
+    // 最終階段達標時，Quest 與完成旗標立即寫入；完成 UI 仍依延遲播放。
+    if (!next && entry.state !== "completed") {
+      this.recordQuestCompletion(definition, entry);
+    }
+
+    const presentationStates = stage.objectives.map((objective) => {
+      const progress = entry.objectives[objective.id];
+      return progress?.completed === true && progress.completionPresented !== false;
+    });
+    const completionPresented = stage.completionMode === "any"
+      ? presentationStates.some(Boolean)
+      : presentationStates.every(Boolean);
+    if (!completionPresented) return;
+
+    const remainingDelay = (entry.stageCompletionAvailableAtEpochMs ?? 0) - this.now();
+    if (remainingDelay > 1) {
+      if (!this.pendingStageCompletionDelays.has(definition.id)) {
+        this.pendingStageCompletionDelays.add(definition.id);
+        this.scheduleAt(entry.stageCompletionAvailableAtEpochMs ?? 0, () => {
+          this.pendingStageCompletionDelays.delete(definition.id);
+          const current = this.saveData.quests[definition.id];
+          if (!current || current.currentStageId !== stage.id) return;
+          if (current.state !== "active" && current.state !== "completed") return;
+          this.advanceIfComplete(definition, current);
+        });
+      }
+      return;
+    }
+
+    if (this.pendingStageTransitions.has(definition.id)) return;
+    if (entry.stageCompletionEventExecutedForId !== stage.id) {
+      entry.stageCompletionEventExecutedForId = stage.id;
+      if (stage.completionEventFlowId) this.host.runEventFlow?.(stage.completionEventFlowId);
+    }
     if (!next) {
-      this.completeQuest(definition.id);
+      this.presentQuestCompletion(definition, entry);
       return;
     }
     const completeTransition = () => {
       if (!this.pendingStageTransitions.delete(definition.id)) return;
       if (entry.state !== "active" || entry.currentStageId !== stage.id) return;
       entry.currentStageId = next.id;
-      if (next.startEventFlowId) this.host.runEventFlow?.(next.startEventFlowId);
+      this.configureStageActivation(definition, entry);
       this.notify(definition.id);
     };
     if (!this.host.onStageTransitionStarted) {
       entry.currentStageId = next.id;
-      if (next.startEventFlowId) this.host.runEventFlow?.(next.startEventFlowId);
+      this.configureStageActivation(definition, entry);
+      this.notify(definition.id);
       return;
     }
     this.pendingStageTransitions.add(definition.id);
@@ -599,6 +752,236 @@ export class QuestRuntimeManager {
           entry.objectives[objective.id].itemAmounts ??= {};
         }
       }
+    }
+  }
+
+  private now(): number {
+    return this.host.now?.() ?? Date.now();
+  }
+
+  private delayMilliseconds(seconds?: number): number {
+    return Number.isFinite(seconds) ? Math.max(0, Number(seconds) * 1000) : 0;
+  }
+
+  private getCompletionTrigger(definition: QuestDefinition): {
+    type: "dialogue" | "eventFlow";
+    id: string;
+  } | null {
+    const type = definition.completionTriggerType ?? "none";
+    const id = (definition.completionTriggerId ?? "").trim();
+    if ((type === "dialogue" || type === "eventFlow") && id) return { type, id };
+
+    // Read old quest files without replaying two separate completion mechanisms.
+    const legacyEventFlowId = (definition.completionEventFlowId ?? "").trim();
+    return legacyEventFlowId ? { type: "eventFlow", id: legacyEventFlowId } : null;
+  }
+
+  private scheduleQuestCompletionTrigger(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+  ) {
+    const trigger = this.getCompletionTrigger(definition);
+    if (!trigger || entry.state !== "completed" || entry.completionTriggerCompleted !== false) return;
+    if (this.pendingCompletionTriggers.has(definition.id)) return;
+
+    this.pendingCompletionTriggers.add(definition.id);
+    const due = entry.completionTriggerAvailableAtEpochMs ?? this.now();
+    this.scheduleAt(due, () => {
+      const current = this.saveData.quests[definition.id];
+      if (!current || current.state !== "completed" || current.completionTriggerCompleted !== false) {
+        this.pendingCompletionTriggers.delete(definition.id);
+        return;
+      }
+
+      const runner = this.host.runCompletionTrigger ?? (
+        trigger.type === "eventFlow" && this.host.runEventFlow
+          ? (_type: "dialogue" | "eventFlow", triggerId: string) => this.host.runEventFlow?.(triggerId)
+          : undefined
+      );
+      if (!runner) {
+        this.pendingCompletionTriggers.delete(definition.id);
+        return;
+      }
+
+      void Promise.resolve(runner(trigger.type, trigger.id, definition.id))
+        .then((completed) => {
+          this.pendingCompletionTriggers.delete(definition.id);
+          if (completed === false) return;
+          const latest = this.saveData.quests[definition.id];
+          if (!latest || latest.state !== "completed") return;
+          latest.completionTriggerCompleted = true;
+          this.notify(definition.id);
+        })
+        .catch(() => {
+          // Keep the incomplete flag in the save. A later reload can safely retry it.
+          this.pendingCompletionTriggers.delete(definition.id);
+        });
+    });
+  }
+
+  private isStageActive(entry: QuestRuntimeEntry): boolean {
+    return (entry.stageAvailableAtEpochMs ?? 0) <= this.now();
+  }
+
+  private isObjectiveActive(
+    entry: QuestRuntimeEntry,
+    progress: QuestObjectiveRuntime,
+  ): boolean {
+    return this.isStageActive(entry) && (progress.availableAtEpochMs ?? 0) <= this.now();
+  }
+
+  private scheduleAfter(delayMilliseconds: number, callback: () => void) {
+    if (delayMilliseconds <= 0) {
+      callback();
+      return;
+    }
+    if (this.host.scheduleQuestStart) {
+      this.host.scheduleQuestStart(delayMilliseconds, callback);
+    } else {
+      globalThis.setTimeout(callback, delayMilliseconds);
+    }
+  }
+
+  private scheduleAt(epochMilliseconds: number, callback: () => void) {
+    const runWhenDue = () => {
+      const remaining = epochMilliseconds - this.now();
+      if (remaining > 1) {
+        this.scheduleAfter(remaining, runWhenDue);
+        return;
+      }
+      callback();
+    };
+    runWhenDue();
+  }
+
+  private configureStageActivation(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+  ) {
+    const stage = definition.stages.find(candidate => candidate.id === entry.currentStageId);
+    if (!stage) return;
+    const now = this.now();
+    entry.stageAvailableAtEpochMs = now + this.delayMilliseconds(stage.startDelaySeconds);
+    entry.stageStartEventExecutedForId = undefined;
+    entry.stageCompletionAvailableAtEpochMs = undefined;
+    entry.stageCompletionEventExecutedForId = undefined;
+    for (const objective of stage.objectives) {
+      const progress = entry.objectives[objective.id];
+      if (!progress) continue;
+      progress.availableAtEpochMs = entry.stageAvailableAtEpochMs +
+        this.delayMilliseconds(objective.startDelaySeconds);
+    }
+    this.scheduleStageActivation(definition, entry, stage);
+  }
+
+  private restoreStageActivation(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+  ) {
+    const stage = definition.stages.find(candidate => candidate.id === entry.currentStageId);
+    if (!stage) return;
+
+    // 舊版存檔沒有啟動時間；視為已啟動，避免更新後把既有進度重新延遲。
+    if (entry.stageAvailableAtEpochMs == null) {
+      entry.stageAvailableAtEpochMs = 0;
+      entry.stageStartEventExecutedForId = stage.id;
+      for (const objective of stage.objectives) {
+        const progress = entry.objectives[objective.id];
+        if (progress && progress.availableAtEpochMs == null) progress.availableAtEpochMs = 0;
+      }
+      return;
+    }
+
+    for (const objective of stage.objectives) {
+      const progress = entry.objectives[objective.id];
+      if (progress && progress.availableAtEpochMs == null) {
+        progress.availableAtEpochMs = entry.stageAvailableAtEpochMs;
+      }
+    }
+    this.scheduleStageActivation(definition, entry, stage);
+  }
+
+  private restoreCompletionScheduling(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+  ) {
+    for (const stage of definition.stages) {
+      for (const objective of stage.objectives) {
+        const progress = entry.objectives[objective.id];
+        if (!progress?.completed) continue;
+        if (progress.completionAvailableAtEpochMs == null) {
+          // 舊版存檔的完成項目已經播過，不重新播放完成演出。
+          progress.completionPresented = true;
+          continue;
+        }
+        if (progress.completionPresented !== true) {
+          this.scheduleObjectiveCompletion(definition, entry, objective);
+        }
+      }
+    }
+
+    if (entry.state === "completed") {
+      if (entry.completionTriggerCompleted == null) {
+        // Existing saves predate completion triggers; never replay old completed quests after updating.
+        entry.completionTriggerCompleted = true;
+      } else if (entry.completionTriggerCompleted === false) {
+        this.scheduleQuestCompletionTrigger(definition, entry);
+      }
+      if (entry.questCompletionPresented == null) {
+        entry.questCompletionPresented = true;
+        return;
+      }
+    }
+
+    const stage = definition.stages.find(candidate => candidate.id === entry.currentStageId);
+    if (!stage) return;
+    const rawStates = stage.objectives.map(
+      objective => entry.objectives[objective.id]?.completed === true,
+    );
+    const rawCompleted = stage.completionMode === "any"
+      ? rawStates.some(Boolean)
+      : rawStates.length > 0 && rawStates.every(Boolean);
+    if (!rawCompleted) return;
+
+    if (entry.stageCompletionAvailableAtEpochMs == null) {
+      // 舊版在切換演出期間關閉時，完成事件已執行過；只補完階段切換。
+      entry.stageCompletionAvailableAtEpochMs = 0;
+      entry.stageCompletionEventExecutedForId = stage.id;
+    }
+    if (entry.state === "active" || entry.questCompletionPresented === false) {
+      this.advanceIfComplete(definition, entry);
+    }
+  }
+
+  private scheduleStageActivation(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+    stage: QuestStageDefinition,
+  ) {
+    const questId = definition.id;
+    const stageId = stage.id;
+    const stageDue = entry.stageAvailableAtEpochMs ?? 0;
+    this.scheduleAt(stageDue, () => {
+      const current = this.saveData.quests[questId];
+      if (!current || current.state !== "active" || current.currentStageId !== stageId) return;
+      if (current.stageStartEventExecutedForId !== stageId) {
+        current.stageStartEventExecutedForId = stageId;
+        if (stage.startEventFlowId) this.host.runEventFlow?.(stage.startEventFlowId);
+      }
+      this.notify(questId);
+    });
+
+    const objectiveDueTimes = new Set(
+      stage.objectives
+        .map(objective => entry.objectives[objective.id]?.availableAtEpochMs ?? stageDue)
+        .filter(due => due > stageDue),
+    );
+    for (const due of objectiveDueTimes) {
+      this.scheduleAt(due, () => {
+        const current = this.saveData.quests[questId];
+        if (!current || current.state !== "active" || current.currentStageId !== stageId) return;
+        this.notify(questId);
+      });
     }
   }
 

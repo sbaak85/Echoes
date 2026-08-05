@@ -14,7 +14,7 @@
   "grid": {
     "size": 5,
     "visible": false,
-    "snap": false
+    "snap": true
   },
   "playerSpawn": {
     "x": 680,
@@ -1131,7 +1131,7 @@
         "spirit": 0,
         "timeMinutes": 60
       },
-      "dailyInteractionLimit": 5,
+      "interactionLimitMode": "once",
       "useRequirements": [
         {
           "kind": "questStage",
@@ -1592,7 +1592,7 @@
         {
           "kind": "quest",
           "itemId": "",
-          "questId": "QUEST_CH03_MAIN_003",
+          "questId": "QUEST_CH03_MAIN_004",
           "stageId": "",
           "stageMode": "CurrentStageOnly",
           "disableQuestId": "",
@@ -2113,6 +2113,105 @@
           }
         ]
       }
+    },
+    {
+      "id": "interaction-010",
+      "label": "\u8FD4\u56DE\u98DB\u8239",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 840,
+          "y": 325
+        },
+        {
+          "x": 900,
+          "y": 290
+        },
+        {
+          "x": 995,
+          "y": 390
+        },
+        {
+          "x": 880,
+          "y": 470
+        },
+        {
+          "x": 815,
+          "y": 395
+        }
+      ],
+      "type": "dialogue",
+      "verb": "\u5C0D\u8A71",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 99,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 99,
+        "timeMinutes": 480
+      },
+      "interactionLimitMode": "once",
+      "useRequirements": [
+        {
+          "kind": "questStage",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_003",
+          "stageId": "QUEST_CH03_MAIN_003_STAGE_01",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
+      "interactionPoints": [
+        {
+          "facing": "NW",
+          "x": 903.15466,
+          "y": 426.33475
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 884.56384,
+        "y": 361.87518
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "..."
+          },
+          {
+            "speaker": "",
+            "text": "(\u6211\u5FC3\u4E2D\u9583\u904E\u4E00\u7D72\u60B2\u89C0\u7684\u5FF5\u982D...\u6211\u771F\u7684\u56DE\u5F97\u53BB\u55CE?)"
+          },
+          {
+            "speaker": "",
+            "text": "(\u4F46\u662F\u5F88\u5FEB\u6211\u5C31\u8B93\u81EA\u5DF1\u653E\u68C4\u9019\u7A2E\u60F3\u6CD5...\u5426\u5247\u6211\u77E5\u9053\uFF0C\u6211\u53EF\u80FD\u6703\u6490\u4E0D\u4E0B\u53BB...)"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
+      }
     }
   ],
   "movementGuides": [
@@ -2194,12 +2293,12 @@
           "y": 567.2668
         },
         {
-          "x": 816.1553,
-          "y": 731.5332
+          "x": 835,
+          "y": 735
         },
         {
-          "x": 638.6148,
-          "y": 857.6367
+          "x": 649.8172,
+          "y": 867.9169
         },
         {
           "x": 348.24484,

@@ -159,6 +159,16 @@ test("gameplay HUD shortcuts map Q and RB to quest, R and LB to survival", () =>
 test("empty quest HUD expands into a three-item completed history", () => {
   assert.match(source, /const questPanelCollapsed = questCollapsed/);
   assert.match(source, /manager\.getCompletedQuestIds\(3\)/);
+  assert.match(source, /const EMPTY_QUEST_TITLE = "這個階段沒有任務"/);
+  assert.match(
+    source,
+    /if \(activeQuestHud !== null \|\| questHudEvent !== null\) return;\s*setQuestCollapsed\(true\);/,
+  );
+  assert.match(
+    source,
+    /setQuestCollapsed\(initialQuestHud \? getDefaultQuestCollapsed\(\) : true\)/,
+  );
+  assert.doesNotMatch(source, /QUEST HISTORY|任務歷程/);
   assert.match(source, /className="quest-history"/);
   assert.match(source, /className="quest-history-check"[^>]*>☑</);
   assert.match(source, /className="quest-history-title"/);

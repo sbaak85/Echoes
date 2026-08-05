@@ -135,6 +135,28 @@ test("editors store task and story-trigger delays without assigning a polygon", 
     questData.quests.some((quest) => quest.startDelaySeconds == null),
     false,
   );
+  assert.equal(
+    questData.quests.some((quest) =>
+      quest.stages.some((stage) => stage.startDelaySeconds == null)),
+    false,
+  );
+  assert.equal(
+    questData.quests.some((quest) =>
+      quest.stages.some((stage) => stage.completionDelaySeconds == null)),
+    false,
+  );
+  assert.equal(
+    questData.quests.some((quest) =>
+      quest.stages.some((stage) =>
+        stage.objectives.some((objective) => objective.startDelaySeconds == null))),
+    false,
+  );
+  assert.equal(
+    questData.quests.some((quest) =>
+      quest.stages.some((stage) =>
+        stage.objectives.some((objective) => objective.completionDelaySeconds == null))),
+    false,
+  );
 });
 
 test("第三章開場腳本與流程符合第一版規格", () => {

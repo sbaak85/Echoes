@@ -135,6 +135,7 @@ import {
 import {
   CHAPTER_3_START_FLOW,
   STORY_DIALOGUES,
+  STORY_EVENT_FLOWS,
 } from "./story-content";
 import {
   QuestRuntimeManager,
@@ -167,6 +168,7 @@ type QuestHistoryView = {
   id: string;
   title: string;
 };
+const EMPTY_QUEST_TITLE = "這個階段沒有任務";
 type QuestHudEventKind = "accepted" | "next" | "completed" | "failed";
 type QuestHudEvent = {
   kind: QuestHudEventKind;
@@ -182,6 +184,13 @@ function buildQuestHudView(
   if (!quest) return null;
   const stage = quest.stages.find((candidate) => candidate.id === entry.currentStageId)
     ?? quest.stages[0];
+  const now = Date.now();
+  const stageActive = (entry.stageAvailableAtEpochMs ?? 0) <= now;
+  const activeObjectives = stageActive
+    ? (stage?.objectives ?? []).filter(
+        objective => (entry.objectives[objective.id]?.availableAtEpochMs ?? 0) <= now,
+      )
+    : [];
   return {
     id: quest.id,
     stageId: stage?.id ?? "",
@@ -189,12 +198,13 @@ function buildQuestHudView(
     categoryLabel: quest.type === "main" || quest.type === "longTermMain"
       ? "MAIN OBJECTIVE"
       : "QUEST OBJECTIVE",
-    objectives: (stage?.objectives ?? []).map((objective) => ({
+    objectives: activeObjectives.map((objective) => ({
       id: objective.id,
       label: objective.displayText,
       current: entry.objectives[objective.id]?.currentAmount ?? 0,
       required: Math.max(1, objective.requiredAmount),
-      completed: entry.objectives[objective.id]?.completed === true,
+      completed: entry.objectives[objective.id]?.completed === true &&
+        entry.objectives[objective.id]?.completionPresented !== false,
       showProgress: objective.showProgress === true,
     })),
   };
@@ -2600,6 +2610,11 @@ export function MovementLab() {
     );
   }, [questPanelCollapsed, activeQuestHud?.stageId, completedQuestHistory.length]);
 
+  useEffect(() => {
+    if (activeQuestHud !== null || questHudEvent !== null) return;
+    setQuestCollapsed(true);
+  }, [activeQuestHud, questHudEvent]);
+
   const cancelBlackScreenFade = () => {
     if (blackScreenAnimationRef.current !== null) {
       window.cancelAnimationFrame(blackScreenAnimationRef.current);
@@ -2880,6 +2895,33 @@ export function MovementLab() {
       questRuntimeManagerRef.current = new QuestRuntimeManager(
         QUEST_DOCUMENT,
         {
+          runCompletionTrigger: async (type, triggerId) => {
+            if (type === "dialogue") {
+              const result = await dialogueManager.playRegistered(
+                triggerId,
+                {
+                  id: `quest-completion:${triggerId}`,
+                  label: triggerId,
+                  type: "dialogue",
+                },
+              );
+              if (!result.completed) return false;
+              const manager = questRuntimeManagerRef.current;
+              if (!manager) return false;
+              const clock = getGameClock(survivalStateRef.current.gameMinutes);
+              manager.startAvailableAfterDialogueQuests(
+                triggerId,
+                clock.day,
+                clock.hour * 60 + clock.minute,
+              );
+              saveQuestSaveData(manager.exportSave());
+              return true;
+            }
+
+            const flow = STORY_EVENT_FLOWS[triggerId];
+            if (!flow) return false;
+            return await chapterFlowManagerRef.current?.run(flow) === true;
+          },
           onStateChanged: (questId, entry) => {
             requestStoryTriggerContactCheckRef.current();
             const manager = questRuntimeManagerRef.current;
@@ -2968,7 +3010,8 @@ export function MovementLab() {
         );
         saveQuestSaveData(questRuntimeManagerRef.current.exportSave());
       }
-      setActiveQuestHud(getFirstActiveQuestHud());
+      const initialQuestHud = getFirstActiveQuestHud();
+      setActiveQuestHud(initialQuestHud);
       setCompletedQuestHistory(getCompletedQuestHistory());
       sceneInteractablesRef.current = buildSceneInteractables(
         loadedDroppedWorldItems,
@@ -2995,7 +3038,7 @@ export function MovementLab() {
       setHotbarAssignments(loadedHotbarAssignments);
       setSurvivalState(loadedSurvivalState);
       setDialogueTextSize(getDefaultDialogueTextSize());
-      setQuestCollapsed(getDefaultQuestCollapsed());
+      setQuestCollapsed(initialQuestHud ? getDefaultQuestCollapsed() : true);
       setSurvivalExpanded(getDefaultSurvivalExpanded());
       setStoryReady(true);
     }, 0);
@@ -8633,7 +8676,7 @@ export function MovementLab() {
         }${activeQuestHudEvent ? ` is-event-${activeQuestHudEvent.kind}` : ""}${
           questStageEntering ? " is-stage-entering" : ""
         }`}
-        aria-label={hasActiveQuest ? activeQuestHud!.title : "任務歷程"}
+        aria-label={hasActiveQuest ? activeQuestHud!.title : EMPTY_QUEST_TITLE}
         data-quest-hud-event={activeQuestHudEvent?.kind ?? "idle"}
       >
         {activeQuestHudEvent && (
@@ -8646,8 +8689,8 @@ export function MovementLab() {
             {hasActiveQuest ? "◇" : "✓"}
           </span>
           <div className="quest-title">
-            <small>{activeQuestHud?.categoryLabel ?? "QUEST HISTORY"}</small>
-            <strong>{activeQuestHud?.title ?? "任務歷程"}</strong>
+            <small>{activeQuestHud?.categoryLabel ?? "MAIN OBJECTIVE"}</small>
+            <strong>{activeQuestHud?.title ?? EMPTY_QUEST_TITLE}</strong>
             {activeQuestHudEvent && activeQuestHudEvent.kind !== "accepted" ? (
               <b className="quest-result-label">
                 {activeQuestHudEvent.kind === "next"

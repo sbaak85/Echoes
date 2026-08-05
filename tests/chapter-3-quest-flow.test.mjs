@@ -12,6 +12,7 @@ const scene = JSON.parse(
 
 const QUEST_ID = "QUEST_CH03_MAIN_001";
 const INVENTORY_QUEST_ID = "QUEST_CH03_MAIN_002";
+const REST_QUEST_ID = "QUEST_CH03_MAIN_003";
 
 function dispatch(manager, eventId, type, targetId) {
   manager.handleEvent({ eventId, type, targetId, amount: 1 });
@@ -25,6 +26,9 @@ test("inventory tutorial quest uses interface-opened and item-used objectives", 
   assert.equal(quest.grantMethod, "afterDialogue");
   assert.equal(quest.grantSourceId, "chapter03_backpack-teaching");
   assert.equal(quest.startDelaySeconds, 1);
+  assert.equal(quest.completionTriggerType, "dialogue");
+  assert.equal(quest.completionTriggerId, "chapter03-section-2");
+  assert.equal(quest.completionTriggerDelaySeconds, 3);
   assert.equal(quest.stages[0].name, "打開介面與使用道具");
   assert.deepEqual(
     quest.stages[0].objectives.map((objective) => [objective.type, objective.targetId]),
@@ -46,6 +50,15 @@ test("inventory tutorial quest uses interface-opened and item-used objectives", 
   assert.equal(manager.getQuestState(INVENTORY_QUEST_ID), "completed");
 });
 
+test("MAIN_002 completion dialogue hands off MAIN_003 without a second start delay", () => {
+  const quest = questDocument.quests.find((candidate) => candidate.id === REST_QUEST_ID);
+  assert.ok(quest);
+  assert.equal(quest.grantMethod, "afterDialogue");
+  assert.equal(quest.grantSourceId, "chapter03-section-2");
+  assert.deepEqual(quest.prerequisiteQuestIds, [INVENTORY_QUEST_ID]);
+  assert.equal(quest.startDelaySeconds, 0);
+});
+
 test("story-trigger-002 unlocks after MAIN_001 and hands off MAIN_002 after dialogue", () => {
   const trigger = scene.storyTriggers.find((candidate) => candidate.id === "story-trigger-002");
   assert.ok(trigger);
@@ -60,6 +73,8 @@ test("story-trigger-002 unlocks after MAIN_001 and hands off MAIN_002 after dial
 
 test("第三章第一個主線任務可依正式資料完成三個階段", () => {
   const lifecycle = [];
+  let now = 0;
+  const scheduled = [];
   const quest = questDocument.quests.find((candidate) => candidate.id === QUEST_ID);
   const [stage1, stage2, stage3] = quest.stages;
   const stage1Interaction = stage1.objectives.find((objective) => objective.type === "interactionSucceeded");
@@ -69,9 +84,22 @@ test("第三章第一個主線任務可依正式資料完成三個階段", () =>
   const stage3SingleItem = stage3.objectives.find((objective) => objective.type === "collectItem");
   const stage3Items = stage3.objectives.find((objective) => objective.type === "compoundCollectItem");
   const manager = new QuestRuntimeManager(questDocument, {
+    now: () => now,
+    scheduleQuestStart: (delayMilliseconds, callback) => {
+      scheduled.push({ at: now + delayMilliseconds, callback });
+    },
     onQuestStarted: (questId) => lifecycle.push(["accepted", questId]),
     onQuestCompleted: (questId) => lifecycle.push(["completed", questId]),
   });
+  const flushScheduled = () => {
+    while (scheduled.length > 0) {
+      const nextAt = Math.min(...scheduled.map((task) => task.at));
+      now = Math.max(now, nextAt);
+      const due = scheduled.filter((task) => task.at <= now);
+      scheduled.splice(0, scheduled.length, ...scheduled.filter((task) => task.at > now));
+      for (const task of due) task.callback();
+    }
+  };
 
   assert.equal(manager.startQuest(QUEST_ID, 3, 360), true);
   assert.equal(manager.getCurrentStage(QUEST_ID), `${QUEST_ID}_STAGE_01`);
@@ -82,9 +110,11 @@ test("第三章第一個主線任務可依正式資料完成三個階段", () =>
   dispatch(manager, "pickup:stage1-a", "itemCollected", stage1Items.itemRequirements[0].itemId);
   assert.equal(manager.getCurrentStage(QUEST_ID), `${QUEST_ID}_STAGE_01`);
   dispatch(manager, "pickup:stage1-b", "itemCollected", stage1Items.itemRequirements[1].itemId);
+  flushScheduled();
   assert.equal(manager.getCurrentStage(QUEST_ID), `${QUEST_ID}_STAGE_02`);
 
   dispatch(manager, "interaction:stage2", "interactionSucceeded", stage2Interaction.targetId);
+  flushScheduled();
   assert.equal(manager.getCurrentStage(QUEST_ID), `${QUEST_ID}_STAGE_03`);
 
   dispatch(manager, "pickup:stage3-single", "itemCollected", stage3SingleItem.targetId);
@@ -95,6 +125,7 @@ test("第三章第一個主線任務可依正式資料完成三個階段", () =>
   assert.equal(manager.getQuestState(QUEST_ID), "active");
 
   dispatch(manager, "interaction:stage3", "interactionSucceeded", stage3Interaction.targetId);
+  flushScheduled();
   assert.equal(manager.getQuestState(QUEST_ID), "completed");
   assert.deepEqual(lifecycle, [
     ["accepted", QUEST_ID],

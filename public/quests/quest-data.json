@@ -40,6 +40,8 @@
         {
           "id": "QUEST_CH03_MAIN_001_STAGE_01",
           "name": "\u6AA2\u67E5\u57FA\u672C\u88DC\u7D66",
+          "startDelaySeconds": 0,
+          "completionDelaySeconds": 0,
           "completionMode": "all",
           "startEventFlowId": "",
           "completionEventFlowId": "",
@@ -48,6 +50,8 @@
             {
               "id": "QUEST_CH03_MAIN_001_OBJ_01",
               "displayText": "\u6AA2\u67E5\u8CA8\u6AC3\u7BB1",
+              "startDelaySeconds": 0,
+              "completionDelaySeconds": 0,
               "type": "interactionSucceeded",
               "targetId": "interaction-008",
               "itemRequirements": [],
@@ -62,6 +66,8 @@
             {
               "id": "QUEST_CH03_MAIN_001_OBJ_02",
               "displayText": "\u53D6\u5F97 1 \u4EFD\u7DCA\u6025\u53E3\u7CE7\u8207 1 \u7F50\u6DE8\u6C34\u74F6",
+              "startDelaySeconds": 0,
+              "completionDelaySeconds": 0,
               "type": "compoundCollectItem",
               "targetId": "",
               "itemRequirements": [
@@ -87,6 +93,8 @@
         {
           "id": "QUEST_CH03_MAIN_001_STAGE_02",
           "name": "\u6AA2\u67E5\u5DE5\u4F5C\u8A2D\u5099",
+          "startDelaySeconds": 0,
+          "completionDelaySeconds": 2,
           "completionMode": "all",
           "startEventFlowId": "",
           "completionEventFlowId": "",
@@ -95,6 +103,8 @@
             {
               "id": "QUEST_CH03_MAIN_001_OBJ_03",
               "displayText": "\u6AA2\u67E5\u81E8\u6642\u5DE5\u4F5C\u53F0\u96FB\u8166",
+              "startDelaySeconds": 0,
+              "completionDelaySeconds": 1.5,
               "type": "interactionSucceeded",
               "targetId": "interaction-002",
               "itemRequirements": [],
@@ -111,6 +121,8 @@
         {
           "id": "QUEST_CH03_MAIN_001_STAGE_03",
           "name": "\u78BA\u8A8D\u5468\u570D\u8CC7\u6E90",
+          "startDelaySeconds": 0,
+          "completionDelaySeconds": 0,
           "completionMode": "all",
           "startEventFlowId": "",
           "completionEventFlowId": "",
@@ -119,6 +131,8 @@
             {
               "id": "QUEST_CH03_MAIN_001_OBJ_06",
               "displayText": "\u6AA2\u67E5\u51B7\u51DD\u6C34\u6536\u96C6\u5668",
+              "startDelaySeconds": 0,
+              "completionDelaySeconds": 0,
               "type": "interactionSucceeded",
               "targetId": "interaction-009",
               "itemRequirements": [],
@@ -133,6 +147,8 @@
             {
               "id": "QUEST_CH03_MAIN_001_OBJ_04",
               "displayText": "\u5C0B\u627E\u4E26\u63A1\u96C6\u5916\u661F\u690D\u7269\u7684\u679C\u5BE6",
+              "startDelaySeconds": 0,
+              "completionDelaySeconds": 0,
               "type": "collectItem",
               "targetId": "R0012",
               "itemRequirements": [],
@@ -147,6 +163,8 @@
             {
               "id": "QUEST_CH03_MAIN_001_OBJ_05",
               "displayText": "\u62FE\u53D6\u6563\u843D\u5728\u56DB\u5468\u7684\u96F6\u4EF6",
+              "startDelaySeconds": 0,
+              "completionDelaySeconds": 0,
               "type": "compoundCollectItem",
               "targetId": "",
               "itemRequirements": [
@@ -177,8 +195,8 @@
     },
     {
       "id": "QUEST_CH03_MAIN_002",
-      "name": "整理背包",
-      "description": "熟悉背包介面，並實際使用一份補給品。",
+      "name": "\u6574\u7406\u80CC\u5305",
+      "description": "\u719F\u6089\u80CC\u5305\u4ECB\u9762\uFF0C\u4E26\u5BE6\u969B\u4F7F\u7528\u4E00\u4EFD\u88DC\u7D66\u54C1\u3002",
       "chapterId": "CH03",
       "type": "main",
       "grantMethod": "afterDialogue",
@@ -192,6 +210,9 @@
       "canReaccept": false,
       "displayMode": "standard",
       "completionFlagId": "QUEST_CH03_MAIN_002_COMPLETED",
+      "completionTriggerType": "dialogue",
+      "completionTriggerId": "chapter03-section-2",
+      "completionTriggerDelaySeconds": 3,
       "completionEventFlowId": "",
       "rewardItemId": "",
       "rewardItemAmount": 0,
@@ -202,7 +223,9 @@
       "stages": [
         {
           "id": "QUEST_CH03_MAIN_002_STAGE_01",
-          "name": "打開介面與使用道具",
+          "name": "\u6253\u958B\u4ECB\u9762\u8207\u4F7F\u7528\u9053\u5177",
+          "startDelaySeconds": 0,
+          "completionDelaySeconds": 0,
           "completionMode": "all",
           "startEventFlowId": "",
           "completionEventFlowId": "",
@@ -210,7 +233,9 @@
           "objectives": [
             {
               "id": "QUEST_CH03_MAIN_002_OBJ_01",
-              "displayText": "按 [TAB] 打開背包",
+              "displayText": "\u6309 [TAB] \u6253\u958B\u80CC\u5305",
+              "startDelaySeconds": 0,
+              "completionDelaySeconds": 0,
               "type": "interfaceOpened",
               "targetId": "Inventory",
               "itemRequirements": [],
@@ -224,7 +249,9 @@
             },
             {
               "id": "QUEST_CH03_MAIN_002_OBJ_02",
-              "displayText": "飲用一份 [淨水瓶]",
+              "displayText": "\u98F2\u7528\u4E00\u4EFD [\u6DE8\u6C34\u74F6]",
+              "startDelaySeconds": 0,
+              "completionDelaySeconds": 0,
               "type": "itemUsed",
               "targetId": "R0004",
               "itemRequirements": [],
@@ -237,6 +264,61 @@
               "completionEventFlowId": "",
               "completionInterfaceAction": "close",
               "completionInterfaceId": "Inventory"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "QUEST_CH03_MAIN_003",
+      "name": "\u5B64\u7368\u7684\u4E00\u591C",
+      "description": "\u62D6\u8457\u50B7\u5FD9\u4E86\u4E00\u5929\uFF0C\u8A72\u4F11\u606F\u56DE\u5FA9\u9AD4\u529B\u4E86\u3002",
+      "chapterId": "CH03",
+      "type": "main",
+      "grantMethod": "afterDialogue",
+      "grantSourceId": "chapter03-section-2",
+      "grantCondition": "",
+      "prerequisiteQuestIds": [
+        "QUEST_CH03_MAIN_002"
+      ],
+      "startDelaySeconds": 0,
+      "canAbandon": false,
+      "canReaccept": false,
+      "displayMode": "standard",
+      "completionFlagId": "QUEST_CH03_MAIN_003_COMPLETED",
+      "completionEventFlowId": "",
+      "rewardItemId": "",
+      "rewardItemAmount": 0,
+      "failureDeadline": "",
+      "failureEventId": "",
+      "failureMode": "permanent",
+      "onFailedEventFlowId": "",
+      "stages": [
+        {
+          "id": "QUEST_CH03_MAIN_003_STAGE_01",
+          "name": "\u990A\u7CBE\u84C4\u92B3",
+          "startDelaySeconds": 0,
+          "completionDelaySeconds": 4,
+          "completionMode": "all",
+          "startEventFlowId": "",
+          "completionEventFlowId": "",
+          "nextStageId": "",
+          "objectives": [
+            {
+              "id": "QUEST_CH03_MAIN_003_OBJ_01",
+              "displayText": "\u8FD4\u56DE\u98DB\u8239",
+              "startDelaySeconds": 0,
+              "completionDelaySeconds": 0,
+              "type": "interactionSucceeded",
+              "targetId": "interaction-010",
+              "itemRequirements": [],
+              "targetState": "",
+              "requiredAmount": 1,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": true,
+              "showHintIcon": false,
+              "completionEventFlowId": ""
             }
           ]
         }

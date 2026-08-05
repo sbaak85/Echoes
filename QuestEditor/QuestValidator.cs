@@ -58,10 +58,41 @@ internal static class QuestValidator
                     $"{quest.Id} 的啟動延遲必須介於 0 至 3600 秒。",
                     quest));
             }
+            ValidateCompletionDelay(
+                quest.CompletionTriggerDelaySeconds,
+                $"{quest.Id} 完成後觸發",
+                quest,
+                issues);
+            var completionReferenceKind = quest.CompletionTriggerType switch
+            {
+                QuestCompletionTriggerType.Dialogue => "Dialogue",
+                QuestCompletionTriggerType.EventFlow => "EventFlow",
+                _ => null,
+            };
+            if (completionReferenceKind is not null)
+            {
+                if (string.IsNullOrWhiteSpace(quest.CompletionTriggerId))
+                {
+                    issues.Add(new(
+                        ValidationSeverity.Error,
+                        $"{quest.Id} 已設定完成後觸發類型，但尚未指定觸發 ID",
+                        quest));
+                }
+                else if (references.Get(completionReferenceKind).Count > 0 &&
+                         !references.Contains(completionReferenceKind, quest.CompletionTriggerId))
+                {
+                    issues.Add(new(
+                        ValidationSeverity.Error,
+                        $"找不到 {completionReferenceKind} ID：{quest.CompletionTriggerId}",
+                        quest));
+                }
+            }
 
             foreach (var stage in quest.Stages)
             {
                 Required(stage.Id, $"{quest.Id} 的 Stage ID 不可空白", stage, issues);
+                ValidateStartDelay(stage.StartDelaySeconds, stage.Id, stage, issues);
+                ValidateCompletionDelay(stage.CompletionDelaySeconds, stage.Id, stage, issues);
                 if (!stage.Id.StartsWith($"{quest.Id}_STAGE_", StringComparison.OrdinalIgnoreCase))
                     issues.Add(new(
                         ValidationSeverity.Error,
@@ -75,6 +106,8 @@ internal static class QuestValidator
                 ValidateUnique(stage.Objectives, objective => objective.Id, $"{quest.Id}/{stage.Id} 的 Objective ID", issues);
                 foreach (var objective in stage.Objectives)
                 {
+                    ValidateStartDelay(objective.StartDelaySeconds, objective.Id, objective, issues);
+                    ValidateCompletionDelay(objective.CompletionDelaySeconds, objective.Id, objective, issues);
                     if (!objective.Id.StartsWith($"{quest.Id}_OBJ_", StringComparison.OrdinalIgnoreCase))
                         issues.Add(new(
                             ValidationSeverity.Error,
@@ -87,6 +120,32 @@ internal static class QuestValidator
 
         ValidatePrerequisiteCycles(document, issues);
         return issues;
+    }
+
+    private static void ValidateStartDelay(
+        double value,
+        string id,
+        object target,
+        List<QuestValidationIssue> issues)
+    {
+        if (double.IsFinite(value) && value >= 0 && value <= 3600) return;
+        issues.Add(new(
+            ValidationSeverity.Error,
+            $"{id} 的啟動延遲必須介於 0 至 3600 秒。",
+            target));
+    }
+
+    private static void ValidateCompletionDelay(
+        double value,
+        string id,
+        object target,
+        List<QuestValidationIssue> issues)
+    {
+        if (double.IsFinite(value) && value >= 0 && value <= 3600) return;
+        issues.Add(new(
+            ValidationSeverity.Error,
+            $"{id} 的完成延遲必須介於 0 至 3600 秒。",
+            target));
     }
 
     private static void ValidateObjective(QuestObjectiveDefinition objective, QuestReferenceCatalog references, List<QuestValidationIssue> issues)

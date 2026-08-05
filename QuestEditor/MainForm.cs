@@ -35,6 +35,7 @@ internal sealed class MainForm : Form
         _dataPath = dataPath;
         _document = QuestDataStore.Load(dataPath);
         _references = QuestReferenceProvider.Load(projectRoot);
+        PrerequisiteQuestIdsEditor.SetQuestProvider(() => _document.Quests);
         InitializeWindow();
         BuildUi();
         RebuildTree();
@@ -441,23 +442,32 @@ internal sealed class MainForm : Form
         {
             _referenceCombo.DataSource = null;
             var objective = _propertyGrid.SelectedObject as QuestObjectiveDefinition;
-            var kind = objective is null ? null : QuestValidator.ReferenceKind(objective.Type);
+            var quest = _propertyGrid.SelectedObject as QuestDefinition;
+            var kind = objective is not null
+                ? QuestValidator.ReferenceKind(objective.Type)
+                : quest?.CompletionTriggerType switch
+                {
+                    QuestCompletionTriggerType.Dialogue => "Dialogue",
+                    QuestCompletionTriggerType.EventFlow => "EventFlow",
+                    _ => null,
+                };
+            var currentId = objective?.TargetId ?? quest?.CompletionTriggerId ?? "";
             _referenceLabel.Text = kind is null
-                ? "這個目標類型不使用外部 ID 清單"
+                ? "目前選取項目不使用外部 ID 清單"
                 : $"外部{ReferenceKindDisplayName(kind)} ID 清單";
             _referenceCombo.Enabled = kind is not null;
             if (kind is null) return;
 
             var values = _references.Get(kind).ToList();
-            if (!string.IsNullOrWhiteSpace(objective!.TargetId) &&
-                values.All(value => !value.Id.Equals(objective.TargetId, StringComparison.OrdinalIgnoreCase)))
+            if (!string.IsNullOrWhiteSpace(currentId) &&
+                values.All(value => !value.Id.Equals(currentId, StringComparison.OrdinalIgnoreCase)))
             {
-                values.Insert(0, new QuestReference(objective.TargetId, "目前值（外部清單找不到）"));
+                values.Insert(0, new QuestReference(currentId, "目前值（外部清單找不到）"));
             }
 
             _referenceCombo.DataSource = values;
             var selected = values.FirstOrDefault(value =>
-                value.Id.Equals(objective.TargetId, StringComparison.OrdinalIgnoreCase));
+                value.Id.Equals(currentId, StringComparison.OrdinalIgnoreCase));
             _referenceCombo.SelectedItem = selected;
             if (selected is null) _referenceCombo.SelectedIndex = -1;
         }
@@ -475,6 +485,7 @@ internal sealed class MainForm : Form
         "Area" => "區域",
         "Puzzle" => "解謎",
         "Dialogue" => "對話",
+        "EventFlow" => "事件流程",
         "WorldObject" => "場景物件",
         "Flag" => "旗標",
         _ => kind,
@@ -483,9 +494,18 @@ internal sealed class MainForm : Form
     private void ApplySelectedReference()
     {
         if (_rebuilding || _updatingReferenceList ||
-            _propertyGrid.SelectedObject is not QuestObjectiveDefinition objective ||
-            _referenceCombo.SelectedItem is not QuestReference reference || objective.TargetId == reference.Id) return;
-        objective.TargetId = reference.Id;
+            _referenceCombo.SelectedItem is not QuestReference reference) return;
+        if (_propertyGrid.SelectedObject is QuestObjectiveDefinition objective)
+        {
+            if (objective.TargetId == reference.Id) return;
+            objective.TargetId = reference.Id;
+        }
+        else if (_propertyGrid.SelectedObject is QuestDefinition quest)
+        {
+            if (quest.CompletionTriggerId == reference.Id) return;
+            quest.CompletionTriggerId = reference.Id;
+        }
+        else return;
         _propertyGrid.Refresh();
         _objectiveGrid.Refresh();
         MarkDirty();
@@ -930,12 +950,23 @@ internal sealed class MainForm : Form
             .ConvertToString(ObjectiveType.InteractionSucceeded);
         if (localizedObjectiveType != "互動成功")
             throw new InvalidOperationException("屬性選單的中文顯示轉換失敗。");
+        var prerequisiteProperty = TypeDescriptor.GetProperties(typeof(QuestDefinition))[
+            nameof(QuestDefinition.PrerequisiteQuestIds)];
+        if (prerequisiteProperty?.GetEditor(typeof(System.Drawing.Design.UITypeEditor))
+            is not PrerequisiteQuestIdsEditor)
+        {
+            throw new InvalidOperationException("前置任務 ID 沒有綁定專用任務選擇器。");
+        }
         var localizedInterfaceType = TypeDescriptor.GetConverter(typeof(ObjectiveType))
             .ConvertToString(ObjectiveType.InterfaceOpened);
         var localizedItemUsedType = TypeDescriptor.GetConverter(typeof(ObjectiveType))
             .ConvertToString(ObjectiveType.ItemUsed);
         if (localizedInterfaceType != "開啟介面" || localizedItemUsedType != "使用道具")
             throw new InvalidOperationException("新增任務目標類型的中文顯示轉換失敗。");
+        var localizedCompletionTrigger = TypeDescriptor.GetConverter(typeof(QuestCompletionTriggerType))
+            .ConvertToString(QuestCompletionTriggerType.Dialogue);
+        if (localizedCompletionTrigger != "播放對話")
+            throw new InvalidOperationException("任務完成後觸發類型的中文顯示轉換失敗。");
         if (QuestValidator.ReferenceKind(ObjectiveType.InterfaceOpened) != "Interface" ||
             QuestValidator.ReferenceKind(ObjectiveType.ItemUsed) != "Item")
         {

@@ -103,8 +103,17 @@ internal static class Program
             Name = "測試任務",
             ChapterId = "CH03",
             StartDelaySeconds = 1.5,
+            CompletionTriggerType = QuestCompletionTriggerType.Dialogue,
+            CompletionTriggerId = "chapter03-section-2",
+            CompletionTriggerDelaySeconds = 3,
         };
-        var stage = new QuestStageDefinition { Id = "QUEST_TEST_STAGE_01", Name = "測試階段" };
+        var stage = new QuestStageDefinition
+        {
+            Id = "QUEST_TEST_STAGE_01",
+            Name = "測試階段",
+            StartDelaySeconds = 2.5,
+            CompletionDelaySeconds = 3.25,
+        };
         stage.Objectives.Add(new QuestObjectiveDefinition
         {
             Id = "QUEST_TEST_OBJ_01",
@@ -112,6 +121,8 @@ internal static class Program
             Type = ObjectiveType.CollectItem,
             TargetId = "R0001",
             RequiredAmount = 3,
+            StartDelaySeconds = 0.75,
+            CompletionDelaySeconds = 1.25,
             CompletionInterfaceAction = CompletionInterfaceAction.Close,
             CompletionInterfaceId = "Inventory",
         });
@@ -124,7 +135,14 @@ internal static class Program
             loaded.Quests[0].Stages[0].Objectives[0].RequiredAmount != 3 ||
             loaded.Quests[0].Stages[0].Objectives[0].CompletionInterfaceAction != CompletionInterfaceAction.Close ||
             loaded.Quests[0].Stages[0].Objectives[0].CompletionInterfaceId != "Inventory" ||
-            Math.Abs(loaded.Quests[0].StartDelaySeconds - 1.5) > 0.001)
+            Math.Abs(loaded.Quests[0].StartDelaySeconds - 1.5) > 0.001 ||
+            loaded.Quests[0].CompletionTriggerType != QuestCompletionTriggerType.Dialogue ||
+            loaded.Quests[0].CompletionTriggerId != "chapter03-section-2" ||
+            Math.Abs(loaded.Quests[0].CompletionTriggerDelaySeconds - 3) > 0.001 ||
+            Math.Abs(loaded.Quests[0].Stages[0].StartDelaySeconds - 2.5) > 0.001 ||
+            Math.Abs(loaded.Quests[0].Stages[0].CompletionDelaySeconds - 3.25) > 0.001 ||
+            Math.Abs(loaded.Quests[0].Stages[0].Objectives[0].StartDelaySeconds - 0.75) > 0.001 ||
+            Math.Abs(loaded.Quests[0].Stages[0].Objectives[0].CompletionDelaySeconds - 1.25) > 0.001)
             throw new InvalidDataException("任務資料往返測試失敗。");
         var issues = QuestValidator.Validate(loaded, QuestReferenceProvider.Load(projectRoot));
         if (issues.Any(issue => issue.Severity == ValidationSeverity.Error))
