@@ -10,6 +10,8 @@ export type QuestObjectiveType =
   | "collectItem"
   | "compoundCollectItem"
   | "haveItem"
+  | "interfaceOpened"
+  | "itemUsed"
   | "interactionStarted"
   | "interactionSucceeded"
   | "enterArea"
@@ -94,6 +96,8 @@ export type QuestGameEvent = {
   type:
     | "itemCollected"
     | "inventoryChanged"
+    | "interfaceOpened"
+    | "itemUsed"
     | "interactionStarted"
     | "interactionSucceeded"
     | "areaEntered"
@@ -258,6 +262,20 @@ export class QuestRuntimeManager {
     this.host.onQuestStarted?.(questId, structuredClone(entry));
     this.notify(questId);
     return true;
+  }
+
+  startAvailableAutomaticQuests(
+    day: number | null = null,
+    time: number | null = null,
+  ): string[] {
+    const started: string[] = [];
+    for (const definition of this.definitions.values()) {
+      if (definition.grantMethod !== "automatic") continue;
+      const entry = this.requireEntry(definition.id);
+      if (entry.state !== "available") continue;
+      if (this.startQuest(definition.id, day, time)) started.push(definition.id);
+    }
+    return started;
   }
 
   completeQuest(questId: string): boolean {
@@ -593,6 +611,10 @@ export function evaluateQuestObjective(
       return null;
     case "haveItem":
       return event.type === "inventoryChanged" ? { mode: "set", amount: event.amount ?? 0 } : null;
+    case "interfaceOpened":
+      return event.type === "interfaceOpened" ? { mode: "complete" } : null;
+    case "itemUsed":
+      return event.type === "itemUsed" ? { mode: "add", amount: event.amount ?? 1 } : null;
     case "interactionStarted":
       return event.type === "interactionStarted" ? { mode: "complete" } : null;
     case "interactionSucceeded":

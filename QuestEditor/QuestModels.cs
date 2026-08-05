@@ -1,35 +1,133 @@
 using System.ComponentModel;
+using System.Globalization;
+using System.Reflection;
 using System.Text.Json.Serialization;
 
 namespace Echoes.QuestEditor;
 
-public enum QuestState { Locked, Available, Active, Completed, Failed, Abandoned }
-public enum QuestType { Main, Side, LongTermMain }
-public enum QuestGrantMethod { Automatic, Interaction, AfterDialogue }
-public enum QuestDisplayMode { Standard, MainProgress }
-public enum StageCompletionMode { All, Any }
+[TypeConverter(typeof(LocalizedEnumConverter))]
+public enum QuestState
+{
+    [Description("鎖定")] Locked,
+    [Description("可承接")] Available,
+    [Description("進行中")] Active,
+    [Description("已完成")] Completed,
+    [Description("已失敗")] Failed,
+    [Description("已放棄")] Abandoned,
+}
+
+[TypeConverter(typeof(LocalizedEnumConverter))]
+public enum QuestType
+{
+    [Description("主線任務")] Main,
+    [Description("支線任務")] Side,
+    [Description("長期主線任務")] LongTermMain,
+}
+
+[TypeConverter(typeof(LocalizedEnumConverter))]
+public enum QuestGrantMethod
+{
+    [Description("自動派發")] Automatic,
+    [Description("互動派發")] Interaction,
+    [Description("對話結束後派發")] AfterDialogue,
+}
+
+[TypeConverter(typeof(LocalizedEnumConverter))]
+public enum QuestDisplayMode
+{
+    [Description("標準")] Standard,
+    [Description("主線進度")] MainProgress,
+}
+
+[TypeConverter(typeof(LocalizedEnumConverter))]
+public enum StageCompletionMode
+{
+    [Description("全部目標完成")] All,
+    [Description("任一目標完成")] Any,
+}
+
+[TypeConverter(typeof(LocalizedEnumConverter))]
 public enum ObjectiveType
 {
-    CollectItem,
-    CompoundCollectItem,
-    HaveItem,
-    InteractionStarted,
-    InteractionSucceeded,
-    EnterArea,
-    PuzzleCompleted,
-    DialogueCompleted,
-    ObjectStateReached,
-    DayOrTimeReached,
-    FlagCondition,
-    CustomProgress,
+    [Description("收集道具")] CollectItem,
+    [Description("複合道具收集")] CompoundCollectItem,
+    [Description("持有道具")] HaveItem,
+    [Description("開啟介面")] InterfaceOpened,
+    [Description("使用道具")] ItemUsed,
+    [Description("開始互動")] InteractionStarted,
+    [Description("互動成功")] InteractionSucceeded,
+    [Description("進入區域")] EnterArea,
+    [Description("完成解謎")] PuzzleCompleted,
+    [Description("完成對話")] DialogueCompleted,
+    [Description("場景物件達到指定狀態")] ObjectStateReached,
+    [Description("到達指定日期或時間")] DayOrTimeReached,
+    [Description("旗標條件成立")] FlagCondition,
+    [Description("自訂進度")] CustomProgress,
 }
-public enum ObjectiveCountMode { Accumulated, CurrentInventory }
-public enum InteractionObjectiveMode { Started, Succeeded }
-public enum FailureMode { Permanent, RestartQuest }
+
+[TypeConverter(typeof(LocalizedEnumConverter))]
+public enum ObjectiveCountMode
+{
+    [Description("累計取得")] Accumulated,
+    [Description("目前持有量")] CurrentInventory,
+}
+
+[TypeConverter(typeof(LocalizedEnumConverter))]
+public enum InteractionObjectiveMode
+{
+    [Description("互動開始")] Started,
+    [Description("互動成功")] Succeeded,
+}
+
+[TypeConverter(typeof(LocalizedEnumConverter))]
+public enum FailureMode
+{
+    [Description("永久失敗")] Permanent,
+    [Description("重新開始任務")] RestartQuest,
+}
+
+public sealed class LocalizedEnumConverter : EnumConverter
+{
+    public LocalizedEnumConverter(Type type) : base(type) { }
+
+    public override object? ConvertTo(
+        ITypeDescriptorContext? context,
+        CultureInfo? culture,
+        object? value,
+        Type destinationType)
+    {
+        if (destinationType == typeof(string) && value is not null)
+            return GetDisplayName(value);
+        return base.ConvertTo(context, culture, value, destinationType);
+    }
+
+    public override object? ConvertFrom(
+        ITypeDescriptorContext? context,
+        CultureInfo? culture,
+        object value)
+    {
+        if (value is string text)
+        {
+            foreach (var enumValue in Enum.GetValues(EnumType))
+            {
+                if (string.Equals(GetDisplayName(enumValue), text, StringComparison.Ordinal))
+                    return enumValue;
+            }
+        }
+        return base.ConvertFrom(context, culture, value);
+    }
+
+    private string GetDisplayName(object value)
+    {
+        var memberName = Enum.GetName(EnumType, value);
+        if (memberName is null) return value.ToString() ?? "";
+        return EnumType.GetField(memberName)?.GetCustomAttribute<DescriptionAttribute>()?.Description ?? memberName;
+    }
+}
 
 public sealed class QuestItemRequirement
 {
-    [DisplayName("Item ID")]
+    [DisplayName("道具 ID")]
     public string ItemId { get; set; } = "R0001";
 
     [DisplayName("需求數量")]
@@ -47,7 +145,7 @@ public sealed class QuestDocument
 
 public sealed class ChapterDefinition
 {
-    [Category("基本"), DisplayName("Chapter ID")]
+    [Category("基本"), DisplayName("章節 ID")]
     public string Id { get; set; } = "CH01";
 
     [Category("基本"), DisplayName("章節名稱")]
@@ -74,7 +172,7 @@ public sealed class ChapterDefinition
 
 public sealed class QuestDefinition
 {
-    [Category("基本"), DisplayName("Quest ID")]
+    [Category("基本"), DisplayName("任務 ID")]
     public string Id { get; set; } = "QUEST_NEW";
 
     [Category("基本"), DisplayName("任務名稱")]
@@ -108,7 +206,7 @@ public sealed class QuestDefinition
     [Category("規則"), DisplayName("可重新接取")]
     public bool CanReaccept { get; set; }
 
-    [Category("UI"), DisplayName("顯示模式")]
+    [Category("介面"), DisplayName("顯示模式")]
     public QuestDisplayMode DisplayMode { get; set; } = QuestDisplayMode.Standard;
 
     [Category("完成"), DisplayName("完成旗標 ID")]
@@ -143,7 +241,7 @@ public sealed class QuestDefinition
 
 public sealed class QuestStageDefinition
 {
-    [Category("基本"), DisplayName("Stage ID")]
+    [Category("基本"), DisplayName("階段 ID")]
     public string Id { get; set; } = "QUEST_NEW_STAGE_01";
 
     [Category("基本"), DisplayName("階段名稱")]
@@ -169,20 +267,20 @@ public sealed class QuestStageDefinition
 
 public sealed class QuestObjectiveDefinition
 {
-    [Category("基本"), DisplayName("Objective ID")]
+    [Category("基本"), DisplayName("目標 ID")]
     public string Id { get; set; } = "QUEST_NEW_OBJ_01";
 
     [Category("基本"), DisplayName("顯示文字")]
     public string DisplayText { get; set; } = "新目標";
 
-    [Category("判定"), DisplayName("Objective Type")]
+    [Category("判定"), DisplayName("目標類型")]
     public ObjectiveType Type { get; set; } = ObjectiveType.CollectItem;
 
-    [Category("判定"), DisplayName("Target ID")]
+    [Category("判定"), DisplayName("判定目標 ID")]
     public string TargetId { get; set; } = "";
 
     [Category("判定"), DisplayName("複合道具需求")]
-    [Description("Objective Type 選 CompoundCollectItem 時，在此加入多個 Item ID 與各自需求數量。")]
+    [Description("目標類型選擇「複合道具收集」時，在此加入多個道具 ID 與各自需求數量。")]
     public List<QuestItemRequirement> ItemRequirements { get; set; } = new();
 
     [Category("判定"), DisplayName("目標狀態／條件")]
@@ -197,10 +295,10 @@ public sealed class QuestObjectiveDefinition
     [Category("判定"), DisplayName("互動成立時機")]
     public InteractionObjectiveMode InteractionMode { get; set; } = InteractionObjectiveMode.Succeeded;
 
-    [Category("UI"), DisplayName("顯示進度")]
+    [Category("介面"), DisplayName("顯示進度")]
     public bool ShowProgress { get; set; } = true;
 
-    [Category("UI"), DisplayName("顯示 HintIcon")]
+    [Category("介面"), DisplayName("顯示提示圖示")]
     public bool ShowHintIcon { get; set; }
 
     [Category("完成"), DisplayName("完成事件流程 ID")]

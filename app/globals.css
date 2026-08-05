@@ -1186,6 +1186,10 @@ html.dialogue-cursor-active .dialogue-box * {
   font-size: 17px;
 }
 
+.quest-hud.is-event-next .quest-summary-progress {
+  animation: quest-summary-progress-next 2.1s cubic-bezier(0.2, 0.76, 0.24, 1) both;
+}
+
 .quest-collapse {
   position: absolute;
   z-index: 2;
@@ -1254,6 +1258,14 @@ html.dialogue-cursor-active .dialogue-box * {
   display: grid;
   gap: 12px;
   padding: 12px 14px 15px;
+}
+
+.quest-hud.is-event-next .quest-objectives {
+  animation: quest-stage-objectives-leave 0.3s ease 2.7s both;
+}
+
+.quest-hud.is-stage-entering .quest-objectives {
+  animation: quest-stage-objectives-enter 0.3s cubic-bezier(0.2, 0.76, 0.24, 1) both;
 }
 
 .quest-objective {
@@ -1458,6 +1470,21 @@ html.dialogue-cursor-active .dialogue-box * {
   68% { opacity: 1; clip-path: inset(0 0 0 0); }
   82% { opacity: 1; clip-path: inset(0 0 0 0); }
   100% { opacity: 0; clip-path: inset(0 0 0 0); }
+}
+
+@keyframes quest-summary-progress-next {
+  0%, 82% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes quest-stage-objectives-leave {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+
+@keyframes quest-stage-objectives-enter {
+  0% { opacity: 0; transform: translateY(7px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes quest-header-result-glow {

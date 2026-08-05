@@ -19,6 +19,7 @@ public sealed class DialogueEditorForm : Form
     private readonly NumericUpDown _completionDelayInput = CreateDelayInput();
     private readonly List<string> _speakers;
     private readonly Dictionary<DataGridView, HashSet<int>> _selectedRows = new();
+    private bool _handlingSpeakerChoice;
 
     public DialogueScript SuccessDialogue { get; private set; }
     public DialogueScript FailureDialogue { get; private set; }
@@ -253,6 +254,7 @@ public sealed class DialogueEditorForm : Form
         grid.CellValueChanged += GridOnCellValueChanged;
         grid.CellMouseDown += GridOnCellMouseDown;
         grid.CellBeginEdit += GridOnCellBeginEdit;
+        grid.CellParsing += GridOnCellParsing;
         grid.CellValidating += GridOnCellValidating;
         grid.CellEndEdit += GridOnCellEndEdit;
         grid.CellDoubleClick += GridOnCellDoubleClick;
@@ -693,6 +695,67 @@ public sealed class DialogueEditorForm : Form
                 "Speaker dropdown did not preserve a directly typed name.");
         }
 
+        grid.CurrentCell = grid.Rows[0].Cells[SpeakerColumnIndex];
+        if (
+            !grid.BeginEdit(true) ||
+            grid.EditingControl is not DataGridViewComboBoxEditingControl blankSpeakerEditor
+        )
+        {
+            throw new InvalidOperationException(
+                "Speaker dropdown cannot re-enter edit mode for clearing.");
+        }
+        blankSpeakerEditor.Text = "";
+        grid.NotifyCurrentCellDirty(true);
+        var enterArgs = new KeyEventArgs(Keys.Enter);
+        SpeakerEditorOnKeyDown(blankSpeakerEditor, enterArgs);
+        if (
+            !enterArgs.Handled ||
+            !enterArgs.SuppressKeyPress ||
+            !string.IsNullOrEmpty(
+                Convert.ToString(grid.Rows[0].Cells[SpeakerColumnIndex].Value)
+            )
+        )
+        {
+            throw new InvalidOperationException(
+                "Speaker dropdown did not accept an explicitly cleared speaker.");
+        }
+
+        const string menuSpeaker = "新增選單測試發話者";
+        ApplySpeakerChoice(grid, 0, menuSpeaker);
+        if (
+            !string.Equals(
+                Convert.ToString(grid.Rows[0].Cells[SpeakerColumnIndex].Value),
+                menuSpeaker,
+                StringComparison.Ordinal
+            ) ||
+            !_speakers.Contains(menuSpeaker) ||
+            !_successSpeakerColumn.Items.Contains(menuSpeaker) ||
+            !_failureSpeakerColumn.Items.Contains(menuSpeaker) ||
+            !_completionSpeakerColumn.Items.Contains(menuSpeaker)
+        )
+        {
+            throw new InvalidOperationException(
+                "The add-speaker option did not register and assign the new name.");
+        }
+        grid.CurrentCell = grid.Rows[0].Cells[SpeakerColumnIndex];
+        if (
+            !grid.BeginEdit(true) ||
+            grid.EditingControl is not DataGridViewComboBoxEditingControl menuSpeakerEditor ||
+            !menuSpeakerEditor.Items.Contains(menuSpeaker)
+        )
+        {
+            throw new InvalidOperationException(
+                "Speaker dropdown became invalid after adding a new speaker.");
+        }
+        grid.EndEdit();
+        var menuSpeakerLines = ReadLines(grid)
+            ?? throw new InvalidOperationException("Added speaker dialogue could not be read for saving.");
+        if (!string.Equals(menuSpeakerLines[0].Speaker, menuSpeaker, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The newly added speaker name was not preserved by the save path.");
+        }
+
         grid.CurrentCell = grid.Rows[0].Cells[WeightColumnIndex];
         GridOnCellMouseDown(
             grid,
@@ -799,6 +862,8 @@ public sealed class DialogueEditorForm : Form
         })
         {
             column.Items.Clear();
+            // 空白是合法值：首句代表無發話者，其餘句代表延續上一位。
+            column.Items.Add("");
             foreach (var speaker in _speakers) column.Items.Add(speaker);
             column.Items.Add(AddSpeakerOption);
         }
@@ -888,6 +953,25 @@ public sealed class DialogueEditorForm : Form
         }
     }
 
+    private static void GridOnCellParsing(
+        object? sender,
+        DataGridViewCellParsingEventArgs eventArgs)
+    {
+        if (
+            sender is not DataGridView ||
+            eventArgs.RowIndex < 0 ||
+            eventArgs.ColumnIndex != SpeakerColumnIndex ||
+            !string.IsNullOrWhiteSpace(Convert.ToString(eventArgs.Value))
+        )
+        {
+            return;
+        }
+
+        // ComboBox 儲存格原本會拒絕不在清單內的空字串，造成 Enter 無法結束編輯。
+        eventArgs.Value = "";
+        eventArgs.ParsingApplied = true;
+    }
+
     private void GridOnCellValidating(
         object? sender,
         DataGridViewCellValidatingEventArgs eventArgs)
@@ -899,14 +983,22 @@ public sealed class DialogueEditorForm : Form
         )
         {
             var speaker = Convert.ToString(eventArgs.FormattedValue)?.Trim() ?? "";
+            var cell = (DataGridViewComboBoxCell)speakerGrid
+                .Rows[eventArgs.RowIndex]
+                .Cells[SpeakerColumnIndex];
+            if (speaker.Length == 0)
+            {
+                cell.Value = "";
+                if (speakerGrid.EditingControl is DataGridViewComboBoxEditingControl blankEditor)
+                {
+                    blankEditor.Text = "";
+                }
+                return;
+            }
             if (
-                speaker.Length > 0 &&
                 !speaker.Equals(AddSpeakerOption, StringComparison.Ordinal)
             )
             {
-                var cell = (DataGridViewComboBoxCell)speakerGrid
-                    .Rows[eventArgs.RowIndex]
-                    .Cells[SpeakerColumnIndex];
                 var registered = RegisterSpeakerOption(speaker, cell);
                 cell.Value = registered;
                 if (speakerGrid.EditingControl is DataGridViewComboBoxEditingControl editor)
@@ -956,6 +1048,27 @@ public sealed class DialogueEditorForm : Form
         editor.DropDownStyle = ComboBoxStyle.DropDown;
         editor.AutoCompleteMode = AutoCompleteMode.None;
         editor.AutoCompleteSource = AutoCompleteSource.None;
+        editor.KeyDown -= SpeakerEditorOnKeyDown;
+        editor.KeyDown += SpeakerEditorOnKeyDown;
+    }
+
+    private static void SpeakerEditorOnKeyDown(object? sender, KeyEventArgs eventArgs)
+    {
+        if (
+            eventArgs.KeyCode != Keys.Enter ||
+            sender is not DataGridViewComboBoxEditingControl editor ||
+            editor.DroppedDown ||
+            editor.EditingControlDataGridView is not { } grid
+        )
+        {
+            return;
+        }
+
+        grid.NotifyCurrentCellDirty(true);
+        if (!grid.EndEdit()) return;
+        eventArgs.Handled = true;
+        eventArgs.SuppressKeyPress = true;
+        grid.Focus();
     }
 
     private static void GridOnCellDoubleClick(
@@ -1004,26 +1117,46 @@ public sealed class DialogueEditorForm : Form
 
     private void GridOnCellValueChanged(object? sender, DataGridViewCellEventArgs eventArgs)
     {
+        if (_handlingSpeakerChoice) return;
         if (sender is not DataGridView grid) return;
         if (eventArgs.RowIndex < 0 || eventArgs.ColumnIndex != SpeakerColumnIndex) return;
         var cell = grid.Rows[eventArgs.RowIndex].Cells[eventArgs.ColumnIndex];
         if (!string.Equals(Convert.ToString(cell.Value), AddSpeakerOption, StringComparison.Ordinal)) return;
 
-        var newSpeaker = PromptForSpeakerName();
-        if (string.IsNullOrWhiteSpace(newSpeaker))
+        _handlingSpeakerChoice = true;
+        try
         {
-            cell.Value = null;
-            return;
+            var newSpeaker = PromptForSpeakerName();
+            ApplySpeakerChoice(grid, eventArgs.RowIndex, newSpeaker);
         }
-        var existing = _speakers.FirstOrDefault(speaker =>
-            speaker.Equals(newSpeaker, StringComparison.OrdinalIgnoreCase));
-        if (existing is null)
+        finally
         {
-            _speakers.Add(newSpeaker);
-            RefreshSpeakerOptions();
-            existing = newSpeaker;
+            _handlingSpeakerChoice = false;
         }
-        cell.Value = existing;
+    }
+
+    private void ApplySpeakerChoice(DataGridView grid, int rowIndex, string? speaker)
+    {
+        var cell = (DataGridViewComboBoxCell)grid.Rows[rowIndex].Cells[SpeakerColumnIndex];
+        var value = string.IsNullOrWhiteSpace(speaker)
+            ? ""
+            : RegisterSpeakerOption(speaker, cell);
+
+        // 不要在 ComboBox 尚在編輯時呼叫 RefreshSpeakerOptions 清空整個清單；
+        // 只增量加入新名字，才能保留目前的編輯控制項與選取值。
+        if (grid.EditingControl is DataGridViewComboBoxEditingControl editor)
+        {
+            if (!editor.Items.Contains(value))
+            {
+                var addOptionIndex = editor.Items.IndexOf(AddSpeakerOption);
+                editor.Items.Insert(
+                    addOptionIndex >= 0 ? addOptionIndex : editor.Items.Count,
+                    value);
+            }
+            editor.SelectedItem = value;
+            editor.Text = value;
+        }
+        cell.Value = value;
     }
 
     private string? PromptForSpeakerName()

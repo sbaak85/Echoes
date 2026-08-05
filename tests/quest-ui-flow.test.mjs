@@ -11,12 +11,50 @@ test("development-only fake quest HUD triggers are removed", () => {
   assert.equal(source.includes("echoes:quest-hud-test"), false);
 });
 
+test("inventory opening and successful item use publish quest events", () => {
+  const inventoryOpenSource = source.slice(
+    source.indexOf("const setInventoryPanelOpen"),
+    source.indexOf("const setSpeedValue"),
+  );
+  const itemUseSource = source.slice(
+    source.indexOf("function useInventoryItem"),
+    source.indexOf("const getHotbarSlotAtPoint"),
+  );
+  assert.match(inventoryOpenSource, /open && !wasOpen/);
+  assert.match(inventoryOpenSource, /type: "interfaceOpened"/);
+  assert.match(inventoryOpenSource, /targetId: "Inventory"/);
+  assert.match(itemUseSource, /result\.status === "not-owned"/);
+  assert.match(itemUseSource, /type: "itemUsed"/);
+  assert.match(itemUseSource, /targetId: item\.id/);
+  assert.ok(itemUseSource.indexOf('type: "itemUsed"') > itemUseSource.indexOf("} else {"));
+  assert.match(source, /startAvailableAutomaticQuests\(/);
+});
+
 test("objective completion and delayed next-stage visuals are wired", () => {
   assert.match(source, /kind:\s*"next"/);
   assert.match(source, /}, 3000\);/);
   assert.match(source, /is-completion-pop/);
   assert.match(styles, /quest-objective-completion-pop/);
   assert.match(styles, /quest-header-next-glow/);
+  assert.match(source, /\[questPanelCollapsed, activeQuestHud\?\.stageId\]/);
+  assert.match(source, /questStageEntering\s*\?\s*" is-stage-entering"/);
+  assert.match(source, /key=\{activeQuestHud!\.stageId\}/);
+  assert.match(
+    styles,
+    /\.quest-hud\.is-event-next \.quest-objectives\s*{[\s\S]*?quest-stage-objectives-leave 0\.3s ease 2\.7s both;/,
+  );
+  assert.match(
+    styles,
+    /\.quest-hud\.is-stage-entering \.quest-objectives\s*{[\s\S]*?quest-stage-objectives-enter 0\.3s/,
+  );
+  assert.match(
+    styles,
+    /\.quest-hud\.is-event-next \.quest-summary-progress\s*{[\s\S]*?quest-summary-progress-next 2\.1s[\s\S]*?both;/,
+  );
+  assert.match(
+    styles,
+    /@keyframes quest-summary-progress-next\s*{[\s\S]*?0%, 82%\s*{\s*opacity:\s*1;[\s\S]*?100%\s*{\s*opacity:\s*0;/,
+  );
   assert.match(
     styles,
     /\.quest-hud\.is-event-next \.quest-header::before\s*{[\s\S]*?rgba\(255, 195, 66, 0\.96\)[\s\S]*?box-shadow:\s*inset 0 0 30px/,

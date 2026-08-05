@@ -91,6 +91,16 @@ test("quest save restores progress without copying definitions", () => {
   assert.equal(restored.getQuestState("QUEST_TEST"), "active");
 });
 
+test("available automatic quests are truly accepted by the reusable grant pass", () => {
+  const manager = new QuestRuntimeManager(document);
+  assert.deepEqual(manager.startAvailableAutomaticQuests(3, 420), ["QUEST_TEST"]);
+  assert.equal(manager.getQuestState("QUEST_TEST"), "active");
+  const entry = manager.exportSave().quests.QUEST_TEST;
+  assert.equal(entry.startedAtDay, 3);
+  assert.equal(entry.startedAtTime, 420);
+  assert.deepEqual(manager.startAvailableAutomaticQuests(3, 421), []);
+});
+
 test("compound item objective requires every configured item and ignores duplicate events", () => {
   const compoundDocument = structuredClone(document);
   const objective = compoundDocument.quests[0].stages[0].objectives[0];
@@ -195,4 +205,48 @@ test("stage transition waits for the UI handoff and objective completion signals
 
   finishTransition?.();
   assert.equal(manager.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_02");
+});
+
+test("interface opening and successful item use are reusable objective events", () => {
+  const eventDocument = structuredClone(document);
+  eventDocument.quests[0].stages = [{
+    id: "QUEST_TEST_STAGE_01",
+    name: "背包教學",
+    completionMode: "all",
+    objectives: [
+      {
+        id: "QUEST_TEST_OBJ_01",
+        displayText: "打開背包",
+        type: "interfaceOpened",
+        targetId: "Inventory",
+        requiredAmount: 1,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+        showProgress: false,
+        showHintIcon: false,
+      },
+      {
+        id: "QUEST_TEST_OBJ_02",
+        displayText: "使用淨水瓶",
+        type: "itemUsed",
+        targetId: "R0004",
+        requiredAmount: 1,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+        showProgress: false,
+        showHintIcon: false,
+      },
+    ],
+  }];
+
+  const manager = new QuestRuntimeManager(eventDocument);
+  manager.startQuest("QUEST_TEST");
+  manager.handleEvent({ type: "interfaceOpened", targetId: "Options" });
+  manager.handleEvent({ type: "itemUsed", targetId: "R0005", amount: 1 });
+  assert.equal(manager.getQuestState("QUEST_TEST"), "active");
+
+  manager.handleEvent({ type: "interfaceOpened", targetId: "Inventory" });
+  assert.equal(manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_01").completed, true);
+  manager.handleEvent({ type: "itemUsed", targetId: "R0004", amount: 1 });
+  assert.equal(manager.getQuestState("QUEST_TEST"), "completed");
 });

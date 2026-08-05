@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace Echoes.QuestEditor;
 
 internal sealed class MainForm : Form
@@ -213,12 +215,13 @@ internal sealed class MainForm : Form
         _objectiveGrid.Dock = DockStyle.Fill;
         Theme.StyleGrid(_objectiveGrid);
         _objectiveGrid.AutoGenerateColumns = false;
-        _objectiveGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Id", HeaderText = "Objective ID", FillWeight = 24 });
+        _objectiveGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Id", HeaderText = "目標 ID", FillWeight = 24 });
         _objectiveGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "DisplayText", HeaderText = "顯示文字", FillWeight = 35 });
         _objectiveGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Type", HeaderText = "類型", FillWeight = 24 });
-        _objectiveGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "TargetId", HeaderText = "Target ID", FillWeight = 27 });
+        _objectiveGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "TargetId", HeaderText = "判定目標 ID", FillWeight = 27 });
         _objectiveGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "RequiredAmount", HeaderText = "數量", FillWeight = 12 });
         _objectiveGrid.SelectionChanged += (_, _) => OnObjectiveSelectionChanged();
+        _objectiveGrid.CellEnter += (_, _) => OnObjectiveSelectionChanged();
         _objectiveGrid.CellEndEdit += (_, _) => OnObjectiveGridEditCommitted();
         panel.Controls.Add(_objectiveGrid, 0, 4);
 
@@ -360,30 +363,58 @@ internal sealed class MainForm : Form
     private void OnTreeSelectionChanged()
     {
         if (_rebuilding) return;
-        _stageList.DataSource = null;
-        _objectiveGrid.DataSource = null;
         var selected = _questTree.SelectedNode?.Tag;
-        _propertyGrid.SelectedObject = selected;
-        if (selected is QuestDefinition quest)
+
+        _rebuilding = true;
+        try
         {
-            _stageList.DataSource = quest.Stages;
-            if (quest.Stages.Count > 0) _stageList.SelectedIndex = 0;
+            _stageList.DataSource = null;
+            _objectiveGrid.DataSource = null;
+            _objectiveGrid.ClearSelection();
+            _objectiveGrid.CurrentCell = null;
+
+            if (selected is QuestDefinition quest)
+            {
+                _stageList.DataSource = quest.Stages;
+                // 顯示任務的階段，但不要自動把右側屬性切換到第一個階段。
+                _stageList.SelectedIndex = -1;
+            }
         }
+        finally
+        {
+            _rebuilding = false;
+        }
+
+        _propertyGrid.SelectedObject = selected;
         UpdateReferenceList();
     }
 
     private void OnStageSelectionChanged()
     {
-        _objectiveGrid.DataSource = null;
+        if (_rebuilding) return;
         if (SelectedStage is not { } stage) return;
+
+        _rebuilding = true;
+        try
+        {
+            _objectiveGrid.DataSource = null;
+            _objectiveGrid.DataSource = stage.Objectives;
+            // 顯示階段的目標，但保留右側為階段屬性，直到使用者真的點選目標。
+            _objectiveGrid.ClearSelection();
+            _objectiveGrid.CurrentCell = null;
+        }
+        finally
+        {
+            _rebuilding = false;
+        }
+
         _propertyGrid.SelectedObject = stage;
-        _objectiveGrid.DataSource = stage.Objectives;
-        if (stage.Objectives.Count > 0) _objectiveGrid.Rows[0].Selected = true;
         UpdateReferenceList();
     }
 
     private void OnObjectiveSelectionChanged()
     {
+        if (_rebuilding) return;
         if (SelectedObjective is not { } objective) return;
         _propertyGrid.SelectedObject = objective;
         UpdateReferenceList();
@@ -411,7 +442,9 @@ internal sealed class MainForm : Form
             _referenceCombo.DataSource = null;
             var objective = _propertyGrid.SelectedObject as QuestObjectiveDefinition;
             var kind = objective is null ? null : QuestValidator.ReferenceKind(objective.Type);
-            _referenceLabel.Text = kind is null ? "這個目標類型不使用外部 ID 清單" : $"外部 {kind} ID 清單";
+            _referenceLabel.Text = kind is null
+                ? "這個目標類型不使用外部 ID 清單"
+                : $"外部{ReferenceKindDisplayName(kind)} ID 清單";
             _referenceCombo.Enabled = kind is not null;
             if (kind is null) return;
 
@@ -433,6 +466,19 @@ internal sealed class MainForm : Form
             _updatingReferenceList = false;
         }
     }
+
+    private static string ReferenceKindDisplayName(string kind) => kind switch
+    {
+        "Item" => "道具",
+        "Interface" => "介面",
+        "Interaction" => "互動區",
+        "Area" => "區域",
+        "Puzzle" => "解謎",
+        "Dialogue" => "對話",
+        "WorldObject" => "場景物件",
+        "Flag" => "旗標",
+        _ => kind,
+    };
 
     private void ApplySelectedReference()
     {
@@ -603,12 +649,37 @@ internal sealed class MainForm : Form
     {
         var stage = SelectedStage;
         if (stage is null) return;
-        _objectiveGrid.DataSource = null;
-        _objectiveGrid.DataSource = stage.Objectives;
+
+        _rebuilding = true;
+        try
+        {
+            var previousBinding = _objectiveGrid.DataSource as BindingSource;
+            _objectiveGrid.DataSource = null;
+            previousBinding?.Dispose();
+            var objectiveBinding = new BindingSource { DataSource = stage.Objectives };
+            _objectiveGrid.DataSource = objectiveBinding;
+            _objectiveGrid.ClearSelection();
+            _objectiveGrid.CurrentCell = null;
+
+            if (selection is not null)
+            {
+                var index = stage.Objectives.IndexOf(selection);
+                if (index >= 0)
+                {
+                    objectiveBinding.Position = index;
+                    _objectiveGrid.CurrentCell = _objectiveGrid.Rows[index].Cells[0];
+                }
+            }
+        }
+        finally
+        {
+            _rebuilding = false;
+        }
+
         if (selection is not null)
         {
-            var index = stage.Objectives.IndexOf(selection);
-            if (index >= 0) _objectiveGrid.CurrentCell = _objectiveGrid.Rows[index].Cells[0];
+            _propertyGrid.SelectedObject = selection;
+            UpdateReferenceList();
         }
         MarkDirty();
         ValidateDocument();
@@ -804,8 +875,20 @@ internal sealed class MainForm : Form
                 StringComparer.OrdinalIgnoreCase);
 
             RebuildTree(regressionQuest);
+            if (!ReferenceEquals(_propertyGrid.SelectedObject, regressionQuest) || _stageList.SelectedIndex != -1)
+                throw new InvalidOperationException("選取任務後，屬性面板被自動切換到任務階段。");
+
             _stageList.SelectedItem = regressionStage;
+            if (!ReferenceEquals(_propertyGrid.SelectedObject, regressionStage) ||
+                _objectiveGrid.CurrentCell is not null || _objectiveGrid.SelectedRows.Count != 0)
+            {
+                throw new InvalidOperationException("選取任務階段後，屬性面板被自動切換到第一個任務目標。");
+            }
+
             _objectiveGrid.CurrentCell = _objectiveGrid.Rows[1].Cells[0];
+            if (!ReferenceEquals(_propertyGrid.SelectedObject, regressionStage.Objectives[1]))
+                throw new InvalidOperationException("點選任務目標後，屬性面板沒有切換到該目標。");
+
             UpdateReferenceList();
             MoveObjective(1);
 
@@ -829,11 +912,34 @@ internal sealed class MainForm : Form
         AddQuest();
         if (_document.Quests.Count != originalCount + 1 || _document.Quests[^1].Stages.Count != 1)
             throw new InvalidOperationException("新增任務或預設階段失敗。");
-        _document.Quests[^1].Stages[0].Objectives.Add(new QuestObjectiveDefinition { Id = "OBJ_SMOKE" });
-        RebuildTree(_document.Quests[^1]);
+        var newQuest = _document.Quests[^1];
+        _stageList.SelectedItem = newQuest.Stages[0];
+        AddObjective();
+        if (newQuest.Stages[0].Objectives.Count != 1 ||
+            !ReferenceEquals(_propertyGrid.SelectedObject, newQuest.Stages[0].Objectives[0]))
+        {
+            throw new InvalidOperationException("新建任務選取 Stage 後直接新增 Objective 失敗。");
+        }
+        RebuildTree(newQuest);
         if (_questTree.Nodes.Cast<TreeNode>().SelectMany(node => node.Nodes.Cast<TreeNode>()).Count() != _document.Quests.Count)
             throw new InvalidOperationException("任務樹重新整理失敗。");
         ValidateDocument();
         if (_validationList.DataSource is null) throw new InvalidOperationException("驗證面板沒有初始化。");
+
+        var localizedObjectiveType = TypeDescriptor.GetConverter(typeof(ObjectiveType))
+            .ConvertToString(ObjectiveType.InteractionSucceeded);
+        if (localizedObjectiveType != "互動成功")
+            throw new InvalidOperationException("屬性選單的中文顯示轉換失敗。");
+        var localizedInterfaceType = TypeDescriptor.GetConverter(typeof(ObjectiveType))
+            .ConvertToString(ObjectiveType.InterfaceOpened);
+        var localizedItemUsedType = TypeDescriptor.GetConverter(typeof(ObjectiveType))
+            .ConvertToString(ObjectiveType.ItemUsed);
+        if (localizedInterfaceType != "開啟介面" || localizedItemUsedType != "使用道具")
+            throw new InvalidOperationException("新增任務目標類型的中文顯示轉換失敗。");
+        if (QuestValidator.ReferenceKind(ObjectiveType.InterfaceOpened) != "Interface" ||
+            QuestValidator.ReferenceKind(ObjectiveType.ItemUsed) != "Item")
+        {
+            throw new InvalidOperationException("新增任務目標類型的外部 ID 清單對應失敗。");
+        }
     }
 }

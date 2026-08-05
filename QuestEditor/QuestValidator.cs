@@ -118,7 +118,8 @@ internal static class QuestValidator
 
     public static string? ReferenceKind(ObjectiveType type) => type switch
     {
-        ObjectiveType.CollectItem or ObjectiveType.HaveItem => "Item",
+        ObjectiveType.CollectItem or ObjectiveType.HaveItem or ObjectiveType.ItemUsed => "Item",
+        ObjectiveType.InterfaceOpened => "Interface",
         ObjectiveType.InteractionStarted or ObjectiveType.InteractionSucceeded => "Interaction",
         ObjectiveType.EnterArea => "Area",
         ObjectiveType.PuzzleCompleted => "Puzzle",

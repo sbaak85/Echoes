@@ -45,6 +45,8 @@ internal static class QuestReferenceProvider
         catalog.Add("HintIcon", "interaction", "互動");
         catalog.Add("HintIcon", "collect", "收集");
         catalog.Add("HintIcon", "area", "區域");
+        catalog.Add("Interface", "Inventory", "背包");
+        catalog.Add("Interface", "Options", "選項");
         catalog.Sort();
         return catalog;
     }

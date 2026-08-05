@@ -160,6 +160,7 @@ type QuestHudObjectiveView = {
 };
 type QuestHudView = {
   id: string;
+  stageId: string;
   title: string;
   categoryLabel: string;
   objectives: QuestHudObjectiveView[];
@@ -181,6 +182,7 @@ function buildQuestHudView(
     ?? quest.stages[0];
   return {
     id: quest.id,
+    stageId: stage?.id ?? "",
     title: quest.name,
     categoryLabel: quest.type === "main" || quest.type === "longTermMain"
       ? "MAIN OBJECTIVE"
@@ -2413,6 +2415,7 @@ export function MovementLab() {
   const questHudEventTimerRef = useRef<number | null>(null);
   const questObjectiveTweenTimerRef = useRef<number | null>(null);
   const questStageTransitionTimerRef = useRef<number | null>(null);
+  const questStageEnteringTimerRef = useRef<number | null>(null);
   const questEventNoticeTimerRef = useRef<number | null>(null);
   const timePassInputLockedRef = useRef(false);
   const timePassTransitionTimersRef = useRef<number[]>([]);
@@ -2523,6 +2526,7 @@ export function MovementLab() {
     objectiveId: string;
     sequence: number;
   } | null>(null);
+  const [questStageEntering, setQuestStageEntering] = useState(false);
   const [questEventNotice, setQuestEventNotice] = useState<{
     kind: "accepted" | "completed";
     sequence: number;
@@ -2581,7 +2585,7 @@ export function MovementLab() {
       questHudRef.current,
       previousQuestPanelHeightRef.current,
     );
-  }, [questPanelCollapsed]);
+  }, [questPanelCollapsed, activeQuestHud?.stageId]);
 
   useEffect(() => {
     hasActiveQuestRef.current = hasActiveQuest;
@@ -2789,10 +2793,18 @@ export function MovementLab() {
       setQuestHudEvent((current) =>
         current?.kind === "next" && current.questId === view.id ? null : current,
       );
-    }, 2200);
+    }, 3000);
     questStageTransitionTimerRef.current = window.setTimeout(() => {
       questStageTransitionTimerRef.current = null;
       completeTransition();
+      setQuestStageEntering(true);
+      if (questStageEnteringTimerRef.current !== null) {
+        window.clearTimeout(questStageEnteringTimerRef.current);
+      }
+      questStageEnteringTimerRef.current = window.setTimeout(() => {
+        questStageEnteringTimerRef.current = null;
+        setQuestStageEntering(false);
+      }, 340);
     }, 3000);
   };
 
@@ -2889,6 +2901,16 @@ export function MovementLab() {
             const entry = manager?.exportSave().quests[questId];
             const view = entry ? buildQuestHudView(questId, entry) : null;
             if (view) triggerQuestHudVisual("completed", view);
+            window.queueMicrotask(() => {
+              const currentManager = questRuntimeManagerRef.current;
+              if (!currentManager) return;
+              const clock = getGameClock(survivalStateRef.current.gameMinutes);
+              currentManager.startAvailableAutomaticQuests(
+                clock.day,
+                clock.hour * 60 + clock.minute,
+              );
+              saveQuestSaveData(currentManager.exportSave());
+            });
           },
           onQuestFailed: (questId, entry) => {
             const view = buildQuestHudView(questId, entry);
@@ -2901,6 +2923,14 @@ export function MovementLab() {
         },
         loadedQuestSave,
       );
+      {
+        const clock = getGameClock(loadedSurvivalState.gameMinutes);
+        questRuntimeManagerRef.current.startAvailableAutomaticQuests(
+          clock.day,
+          clock.hour * 60 + clock.minute,
+        );
+        saveQuestSaveData(questRuntimeManagerRef.current.exportSave());
+      }
       setActiveQuestHud(getFirstActiveQuestHud());
       sceneInteractablesRef.current = buildSceneInteractables(
         loadedDroppedWorldItems,
@@ -3048,6 +3078,9 @@ export function MovementLab() {
     }
     if (questStageTransitionTimerRef.current !== null) {
       window.clearTimeout(questStageTransitionTimerRef.current);
+    }
+    if (questStageEnteringTimerRef.current !== null) {
+      window.clearTimeout(questStageEnteringTimerRef.current);
     }
     if (questEventNoticeTimerRef.current !== null) {
       window.clearTimeout(questEventNoticeTimerRef.current);
@@ -3262,6 +3295,19 @@ export function MovementLab() {
         savePlayerInventory(result.inventory);
       } catch {
         // 無法使用本機儲存時，本次工作階段仍保留使用結果。
+      }
+      const questManager = questRuntimeManagerRef.current;
+      if (questManager) {
+        questGameEventSequenceRef.current += 1;
+        questManager.handleEvent({
+          type: "itemUsed",
+          targetId: item.id,
+          amount: 1,
+          eventId:
+            `itemUsed:${item.id}:${Date.now()}:` +
+            `${questGameEventSequenceRef.current}`,
+        });
+        saveQuestSaveData(questManager.exportSave());
       }
       message = `已使用「${item.name}」· ${formatSurvivalEffects(item.survivalEffects)}`;
     }
@@ -4086,6 +4132,7 @@ export function MovementLab() {
   const setInventoryPanelOpen = (open: boolean) => {
     if (open && storyInputLockedRef.current) return;
     if (open) dismissTimeElapsedNotice();
+    const wasOpen = inventoryOpenRef.current;
     inventoryOpenRef.current = open;
     if (!open) {
       const pendingDrag = pendingInventoryDragRef.current;
@@ -4098,6 +4145,20 @@ export function MovementLab() {
       setInventoryContextMenu(null);
     }
     setInventoryOpen(open);
+    if (open && !wasOpen) {
+      const questManager = questRuntimeManagerRef.current;
+      if (questManager) {
+        questGameEventSequenceRef.current += 1;
+        questManager.handleEvent({
+          type: "interfaceOpened",
+          targetId: "Inventory",
+          eventId:
+            `interfaceOpened:Inventory:${Date.now()}:` +
+            `${questGameEventSequenceRef.current}`,
+        });
+        saveQuestSaveData(questManager.exportSave());
+      }
+    }
   };
 
   const setSpeedValue = (value: number) => {
@@ -8408,7 +8469,9 @@ export function MovementLab() {
         ref={questHudRef}
         className={`quest-hud${questPanelCollapsed ? " is-collapsed" : ""}${
           hasActiveQuest ? "" : " is-empty"
-        }${activeQuestHudEvent ? ` is-event-${activeQuestHudEvent.kind}` : ""}`}
+        }${activeQuestHudEvent ? ` is-event-${activeQuestHudEvent.kind}` : ""}${
+          questStageEntering ? " is-stage-entering" : ""
+        }`}
         aria-label={hasActiveQuest ? activeQuestHud!.title : "沒有進行中的任務"}
         data-quest-hud-event={activeQuestHudEvent?.kind ?? "idle"}
       >
@@ -8441,7 +8504,7 @@ export function MovementLab() {
           ) : null}
         </header>
         {hasActiveQuest && !questPanelCollapsed ? (
-          <div className="quest-objectives">
+          <div className="quest-objectives" key={activeQuestHud!.stageId}>
             {activeQuestHud!.objectives.map((objective) => {
               const progress = Math.min(1, objective.current / objective.required);
               const isCompletionPop = activeQuestObjectiveTween?.objectiveId === objective.id;

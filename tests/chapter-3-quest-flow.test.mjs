@@ -11,10 +11,35 @@ const scene = JSON.parse(
 );
 
 const QUEST_ID = "QUEST_CH03_MAIN_001";
+const INVENTORY_QUEST_ID = "QUEST_CH03_MAIN_002";
 
 function dispatch(manager, eventId, type, targetId) {
   manager.handleEvent({ eventId, type, targetId, amount: 1 });
 }
+
+test("inventory tutorial quest uses interface-opened and item-used objectives", () => {
+  const quest = questDocument.quests.find((candidate) => candidate.id === INVENTORY_QUEST_ID);
+  assert.ok(quest);
+  assert.equal(quest.name, "整理背包");
+  assert.deepEqual(quest.prerequisiteQuestIds, [QUEST_ID]);
+  assert.equal(quest.stages[0].name, "打開介面與使用道具");
+  assert.deepEqual(
+    quest.stages[0].objectives.map((objective) => [objective.type, objective.targetId]),
+    [["interfaceOpened", "Inventory"], ["itemUsed", "R0004"]],
+  );
+
+  const isolatedDocument = {
+    schemaVersion: questDocument.schemaVersion,
+    chapters: questDocument.chapters,
+    quests: [{ ...structuredClone(quest), prerequisiteQuestIds: [] }],
+  };
+  const manager = new QuestRuntimeManager(isolatedDocument);
+  assert.equal(manager.startQuest(INVENTORY_QUEST_ID), true);
+  manager.handleEvent({ type: "interfaceOpened", targetId: "Inventory" });
+  assert.equal(manager.getQuestState(INVENTORY_QUEST_ID), "active");
+  manager.handleEvent({ type: "itemUsed", targetId: "R0004", amount: 1 });
+  assert.equal(manager.getQuestState(INVENTORY_QUEST_ID), "completed");
+});
 
 test("第三章第一個主線任務可依正式資料完成三個階段", () => {
   const lifecycle = [];

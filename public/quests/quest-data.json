@@ -173,6 +173,70 @@
           ]
         }
       ]
+    },
+    {
+      "id": "QUEST_CH03_MAIN_002",
+      "name": "整理背包",
+      "description": "熟悉背包介面，並實際使用一份補給品。",
+      "chapterId": "CH03",
+      "type": "main",
+      "grantMethod": "automatic",
+      "grantSourceId": "",
+      "grantCondition": "",
+      "prerequisiteQuestIds": [
+        "QUEST_CH03_MAIN_001"
+      ],
+      "canAbandon": false,
+      "canReaccept": false,
+      "displayMode": "standard",
+      "completionFlagId": "QUEST_CH03_MAIN_002_COMPLETED",
+      "completionEventFlowId": "",
+      "rewardItemId": "",
+      "rewardItemAmount": 0,
+      "failureDeadline": "",
+      "failureEventId": "",
+      "failureMode": "permanent",
+      "onFailedEventFlowId": "",
+      "stages": [
+        {
+          "id": "QUEST_CH03_MAIN_002_STAGE_01",
+          "name": "打開介面與使用道具",
+          "completionMode": "all",
+          "startEventFlowId": "",
+          "completionEventFlowId": "",
+          "nextStageId": "",
+          "objectives": [
+            {
+              "id": "QUEST_CH03_MAIN_002_OBJ_01",
+              "displayText": "按 [TAB] 打開背包",
+              "type": "interfaceOpened",
+              "targetId": "Inventory",
+              "itemRequirements": [],
+              "targetState": "",
+              "requiredAmount": 1,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": false,
+              "showHintIcon": false,
+              "completionEventFlowId": ""
+            },
+            {
+              "id": "QUEST_CH03_MAIN_002_OBJ_02",
+              "displayText": "飲用一份 [淨水瓶]",
+              "type": "itemUsed",
+              "targetId": "R0004",
+              "itemRequirements": [],
+              "targetState": "",
+              "requiredAmount": 1,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": false,
+              "showHintIcon": false,
+              "completionEventFlowId": ""
+            }
+          ]
+        }
+      ]
     }
   ]
 }
