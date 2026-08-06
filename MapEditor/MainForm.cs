@@ -49,6 +49,7 @@ public sealed class MainForm : Form
         DropDownStyle = ComboBoxStyle.DropDownList,
         Width = 72,
     };
+    private readonly ToolStripLabel _facingLabel = new("出生朝向");
     private readonly ComboBox _interactionTypeCombo = new()
     {
         DropDownStyle = ComboBoxStyle.DropDownList,
@@ -227,7 +228,10 @@ public sealed class MainForm : Form
         {
             if (!_loading && _facingCombo.SelectedItem is string facing)
             {
-                _canvas.SetPlayerFacing(facing);
+                if (_canvas.SelectedTeleportPoint is not null)
+                    _canvas.SetSelectedTeleportPointFacing(facing);
+                else
+                    _canvas.SetPlayerFacing(facing);
             }
         };
 
@@ -310,6 +314,7 @@ public sealed class MainForm : Form
         AddToolButton(toolbar, "劇情觸發區", EditorTool.StoryTriggerPolygon, "逐點圈出紫色、踏入後自動觸發的劇情範圍");
         AddToolButton(toolbar, "強制引導線", EditorTool.MovementGuide, "逐點鋪設雙向箭頭移動引導路徑");
         AddToolButton(toolbar, "出生點", EditorTool.PlayerSpawn, "點擊設定玩家出生位置");
+        AddToolButton(toolbar, "傳送點", EditorTool.TeleportPoint, "點擊新增可由任務指定的傳送 Point");
         toolbar.Items.Add(new ToolStripSeparator());
 
         _undoButton.ToolTipText = "復原 Ctrl+Z";
@@ -338,7 +343,7 @@ public sealed class MainForm : Form
         toolbar.Items.Add(_snapButton);
         toolbar.Items.Add(new ToolStripLabel("格距"));
         toolbar.Items.Add(new ToolStripControlHost(_gridSizeInput));
-        toolbar.Items.Add(new ToolStripLabel("出生朝向"));
+        toolbar.Items.Add(_facingLabel);
         toolbar.Items.Add(new ToolStripControlHost(_facingCombo));
 
         SetActiveTool(EditorTool.Select);
@@ -920,7 +925,7 @@ public sealed class MainForm : Form
         _sceneIdText.Text = _canvas.Document.SceneId;
         _displayNameText.Text = _canvas.Document.DisplayName;
         _documentInfoLabel.Text =
-            $"NavMesh {_canvas.Document.NavMesh.Count} · Collision {_canvas.Document.Collisions.Count} · 互動 {_canvas.Document.Interactables.Count} · ItemPoint {_canvas.Document.ItemPoints.Count}";
+            $"NavMesh {_canvas.Document.NavMesh.Count} · Collision {_canvas.Document.Collisions.Count} · 互動 {_canvas.Document.Interactables.Count} · 傳送 {_canvas.Document.TeleportPoints.Count} · ItemPoint {_canvas.Document.ItemPoints.Count}";
         var previousLoadingState = _loading;
         _loading = true;
         try
@@ -931,7 +936,8 @@ public sealed class MainForm : Form
                 _canvas.Document.Grid.Size,
                 (int)_gridSizeInput.Minimum,
                 (int)_gridSizeInput.Maximum);
-            _facingCombo.SelectedItem = _canvas.Document.PlayerSpawn.Facing;
+            _facingCombo.SelectedItem = _canvas.SelectedTeleportPoint?.Facing
+                ?? _canvas.Document.PlayerSpawn.Facing;
         }
         finally
         {
@@ -997,6 +1003,15 @@ public sealed class MainForm : Form
                     new LayerSelection(SceneLayerKind.MovementGuide, index),
                     $"[雙向引導/{Math.Round(guide.Width)}px] {guide.Label}  ({guide.Points.Count}點)",
                     guide.Label));
+            }
+
+            for (var index = 0; index < _canvas.Document.TeleportPoints.Count; index++)
+            {
+                var point = _canvas.Document.TeleportPoints[index];
+                _layersList.Items.Add(new LayerListItem(
+                    new LayerSelection(SceneLayerKind.TeleportPoint, index),
+                    $"[傳送 Point/{point.Facing}] {point.Label} · {point.Id}",
+                    point.Label));
             }
 
             for (var index = 0; index < _canvas.Document.ItemPoints.Count; index++)
@@ -1160,6 +1175,13 @@ public sealed class MainForm : Form
                 _itemPointSpawnRequirementButton.Text =
                     FormatItemPointSpawnRequirement(itemPoint.SpawnRequirement);
             }
+            else if (_canvas.Selection.Kind == SceneLayerKind.TeleportPoint && _canvas.Selection.Index >= 0)
+            {
+                var point = _canvas.Document.TeleportPoints[_canvas.Selection.Index];
+                _selectionInfoLabel.Text = $"已選取傳送 Point · {point.Id} · 面向 {point.Facing}";
+                _selectionNameText.Text = point.Label;
+                _facingCombo.SelectedItem = point.Facing;
+            }
             else
             {
                 _selectionInfoLabel.Text = "尚未選取圖形";
@@ -1168,6 +1190,9 @@ public sealed class MainForm : Form
             _interactionGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.Interactable;
             _movementGuideGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.MovementGuide;
             _storyTriggerGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.StoryTrigger;
+            _facingLabel.Text = _canvas.Selection.Kind == SceneLayerKind.TeleportPoint
+                ? "傳送朝向"
+                : "出生朝向";
         }
         finally
         {
@@ -1389,6 +1414,8 @@ public sealed class MainForm : Form
         SceneLayerKind.Interactable => _canvas.Document.Interactables[selection.Index].Label,
         SceneLayerKind.StoryTrigger => _canvas.Document.StoryTriggers[selection.Index].Label,
         SceneLayerKind.MovementGuide => _canvas.Document.MovementGuides[selection.Index].Label,
+        SceneLayerKind.TeleportPoint => _canvas.Document.TeleportPoints[selection.Index].Label,
+        SceneLayerKind.ItemPoint => _canvas.Document.ItemPoints[selection.Index].Label,
         _ => "",
     };
 
@@ -1632,6 +1659,7 @@ public sealed class MainForm : Form
             EditorTool.StoryTriggerPolygon => "劇情觸發區：逐點圈出踏入後自動啟動劇情的範圍",
             EditorTool.MovementGuide => "強制引導線：逐點鋪設，雙擊／右鍵／Enter 完成（至少 2 點）",
             EditorTool.PlayerSpawn => "出生點：在場景點擊位置",
+            EditorTool.TeleportPoint => "傳送點：在 NavMesh 內點擊新增；選取後可設定面向與名稱",
             _ => "準備就緒",
         };
     }

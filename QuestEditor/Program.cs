@@ -106,6 +106,10 @@ internal static class Program
             CompletionTriggerType = QuestCompletionTriggerType.Dialogue,
             CompletionTriggerId = "chapter03-section-2",
             CompletionTriggerDelaySeconds = 3,
+            StartTeleportPointId = "teleport-point-center",
+            StartTeleportDelaySeconds = 0.5,
+            CompletionTeleportPointId = "teleport-point-center",
+            CompletionTeleportDelaySeconds = 1,
         };
         var stage = new QuestStageDefinition
         {
@@ -113,6 +117,10 @@ internal static class Program
             Name = "測試階段",
             StartDelaySeconds = 2.5,
             CompletionDelaySeconds = 3.25,
+            StartTeleportPointId = "teleport-point-center",
+            StartTeleportDelaySeconds = 0.6,
+            CompletionTeleportPointId = "teleport-point-center",
+            CompletionTeleportDelaySeconds = 1.1,
         };
         stage.Objectives.Add(new QuestObjectiveDefinition
         {
@@ -123,6 +131,10 @@ internal static class Program
             RequiredAmount = 3,
             StartDelaySeconds = 0.75,
             CompletionDelaySeconds = 1.25,
+            StartTeleportPointId = "teleport-point-center",
+            StartTeleportDelaySeconds = 0.7,
+            CompletionTeleportPointId = "teleport-point-center",
+            CompletionTeleportDelaySeconds = 1.2,
             CompletionInterfaceAction = CompletionInterfaceAction.Close,
             CompletionInterfaceId = "Inventory",
         });
@@ -139,10 +151,18 @@ internal static class Program
             loaded.Quests[0].CompletionTriggerType != QuestCompletionTriggerType.Dialogue ||
             loaded.Quests[0].CompletionTriggerId != "chapter03-section-2" ||
             Math.Abs(loaded.Quests[0].CompletionTriggerDelaySeconds - 3) > 0.001 ||
+            loaded.Quests[0].StartTeleportPointId != "teleport-point-center" ||
+            Math.Abs(loaded.Quests[0].StartTeleportDelaySeconds - 0.5) > 0.001 ||
+            loaded.Quests[0].CompletionTeleportPointId != "teleport-point-center" ||
+            Math.Abs(loaded.Quests[0].CompletionTeleportDelaySeconds - 1) > 0.001 ||
             Math.Abs(loaded.Quests[0].Stages[0].StartDelaySeconds - 2.5) > 0.001 ||
             Math.Abs(loaded.Quests[0].Stages[0].CompletionDelaySeconds - 3.25) > 0.001 ||
+            loaded.Quests[0].Stages[0].StartTeleportPointId != "teleport-point-center" ||
+            loaded.Quests[0].Stages[0].CompletionTeleportPointId != "teleport-point-center" ||
             Math.Abs(loaded.Quests[0].Stages[0].Objectives[0].StartDelaySeconds - 0.75) > 0.001 ||
-            Math.Abs(loaded.Quests[0].Stages[0].Objectives[0].CompletionDelaySeconds - 1.25) > 0.001)
+            Math.Abs(loaded.Quests[0].Stages[0].Objectives[0].CompletionDelaySeconds - 1.25) > 0.001 ||
+            loaded.Quests[0].Stages[0].Objectives[0].StartTeleportPointId != "teleport-point-center" ||
+            loaded.Quests[0].Stages[0].Objectives[0].CompletionTeleportPointId != "teleport-point-center")
             throw new InvalidDataException("任務資料往返測試失敗。");
         var issues = QuestValidator.Validate(loaded, QuestReferenceProvider.Load(projectRoot));
         if (issues.Any(issue => issue.Severity == ValidationSeverity.Error))

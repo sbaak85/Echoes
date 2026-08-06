@@ -59,6 +59,21 @@ test("MAIN_002 completion dialogue hands off MAIN_003 without a second start del
   assert.equal(quest.startDelaySeconds, 0);
 });
 
+test("MAIN_003 objective completion teleports at the fully-black timing after 0.5 seconds", () => {
+  const quest = questDocument.quests.find((candidate) => candidate.id === REST_QUEST_ID);
+  const objective = quest.stages[0].objectives[0];
+  const teleportPoint = scene.teleportPoints.find(
+    (candidate) => candidate.id === objective.completionTeleportPointId,
+  );
+  assert.ok(teleportPoint);
+  assert.equal(quest.completionTeleportPointId, undefined);
+  assert.equal(objective.completionTeleportDelaySeconds, 0.5);
+  assert.equal(teleportPoint.label, "地圖中央傳送點");
+  assert.equal(teleportPoint.facing, "S");
+  assert.equal(Number.isFinite(teleportPoint.x), true);
+  assert.equal(Number.isFinite(teleportPoint.y), true);
+});
+
 test("story-trigger-002 unlocks after MAIN_001 and hands off MAIN_002 after dialogue", () => {
   const trigger = scene.storyTriggers.find((candidate) => candidate.id === "story-trigger-002");
   assert.ok(trigger);

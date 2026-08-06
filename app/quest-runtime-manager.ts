@@ -32,6 +32,10 @@ export type QuestObjectiveDefinition = {
   displayText: string;
   startDelaySeconds?: number;
   completionDelaySeconds?: number;
+  startTeleportPointId?: string;
+  startTeleportDelaySeconds?: number;
+  completionTeleportPointId?: string;
+  completionTeleportDelaySeconds?: number;
   type: QuestObjectiveType;
   targetId: string;
   itemRequirements?: QuestItemRequirement[];
@@ -51,6 +55,10 @@ export type QuestStageDefinition = {
   name: string;
   startDelaySeconds?: number;
   completionDelaySeconds?: number;
+  startTeleportPointId?: string;
+  startTeleportDelaySeconds?: number;
+  completionTeleportPointId?: string;
+  completionTeleportDelaySeconds?: number;
   completionMode: "all" | "any";
   startEventFlowId?: string;
   completionEventFlowId?: string;
@@ -66,6 +74,10 @@ export type QuestDefinition = {
   type: "main" | "side" | "longTermMain";
   prerequisiteQuestIds: string[];
   startDelaySeconds?: number;
+  startTeleportPointId?: string;
+  startTeleportDelaySeconds?: number;
+  completionTeleportPointId?: string;
+  completionTeleportDelaySeconds?: number;
   grantMethod: "automatic" | "interaction" | "afterDialogue";
   grantSourceId?: string;
   grantCondition?: string;
@@ -135,6 +147,7 @@ export type QuestObjectiveRuntime = {
   availableAtEpochMs?: number;
   completionAvailableAtEpochMs?: number;
   completionPresented?: boolean;
+  startActionsPresented?: boolean;
 };
 
 export type QuestRuntimeEntry = {
@@ -183,6 +196,16 @@ export function saveQuestSaveData(saveData: QuestSaveData): void {
 }
 
 export type QuestRuntimeHost = {
+  requestTeleport?: (
+    pointId: string,
+    delayMilliseconds: number,
+    source: {
+      questId: string;
+      stageId?: string;
+      objectiveId?: string;
+      phase: "start" | "completion";
+    },
+  ) => void;
   runEventFlow?: (eventFlowId: string) => void;
   runCompletionTrigger?: (
     type: "dialogue" | "eventFlow",
@@ -307,6 +330,10 @@ export class QuestRuntimeManager {
     entry.startedAtTime = time;
     entry.currentStageId = definition.stages[0]?.id ?? "";
     entry.tracked = true;
+    this.requestTeleport(definition.startTeleportPointId, definition.startTeleportDelaySeconds, {
+      questId: definition.id,
+      phase: "start",
+    });
     this.configureStageActivation(definition, entry);
     this.host.onQuestStarted?.(questId, structuredClone(entry));
     this.notify(questId);
@@ -436,6 +463,11 @@ export class QuestRuntimeManager {
   ) {
     if (entry.questCompletionPresented) return;
     entry.questCompletionPresented = true;
+    this.requestTeleport(definition.completionTeleportPointId,
+      definition.completionTeleportDelaySeconds, {
+        questId: definition.id,
+        phase: "completion",
+      });
     this.host.onQuestCompleted?.(definition.id);
     this.notify(definition.id);
   }
@@ -632,6 +664,13 @@ export class QuestRuntimeManager {
       if (current.currentStageId !== stageId) return;
       if (current.state !== "active" && current.state !== "completed") return;
       progress.completionPresented = true;
+      this.requestTeleport(objective.completionTeleportPointId,
+        objective.completionTeleportDelaySeconds, {
+          questId: definition.id,
+          stageId,
+          objectiveId: objective.id,
+          phase: "completion",
+        });
       if (objective.completionEventFlowId) {
         this.host.runEventFlow?.(objective.completionEventFlowId);
       }
@@ -685,6 +724,12 @@ export class QuestRuntimeManager {
     if (this.pendingStageTransitions.has(definition.id)) return;
     if (entry.stageCompletionEventExecutedForId !== stage.id) {
       entry.stageCompletionEventExecutedForId = stage.id;
+      this.requestTeleport(stage.completionTeleportPointId,
+        stage.completionTeleportDelaySeconds, {
+          questId: definition.id,
+          stageId: stage.id,
+          phase: "completion",
+        });
       if (stage.completionEventFlowId) this.host.runEventFlow?.(stage.completionEventFlowId);
     }
     if (!next) {
@@ -761,6 +806,25 @@ export class QuestRuntimeManager {
 
   private delayMilliseconds(seconds?: number): number {
     return Number.isFinite(seconds) ? Math.max(0, Number(seconds) * 1000) : 0;
+  }
+
+  private requestTeleport(
+    pointId: string | undefined,
+    delaySeconds: number | undefined,
+    source: {
+      questId: string;
+      stageId?: string;
+      objectiveId?: string;
+      phase: "start" | "completion";
+    },
+  ) {
+    const normalizedPointId = (pointId ?? "").trim();
+    if (!normalizedPointId) return;
+    this.host.requestTeleport?.(
+      normalizedPointId,
+      this.delayMilliseconds(delaySeconds),
+      source,
+    );
   }
 
   private getCompletionTrigger(definition: QuestDefinition): {
@@ -870,6 +934,7 @@ export class QuestRuntimeManager {
       if (!progress) continue;
       progress.availableAtEpochMs = entry.stageAvailableAtEpochMs +
         this.delayMilliseconds(objective.startDelaySeconds);
+      progress.startActionsPresented = false;
     }
     this.scheduleStageActivation(definition, entry, stage);
   }
@@ -887,7 +952,10 @@ export class QuestRuntimeManager {
       entry.stageStartEventExecutedForId = stage.id;
       for (const objective of stage.objectives) {
         const progress = entry.objectives[objective.id];
-        if (progress && progress.availableAtEpochMs == null) progress.availableAtEpochMs = 0;
+        if (progress) {
+          if (progress.availableAtEpochMs == null) progress.availableAtEpochMs = 0;
+          progress.startActionsPresented = true;
+        }
       }
       return;
     }
@@ -896,6 +964,9 @@ export class QuestRuntimeManager {
       const progress = entry.objectives[objective.id];
       if (progress && progress.availableAtEpochMs == null) {
         progress.availableAtEpochMs = entry.stageAvailableAtEpochMs;
+      }
+      if (progress && progress.startActionsPresented == null) {
+        progress.startActionsPresented = (progress.availableAtEpochMs ?? 0) <= this.now();
       }
     }
     this.scheduleStageActivation(definition, entry, stage);
@@ -966,20 +1037,31 @@ export class QuestRuntimeManager {
       if (!current || current.state !== "active" || current.currentStageId !== stageId) return;
       if (current.stageStartEventExecutedForId !== stageId) {
         current.stageStartEventExecutedForId = stageId;
+        this.requestTeleport(stage.startTeleportPointId, stage.startTeleportDelaySeconds, {
+          questId,
+          stageId,
+          phase: "start",
+        });
         if (stage.startEventFlowId) this.host.runEventFlow?.(stage.startEventFlowId);
       }
       this.notify(questId);
     });
 
-    const objectiveDueTimes = new Set(
-      stage.objectives
-        .map(objective => entry.objectives[objective.id]?.availableAtEpochMs ?? stageDue)
-        .filter(due => due > stageDue),
-    );
-    for (const due of objectiveDueTimes) {
+    for (const objective of stage.objectives) {
+      const due = entry.objectives[objective.id]?.availableAtEpochMs ?? stageDue;
       this.scheduleAt(due, () => {
         const current = this.saveData.quests[questId];
         if (!current || current.state !== "active" || current.currentStageId !== stageId) return;
+        const progress = current.objectives[objective.id];
+        if (!progress || progress.startActionsPresented) return;
+        progress.startActionsPresented = true;
+        this.requestTeleport(objective.startTeleportPointId,
+          objective.startTeleportDelaySeconds, {
+            questId,
+            stageId,
+            objectiveId: objective.id,
+            phase: "start",
+          });
         this.notify(questId);
       });
     }

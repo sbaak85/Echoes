@@ -520,3 +520,60 @@ test("quest completion can delay a dialogue and grant the next quest after that 
   assert.equal(manager.getQuestState(nextQuest.id), "active");
   assert.equal(manager.exportSave().quests[firstQuest.id].completionTriggerCompleted, true);
 });
+
+test("quest, stage and objective lifecycle teleports fire once with their own delays", () => {
+  const teleportDocument = structuredClone(document);
+  const quest = teleportDocument.quests[0];
+  quest.startTeleportPointId = "quest-start";
+  quest.startTeleportDelaySeconds = 0.1;
+  quest.completionTeleportPointId = "quest-complete";
+  quest.completionTeleportDelaySeconds = 0.2;
+  quest.rewardItemId = "";
+  quest.rewardItemAmount = 0;
+  quest.stages = [structuredClone(quest.stages[0])];
+  const stage = quest.stages[0];
+  stage.nextStageId = "";
+  stage.startTeleportPointId = "stage-start";
+  stage.startTeleportDelaySeconds = 0.3;
+  stage.completionTeleportPointId = "stage-complete";
+  stage.completionTeleportDelaySeconds = 0.4;
+  const objective = stage.objectives[0];
+  objective.startTeleportPointId = "objective-start";
+  objective.startTeleportDelaySeconds = 0.5;
+  objective.completionTeleportPointId = "objective-complete";
+  objective.completionTeleportDelaySeconds = 0.6;
+
+  const teleports = [];
+  const manager = new QuestRuntimeManager(teleportDocument, {
+    requestTeleport: (pointId, delayMilliseconds, source) => {
+      teleports.push([pointId, delayMilliseconds, source]);
+    },
+  });
+
+  manager.startQuest(quest.id);
+  manager.handleEvent({ type: "itemCollected", targetId: "R0001", amount: 2 });
+  manager.handleEvent({ type: "itemCollected", targetId: "R0001", amount: 1 });
+
+  assert.deepEqual(teleports, [
+    ["quest-start", 100, { questId: quest.id, phase: "start" }],
+    ["stage-start", 300, { questId: quest.id, stageId: stage.id, phase: "start" }],
+    ["objective-start", 500, {
+      questId: quest.id,
+      stageId: stage.id,
+      objectiveId: objective.id,
+      phase: "start",
+    }],
+    ["objective-complete", 600, {
+      questId: quest.id,
+      stageId: stage.id,
+      objectiveId: objective.id,
+      phase: "completion",
+    }],
+    ["stage-complete", 400, {
+      questId: quest.id,
+      stageId: stage.id,
+      phase: "completion",
+    }],
+    ["quest-complete", 200, { questId: quest.id, phase: "completion" }],
+  ]);
+});

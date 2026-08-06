@@ -21,6 +21,15 @@
     "y": 670,
     "facing": "S"
   },
+  "teleportPoints": [
+    {
+      "id": "teleport-point-center",
+      "label": "\u5730\u5716\u4E2D\u592E\u50B3\u9001\u9EDE",
+      "facing": "S",
+      "x": 730,
+      "y": 680
+    }
+  ],
   "navMesh": [
     {
       "id": "nav-001",

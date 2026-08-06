@@ -33,6 +33,9 @@ Included in version 1:
   Polygons always retain at least three nodes and close automatically.
 - View zoom, fit, pan, rulers, grid visibility, grid spacing, and snapping.
 - Player spawn position and eight-direction facing.
+- `傳送點`工具可在 NavMesh 內建立具唯一 Point ID 的傳送位置，並設定
+  N／NE／E／SE／S／SW／W／NW 面向。傳送點會寫入場景 JSON 的
+  `teleportPoints`，供任務啟動、完成、Stage 與 OBJ 流程引用。
 - Multiple interaction Points per interaction polygon. Right-click inside a
   selected interaction polygon to add another Point and choose its facing.
 - One optional interaction hint Point per interaction polygon. Right-click

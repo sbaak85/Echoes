@@ -242,6 +242,22 @@ public sealed class QuestDefinition
     [Description("派發條件成立後，等待指定的現實秒數才讓任務正式啟動。0 代表立即啟動。")]
     public double StartDelaySeconds { get; set; }
 
+    [Category("傳送"), DisplayName("啟動傳送 Point ID")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StartTeleportPointId { get; set; }
+
+    [Category("傳送"), DisplayName("啟動傳送延遲（秒）")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double StartTeleportDelaySeconds { get; set; }
+
+    [Category("傳送"), DisplayName("完成傳送 Point ID")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CompletionTeleportPointId { get; set; }
+
+    [Category("傳送"), DisplayName("完成傳送延遲（秒）")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double CompletionTeleportDelaySeconds { get; set; }
+
     [Category("規則"), DisplayName("可放棄")]
     public bool CanAbandon { get; set; }
 
@@ -309,6 +325,22 @@ public sealed class QuestStageDefinition
     [Description("此階段完成條件成立後，等待指定的現實秒數才播放完成演出並切換下一階段。完成紀錄會立即保存。0 代表立即處理。")]
     public double CompletionDelaySeconds { get; set; }
 
+    [Category("傳送"), DisplayName("啟動傳送 Point ID")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StartTeleportPointId { get; set; }
+
+    [Category("傳送"), DisplayName("啟動傳送延遲（秒）")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double StartTeleportDelaySeconds { get; set; }
+
+    [Category("傳送"), DisplayName("完成傳送 Point ID")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CompletionTeleportPointId { get; set; }
+
+    [Category("傳送"), DisplayName("完成傳送延遲（秒）")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double CompletionTeleportDelaySeconds { get; set; }
+
     [Category("流程"), DisplayName("完成方式")]
     public StageCompletionMode CompletionMode { get; set; } = StageCompletionMode.All;
 
@@ -342,6 +374,22 @@ public sealed class QuestObjectiveDefinition
     [Category("流程"), DisplayName("完成延遲（秒）")]
     [Description("目標條件成立後，等待指定的現實秒數才顯示核取與完成演出。完成紀錄會立即保存。0 代表立即顯示。")]
     public double CompletionDelaySeconds { get; set; }
+
+    [Category("傳送"), DisplayName("啟動傳送 Point ID")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StartTeleportPointId { get; set; }
+
+    [Category("傳送"), DisplayName("啟動傳送延遲（秒）")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double StartTeleportDelaySeconds { get; set; }
+
+    [Category("傳送"), DisplayName("完成傳送 Point ID")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CompletionTeleportPointId { get; set; }
+
+    [Category("傳送"), DisplayName("完成傳送延遲（秒）")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double CompletionTeleportDelaySeconds { get; set; }
 
     [Category("判定"), DisplayName("目標類型")]
     public ObjectiveType Type { get; set; } = ObjectiveType.CollectItem;

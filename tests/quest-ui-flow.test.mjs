@@ -156,6 +156,37 @@ test("gameplay HUD shortcuts map Q and RB to quest, R and LB to survival", () =>
   assert.match(source, /aria-keyshortcuts="R"/);
 });
 
+test("quest TAB prompt follows the latest keyboard, gamepad, or mobile input", () => {
+  const promptRenderer = source.slice(
+    source.indexOf("function renderQuestObjectiveLabel"),
+    source.indexOf("type QuestHistoryView"),
+  );
+  assert.match(promptRenderer, /label\.includes\("\[TAB\]"\)/);
+  assert.match(promptRenderer, /split\(\/\(\\\[TAB\\\]\)\/g\)/);
+  assert.match(promptRenderer, /inputMode === "keyboard-mouse"[\s\S]*?>\[TAB\]</);
+  assert.match(promptRenderer, /inputMode === "gamepad"[\s\S]*?>\[B鍵\]</);
+  assert.match(promptRenderer, /className="quest-input-key-prompt"/);
+  assert.match(promptRenderer, /className="quest-input-backpack-prompt"/);
+  assert.match(promptRenderer, /className="inventory-trigger-icon"/);
+  assert.match(
+    source,
+    /renderQuestObjectiveLabel\(objective\.label, questPromptInputMode\)/,
+  );
+
+  assert.match(source, /event\.pointerType === "touch" \? "mobile" : "keyboard-mouse"/);
+  assert.match(source, /activateQuestPromptInputMode\("gamepad"\)/);
+  assert.match(source, /activateQuestPromptInputMode\("keyboard-mouse"\)/);
+  assert.match(
+    source,
+    /if \(questPromptInputModeRef\.current === mode\) return;/,
+  );
+  assert.match(styles, /\.quest-input-backpack-prompt\s*{/);
+  assert.match(
+    styles,
+    /\.quest-input-key-prompt,[\s\S]*?\.quest-input-backpack-prompt\s*{[\s\S]*?color:\s*#ffd36f/,
+  );
+});
+
 test("empty quest HUD expands into a three-item completed history", () => {
   assert.match(source, /const questPanelCollapsed = questCollapsed/);
   assert.match(source, /manager\.getCompletedQuestIds\(3\)/);

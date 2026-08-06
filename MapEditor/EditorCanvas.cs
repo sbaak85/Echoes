@@ -16,6 +16,7 @@ public enum EditorTool
     StoryTriggerPolygon,
     MovementGuide,
     PlayerSpawn,
+    TeleportPoint,
 }
 
 public enum SceneLayerKind
@@ -26,6 +27,7 @@ public enum SceneLayerKind
     Interactable,
     StoryTrigger,
     MovementGuide,
+    TeleportPoint,
     ItemPoint,
 }
 
@@ -213,6 +215,10 @@ public sealed class EditorCanvas : Control
         _selection.Kind == SceneLayerKind.ItemPoint && IsValidSelection(_selection)
             ? _document.ItemPoints[_selection.Index]
             : null;
+    public SceneTeleportPoint? SelectedTeleportPoint =>
+        _selection.Kind == SceneLayerKind.TeleportPoint && IsValidSelection(_selection)
+            ? _document.TeleportPoints[_selection.Index]
+            : null;
     public bool CanInsertNode => CanEditSelectedVertex(requireMoreThanThreePoints: false);
     public bool CanDeleteNode => CanEditSelectedVertex(requireMoreThanThreePoints: true);
 
@@ -302,6 +308,14 @@ public sealed class EditorCanvas : Control
         PerformMutation(() => _document.PlayerSpawn.Facing = facing);
     }
 
+    public void SetSelectedTeleportPointFacing(string facing)
+    {
+        var point = SelectedTeleportPoint;
+        if (point is null || point.Facing == facing) return;
+        PerformMutation(() => point.Facing = facing);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public void UpdateSceneIdentity(string sceneId, string displayName)
     {
         sceneId = sceneId.Trim();
@@ -336,6 +350,8 @@ public sealed class EditorCanvas : Control
                     _document.StoryTriggers[_selection.Index].Label = label;
                 else if (_selection.Kind == SceneLayerKind.MovementGuide)
                     _document.MovementGuides[_selection.Index].Label = label;
+                else if (_selection.Kind == SceneLayerKind.TeleportPoint)
+                    _document.TeleportPoints[_selection.Index].Label = label;
                 else
                     _document.ItemPoints[_selection.Index].Label = label;
             }
@@ -381,6 +397,10 @@ public sealed class EditorCanvas : Control
             else if (_selection.Kind == SceneLayerKind.ItemPoint)
             {
                 _document.ItemPoints.RemoveAt(_selection.Index);
+            }
+            else if (_selection.Kind == SceneLayerKind.TeleportPoint)
+            {
+                _document.TeleportPoints.RemoveAt(_selection.Index);
             }
 
             _selection = LayerSelection.None;
@@ -1109,6 +1129,7 @@ public sealed class EditorCanvas : Control
         DrawInteractables(graphics);
         DrawStoryTriggers(graphics);
         DrawMovementGuides(graphics);
+        DrawTeleportPoints(graphics);
         DrawItemPoints(graphics);
         DrawSpawn(graphics);
         DrawDraft(graphics);
@@ -1372,6 +1393,35 @@ public sealed class EditorCanvas : Control
         graphics.DrawLine(directionPen, spawn.X, spawn.Y, end.X, end.Y);
     }
 
+    private void DrawTeleportPoints(Graphics graphics)
+    {
+        using var labelFont = new Font("Segoe UI", 8f, FontStyle.Bold);
+        using var labelBrush = new SolidBrush(Color.FromArgb(245, 190, 255, 255));
+        for (var index = 0; index < _document.TeleportPoints.Count; index++)
+        {
+            var point = _document.TeleportPoints[index];
+            var selected = _selection == new LayerSelection(SceneLayerKind.TeleportPoint, index);
+            var radius = (selected ? 11f : 9f) / _zoom;
+            using var fill = new SolidBrush(selected
+                ? Color.FromArgb(245, 93, 242, 255)
+                : Color.FromArgb(225, 35, 190, 224));
+            using var outline = new Pen(Color.White, (selected ? 3f : 2f) / _zoom);
+            graphics.FillRectangle(fill, point.X - radius, point.Y - radius, radius * 2, radius * 2);
+            graphics.DrawRectangle(outline, point.X - radius, point.Y - radius, radius * 2, radius * 2);
+
+            var direction = DirectionVector(point.Facing);
+            var length = 34f / _zoom;
+            using var directionPen = new Pen(Color.FromArgb(245, 95, 240, 255), 3f / _zoom)
+            {
+                CustomEndCap = new AdjustableArrowCap(4f / _zoom, 5f / _zoom),
+            };
+            graphics.DrawLine(directionPen, point.X, point.Y,
+                point.X + direction.X * length, point.Y + direction.Y * length);
+            graphics.DrawString($"{point.Label} · {point.Id}", labelFont, labelBrush,
+                point.X + 13f / _zoom, point.Y - 19f / _zoom);
+        }
+    }
+
     private void DrawItemPoints(Graphics graphics)
     {
         using var labelFont = new Font("Segoe UI", 8f, FontStyle.Bold);
@@ -1466,9 +1516,8 @@ public sealed class EditorCanvas : Control
     private void DrawSelectionHandles(Graphics graphics)
     {
         if (!IsValidSelection(_selection)) return;
-        // ItemPoint already draws its own selected diamond/ring and has no polygon
-        // vertices. Never treat its index as a MovementGuide index.
-        if (_selection.Kind == SceneLayerKind.ItemPoint) return;
+        // Point layers draw their own selection marker and have no polygon vertices.
+        if (_selection.Kind is SceneLayerKind.ItemPoint or SceneLayerKind.TeleportPoint) return;
 
         if (_selection.Kind == SceneLayerKind.Collision)
         {
@@ -1647,6 +1696,28 @@ public sealed class EditorCanvas : Control
                     _document.PlayerSpawn.X = world.X;
                     _document.PlayerSpawn.Y = world.Y;
                 });
+                break;
+
+            case EditorTool.TeleportPoint:
+                if (!IsPointInsideNavMesh(world))
+                {
+                    StatusChanged?.Invoke(this, "傳送 Point 必須位於 NavMesh 範圍內。");
+                    break;
+                }
+                PerformMutation(() =>
+                {
+                    var index = _document.TeleportPoints.Count;
+                    _document.TeleportPoints.Add(new SceneTeleportPoint
+                    {
+                        Id = NextId("teleport-point", _document.TeleportPoints.Select(item => item.Id)),
+                        Label = $"傳送點 {index + 1}",
+                        X = world.X,
+                        Y = world.Y,
+                        Facing = "S",
+                    });
+                    _selection = new LayerSelection(SceneLayerKind.TeleportPoint, index);
+                });
+                SelectionChanged?.Invoke(this, EventArgs.Empty);
                 break;
 
             case EditorTool.Select:
@@ -1948,6 +2019,14 @@ public sealed class EditorCanvas : Control
             itemPoint.X = next.X;
             itemPoint.Y = next.Y;
         }
+        else if (_selection.Kind == SceneLayerKind.TeleportPoint)
+        {
+            var point = _document.TeleportPoints[_selection.Index];
+            var next = ClampToWorld(new PointF(point.X + deltaX, point.Y + deltaY));
+            if (!IsPointInsideNavMesh(next)) return false;
+            point.X = next.X;
+            point.Y = next.Y;
+        }
 
         return true;
     }
@@ -2121,6 +2200,15 @@ public sealed class EditorCanvas : Control
     private List<LayerSelection> GetHitTestCandidates(PointF point)
     {
         var candidates = new List<LayerSelection>();
+        var teleportPointHitRadius = 14f / _zoom;
+        for (var index = _document.TeleportPoints.Count - 1; index >= 0; index--)
+        {
+            var teleportPoint = _document.TeleportPoints[index];
+            if (Distance(point, new PointF(teleportPoint.X, teleportPoint.Y)) <= teleportPointHitRadius)
+            {
+                candidates.Add(new LayerSelection(SceneLayerKind.TeleportPoint, index));
+            }
+        }
         var itemPointHitRadius = 13f / _zoom;
         for (var index = _document.ItemPoints.Count - 1; index >= 0; index--)
         {
@@ -2434,6 +2522,7 @@ public sealed class EditorCanvas : Control
             SceneLayerKind.StoryTrigger => $"劇情觸發區 · {_document.StoryTriggers[selection.Index].Label}",
             SceneLayerKind.MovementGuide => $"強制引導線 · {_document.MovementGuides[selection.Index].Label}",
             SceneLayerKind.ItemPoint => $"ItemPoint · {_document.ItemPoints[selection.Index].Label}",
+            SceneLayerKind.TeleportPoint => $"傳送 Point · {_document.TeleportPoints[selection.Index].Label}",
             _ => "無",
         };
     }
@@ -2744,6 +2833,7 @@ public sealed class EditorCanvas : Control
             SceneLayerKind.StoryTrigger => selection.Index >= 0 && selection.Index < _document.StoryTriggers.Count,
             SceneLayerKind.MovementGuide => selection.Index >= 0 && selection.Index < _document.MovementGuides.Count,
             SceneLayerKind.ItemPoint => selection.Index >= 0 && selection.Index < _document.ItemPoints.Count,
+            SceneLayerKind.TeleportPoint => selection.Index >= 0 && selection.Index < _document.TeleportPoints.Count,
             _ => false,
         };
     }

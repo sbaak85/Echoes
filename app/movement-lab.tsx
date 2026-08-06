@@ -157,6 +157,7 @@ type QuestHudObjectiveView = {
   completed: boolean;
   showProgress: boolean;
 };
+type QuestPromptInputMode = "keyboard-mouse" | "gamepad" | "mobile";
 type QuestHudView = {
   id: string;
   stageId: string;
@@ -164,6 +165,40 @@ type QuestHudView = {
   categoryLabel: string;
   objectives: QuestHudObjectiveView[];
 };
+
+function renderQuestObjectiveLabel(
+  label: string,
+  inputMode: QuestPromptInputMode,
+) {
+  if (!label.includes("[TAB]")) return label;
+
+  return label.split(/(\[TAB\])/g).map((part, index) => {
+    if (part !== "[TAB]") return part;
+    if (inputMode === "keyboard-mouse") {
+      return <span className="quest-input-key-prompt" key={index}>[TAB]</span>;
+    }
+    if (inputMode === "gamepad") {
+      return <span className="quest-input-key-prompt" key={index}>[B鍵]</span>;
+    }
+
+    return (
+      <span
+        className="quest-input-backpack-prompt"
+        role="img"
+        aria-label="背包按鈕"
+        key={index}
+      >
+        <span aria-hidden="true">[</span>
+        <span className="inventory-trigger-icon" aria-hidden="true">
+          <i className="inventory-trigger-handle" />
+          <i className="inventory-trigger-body" />
+          <i className="inventory-trigger-pocket" />
+        </span>
+        <span aria-hidden="true">]</span>
+      </span>
+    );
+  });
+}
 type QuestHistoryView = {
   id: string;
   title: string;
@@ -324,6 +359,12 @@ type StoryTriggerZone = {
   useRequirements?: InteractionUseRequirement[];
 };
 
+type SceneTeleportPoint = Point & {
+  id: string;
+  label: string;
+  facing: Direction;
+};
+
 type SceneFile = {
   sceneId: string;
   image: { file: string; width: number; height: number };
@@ -342,6 +383,7 @@ type SceneFile = {
   movementGuides?: MovementGuide[];
   storyTriggers?: StoryTriggerZone[];
   itemPoints?: SceneItemPoint[];
+  teleportPoints?: Array<Point & { id: string; label: string; facing: string }>;
 };
 
 const SCENE_DATA = mapTest01Scene as SceneFile;
@@ -358,6 +400,16 @@ const SCENE_START_FACING = (
     ? SCENE_DATA.playerSpawn.facing
     : "S"
 ) as Direction;
+const SCENE_TELEPORT_POINTS: SceneTeleportPoint[] = (
+  SCENE_DATA.teleportPoints ?? []
+).flatMap((point) => {
+  const id = typeof point.id === "string" ? point.id.trim() : "";
+  if (!id || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return [];
+  const facing = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"].includes(point.facing)
+    ? point.facing as Direction
+    : "S";
+  return [{ ...point, id, facing }];
+});
 
 // The map has one main plateau and two lower approach roads. The three
 // polygons overlap only at the illustrated stairs, so their union is the
@@ -2357,12 +2409,18 @@ export function MovementLab() {
   const sizeRef = useRef(142);
   const playerPositionRef = useRef<Point>({ ...SPAWN });
   const playerFacingRef = useRef<Direction>(SCENE_START_FACING);
+  const playerTeleportHandlerRef = useRef<(point: SceneTeleportPoint) => boolean>(
+    () => false,
+  );
+  const pendingTeleportPointsRef = useRef<SceneTeleportPoint[]>([]);
+  const teleportTimerIdsRef = useRef<Set<number>>(new Set());
   const collisionSlideToleranceRef = useRef(0.55);
   const showPlayerCollisionRef = useRef(false);
   const showSceneCollisionRef = useRef(false);
   const bgmEnabledRef = useRef(true);
   const bgmVolumeRef = useRef<number>(AUDIO_EVENT_CONFIG.bgm.volume);
   const virtualCursorControlsEnabledRef = useRef(true);
+  const questPromptInputModeRef = useRef<QuestPromptInputMode>("keyboard-mouse");
   const audioEventManagerRef = useRef<AudioEventManager | null>(null);
   const requestBgmPlaybackRef = useRef<() => void>(() => {});
   const optionsOpenRef = useRef(false);
@@ -2511,6 +2569,8 @@ export function MovementLab() {
   const [facing, setFacing] = useState<Direction>(SCENE_START_FACING);
   const [moving, setMoving] = useState(false);
   const [gamepadConnected, setGamepadConnected] = useState(false);
+  const [questPromptInputMode, setQuestPromptInputMode] =
+    useState<QuestPromptInputMode>("keyboard-mouse");
   const [gamepadLabel, setGamepadLabel] = useState<string | null>(null);
   const [gamepadDiagnostic, setGamepadDiagnostic] = useState(
     "等待手把輸入…",
@@ -2594,6 +2654,12 @@ export function MovementLab() {
     sequence: number;
     visible: boolean;
   } | null>(null);
+
+  const activateQuestPromptInputMode = (mode: QuestPromptInputMode) => {
+    if (questPromptInputModeRef.current === mode) return;
+    questPromptInputModeRef.current = mode;
+    setQuestPromptInputMode(mode);
+  };
   const [dialogueView, setDialogueView] = useState<DialogueView>(null);
 
   useLayoutEffect(() => {
@@ -2841,6 +2907,33 @@ export function MovementLab() {
     }, 3000);
   };
 
+  const scheduleQuestTeleport = (pointId: string, delayMilliseconds: number) => {
+    const point = SCENE_TELEPORT_POINTS.find((candidate) =>
+      candidate.id.toLocaleLowerCase() === pointId.trim().toLocaleLowerCase()
+    );
+    if (!point) {
+      console.warn(`[QuestTeleport] Unknown teleport Point ID: ${pointId}`);
+      return;
+    }
+    const applyTeleport = () => {
+      if (!playerTeleportHandlerRef.current(point)) {
+        pendingTeleportPointsRef.current.push(point);
+      }
+    };
+    const safeDelay = Number.isFinite(delayMilliseconds)
+      ? Math.max(0, delayMilliseconds)
+      : 0;
+    if (safeDelay <= 0) {
+      applyTeleport();
+      return;
+    }
+    const timerId = window.setTimeout(() => {
+      teleportTimerIdsRef.current.delete(timerId);
+      applyTeleport();
+    }, safeDelay);
+    teleportTimerIdsRef.current.add(timerId);
+  };
+
   const applyDroppedWorldItems = (items: readonly DroppedWorldItem[]) => {
     const nextItems = [...items];
     droppedWorldItemsRef.current = nextItems;
@@ -2921,6 +3014,9 @@ export function MovementLab() {
             const flow = STORY_EVENT_FLOWS[triggerId];
             if (!flow) return false;
             return await chapterFlowManagerRef.current?.run(flow) === true;
+          },
+          requestTeleport: (pointId, delayMilliseconds) => {
+            scheduleQuestTeleport(pointId, delayMilliseconds);
           },
           onStateChanged: (questId, entry) => {
             requestStoryTriggerContactCheckRef.current();
@@ -3042,7 +3138,13 @@ export function MovementLab() {
       setSurvivalExpanded(getDefaultSurvivalExpanded());
       setStoryReady(true);
     }, 0);
-    return () => window.clearTimeout(hydrationTimer);
+    return () => {
+      window.clearTimeout(hydrationTimer);
+      for (const timerId of teleportTimerIdsRef.current) {
+        window.clearTimeout(timerId);
+      }
+      teleportTimerIdsRef.current.clear();
+    };
   }, []);
 
   useEffect(() => {
@@ -4802,6 +4904,47 @@ export function MovementLab() {
       audioEvents.stop("footsteps", { reset: false });
     };
 
+    const teleportPlayer = (point: SceneTeleportPoint) => {
+      if (!isWalkable(point, sizeRef.current * 0.14)) {
+        console.warn(`[QuestTeleport] Point is not walkable: ${point.id}`);
+        return true;
+      }
+      autoPath = [];
+      autoDestination = null;
+      pendingInteraction = null;
+      movementGuideSuppressedForPendingInteraction = false;
+      lockedAutoMovementGuideId = null;
+      bypassedAutoMovementGuideId = null;
+      touchJoystickPointerId = null;
+      touchJoystickVisible = false;
+      touchJoystick.input = { x: 0, y: 0 };
+      heldPointerId = null;
+      heldPointerScreen = null;
+      heldPointerContinuous = false;
+      activePromptOwner = null;
+      activePromptTargetId = null;
+      previousPlayerPromptTargetId = null;
+      previousCursorPromptTargetId = null;
+      mobileInteractionTargetId = null;
+      activeStoryTriggerZoneIds.clear();
+      eligibleStoryTriggerZoneIds.clear();
+      player.x = point.x;
+      player.y = point.y;
+      camera.x = point.x;
+      camera.y = point.y;
+      currentFacing = point.facing;
+      playerPositionRef.current = { x: point.x, y: point.y };
+      playerFacingRef.current = point.facing;
+      setFacing(point.facing);
+      setMoving(false);
+      stopFootsteps();
+      storyTriggerContactCheckRequested = true;
+      return true;
+    };
+    playerTeleportHandlerRef.current = teleportPlayer;
+    const pendingTeleportPoints = pendingTeleportPointsRef.current.splice(0);
+    for (const point of pendingTeleportPoints) teleportPlayer(point);
+
     Object.entries(SPRITE_SOURCES).forEach(([direction, source]) => {
       const image = new Image();
       image.decoding = "async";
@@ -4862,6 +5005,8 @@ export function MovementLab() {
       ) {
         return;
       }
+      activeInputMode = "keyboard-mouse";
+      activateQuestPromptInputMode("keyboard-mouse");
       if (timePassInputLockedRef.current) {
         event.preventDefault();
         return;
@@ -4898,7 +5043,6 @@ export function MovementLab() {
         if (!event.repeat) setInventoryPanelOpen(!inventoryOpenRef.current);
         return;
       }
-      activeInputMode = "keyboard-mouse";
       if (restartConfirmationOpenRef.current) {
         if (key === "escape") {
           event.preventDefault();
@@ -6172,6 +6316,9 @@ export function MovementLab() {
 
       event.preventDefault();
       activeInputMode = "keyboard-mouse";
+      activateQuestPromptInputMode(
+        event.pointerType === "touch" ? "mobile" : "keyboard-mouse",
+      );
       deactivateGamepadCursor();
       setGamepadInputCursorHidden(false);
       const bounds = canvas.getBoundingClientRect();
@@ -6247,6 +6394,7 @@ export function MovementLab() {
       if (event.pointerType !== "mouse") return;
 
       activeInputMode = "keyboard-mouse";
+      activateQuestPromptInputMode("keyboard-mouse");
       deactivateGamepadCursor();
       setGamepadInputCursorHidden(false);
       if (blackScreenOpacityRef.current > 0) {
@@ -7259,6 +7407,7 @@ export function MovementLab() {
         gamepadInput.rightBumperPressed;
       if (gamepadInput.connected && hasGamepadActivity) {
         activeInputMode = "gamepad";
+        activateQuestPromptInputMode("gamepad");
       }
       if (!virtualCursorControlsEnabledRef.current && gamepadCursorActive) {
         deactivateGamepadCursor();
@@ -8095,6 +8244,9 @@ export function MovementLab() {
       canActivateStoryTriggerRef.current = () => false;
       completeStoryTriggerRef.current = () => false;
       requestStoryTriggerContactCheckRef.current = () => {};
+      if (playerTeleportHandlerRef.current === teleportPlayer) {
+        playerTeleportHandlerRef.current = () => false;
+      }
       stopFootsteps();
       stopDialogueTyping();
       if (interactionFeedbackTimer !== null) {
@@ -8424,6 +8576,11 @@ export function MovementLab() {
     <div
       className="game-viewport"
       onContextMenu={(event) => event.preventDefault()}
+      onPointerDownCapture={(event) => {
+        activateQuestPromptInputMode(
+          event.pointerType === "touch" ? "mobile" : "keyboard-mouse",
+        );
+      }}
       onPointerDown={(event) => {
         if (
           inventoryContextMenu &&
@@ -8723,7 +8880,9 @@ export function MovementLab() {
                   >
                     {objective.completed ? "☑" : "☐"}
                   </span>
-                  <span className="quest-objective-label">{objective.label}</span>
+                  <span className="quest-objective-label">
+                    {renderQuestObjectiveLabel(objective.label, questPromptInputMode)}
+                  </span>
                   {objective.showProgress ? (
                     <output>[{Math.min(objective.current, objective.required)}/{objective.required}]</output>
                   ) : null}

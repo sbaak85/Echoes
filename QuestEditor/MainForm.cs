@@ -266,6 +266,7 @@ internal sealed class MainForm : Form
         _propertyGrid.ToolbarVisible = false;
         _propertyGrid.PropertySort = PropertySort.Categorized;
         _propertyGrid.PropertyValueChanged += (_, _) => OnPropertyChanged();
+        _propertyGrid.SelectedGridItemChanged += (_, _) => UpdateReferenceList();
         panel.Controls.Add(_propertyGrid, 0, 1);
 
         var referencePanel = new TableLayoutPanel
@@ -443,15 +444,23 @@ internal sealed class MainForm : Form
             _referenceCombo.DataSource = null;
             var objective = _propertyGrid.SelectedObject as QuestObjectiveDefinition;
             var quest = _propertyGrid.SelectedObject as QuestDefinition;
-            var kind = objective is not null
-                ? QuestValidator.ReferenceKind(objective.Type)
-                : quest?.CompletionTriggerType switch
-                {
-                    QuestCompletionTriggerType.Dialogue => "Dialogue",
-                    QuestCompletionTriggerType.EventFlow => "EventFlow",
-                    _ => null,
-                };
-            var currentId = objective?.TargetId ?? quest?.CompletionTriggerId ?? "";
+            var property = _propertyGrid.SelectedGridItem?.PropertyDescriptor;
+            var isTeleportProperty = property?.Name is
+                nameof(QuestDefinition.StartTeleportPointId) or
+                nameof(QuestDefinition.CompletionTeleportPointId);
+            var kind = isTeleportProperty
+                ? "TeleportPoint"
+                : objective is not null
+                    ? QuestValidator.ReferenceKind(objective.Type)
+                    : quest?.CompletionTriggerType switch
+                    {
+                        QuestCompletionTriggerType.Dialogue => "Dialogue",
+                        QuestCompletionTriggerType.EventFlow => "EventFlow",
+                        _ => null,
+                    };
+            var currentId = isTeleportProperty && _propertyGrid.SelectedObject is { } selectedObject
+                ? property?.GetValue(selectedObject)?.ToString() ?? ""
+                : objective?.TargetId ?? quest?.CompletionTriggerId ?? "";
             _referenceLabel.Text = kind is null
                 ? "目前選取項目不使用外部 ID 清單"
                 : $"外部{ReferenceKindDisplayName(kind)} ID 清單";
@@ -487,6 +496,7 @@ internal sealed class MainForm : Form
         "Dialogue" => "對話",
         "EventFlow" => "事件流程",
         "WorldObject" => "場景物件",
+        "TeleportPoint" => "傳送 Point",
         "Flag" => "旗標",
         _ => kind,
     };
@@ -495,7 +505,15 @@ internal sealed class MainForm : Form
     {
         if (_rebuilding || _updatingReferenceList ||
             _referenceCombo.SelectedItem is not QuestReference reference) return;
-        if (_propertyGrid.SelectedObject is QuestObjectiveDefinition objective)
+        var property = _propertyGrid.SelectedGridItem?.PropertyDescriptor;
+        if (property?.Name is nameof(QuestDefinition.StartTeleportPointId) or
+            nameof(QuestDefinition.CompletionTeleportPointId))
+        {
+            if (_propertyGrid.SelectedObject is not { } selectedObject ||
+                Equals(property.GetValue(selectedObject), reference.Id)) return;
+            property.SetValue(selectedObject, reference.Id);
+        }
+        else if (_propertyGrid.SelectedObject is QuestObjectiveDefinition objective)
         {
             if (objective.TargetId == reference.Id) return;
             objective.TargetId = reference.Id;

@@ -1304,6 +1304,28 @@ html.dialogue-cursor-active .dialogue-box * {
   font-size: 18px;
 }
 
+.quest-input-key-prompt,
+.quest-input-backpack-prompt {
+  color: #ffd36f;
+  text-shadow: 0 0 7px rgba(255, 195, 66, 0.34);
+}
+
+.quest-input-backpack-prompt {
+  display: inline-flex;
+  height: 1em;
+  align-items: center;
+  gap: 1px;
+  vertical-align: -0.12em;
+}
+
+.quest-input-backpack-prompt .inventory-trigger-icon {
+  width: 18px;
+  height: 20px;
+  flex: 0 0 18px;
+  transform: scale(0.7);
+  transform-origin: center;
+}
+
 .quest-objective-check {
   color: rgba(223, 232, 228, 0.78);
   font-size: 22px;

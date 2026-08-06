@@ -63,6 +63,10 @@ internal static class QuestValidator
                 $"{quest.Id} 完成後觸發",
                 quest,
                 issues);
+            ValidateTeleport(quest.StartTeleportPointId, quest.StartTeleportDelaySeconds,
+                $"{quest.Id} 啟動", quest, references, issues);
+            ValidateTeleport(quest.CompletionTeleportPointId, quest.CompletionTeleportDelaySeconds,
+                $"{quest.Id} 完成", quest, references, issues);
             var completionReferenceKind = quest.CompletionTriggerType switch
             {
                 QuestCompletionTriggerType.Dialogue => "Dialogue",
@@ -93,6 +97,10 @@ internal static class QuestValidator
                 Required(stage.Id, $"{quest.Id} 的 Stage ID 不可空白", stage, issues);
                 ValidateStartDelay(stage.StartDelaySeconds, stage.Id, stage, issues);
                 ValidateCompletionDelay(stage.CompletionDelaySeconds, stage.Id, stage, issues);
+                ValidateTeleport(stage.StartTeleportPointId, stage.StartTeleportDelaySeconds,
+                    $"{stage.Id} 啟動", stage, references, issues);
+                ValidateTeleport(stage.CompletionTeleportPointId, stage.CompletionTeleportDelaySeconds,
+                    $"{stage.Id} 完成", stage, references, issues);
                 if (!stage.Id.StartsWith($"{quest.Id}_STAGE_", StringComparison.OrdinalIgnoreCase))
                     issues.Add(new(
                         ValidationSeverity.Error,
@@ -108,6 +116,10 @@ internal static class QuestValidator
                 {
                     ValidateStartDelay(objective.StartDelaySeconds, objective.Id, objective, issues);
                     ValidateCompletionDelay(objective.CompletionDelaySeconds, objective.Id, objective, issues);
+                    ValidateTeleport(objective.StartTeleportPointId, objective.StartTeleportDelaySeconds,
+                        $"{objective.Id} 啟動", objective, references, issues);
+                    ValidateTeleport(objective.CompletionTeleportPointId, objective.CompletionTeleportDelaySeconds,
+                        $"{objective.Id} 完成", objective, references, issues);
                     if (!objective.Id.StartsWith($"{quest.Id}_OBJ_", StringComparison.OrdinalIgnoreCase))
                         issues.Add(new(
                             ValidationSeverity.Error,
@@ -146,6 +158,28 @@ internal static class QuestValidator
             ValidationSeverity.Error,
             $"{id} 的完成延遲必須介於 0 至 3600 秒。",
             target));
+    }
+
+    private static void ValidateTeleport(
+        string? pointId,
+        double delaySeconds,
+        string label,
+        object target,
+        QuestReferenceCatalog references,
+        List<QuestValidationIssue> issues)
+    {
+        if (!double.IsFinite(delaySeconds) || delaySeconds < 0 || delaySeconds > 3600)
+        {
+            issues.Add(new(ValidationSeverity.Error,
+                $"{label}傳送延遲必須介於 0 到 3600 秒。", target));
+        }
+        if (string.IsNullOrWhiteSpace(pointId)) return;
+        if (references.Get("TeleportPoint").Count > 0 &&
+            !references.Contains("TeleportPoint", pointId))
+        {
+            issues.Add(new(ValidationSeverity.Error,
+                $"找不到傳送 Point ID：{pointId}", target));
+        }
     }
 
     private static void ValidateObjective(QuestObjectiveDefinition objective, QuestReferenceCatalog references, List<QuestValidationIssue> issues)

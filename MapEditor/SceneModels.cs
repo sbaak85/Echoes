@@ -13,6 +13,7 @@ public sealed class SceneDocument
     public SceneWorld World { get; set; } = new();
     public GridSettings Grid { get; set; } = new();
     public PlayerSpawn PlayerSpawn { get; set; } = new();
+    public List<SceneTeleportPoint> TeleportPoints { get; set; } = new();
     public List<NavMeshRegion> NavMesh { get; set; } = new();
     public List<CollisionShape> Collisions { get; set; } = new();
     public List<SceneInteractable> Interactables { get; set; } = new();
@@ -132,6 +133,13 @@ public interface ITriggerConfiguration
     InteractionItemReward? ItemReward { get; set; }
     List<InteractionUseRequirement>? UseRequirements { get; set; }
     void NormalizeItemRewards();
+}
+
+public sealed class SceneTeleportPoint : ScenePoint
+{
+    public string Id { get; set; } = "";
+    public string Label { get; set; } = "傳送點";
+    public string Facing { get; set; } = "S";
 }
 
 public sealed class SceneInteractable : ITriggerConfiguration
@@ -962,6 +970,30 @@ public static class SceneJson
                     $"ItemPoint {itemPoint.Id} 必須放在 NavMesh 範圍內。");
             }
         }
+
+        var teleportPointIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < document.TeleportPoints.Count; index++)
+        {
+            var teleportPoint = document.TeleportPoints[index];
+            teleportPoint.Id = string.IsNullOrWhiteSpace(teleportPoint.Id)
+                ? $"teleport-point-{index + 1:000}"
+                : teleportPoint.Id.Trim();
+            if (!teleportPointIds.Add(teleportPoint.Id))
+            {
+                throw new InvalidDataException($"傳送 Point ID 重複：{teleportPoint.Id}");
+            }
+            teleportPoint.Label = string.IsNullOrWhiteSpace(teleportPoint.Label)
+                ? $"傳送點 {index + 1}"
+                : teleportPoint.Label.Trim();
+            teleportPoint.Facing = NormalizeFacing(teleportPoint.Facing);
+            teleportPoint.X = Math.Clamp(teleportPoint.X, 0, document.World.Width);
+            teleportPoint.Y = Math.Clamp(teleportPoint.Y, 0, document.World.Height);
+            if (!document.NavMesh.Any(region => PointInPolygon(teleportPoint, region.Points)))
+            {
+                throw new InvalidDataException(
+                    $"傳送 Point {teleportPoint.Id} 必須位於 NavMesh 內。");
+            }
+        }
     }
 
     private static bool PointInPolygon(ScenePoint point, IReadOnlyList<ScenePoint> polygon)
@@ -980,6 +1012,14 @@ public static class SceneJson
             if (point.X < intersectionX) inside = !inside;
         }
         return inside;
+    }
+
+    private static string NormalizeFacing(string? facing)
+    {
+        var normalized = facing?.Trim().ToUpperInvariant() ?? "S";
+        return normalized is "N" or "NE" or "E" or "SE" or "S" or "SW" or "W" or "NW"
+            ? normalized
+            : "S";
     }
 
     private static void NormalizeRequirement(SurvivalRequirementRule? rule)
