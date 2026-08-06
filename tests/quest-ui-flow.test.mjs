@@ -156,6 +156,18 @@ test("gameplay HUD shortcuts map Q and RB to quest, R and LB to survival", () =>
   assert.match(source, /aria-keyshortcuts="R"/);
 });
 
+test("quest completion trigger starts only after the COMPLETE UI finishes", () => {
+  const completionHandler = source.slice(
+    source.indexOf("onQuestCompleted:"),
+    source.indexOf("onQuestFailed:"),
+  );
+  assert.match(
+    completionHandler,
+    /triggerQuestHudVisual\("completed", view, completePresentation\)/,
+  );
+  assert.match(completionHandler, /else\s*{\s*completePresentation\(\);/);
+});
+
 test("quest TAB prompt follows the latest keyboard, gamepad, or mobile input", () => {
   const promptRenderer = source.slice(
     source.indexOf("function renderQuestObjectiveLabel"),

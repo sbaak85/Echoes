@@ -9,6 +9,7 @@ import {
   CHAPTER_3_START_FLOW,
   CHAPTER_3_SECTION_1_DIALOGUE_ID,
   STORY_DIALOGUES,
+  STORY_EVENT_FLOWS,
 } from "../app/story-content.ts";
 import { StoryEventManager } from "../app/story-event-manager.ts";
 
@@ -217,6 +218,7 @@ test("第三章開場腳本與流程符合第一版規格", () => {
   assert.deepEqual(CHAPTER_3_START_FLOW.skipActions?.at(-1), {
     type: "unlockInput",
   });
+  assert.equal(STORY_EVENT_FLOWS[CHAPTER_3_START_FLOW.id], CHAPTER_3_START_FLOW);
 });
 
 test("DialogueManager 依序播放已登錄腳本", async () => {

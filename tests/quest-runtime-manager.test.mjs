@@ -464,7 +464,7 @@ test("interface opening and successful item use are reusable objective events", 
   assert.equal(manager.getQuestState("QUEST_TEST"), "completed");
 });
 
-test("quest completion can delay a dialogue and grant the next quest after that dialogue finishes", async () => {
+test("quest completion waits for COMPLETE UI, then delays a dialogue and grants the next quest", async () => {
   const completionDocument = structuredClone(document);
   const firstQuest = completionDocument.quests[0];
   firstQuest.id = "QUEST_FIRST";
@@ -489,6 +489,7 @@ test("quest completion can delay a dialogue and grant the next quest after that 
   let now = 1000;
   const scheduled = [];
   const triggers = [];
+  let completePresentation;
   let manager;
   manager = new QuestRuntimeManager(completionDocument, {
     now: () => now,
@@ -500,19 +501,30 @@ test("quest completion can delay a dialogue and grant the next quest after that 
       manager.startAvailableAfterDialogueQuests(triggerId, 3, 600);
       return true;
     },
+    onQuestCompleted: (_questId, _entry, complete) => {
+      completePresentation = complete;
+    },
   });
 
   manager.completeQuest(firstQuest.id);
   assert.equal(manager.getQuestState(firstQuest.id), "completed");
   assert.equal(manager.getQuestState(nextQuest.id), "available");
-  assert.equal(manager.exportSave().quests[firstQuest.id].completionTriggerAvailableAtEpochMs, 4000);
+  assert.equal(
+    manager.exportSave().quests[firstQuest.id].completionTriggerAvailableAtEpochMs,
+    undefined,
+  );
+  assert.equal(scheduled.length, 0);
   assert.deepEqual(triggers, []);
 
-  now = 3999;
+  now = 5000;
+  completePresentation();
+  assert.equal(manager.exportSave().quests[firstQuest.id].completionTriggerAvailableAtEpochMs, 8000);
+
+  now = 7999;
   for (const task of scheduled.filter((task) => task.at <= now)) task.callback();
   assert.deepEqual(triggers, []);
 
-  now = 4000;
+  now = 8000;
   for (const task of scheduled.splice(0).filter((task) => task.at <= now)) task.callback();
   await Promise.resolve();
   await Promise.resolve();

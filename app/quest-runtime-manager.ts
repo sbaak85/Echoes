@@ -216,7 +216,11 @@ export type QuestRuntimeHost = {
   setFlag?: (flagId: string, value: boolean) => void;
   onStateChanged?: (questId: string, entry: QuestRuntimeEntry) => void;
   onQuestStarted?: (questId: string, entry: QuestRuntimeEntry) => void;
-  onQuestCompleted?: (questId: string) => void;
+  onQuestCompleted?: (
+    questId: string,
+    entry: QuestRuntimeEntry,
+    completePresentation: () => void,
+  ) => void;
   onQuestFailed?: (questId: string, entry: QuestRuntimeEntry) => void;
   onQuestAbandoned?: (questId: string, entry: QuestRuntimeEntry) => void;
   scheduleQuestStart?: (delayMilliseconds: number, start: () => void) => void;
@@ -447,14 +451,12 @@ export class QuestRuntimeManager {
     const trigger = this.getCompletionTrigger(definition);
     if (trigger) {
       entry.completionTriggerCompleted = false;
-      entry.completionTriggerAvailableAtEpochMs = this.now() +
-        this.delayMilliseconds(definition.completionTriggerDelaySeconds);
+      entry.completionTriggerAvailableAtEpochMs = undefined;
     } else {
       entry.completionTriggerCompleted = true;
       entry.completionTriggerAvailableAtEpochMs = undefined;
     }
     this.notify(definition.id);
-    this.scheduleQuestCompletionTrigger(definition, entry);
   }
 
   private presentQuestCompletion(
@@ -468,7 +470,23 @@ export class QuestRuntimeManager {
         questId: definition.id,
         phase: "completion",
       });
-    this.host.onQuestCompleted?.(definition.id);
+    let presentationCompleted = false;
+    const completePresentation = () => {
+      if (presentationCompleted) return;
+      presentationCompleted = true;
+      const current = this.saveData.quests[definition.id];
+      if (!current || current.state !== "completed") return;
+      this.armQuestCompletionTrigger(definition, current);
+    };
+    if (this.host.onQuestCompleted) {
+      this.host.onQuestCompleted(
+        definition.id,
+        structuredClone(entry),
+        completePresentation,
+      );
+    } else {
+      completePresentation();
+    }
     this.notify(definition.id);
   }
 
@@ -883,6 +901,17 @@ export class QuestRuntimeManager {
     });
   }
 
+  private armQuestCompletionTrigger(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+  ) {
+    if (entry.completionTriggerCompleted !== false) return;
+    entry.completionTriggerAvailableAtEpochMs ??= this.now() +
+      this.delayMilliseconds(definition.completionTriggerDelaySeconds);
+    this.notify(definition.id);
+    this.scheduleQuestCompletionTrigger(definition, entry);
+  }
+
   private isStageActive(entry: QuestRuntimeEntry): boolean {
     return (entry.stageAvailableAtEpochMs ?? 0) <= this.now();
   }
@@ -996,10 +1025,18 @@ export class QuestRuntimeManager {
         // Existing saves predate completion triggers; never replay old completed quests after updating.
         entry.completionTriggerCompleted = true;
       } else if (entry.completionTriggerCompleted === false) {
-        this.scheduleQuestCompletionTrigger(definition, entry);
+        if (entry.completionTriggerAvailableAtEpochMs != null) {
+          this.scheduleQuestCompletionTrigger(definition, entry);
+        } else if (entry.questCompletionPresented === true) {
+          // The COMPLETE presentation was interrupted by a reload. Resume from its end boundary.
+          this.armQuestCompletionTrigger(definition, entry);
+        }
       }
       if (entry.questCompletionPresented == null) {
         entry.questCompletionPresented = true;
+        if (entry.completionTriggerCompleted === false) {
+          this.armQuestCompletionTrigger(definition, entry);
+        }
         return;
       }
     }

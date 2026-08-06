@@ -279,7 +279,7 @@ public sealed class QuestDefinition
     public string CompletionTriggerId { get; set; } = "";
 
     [Category("完成"), DisplayName("完成後觸發延遲（秒）")]
-    [Description("任務完成並保存完成旗標後，等待指定現實秒數才觸發對話或事件流程。0 代表立即觸發。")]
+    [Description("COMPLETE 任務完成 UI 播放結束後，等待指定現實秒數才觸發對話或事件流程。0 代表 UI 結束後立即觸發。")]
     public double CompletionTriggerDelaySeconds { get; set; }
 
     [Browsable(false)]

@@ -13,6 +13,7 @@ const scene = JSON.parse(
 const QUEST_ID = "QUEST_CH03_MAIN_001";
 const INVENTORY_QUEST_ID = "QUEST_CH03_MAIN_002";
 const REST_QUEST_ID = "QUEST_CH03_MAIN_003";
+const HOPE_QUEST_ID = "QUEST_CH03_MAIN_004";
 
 function dispatch(manager, eventId, type, targetId) {
   manager.handleEvent({ eventId, type, targetId, amount: 1 });
@@ -72,6 +73,71 @@ test("MAIN_003 objective completion teleports at the fully-black timing after 0.
   assert.equal(teleportPoint.facing, "S");
   assert.equal(Number.isFinite(teleportPoint.x), true);
   assert.equal(Number.isFinite(teleportPoint.y), true);
+});
+
+test("MAIN_003 COMPLETE UI hands off section 3, then section 3 grants MAIN_004", () => {
+  const restQuest = questDocument.quests.find((candidate) => candidate.id === REST_QUEST_ID);
+  const hopeQuest = questDocument.quests.find((candidate) => candidate.id === HOPE_QUEST_ID);
+  assert.ok(restQuest);
+  assert.ok(hopeQuest);
+  assert.equal(restQuest.completionTriggerType, "dialogue");
+  assert.equal(restQuest.completionTriggerId, "chapter03-section-3");
+  assert.equal(restQuest.completionTriggerDelaySeconds, 1);
+  assert.equal(hopeQuest.grantMethod, "afterDialogue");
+  assert.equal(hopeQuest.grantSourceId, "chapter03-section-3");
+  assert.deepEqual(hopeQuest.prerequisiteQuestIds, [REST_QUEST_ID]);
+  assert.equal(hopeQuest.startDelaySeconds, 0);
+});
+
+test("MAIN_004 and interaction-011 use the approved objective and resource setup", () => {
+  const quest = questDocument.quests.find((candidate) => candidate.id === HOPE_QUEST_ID);
+  const interaction = scene.interactables.find((candidate) => candidate.id === "interaction-011");
+  assert.ok(quest);
+  assert.ok(interaction);
+  assert.equal(quest.name, "有限的希望");
+  assert.equal(quest.stages[0].name, "修復通訊陣列的準備");
+  assert.deepEqual(
+    quest.stages[0].objectives.map((objective) => [
+      objective.id,
+      objective.displayText,
+      objective.type,
+      objective.targetId,
+      objective.showProgress,
+    ]),
+    [
+      ["QUEST_CH03_MAIN_004_OBJ_01", "找出裝載通訊零件的貨箱", "interactionSucceeded", "interaction-011", false],
+      ["QUEST_CH03_MAIN_004_OBJ_02", "取得陣列天線", "compoundCollectItem", "", true],
+      ["QUEST_CH03_MAIN_004_OBJ_03", "取得多功能工具箱", "collectItem", "T0003", false],
+    ],
+  );
+  assert.deepEqual(quest.stages[0].objectives[1].itemRequirements, [
+    { itemId: "R0013", requiredAmount: 1 },
+    { itemId: "R0014", requiredAmount: 1 },
+    { itemId: "R0015", requiredAmount: 1 },
+  ]);
+  assert.deepEqual(interaction.itemRewards, [
+    { itemId: "R0013", quantity: 1, delivery: "world" },
+    { itemId: "R0014", quantity: 1, delivery: "world" },
+    { itemId: "R0015", quantity: 1, delivery: "world" },
+  ]);
+});
+
+test("MAIN_004 completes after the cargo box, three communication parts, and T0003", () => {
+  const quest = structuredClone(
+    questDocument.quests.find((candidate) => candidate.id === HOPE_QUEST_ID),
+  );
+  quest.prerequisiteQuestIds = [];
+  const manager = new QuestRuntimeManager({
+    schemaVersion: questDocument.schemaVersion,
+    chapters: questDocument.chapters,
+    quests: [quest],
+  });
+  assert.equal(manager.startQuest(HOPE_QUEST_ID), true);
+  manager.handleEvent({ type: "interactionSucceeded", targetId: "interaction-011" });
+  for (const itemId of ["R0013", "R0014", "R0015", "T0003"]) {
+    manager.handleEvent({ type: "itemCollected", targetId: itemId, amount: 1 });
+  }
+  assert.equal(manager.getQuestState(HOPE_QUEST_ID), "completed");
 });
 
 test("story-trigger-002 unlocks after MAIN_001 and hands off MAIN_002 after dialogue", () => {

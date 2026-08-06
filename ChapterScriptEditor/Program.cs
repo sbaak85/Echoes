@@ -121,6 +121,7 @@ internal static class Program
         if (!generated.Contains("STORY_DIALOGUES", StringComparison.Ordinal) ||
             !generated.Contains("chapter03-start", StringComparison.Ordinal) ||
             !generated.Contains("CHAPTER_3_SECTION_1_DIALOGUE_ID", StringComparison.Ordinal) ||
+            !generated.Contains("STORY_EVENT_FLOWS", StringComparison.Ordinal) ||
             !generated.Contains("durationMs: 1500", StringComparison.Ordinal) ||
             !generated.Contains("chapter03-lower-left-not-ready", StringComparison.Ordinal) ||
             generated.Contains("LOWER_LEFT_STORY_ZONE_DIALOGUE_ID", StringComparison.Ordinal))

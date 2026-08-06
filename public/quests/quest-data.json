@@ -289,9 +289,9 @@
       "canReaccept": false,
       "displayMode": "standard",
       "completionFlagId": "QUEST_CH03_MAIN_003_COMPLETED",
-      "completionTriggerType": "none",
-      "completionTriggerId": "",
-      "completionTriggerDelaySeconds": 0,
+      "completionTriggerType": "dialogue",
+      "completionTriggerId": "chapter03-section-3",
+      "completionTriggerDelaySeconds": 1,
       "completionEventFlowId": "",
       "rewardItemId": "",
       "rewardItemAmount": 0,
@@ -319,6 +319,109 @@
               "completionTeleportDelaySeconds": 0.5,
               "type": "interactionSucceeded",
               "targetId": "interaction-010",
+              "itemRequirements": [],
+              "targetState": "",
+              "requiredAmount": 1,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": false,
+              "showHintIcon": false,
+              "completionEventFlowId": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "QUEST_CH03_MAIN_004",
+      "name": "\u6709\u9650\u7684\u5E0C\u671B",
+      "description": "\u6E96\u5099\u4FEE\u5FA9\u901A\u8A0A\u5929\u7DDA\uFF0C\u4E26\u4E14\u52A0\u56FA\u71DF\u5730\u8207\u978F\u56FA\u751F\u5B58",
+      "chapterId": "CH03",
+      "type": "main",
+      "grantMethod": "afterDialogue",
+      "grantSourceId": "chapter03-section-3",
+      "grantCondition": "",
+      "prerequisiteQuestIds": [
+        "QUEST_CH03_MAIN_003"
+      ],
+      "startDelaySeconds": 0,
+      "canAbandon": false,
+      "canReaccept": false,
+      "displayMode": "standard",
+      "completionFlagId": "",
+      "completionTriggerType": "none",
+      "completionTriggerId": "",
+      "completionTriggerDelaySeconds": 0,
+      "completionEventFlowId": "",
+      "rewardItemId": "",
+      "rewardItemAmount": 0,
+      "failureDeadline": "",
+      "failureEventId": "",
+      "failureMode": "permanent",
+      "onFailedEventFlowId": "",
+      "stages": [
+        {
+          "id": "QUEST_CH03_MAIN_004_STAGE_01",
+          "name": "\u4FEE\u5FA9\u901A\u8A0A\u9663\u5217\u7684\u6E96\u5099",
+          "startDelaySeconds": 0,
+          "completionDelaySeconds": 0,
+          "completionMode": "all",
+          "startEventFlowId": "",
+          "completionEventFlowId": "",
+          "nextStageId": "",
+          "objectives": [
+            {
+              "id": "QUEST_CH03_MAIN_004_OBJ_01",
+              "displayText": "\u627E\u51FA\u88DD\u8F09\u901A\u8A0A\u96F6\u4EF6\u7684\u8CA8\u7BB1",
+              "startDelaySeconds": 0,
+              "completionDelaySeconds": 0,
+              "type": "interactionSucceeded",
+              "targetId": "interaction-011",
+              "itemRequirements": [],
+              "targetState": "",
+              "requiredAmount": 1,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": false,
+              "showHintIcon": false,
+              "completionEventFlowId": ""
+            },
+            {
+              "id": "QUEST_CH03_MAIN_004_OBJ_02",
+              "displayText": "\u53D6\u5F97\u9663\u5217\u5929\u7DDA",
+              "startDelaySeconds": 0,
+              "completionDelaySeconds": 0,
+              "type": "compoundCollectItem",
+              "targetId": "",
+              "itemRequirements": [
+                {
+                  "itemId": "R0013",
+                  "requiredAmount": 1
+                },
+                {
+                  "itemId": "R0014",
+                  "requiredAmount": 1
+                },
+                {
+                  "itemId": "R0015",
+                  "requiredAmount": 1
+                }
+              ],
+              "targetState": "",
+              "requiredAmount": 1,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": true,
+              "showHintIcon": false,
+              "completionEventFlowId": ""
+            },
+            {
+              "id": "QUEST_CH03_MAIN_004_OBJ_03",
+              "displayText": "\u53D6\u5F97\u591A\u529F\u80FD\u5DE5\u5177\u7BB1",
+              "startDelaySeconds": 0,
+              "completionDelaySeconds": 0,
+              "type": "collectItem",
+              "targetId": "T0003",
               "itemRequirements": [],
               "targetState": "",
               "requiredAmount": 1,

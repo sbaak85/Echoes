@@ -363,6 +363,10 @@ public static class StoryContentCodec
         builder.AppendLine("    { type: \"unlockInput\" },");
         builder.AppendLine("  ],");
         builder.AppendLine("};");
+        builder.AppendLine();
+        builder.AppendLine("export const STORY_EVENT_FLOWS: Readonly<Record<string, ChapterFlowDefinition>> = {");
+        builder.AppendLine("  [CHAPTER_3_START_FLOW.id]: CHAPTER_3_START_FLOW,");
+        builder.AppendLine("};");
     }
 
     private static void Normalize(ChapterScriptDocument document)

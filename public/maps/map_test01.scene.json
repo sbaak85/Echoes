@@ -2221,6 +2221,119 @@
           }
         ]
       }
+    },
+    {
+      "id": "interaction-011",
+      "label": "\u6563\u843D\u8CA8\u7BB1",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 865,
+          "y": 720
+        },
+        {
+          "x": 915,
+          "y": 720
+        },
+        {
+          "x": 985,
+          "y": 765
+        },
+        {
+          "x": 985,
+          "y": 805
+        },
+        {
+          "x": 845,
+          "y": 915
+        },
+        {
+          "x": 815,
+          "y": 915
+        },
+        {
+          "x": 735,
+          "y": 860
+        },
+        {
+          "x": 735,
+          "y": 815
+        }
+      ],
+      "type": "operation",
+      "verb": "\u64CD\u4F5C",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": -5,
+        "hunger": -3,
+        "thirst": -3,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionLimitMode": "once",
+      "itemRewards": [
+        {
+          "itemId": "R0013",
+          "quantity": 1,
+          "delivery": "world"
+        },
+        {
+          "itemId": "R0014",
+          "quantity": 1,
+          "delivery": "world"
+        },
+        {
+          "itemId": "R0015",
+          "quantity": 1,
+          "delivery": "world"
+        }
+      ],
+      "useRequirements": [
+        {
+          "kind": "questStage",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_004",
+          "stageId": "QUEST_CH03_MAIN_004_STAGE_01",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 862.4428,
+        "y": 788.04895
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u901A\u8A0A\u9663\u5217\u9762\u677F...\u91CF\u5B50\u50B3\u8F38\u5668...\u6821\u6B63\u5143\u4EF6...\u90FD\u6709\u96F6\u4EF6!\r\n\u7136\u5F8C\u518D\u7528\u7DAD\u4FEE\u5DE5\u5177\u7D44\u88DD\u8D77\u4F86\u3002"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
+      }
     }
   ],
   "movementGuides": [

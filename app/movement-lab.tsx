@@ -2487,6 +2487,7 @@ export function MovementLab() {
   const questHudEventSequenceRef = useRef(0);
   const questGameEventSequenceRef = useRef(0);
   const questHudEventTimerRef = useRef<number | null>(null);
+  const questHudEventFinishedRef = useRef<(() => void) | null>(null);
   const questObjectiveTweenTimerRef = useRef<number | null>(null);
   const questStageTransitionTimerRef = useRef<number | null>(null);
   const questStageEnteringTimerRef = useRef<number | null>(null);
@@ -2826,9 +2827,14 @@ export function MovementLab() {
   const triggerQuestHudVisual = (
     kind: QuestHudEventKind,
     view: QuestHudView,
+    onFinished?: () => void,
   ) => {
     if (questHudEventTimerRef.current !== null) {
       window.clearTimeout(questHudEventTimerRef.current);
+      questHudEventTimerRef.current = null;
+      const finishPrevious = questHudEventFinishedRef.current;
+      questHudEventFinishedRef.current = null;
+      finishPrevious?.();
     }
     questHudEventSequenceRef.current += 1;
     setActiveQuestHud(view);
@@ -2841,10 +2847,14 @@ export function MovementLab() {
     if (kind === "accepted" || kind === "completed") {
       showQuestEventNotice(kind);
     }
+    questHudEventFinishedRef.current = onFinished ?? null;
     questHudEventTimerRef.current = window.setTimeout(() => {
       questHudEventTimerRef.current = null;
       setQuestHudEvent(null);
       if (kind !== "accepted") setActiveQuestHud(getFirstActiveQuestHud());
+      const finish = questHudEventFinishedRef.current;
+      questHudEventFinishedRef.current = null;
+      finish?.();
     }, kind === "accepted" ? 2600 : 3300);
   };
 
@@ -2875,6 +2885,10 @@ export function MovementLab() {
   ) => {
     if (questHudEventTimerRef.current !== null) {
       window.clearTimeout(questHudEventTimerRef.current);
+      questHudEventTimerRef.current = null;
+      const finishPrevious = questHudEventFinishedRef.current;
+      questHudEventFinishedRef.current = null;
+      finishPrevious?.();
     }
     if (questStageTransitionTimerRef.current !== null) {
       window.clearTimeout(questStageTransitionTimerRef.current);
@@ -3071,11 +3085,15 @@ export function MovementLab() {
               completeTransition();
             }
           },
-          onQuestCompleted: (questId) => {
+          onQuestCompleted: (questId, _entry, completePresentation) => {
             const manager = questRuntimeManagerRef.current;
             const entry = manager?.exportSave().quests[questId];
             const view = entry ? buildQuestHudView(questId, entry) : null;
-            if (view) triggerQuestHudVisual("completed", view);
+            if (view) {
+              triggerQuestHudVisual("completed", view, completePresentation);
+            } else {
+              completePresentation();
+            }
             window.queueMicrotask(() => {
               const currentManager = questRuntimeManagerRef.current;
               if (!currentManager) return;
@@ -3257,6 +3275,7 @@ export function MovementLab() {
     if (questHudEventTimerRef.current !== null) {
       window.clearTimeout(questHudEventTimerRef.current);
     }
+    questHudEventFinishedRef.current = null;
     if (questObjectiveTweenTimerRef.current !== null) {
       window.clearTimeout(questObjectiveTweenTimerRef.current);
     }

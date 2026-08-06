@@ -334,9 +334,10 @@ internal static class EditorSelfTest
         var scene = SceneJson.Load(scenePath);
         SceneJson.Validate(scene);
         if (
-            ItemCatalog.All.Count != 25 ||
+            ItemCatalog.All.Count != 28 ||
             ItemCatalog.Find("crystal-shard")?.Id != "R0001" ||
             ItemCatalog.Find("R0012")?.Name != "外星果實" ||
+            ItemCatalog.Find("R0015")?.Name != "校正元件" ||
             ItemCatalog.Find("R0100")?.Name != "全回復道具（測試用）"
         )
         {
@@ -352,7 +353,7 @@ internal static class EditorSelfTest
         var roundTrip = SceneJson.Deserialize(SceneJson.Serialize(scene));
         SceneJson.Validate(roundTrip);
         if (roundTrip.TeleportPoints.SingleOrDefault(point => point.Id == "teleport-point-center") is not
-            { X: 680, Y: 670, Facing: "S" })
+            { X: 730, Y: 680, Facing: "S" })
         {
             throw new InvalidDataException("傳送 Point 未能正確讀取或通過場景 JSON round-trip。");
         }

@@ -65,11 +65,11 @@ test("Debug 道具生成指令支援 ID、數量與生成去向", () => {
   assert.equal(getItemDebugSpawnDelivery(worldItem), "world");
 });
 
-test("中央道具資料庫固定保留 100 欄，現有 25 項道具都有分類流水號與英文名稱", () => {
+test("中央道具資料庫固定保留 100 欄，現有 28 項道具都有分類流水號與英文名稱", () => {
   assert.equal(validateItemDatabase(), true);
   assert.equal(ITEM_DATABASE.length, ITEM_DATABASE_CAPACITY);
   assert.equal(ITEM_DATABASE_CAPACITY, 100);
-  assert.equal(ITEM_DEFINITIONS.length, 25);
+  assert.equal(ITEM_DEFINITIONS.length, 28);
   ITEM_DEFINITIONS.forEach((item) => {
     assert.match(item.id, /^[RTQM]\d{4}$/);
     assert.ok(item.englishName.length > 0);
@@ -77,6 +77,17 @@ test("中央道具資料庫固定保留 100 欄，現有 25 項道具都有分�
   assert.deepEqual(
     ITEM_DATABASE.map((slot) => slot.slot),
     Array.from({ length: 100 }, (_, index) => index + 1),
+  );
+  assert.deepEqual(
+    ["R0013", "R0014", "R0015"].map((id) => {
+      const item = ITEM_DEFINITIONS.find((entry) => entry.id === id);
+      return [item?.id, item?.name, item?.category, item?.usable];
+    }),
+    [
+      ["R0013", "通訊陣列面板", "resource", false],
+      ["R0014", "量子傳輸器", "resource", false],
+      ["R0015", "校正元件", "resource", false],
+    ],
   );
 });
 
