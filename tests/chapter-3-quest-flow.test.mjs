@@ -26,7 +26,7 @@ test("inventory tutorial quest uses interface-opened and item-used objectives", 
   assert.deepEqual(quest.prerequisiteQuestIds, [QUEST_ID]);
   assert.equal(quest.grantMethod, "afterDialogue");
   assert.equal(quest.grantSourceId, "chapter03_backpack-teaching");
-  assert.equal(quest.startDelaySeconds, 1);
+  assert.equal(quest.startDelaySeconds, 0.2);
   assert.equal(quest.completionTriggerType, "dialogue");
   assert.equal(quest.completionTriggerId, "chapter03-section-2");
   assert.equal(quest.completionTriggerDelaySeconds, 3);

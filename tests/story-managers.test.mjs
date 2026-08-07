@@ -131,7 +131,7 @@ test("editors store task and story-trigger delays without assigning a polygon", 
   const nextQuest = questData.quests.find(
     (quest) => quest.id === "QUEST_CH03_MAIN_002",
   );
-  assert.equal(nextQuest.startDelaySeconds, 1);
+  assert.equal(nextQuest.startDelaySeconds, 0.2);
   assert.equal(
     questData.quests.some((quest) => quest.startDelaySeconds == null),
     false,

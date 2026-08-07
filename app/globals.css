@@ -112,6 +112,94 @@ button {
   cursor: default;
 }
 
+@property --day-night-top {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: rgba(59, 116, 151, 0.045);
+}
+
+@property --day-night-middle {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: rgba(119, 176, 182, 0.025);
+}
+
+@property --day-night-bottom {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: rgba(255, 219, 159, 0.03);
+}
+
+@property --day-night-glow {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(255, 226, 176, 0.06);
+}
+
+@property --day-night-glow-x {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 28%;
+}
+
+@property --day-night-glow-y {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 28%;
+}
+
+@property --day-night-vignette {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.04;
+}
+
+.day-night-overlay {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    var(--day-night-top) 0%,
+    var(--day-night-middle) 48%,
+    var(--day-night-bottom) 100%
+  );
+  pointer-events: none;
+  transition:
+    --day-night-top 700ms linear,
+    --day-night-middle 700ms linear,
+    --day-night-bottom 700ms linear,
+    --day-night-glow 700ms linear,
+    --day-night-glow-x 700ms linear,
+    --day-night-glow-y 700ms linear,
+    --day-night-vignette 700ms linear;
+}
+
+.day-night-overlay::before,
+.day-night-overlay::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+}
+
+.day-night-overlay::before {
+  background: radial-gradient(
+    circle at var(--day-night-glow-x) var(--day-night-glow-y),
+    var(--day-night-glow) 0%,
+    transparent 64%
+  );
+  mix-blend-mode: screen;
+}
+
+.day-night-overlay::after {
+  background: radial-gradient(
+    ellipse at 50% 44%,
+    transparent 34%,
+    rgba(0, 0, 0, var(--day-night-vignette)) 100%
+  );
+}
+
 .cursor-layer {
   position: absolute;
   z-index: 130;

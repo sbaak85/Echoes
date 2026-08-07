@@ -18,6 +18,14 @@ import {
   type AudioEventName,
 } from "./audio-event-manager";
 import {
+  getDayNightCssVariables,
+  isDebugTimeCommand,
+  loadDayNightEffectEnabled,
+  parseDebugTimeCommand,
+  saveDayNightEffectEnabled,
+  setSurvivalTimeOfDay,
+} from "./day-night-manager";
+import {
   INITIAL_PLAYER_INVENTORY,
   ITEM_BY_ID,
   ITEM_DATABASE,
@@ -908,6 +916,7 @@ const OPTIONS_MENU_ITEMS = [
   "bgm-volume",
   "virtual-cursor-controls",
   "movement-speed",
+  "day-night-effect",
   "player-collision",
   "scene-collision",
   "collision-slide-tolerance",
@@ -930,6 +939,7 @@ const OPTIONS_TAB_ITEMS: Record<OptionsTab, OptionsMenuItem[]> = {
   audio: ["bgm-enabled", "bgm-volume"],
   controls: ["virtual-cursor-controls", "movement-speed"],
   advanced: [
+    "day-night-effect",
     "player-collision",
     "scene-collision",
     "collision-slide-tolerance",
@@ -2484,6 +2494,7 @@ export function MovementLab() {
   const collisionSlideToleranceRef = useRef(0.55);
   const showPlayerCollisionRef = useRef(false);
   const showSceneCollisionRef = useRef(false);
+  const dayNightEffectEnabledRef = useRef(false);
   const bgmEnabledRef = useRef(true);
   const bgmVolumeRef = useRef<number>(AUDIO_EVENT_CONFIG.bgm.volume);
   const virtualCursorControlsEnabledRef = useRef(true);
@@ -2623,6 +2634,7 @@ export function MovementLab() {
     useState<OptionsMenuItem>(OPTIONS_MENU_ITEMS[0]);
   const [showPlayerCollision, setShowPlayerCollision] = useState(false);
   const [showSceneCollision, setShowSceneCollision] = useState(false);
+  const [dayNightEffectEnabled, setDayNightEffectEnabled] = useState(false);
   const [speed, setSpeed] = useState(210);
   const [size, setSize] = useState(142);
   const [collisionSlideTolerance, setCollisionSlideTolerance] = useState(55);
@@ -3049,6 +3061,7 @@ export function MovementLab() {
       const loadedItemPointProgress = loadItemPointProgress();
       const loadedHotbarAssignments = loadHotbarAssignments();
       const loadedSurvivalState = loadSurvivalState();
+      const loadedDayNightEffectEnabled = loadDayNightEffectEnabled();
       const loadedInteractionUsage = loadInteractionUsageState(
         loadedSurvivalState.gameMinutes,
       );
@@ -3060,6 +3073,7 @@ export function MovementLab() {
       itemPointProgressRef.current = loadedItemPointProgress;
       hotbarAssignmentsRef.current = loadedHotbarAssignments;
       survivalStateRef.current = loadedSurvivalState;
+      dayNightEffectEnabledRef.current = loadedDayNightEffectEnabled;
       previousSurvivalDisplayValuesRef.current = getSurvivalDisplayValues(
         loadedSurvivalState.values,
       );
@@ -3218,6 +3232,7 @@ export function MovementLab() {
       setCollectedWorldItemIds(loadedCollectedWorldItemIds);
       setHotbarAssignments(loadedHotbarAssignments);
       setSurvivalState(loadedSurvivalState);
+      setDayNightEffectEnabled(loadedDayNightEffectEnabled);
       setDialogueTextSize(getDefaultDialogueTextSize());
       setQuestCollapsed(initialQuestHud ? getDefaultQuestCollapsed() : true);
       setSurvivalExpanded(getDefaultSurvivalExpanded());
@@ -4465,6 +4480,12 @@ export function MovementLab() {
     setVirtualCursorControlsEnabled(enabled);
   };
 
+  const setDayNightEffectEnabledValue = (enabled: boolean) => {
+    dayNightEffectEnabledRef.current = enabled;
+    setDayNightEffectEnabled(enabled);
+    saveDayNightEffectEnabled(enabled);
+  };
+
   const setOptionsMenuSelectionValue = (item: OptionsMenuItem) => {
     optionsMenuSelectionRef.current = item;
     setOptionsMenuSelection(item);
@@ -4540,6 +4561,9 @@ export function MovementLab() {
         showPlayerCollisionRef.current = !showPlayerCollisionRef.current;
         setShowPlayerCollision(showPlayerCollisionRef.current);
         break;
+      case "day-night-effect":
+        setDayNightEffectEnabledValue(!dayNightEffectEnabledRef.current);
+        break;
       case "scene-collision":
         showSceneCollisionRef.current = !showSceneCollisionRef.current;
         setShowSceneCollision(showSceneCollisionRef.current);
@@ -4580,6 +4604,11 @@ export function MovementLab() {
         if (toggleValue !== null) {
           showPlayerCollisionRef.current = toggleValue;
           setShowPlayerCollision(toggleValue);
+        }
+        break;
+      case "day-night-effect":
+        if (toggleValue !== null) {
+          setDayNightEffectEnabledValue(toggleValue);
         }
         break;
       case "scene-collision":
@@ -5296,6 +5325,31 @@ export function MovementLab() {
     };
 
     debugItemSpawnHandlerRef.current = (command: string) => {
+      const timeCommand = parseDebugTimeCommand(command);
+      if (timeCommand) {
+        const nextSurvival = setSurvivalTimeOfDay(
+          survivalStateRef.current,
+          timeCommand.minuteOfDay,
+        );
+        survivalStateRef.current = nextSurvival;
+        setSurvivalState(nextSurvival);
+        saveSurvivalState(nextSurvival);
+        refreshInteractionUsageCycle();
+        applyDroppedWorldItems(droppedWorldItemsRef.current);
+        requestStoryTriggerContactCheckRef.current();
+        showInteractionItemFeedback(
+          `Debug：時間已切換至 ${timeCommand.label}`,
+        );
+        return true;
+      }
+
+      if (isDebugTimeCommand(command)) {
+        showInteractionItemFeedback(
+          "時間格式錯誤 · 請輸入：Time HHMM（例：Time 2000）",
+        );
+        return false;
+      }
+
       const parsed = parseDebugItemSpawnCommand(command);
       if (!parsed) {
         showInteractionItemFeedback(
@@ -8692,6 +8746,9 @@ export function MovementLab() {
   const activeQuestObjectiveTween = questObjectiveTween?.questId === activeQuestHud?.id
     ? questObjectiveTween
     : null;
+  const dayNightStyle = getDayNightCssVariables(
+    survivalState.gameMinutes,
+  ) as CSSProperties;
 
   return (
     <div
@@ -8731,6 +8788,15 @@ export function MovementLab() {
         aria-label="八方向角色移動地圖測試場景"
         tabIndex={0}
       />
+
+      {dayNightEffectEnabled ? (
+        <div
+          className="day-night-overlay"
+          style={dayNightStyle}
+          data-time={`${String(gameClock.hour).padStart(2, "0")}:${String(gameClock.minute).padStart(2, "0")}`}
+          aria-hidden="true"
+        />
+      ) : null}
 
       <img
         ref={blackScreenImageRef}
@@ -8784,10 +8850,10 @@ export function MovementLab() {
       {debugItemSpawnerOpen ? (
         <form
           className="debug-item-spawner"
-          aria-label="Debug 生成道具"
+          aria-label="Debug 指令列"
           onSubmit={submitDebugItemSpawn}
         >
-          <span className="debug-item-spawner-label">ITEM SPAWN</span>
+          <span className="debug-item-spawner-label">DEBUG COMMAND</span>
           <input
             ref={debugItemInputRef}
             value={debugItemSpawnCommand}
@@ -8801,12 +8867,12 @@ export function MovementLab() {
                 event.currentTarget.form?.requestSubmit();
               }
             }}
-            placeholder="道具ID 數量（例：R0004 3）"
-            aria-label="輸入道具 ID 與數量"
+            placeholder="Time 2000／道具ID 數量"
+            aria-label="輸入 Debug 指令"
             autoComplete="off"
             spellCheck={false}
           />
-          <button type="submit" aria-label="生成道具">Enter</button>
+          <button type="submit" aria-label="執行 Debug 指令">Enter</button>
         </form>
       ) : null}
 
@@ -9578,8 +9644,25 @@ export function MovementLab() {
                 <>
                   <div className="options-section-heading">
                     <span>進階</span>
-                    <small>測試場景碰撞與移動輔助設定</small>
+                    <small>Debug 顯示、測試場景碰撞與移動輔助設定</small>
                   </div>
+                  <button
+                    className="toggle-button"
+                    type="button"
+                    data-gamepad-selected={optionsMenuSelection === "day-night-effect" || undefined}
+                    aria-pressed={dayNightEffectEnabled}
+                    onFocus={() => setOptionsMenuSelectionValue("day-night-effect")}
+                    onClick={() => {
+                      setOptionsMenuSelectionValue("day-night-effect");
+                      activateOptionsMenuSelection();
+                    }}
+                  >
+                    <span>
+                      <strong>日夜漸層遮罩（Debug）</strong>
+                      <small>預設關閉；開啟後依遊戲時間顯示日夜光線氛圍</small>
+                    </span>
+                    <span className="toggle-pill" aria-hidden="true" />
+                  </button>
                   <button className="toggle-button" type="button" data-gamepad-selected={optionsMenuSelection === "player-collision" || undefined} aria-pressed={showPlayerCollision} onFocus={() => setOptionsMenuSelectionValue("player-collision")} onClick={() => { setOptionsMenuSelectionValue("player-collision"); activateOptionsMenuSelection(); }}>
                     <span>角色 Collision 描繪</span><span className="toggle-pill" aria-hidden="true" />
                   </button>
