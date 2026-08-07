@@ -1361,8 +1361,8 @@
       "shape": "polygon",
       "points": [
         {
-          "x": 885,
-          "y": 450
+          "x": 880,
+          "y": 445
         },
         {
           "x": 950,
@@ -1806,7 +1806,7 @@
             "text": "\u5947\u7279\u7684\u5916\u661F\u679C\u6A39\uFF0C\u6BCF\u5929\u90FD\u6703\u7D50\u51FA\u4E00\u9846\u679C\u5BE6\uFF0C"
           },
           {
-            "speaker": "",
+            "speaker": "Sbaak",
             "text": "\u5473\u9053\u5F9E\u4F86\u6C92\u5403\u904E\uFF0C\u4F46\u80FD\u8B93\u6211\u98FD\u8179\u3002"
           }
         ]
@@ -2130,11 +2130,11 @@
       "points": [
         {
           "x": 840,
-          "y": 325
+          "y": 335
         },
         {
           "x": 900,
-          "y": 290
+          "y": 300
         },
         {
           "x": 995,
@@ -2145,7 +2145,7 @@
           "y": 470
         },
         {
-          "x": 815,
+          "x": 810,
           "y": 395
         }
       ],
@@ -2411,20 +2411,20 @@
       "label": "\u5287\u60C5\u89F8\u767C\u5340 2",
       "points": [
         {
-          "x": 549.01495,
-          "y": 567.2668
+          "x": 605,
+          "y": 470
         },
         {
-          "x": 835,
-          "y": 735
+          "x": 920,
+          "y": 670
         },
         {
           "x": 649.8172,
           "y": 867.9169
         },
         {
-          "x": 348.24484,
-          "y": 680.09625
+          "x": 325,
+          "y": 670
         }
       ],
       "once": true,
@@ -2480,7 +2480,7 @@
         "stageMode": "CurrentStageOnly"
       },
       "x": 361.299,
-      "y": 753.3392
+      "y": 768.3392
     },
     {
       "id": "item-point-002",
@@ -2494,8 +2494,8 @@
         "stageId": "QUEST_CH03_MAIN_001_STAGE_03",
         "stageMode": "CurrentStageOnly"
       },
-      "x": 424.4574,
-      "y": 926.7689
+      "x": 404.4574,
+      "y": 961.7689
     },
     {
       "id": "item-point-003",
@@ -2509,8 +2509,23 @@
         "stageId": "QUEST_CH03_MAIN_001_STAGE_03",
         "stageMode": "CurrentStageOnly"
       },
-      "x": 686.0829,
-      "y": 895.794
+      "x": 676.0829,
+      "y": 920.794
+    },
+    {
+      "id": "item-point-004",
+      "label": "ItemPoint 4",
+      "itemId": "T0003",
+      "quantity": 1,
+      "spawnPolicy": "once",
+      "showOnMinimap": true,
+      "spawnRequirement": {
+        "questId": "QUEST_CH03_MAIN_004",
+        "stageId": "QUEST_CH03_MAIN_004_STAGE_01",
+        "stageMode": "CurrentStageOnly"
+      },
+      "x": 135,
+      "y": 650
     }
   ],
   "worldLayout": {

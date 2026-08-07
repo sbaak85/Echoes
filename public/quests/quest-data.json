@@ -208,7 +208,7 @@
       "prerequisiteQuestIds": [
         "QUEST_CH03_MAIN_001"
       ],
-      "startDelaySeconds": 1,
+      "startDelaySeconds": 0.2,
       "canAbandon": false,
       "canReaccept": false,
       "displayMode": "standard",
@@ -408,7 +408,7 @@
                 }
               ],
               "targetState": "",
-              "requiredAmount": 1,
+              "requiredAmount": 3,
               "countMode": "accumulated",
               "interactionMode": "succeeded",
               "showProgress": true,

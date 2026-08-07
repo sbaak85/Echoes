@@ -858,6 +858,13 @@ const SPRITE_SOURCES: Record<Direction, string> = {
   NW: "./characters/08_NW_BackLeft.png",
 };
 
+const SE_WALK_FRAME_SOURCES = Array.from(
+  { length: 26 },
+  (_, index) =>
+    `./characters/walk/04_SE_FrontRight/Walking_2/Walking_se_${String(index + 1).padStart(2, "0")}.png`,
+);
+const SE_WALK_REFERENCE_FPS = 26;
+
 const DIRECTION_NAMES: Record<Direction, string> = {
   N: "N - 背面",
   NE: "NE - 右後",
@@ -2272,7 +2279,17 @@ function getCameraCoordinate(
   );
 }
 
-function makeChromaKeySprite(image: HTMLImageElement) {
+type PreparedChromaKeySprite = {
+  canvas: HTMLCanvasElement;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
+
+function prepareChromaKeySprite(
+  image: HTMLImageElement,
+): PreparedChromaKeySprite {
   const scale = Math.min(1, 720 / image.naturalHeight);
   const width = Math.max(1, Math.round(image.naturalWidth * scale));
   const height = Math.max(1, Math.round(image.naturalHeight * scale));
@@ -2281,7 +2298,15 @@ function makeChromaKeySprite(image: HTMLImageElement) {
   working.height = height;
   const context = working.getContext("2d", { willReadFrequently: true });
 
-  if (!context) return working;
+  if (!context) {
+    return {
+      canvas: working,
+      minX: 0,
+      minY: 0,
+      maxX: width - 1,
+      maxY: height - 1,
+    };
+  }
 
   context.drawImage(image, 0, 0, width, height);
   const pixels = context.getImageData(0, 0, width, height);
@@ -2316,31 +2341,73 @@ function makeChromaKeySprite(image: HTMLImageElement) {
 
   context.putImageData(pixels, 0, 0);
 
-  if (minX > maxX || minY > maxY) return working;
+  return { canvas: working, minX, minY, maxX, maxY };
+}
+
+function cropPreparedChromaKeySprites(
+  preparedFrames: PreparedChromaKeySprite[],
+) {
+  const visibleFrames = preparedFrames.filter(
+    ({ minX, minY, maxX, maxY }) => minX <= maxX && minY <= maxY,
+  );
+
+  if (visibleFrames.length === 0) {
+    return preparedFrames.map(({ canvas }) => canvas);
+  }
 
   const padding = 4;
-  minX = Math.max(0, minX - padding);
-  minY = Math.max(0, minY - padding);
-  maxX = Math.min(width - 1, maxX + padding);
-  maxY = Math.min(height - 1, maxY + padding);
+  const minX = Math.max(
+    0,
+    Math.min(...visibleFrames.map((frame) => frame.minX)) - padding,
+  );
+  const minY = Math.max(
+    0,
+    Math.min(...visibleFrames.map((frame) => frame.minY)) - padding,
+  );
+  const maxCanvasWidth = Math.max(
+    ...preparedFrames.map(({ canvas }) => canvas.width),
+  );
+  const maxCanvasHeight = Math.max(
+    ...preparedFrames.map(({ canvas }) => canvas.height),
+  );
+  const maxX = Math.min(
+    maxCanvasWidth - 1,
+    Math.max(...visibleFrames.map((frame) => frame.maxX)) + padding,
+  );
+  const maxY = Math.min(
+    maxCanvasHeight - 1,
+    Math.max(...visibleFrames.map((frame) => frame.maxY)) + padding,
+  );
+  const croppedWidth = maxX - minX + 1;
+  const croppedHeight = maxY - minY + 1;
 
-  const cropped = document.createElement("canvas");
-  cropped.width = maxX - minX + 1;
-  cropped.height = maxY - minY + 1;
-  cropped
-    .getContext("2d")
-    ?.drawImage(
-      working,
-      minX,
-      minY,
-      cropped.width,
-      cropped.height,
-      0,
-      0,
-      cropped.width,
-      cropped.height,
-    );
-  return cropped;
+  return preparedFrames.map(({ canvas }) => {
+    const cropped = document.createElement("canvas");
+    cropped.width = croppedWidth;
+    cropped.height = croppedHeight;
+    cropped
+      .getContext("2d")
+      ?.drawImage(
+        canvas,
+        minX,
+        minY,
+        croppedWidth,
+        croppedHeight,
+        0,
+        0,
+        croppedWidth,
+        croppedHeight,
+      );
+    return cropped;
+  });
+}
+
+function makeChromaKeySprite(image: HTMLImageElement) {
+  return cropPreparedChromaKeySprites([prepareChromaKeySprite(image)])[0];
+}
+
+function makeChromaKeySpriteSequence(images: HTMLImageElement[]) {
+  return cropPreparedChromaKeySprites(images.map(prepareChromaKeySprite));
 }
 
 function tracePolygon(
@@ -4629,6 +4696,7 @@ export function MovementLab() {
 
     const pressedKeys = new Set<string>();
     const sprites = new Map<Direction, HTMLCanvasElement>();
+    let seWalkSprites: HTMLCanvasElement[] = [];
     const player = { ...SPAWN };
     const camera = { ...SPAWN };
     const sceneImage = new Image();
@@ -4642,6 +4710,7 @@ export function MovementLab() {
 
     let currentFacing: Direction = SCENE_START_FACING;
     let wasMoving = false;
+    let seWalkElapsedSeconds = 0;
     let animationFrame = 0;
     let lastTime = performance.now();
     let viewportWidth = 1;
@@ -4969,6 +5038,23 @@ export function MovementLab() {
       image.decoding = "async";
       image.onload = () => {
         sprites.set(direction as Direction, makeChromaKeySprite(image));
+      };
+      image.src = source;
+    });
+
+    const seWalkImages = new Array<HTMLImageElement>(
+      SE_WALK_FRAME_SOURCES.length,
+    );
+    let loadedSeWalkFrameCount = 0;
+    SE_WALK_FRAME_SOURCES.forEach((source, index) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.onload = () => {
+        seWalkImages[index] = image;
+        loadedSeWalkFrameCount += 1;
+        if (loadedSeWalkFrameCount === SE_WALK_FRAME_SOURCES.length) {
+          seWalkSprites = makeChromaKeySpriteSequence(seWalkImages);
+        }
       };
       image.src = source;
     });
@@ -6916,7 +7002,16 @@ export function MovementLab() {
     };
 
     const drawPlayer = () => {
-      const sprite = sprites.get(currentFacing);
+      const seWalkSprite =
+        currentFacing === "SE" &&
+        wasMoving &&
+        seWalkSprites.length === SE_WALK_FRAME_SOURCES.length
+          ? seWalkSprites[
+              Math.floor(seWalkElapsedSeconds * SE_WALK_REFERENCE_FPS) %
+                seWalkSprites.length
+            ]
+          : null;
+      const sprite = seWalkSprite ?? sprites.get(currentFacing);
       const renderedHeight = sizeRef.current;
       const radius = renderedHeight * 0.14;
 
@@ -8066,6 +8161,13 @@ export function MovementLab() {
         actualMovementDistance / Math.max(deltaTime, Number.EPSILON);
       const isActuallyMoving =
         actualMovementSpeed >= FOOTSTEP_MIN_MOVEMENT_SPEED;
+      if (isActuallyMoving && currentFacing === "SE") {
+        seWalkElapsedSeconds +=
+          deltaTime *
+          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75);
+      } else {
+        seWalkElapsedSeconds = 0;
+      }
       updateFootstepAudio(actualMovementSpeed, deltaTime);
 
       const survivalPaused =
