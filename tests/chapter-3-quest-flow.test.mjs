@@ -106,7 +106,13 @@ test("MAIN_004 and interaction-011 use the approved objective and resource setup
     ]),
     [
       ["QUEST_CH03_MAIN_004_OBJ_01", "找出裝載通訊零件的貨箱", "interactionSucceeded", "interaction-011", false],
-      ["QUEST_CH03_MAIN_004_OBJ_02", "取得陣列天線", "compoundCollectItem", "", true],
+      [
+        "QUEST_CH03_MAIN_004_OBJ_02",
+        "取得陣列天線零件",
+        "compoundCollectItem",
+        "",
+        true,
+      ],
       ["QUEST_CH03_MAIN_004_OBJ_03", "取得多功能工具箱", "collectItem", "T0003", false],
     ],
   );

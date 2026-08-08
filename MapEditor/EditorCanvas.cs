@@ -577,19 +577,11 @@ public sealed class EditorCanvas : Control
         if (interactable is null) return;
         type = string.IsNullOrWhiteSpace(type) ? "dialogue" : type.Trim();
         var defaults = InteractionTypeDefaults.Get(type);
-        var typeChanged = !interactable.Type.Equals(type, StringComparison.OrdinalIgnoreCase);
         verb = string.IsNullOrWhiteSpace(verb) ? defaults.Verb : verb.Trim();
         PerformMutation(() =>
         {
             interactable.Type = type;
             interactable.Verb = verb;
-            if (typeChanged)
-            {
-                interactable.SurvivalRequirements = new SurvivalRequirements();
-                interactable.SurvivalEffects = defaults.Effects.Clone();
-                interactable.DailyInteractionLimit = defaults.DailyLimit;
-                interactable.InteractionLimitMode = null;
-            }
         });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -948,7 +940,39 @@ public sealed class EditorCanvas : Control
                 Id = "self-test-overlap-interaction",
                 Label = "Overlap interaction",
                 Points = overlapPoints.Select(point => point.Clone()).ToList(),
+                Type = "operation",
+                Verb = "操作",
+                SurvivalRequirements = new SurvivalRequirements
+                {
+                    Stamina = new SurvivalRequirementRule { Comparison = "atLeast", Value = 37 },
+                },
+                SurvivalEffects = new SurvivalEffects { Stamina = -9, TimeMinutes = 60 },
+                DailyInteractionLimit = 2,
+                UseRequirements = new List<InteractionUseRequirement>
+                {
+                    new() { Kind = "item", ItemId = ItemCatalog.All[0].Id, Quantity = 2 },
+                },
+                ItemRewards = new List<InteractionItemReward>
+                {
+                    new() { ItemId = ItemCatalog.All[0].Id, Quantity = 3, Delivery = "inventory" },
+                },
             });
+            _selection = new LayerSelection(SceneLayerKind.Interactable, overlapInteractableIndex);
+            UpdateSelectedInteractable("check", "檢查");
+            var preservedInteraction = _document.Interactables[overlapInteractableIndex];
+            if (
+                preservedInteraction.Type != "check" ||
+                preservedInteraction.Verb != "檢查" ||
+                preservedInteraction.SurvivalRequirements.Stamina?.Value != 37 ||
+                preservedInteraction.SurvivalEffects.Stamina != -9 ||
+                preservedInteraction.SurvivalEffects.TimeMinutes != 60 ||
+                preservedInteraction.DailyInteractionLimit != 2 ||
+                preservedInteraction.UseRequirements?.Single().Quantity != 2 ||
+                preservedInteraction.ItemRewards?.Single().Quantity != 3)
+            {
+                throw new InvalidOperationException(
+                    "Changing an interaction type did not preserve its requirements and completion effects.");
+            }
             var overlapNavMeshIndex = _document.NavMesh.Count;
             _document.NavMesh.Add(new NavMeshRegion
             {
@@ -2079,14 +2103,17 @@ public sealed class EditorCanvas : Control
             else if (_tool == EditorTool.InteractionPolygon)
             {
                 var index = _document.Interactables.Count;
+                var defaults = InteractionTypeDefaults.Get("dialogue");
                 _document.Interactables.Add(new SceneInteractable
                 {
                     Id = NextId("interaction", _document.Interactables.Select(item => item.Id)),
                     Label = $"互動區域 {index + 1}",
                     Shape = "polygon",
                     Points = points,
-                    Type = "dialogue",
-                    Verb = "對話",
+                    Type = defaults.Id,
+                    Verb = defaults.Verb,
+                    SurvivalEffects = defaults.Effects.Clone(),
+                    DailyInteractionLimit = defaults.DailyLimit,
                     Dialogue = DialogueScript.CreateDefault(),
                 });
                 _selection = new LayerSelection(SceneLayerKind.Interactable, index);

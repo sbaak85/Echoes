@@ -843,7 +843,7 @@ html.dialogue-cursor-active .dialogue-box * {
   top: 14px;
   left: 40px;
   width: 300px;
-  overflow: hidden;
+  overflow: visible;
   color: #dceae8;
   pointer-events: auto;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.64);
@@ -1146,6 +1146,62 @@ html.dialogue-cursor-active .dialogue-box * {
   animation: survival-value-change 2500ms linear forwards;
 }
 
+.survival-value-layer {
+  position: absolute;
+  z-index: 5;
+  top: 62px;
+  right: 8px;
+  left: 8px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  pointer-events: none;
+}
+
+.survival-value-slot {
+  position: relative;
+  min-width: 0;
+  height: 0;
+}
+
+.survival-value-layer .survival-value-tween {
+  top: -1px;
+  right: -8px;
+  min-width: 36px;
+  font-size: 18px;
+}
+
+.survival-hud.is-expanded .survival-value-layer {
+  top: 0;
+  right: -40px;
+  bottom: 0;
+  left: auto;
+  display: block;
+  width: 40px;
+}
+
+.survival-hud.is-expanded .survival-value-slot {
+  position: absolute;
+  right: 0;
+  width: 40px;
+  height: 32px;
+}
+
+.survival-hud.is-expanded .survival-value-slot.is-stamina { top: 66px; }
+.survival-hud.is-expanded .survival-value-slot.is-hunger { top: 116px; }
+.survival-hud.is-expanded .survival-value-slot.is-thirst { top: 166px; }
+.survival-hud.is-expanded .survival-value-slot.is-spirit { top: 216px; }
+
+.survival-hud.is-expanded .survival-value-layer .survival-value-tween {
+  top: 5px;
+  right: 0;
+  min-width: 36px;
+  font-size: 24px;
+}
+
+.survival-hud.is-inventory-open .survival-value-layer {
+  visibility: hidden;
+}
+
 .survival-value-tween.is-increase {
   color: #70ef93;
   filter: drop-shadow(0 0 5px rgba(67, 232, 112, 0.5));
@@ -1154,13 +1210,6 @@ html.dialogue-cursor-active .dialogue-box * {
 .survival-value-tween.is-decrease {
   color: #ff646b;
   filter: drop-shadow(0 0 5px rgba(255, 67, 76, 0.48));
-}
-
-.survival-mini-stat .survival-value-tween {
-  top: -1px;
-  right: -8px;
-  min-width: 36px;
-  font-size: 18px;
 }
 
 @keyframes survival-value-change {
@@ -2742,9 +2791,15 @@ html.dialogue-cursor-active .dialogue-box * {
 }
 
 .inventory-summary-panel {
+  z-index: 2;
   display: grid;
   grid-template-rows: auto auto minmax(118px, 1fr) auto auto;
   padding: 18px 18px;
+}
+
+.inventory-selected-panel,
+.inventory-catalog {
+  z-index: 1;
 }
 
 .inventory-summary-panel > h3 {

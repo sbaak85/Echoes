@@ -3,11 +3,13 @@ import test from "node:test";
 
 import {
   INITIAL_PLAYER_INVENTORY,
+  isDebugGrantAllItemsCommand,
   ITEM_DATABASE,
   ITEM_DATABASE_CAPACITY,
   ITEM_DEFINITIONS,
   getItemDebugSpawnDelivery,
   getOwnedItemStacks,
+  grantAllInventoryItems,
   grantInventoryItem,
   loadPlayerInventory,
   normalizePlayerInventory,
@@ -44,6 +46,9 @@ function installMemoryLocalStorage() {
 }
 
 test("Debug 道具生成指令支援 ID、數量與生成去向", () => {
+  assert.equal(isDebugGrantAllItemsCommand("Item All"), true);
+  assert.equal(isDebugGrantAllItemsCommand(" item   all "), true);
+  assert.equal(isDebugGrantAllItemsCommand("Item All 2"), false);
   assert.deepEqual(parseDebugItemSpawnCommand("R0004 3"), {
     itemId: "R0004",
     quantity: 3,
@@ -63,6 +68,14 @@ test("Debug 道具生成指令支援 ID、數量與生成去向", () => {
   );
   assert.equal(getItemDebugSpawnDelivery(inventoryItem), "inventory");
   assert.equal(getItemDebugSpawnDelivery(worldItem), "world");
+});
+
+test("Item All 會將道具清單中的每種道具各加入背包一個", () => {
+  const inventory = grantAllInventoryItems({ R0005: 2 });
+  assert.equal(Object.keys(inventory).length, ITEM_DEFINITIONS.length);
+  ITEM_DEFINITIONS.forEach((item) => {
+    assert.equal(inventory[item.id], item.id === "R0005" ? 3 : 1);
+  });
 });
 
 test("中央道具資料庫固定保留 100 欄，現有 28 項道具都有分類流水號與英文名稱", () => {
@@ -276,23 +289,13 @@ test("多項回復只要至少一項未滿即可使用並各自封頂", () => {
   assert.equal("R0006" in result.inventory, false);
 });
 
-test("重新開始時所有已登記道具至少各有一個，既有複數數量保持不變", () => {
+test("重新開始時只預設持有 2 個緊急口糧與 1 個醫療包", () => {
   const ownedStacks = getOwnedItemStacks(INITIAL_PLAYER_INVENTORY);
-  const ownedIds = ownedStacks.map((stack) => stack.definition.id);
-
-  assert.equal(ownedStacks.length, ITEM_DEFINITIONS.length);
-  assert.deepEqual(
-    [...ownedIds].sort(),
-    ITEM_DEFINITIONS.map((item) => item.id).sort(),
-  );
-  ownedStacks.forEach((stack) => assert.ok(stack.count >= 1));
-  assert.equal(
-    ownedStacks.find((stack) => stack.definition.id === "T0005")?.count,
-    2,
-  );
-  assert.equal(INITIAL_PLAYER_INVENTORY["R0004"], 3);
-  assert.equal(INITIAL_PLAYER_INVENTORY["R0005"], 4);
-  assert.equal(INITIAL_PLAYER_INVENTORY.R0100, 100);
+  assert.equal(ownedStacks.length, 2);
+  assert.deepEqual(INITIAL_PLAYER_INVENTORY, {
+    R0005: 2,
+    T0005: 1,
+  });
 });
 
 test("不合法、未知或數量為零的道具不會混入玩家狀態", () => {

@@ -388,7 +388,7 @@
             },
             {
               "id": "QUEST_CH03_MAIN_004_OBJ_02",
-              "displayText": "\u53D6\u5F97\u9663\u5217\u5929\u7DDA",
+              "displayText": "\u53D6\u5F97\u9663\u5217\u5929\u7DDA\u96F6\u4EF6",
               "startDelaySeconds": 0,
               "completionDelaySeconds": 0,
               "type": "compoundCollectItem",

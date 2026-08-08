@@ -1449,34 +1449,18 @@ public sealed class MainForm : Form
         var selectedInteractable = _canvas.SelectedInteractable;
         if (selectedInteractable is null) return;
         var selectedType = (_interactionTypeCombo.SelectedItem as InteractionTypeItem)?.Id ?? selectedInteractable.Type;
-        var selectedDefaults = InteractionTypeDefaults.Get(selectedType);
-        var typeChanged = !selectedInteractable.Type.Equals(
-            selectedType,
-            StringComparison.OrdinalIgnoreCase);
-        var requirements = typeChanged
-            ? new SurvivalRequirements()
-            : selectedInteractable.SurvivalRequirements.Clone();
-        var effects = typeChanged
-            ? selectedDefaults.Effects.Clone()
-            : selectedInteractable.SurvivalEffects.Clone();
-        var dailyLimit = typeChanged
-            ? selectedDefaults.DailyLimit
-            : selectedInteractable.DailyInteractionLimit;
-        var interactionLimitMode = typeChanged
-            ? null
-            : selectedInteractable.InteractionLimitMode;
-        var useRequirements = typeChanged
-            ? Array.Empty<InteractionUseRequirement>()
-            : selectedInteractable.UseRequirements?
-                .Select(requirement => requirement.Clone())
-                .ToArray() ?? Array.Empty<InteractionUseRequirement>();
-        var itemRewards = typeChanged
-            ? Array.Empty<InteractionItemReward>()
-            : selectedInteractable.ItemRewards?
-                .Select(reward => reward.Clone())
-                .ToArray() ?? (selectedInteractable.ItemReward is null
-                    ? Array.Empty<InteractionItemReward>()
-                    : new[] { selectedInteractable.ItemReward.Clone() });
+        var requirements = selectedInteractable.SurvivalRequirements.Clone();
+        var effects = selectedInteractable.SurvivalEffects.Clone();
+        var dailyLimit = selectedInteractable.DailyInteractionLimit;
+        var interactionLimitMode = selectedInteractable.InteractionLimitMode;
+        var useRequirements = selectedInteractable.UseRequirements?
+            .Select(requirement => requirement.Clone())
+            .ToArray() ?? Array.Empty<InteractionUseRequirement>();
+        var itemRewards = selectedInteractable.ItemRewards?
+            .Select(reward => reward.Clone())
+            .ToArray() ?? (selectedInteractable.ItemReward is null
+                ? Array.Empty<InteractionItemReward>()
+                : new[] { selectedInteractable.ItemReward.Clone() });
         var quests = QuestCatalog.Load(_projectRoot);
         SetCanvasRedraw(false);
         try

@@ -780,11 +780,11 @@
         },
         {
           "x": 220,
-          "y": 680
+          "y": 665
         },
         {
-          "x": 205,
-          "y": 670
+          "x": 200,
+          "y": 665
         },
         {
           "x": 95,
@@ -1357,7 +1357,7 @@
     },
     {
       "id": "interaction-005",
-      "label": "\u9032\u51FA\u53E3_\u8259\u9580",
+      "label": "\u4F0A\u85A9\u5361\u865F_\u8259\u9580",
       "shape": "polygon",
       "points": [
         {
@@ -1877,8 +1877,8 @@
           "y": 550
         }
       ],
-      "type": "operation",
-      "verb": "\u64CD\u4F5C",
+      "type": "check",
+      "verb": "\u6AA2\u67E5",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -2027,8 +2027,8 @@
           "y": 725
         }
       ],
-      "type": "gather",
-      "verb": "\u63A1\u96C6",
+      "type": "check",
+      "verb": "\u6AA2\u67E5",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -2125,7 +2125,7 @@
     },
     {
       "id": "interaction-010",
-      "label": "\u8FD4\u56DE\u98DB\u8239",
+      "label": "\u4F0A\u85A9\u5361\u865F",
       "shape": "polygon",
       "points": [
         {
@@ -2149,8 +2149,8 @@
           "y": 395
         }
       ],
-      "type": "dialogue",
-      "verb": "\u5C0D\u8A71",
+      "type": "enter",
+      "verb": "\u9032\u5165",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -2224,7 +2224,7 @@
     },
     {
       "id": "interaction-011",
-      "label": "\u6563\u843D\u8CA8\u7BB1",
+      "label": "\u96F6\u4EF6\u8CA8\u7BB1",
       "shape": "polygon",
       "points": [
         {
@@ -2260,8 +2260,8 @@
           "y": 815
         }
       ],
-      "type": "operation",
-      "verb": "\u64CD\u4F5C",
+      "type": "check",
+      "verb": "\u6AA2\u67E5",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -2524,8 +2524,8 @@
         "stageId": "QUEST_CH03_MAIN_004_STAGE_01",
         "stageMode": "CurrentStageOnly"
       },
-      "x": 135,
-      "y": 650
+      "x": 650,
+      "y": 335
     }
   ],
   "worldLayout": {

@@ -531,6 +531,11 @@ public sealed record InteractionTypeDefaults(
         new("gather", "採集", "採集", new SurvivalEffects { Stamina = -4, Hunger = -2, Thirst = -2, Spirit = -1 }, 3),
         new("move", "移動", "移動", new SurvivalEffects(), null),
         new("interaction", "互動", "互動", new SurvivalEffects { Stamina = -1, Hunger = -1, Thirst = -1 }, null),
+        new("check", "檢查", "檢查", new SurvivalEffects(), null),
+        new("investigate", "調查", "調查", new SurvivalEffects(), null),
+        new("use", "使用", "使用", new SurvivalEffects(), null),
+        new("enter", "進入", "進入", new SurvivalEffects(), null),
+        new("leave", "離開", "離開", new SurvivalEffects(), null),
     };
 
     public static InteractionTypeDefaults Get(string? id) =>

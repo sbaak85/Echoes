@@ -585,6 +585,10 @@ export function parseDebugItemSpawnCommand(
   };
 }
 
+export function isDebugGrantAllItemsCommand(command: string) {
+  return /^item\s+all$/i.test(command.trim());
+}
+
 export function getItemDebugSpawnDelivery(
   item: Pick<ItemDefinition, "debugSpawnDelivery">,
 ): ItemDebugSpawnDelivery {
@@ -606,22 +610,15 @@ export type SurvivalItemUseResult = {
 };
 
 const INITIAL_PLAYER_INVENTORY_OVERRIDES: Readonly<PlayerInventory> = {
-  T0005: 2,
-  R0004: 3,
-  R0005: 4,
-  T0001: 1,
-  T0006: 1,
-  Q0001: 1,
-  R0100: 100,
+  R0005: 2,
+  T0005: 1,
 };
 
 export const INITIAL_PLAYER_INVENTORY: Readonly<PlayerInventory> =
   Object.freeze(
     ITEM_DEFINITIONS.reduce<PlayerInventory>((inventory, item) => {
-      inventory[item.id] = Math.max(
-        1,
-        INITIAL_PLAYER_INVENTORY_OVERRIDES[item.id] ?? 0,
-      );
+      const count = INITIAL_PLAYER_INVENTORY_OVERRIDES[item.id] ?? 0;
+      if (count > 0) inventory[item.id] = count;
       return inventory;
     }, {}),
   );
@@ -674,6 +671,16 @@ export function grantInventoryItem(
     ...inventory,
     [itemId]: (inventory[itemId] ?? 0) + grantedQuantity,
   };
+}
+
+export function grantAllInventoryItems(
+  inventory: PlayerInventory,
+): PlayerInventory {
+  return ITEM_DEFINITIONS.reduce<PlayerInventory>(
+    (nextInventory, item) =>
+      grantInventoryItem(nextInventory, item.id, 1),
+    inventory,
+  );
 }
 
 export function removeInventoryItem(

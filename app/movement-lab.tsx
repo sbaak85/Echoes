@@ -29,10 +29,13 @@ import {
   INITIAL_PLAYER_INVENTORY,
   ITEM_BY_ID,
   ITEM_DATABASE,
+  ITEM_DEFINITIONS,
   calculateInventoryWeight,
   getItemDebugSpawnDelivery,
   getOwnedItemStacks,
+  grantAllInventoryItems,
   grantInventoryItem,
+  isDebugGrantAllItemsCommand,
   loadPlayerInventory,
   parseDebugItemSpawnCommand,
   removeInventoryItem,
@@ -283,7 +286,18 @@ type SceneInteractable = {
   pickRadius?: number;
   activationDistance?: number;
   action?: string;
-  type?: "dialogue" | "operation" | "gather" | "move" | "interaction" | "pickup";
+  type?:
+    | "dialogue"
+    | "operation"
+    | "gather"
+    | "move"
+    | "interaction"
+    | "check"
+    | "investigate"
+    | "use"
+    | "enter"
+    | "leave"
+    | "pickup";
   verb?: string;
   survivalRequirements?: SurvivalRequirements;
   survivalEffects?: SurvivalEffects & { timeMinutes?: number };
@@ -866,12 +880,30 @@ const SPRITE_SOURCES: Record<Direction, string> = {
   NW: "./characters/08_NW_BackLeft.png",
 };
 
+const NE_WALK_FRAME_SOURCES = Array.from(
+  { length: 26 },
+  (_, index) =>
+    `./characters/walk/02_NE_BackRight/Walking_2/Walking_NE_${String(index + 1).padStart(2, "0")}.png`,
+);
+const NE_WALK_REFERENCE_FPS = 26;
+const NW_WALK_FRAME_SOURCES = Array.from(
+  { length: 26 },
+  (_, index) =>
+    `./characters/walk/08_NW_BackLeft/Walking_2/Walking_NW_${String(index + 1).padStart(2, "0")}.png`,
+);
+const NW_WALK_REFERENCE_FPS = 26;
 const SE_WALK_FRAME_SOURCES = Array.from(
   { length: 26 },
   (_, index) =>
     `./characters/walk/04_SE_FrontRight/Walking_2/Walking_se_${String(index + 1).padStart(2, "0")}.png`,
 );
 const SE_WALK_REFERENCE_FPS = 26;
+const SW_WALK_FRAME_SOURCES = Array.from(
+  { length: 26 },
+  (_, index) =>
+    `./characters/walk/06_SW_FrontLeft/Walking_2/Walking_sw_${String(index + 1).padStart(2, "0")}.png`,
+);
+const SW_WALK_REFERENCE_FPS = 26;
 
 const DIRECTION_NAMES: Record<Direction, string> = {
   N: "N - 背面",
@@ -4725,7 +4757,10 @@ export function MovementLab() {
 
     const pressedKeys = new Set<string>();
     const sprites = new Map<Direction, HTMLCanvasElement>();
+    let neWalkSprites: HTMLCanvasElement[] = [];
+    let nwWalkSprites: HTMLCanvasElement[] = [];
     let seWalkSprites: HTMLCanvasElement[] = [];
+    let swWalkSprites: HTMLCanvasElement[] = [];
     const player = { ...SPAWN };
     const camera = { ...SPAWN };
     const sceneImage = new Image();
@@ -4739,7 +4774,10 @@ export function MovementLab() {
 
     let currentFacing: Direction = SCENE_START_FACING;
     let wasMoving = false;
+    let neWalkElapsedSeconds = 0;
+    let nwWalkElapsedSeconds = 0;
     let seWalkElapsedSeconds = 0;
+    let swWalkElapsedSeconds = 0;
     let animationFrame = 0;
     let lastTime = performance.now();
     let viewportWidth = 1;
@@ -4805,7 +4843,7 @@ export function MovementLab() {
     let lockedAutoMovementGuideId: string | null = null;
     let bypassedAutoMovementGuideId: string | null = null;
     let activeInteractionKeyLabel = "E";
-    let activeInputMode: "keyboard-mouse" | "gamepad" = "keyboard-mouse";
+    let activeInputMode: QuestPromptInputMode = "keyboard-mouse";
     let activePromptOwner: "player" | "cursor" | null = null;
     let activePromptTargetId: string | null = null;
     let previousPlayerPromptTargetId: string | null = null;
@@ -5071,6 +5109,40 @@ export function MovementLab() {
       image.src = source;
     });
 
+    const neWalkImages = new Array<HTMLImageElement>(
+      NE_WALK_FRAME_SOURCES.length,
+    );
+    let loadedNeWalkFrameCount = 0;
+    NE_WALK_FRAME_SOURCES.forEach((source, index) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.onload = () => {
+        neWalkImages[index] = image;
+        loadedNeWalkFrameCount += 1;
+        if (loadedNeWalkFrameCount === NE_WALK_FRAME_SOURCES.length) {
+          neWalkSprites = makeChromaKeySpriteSequence(neWalkImages);
+        }
+      };
+      image.src = source;
+    });
+
+    const nwWalkImages = new Array<HTMLImageElement>(
+      NW_WALK_FRAME_SOURCES.length,
+    );
+    let loadedNwWalkFrameCount = 0;
+    NW_WALK_FRAME_SOURCES.forEach((source, index) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.onload = () => {
+        nwWalkImages[index] = image;
+        loadedNwWalkFrameCount += 1;
+        if (loadedNwWalkFrameCount === NW_WALK_FRAME_SOURCES.length) {
+          nwWalkSprites = makeChromaKeySpriteSequence(nwWalkImages);
+        }
+      };
+      image.src = source;
+    });
+
     const seWalkImages = new Array<HTMLImageElement>(
       SE_WALK_FRAME_SOURCES.length,
     );
@@ -5083,6 +5155,23 @@ export function MovementLab() {
         loadedSeWalkFrameCount += 1;
         if (loadedSeWalkFrameCount === SE_WALK_FRAME_SOURCES.length) {
           seWalkSprites = makeChromaKeySpriteSequence(seWalkImages);
+        }
+      };
+      image.src = source;
+    });
+
+    const swWalkImages = new Array<HTMLImageElement>(
+      SW_WALK_FRAME_SOURCES.length,
+    );
+    let loadedSwWalkFrameCount = 0;
+    SW_WALK_FRAME_SOURCES.forEach((source, index) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.onload = () => {
+        swWalkImages[index] = image;
+        loadedSwWalkFrameCount += 1;
+        if (loadedSwWalkFrameCount === SW_WALK_FRAME_SOURCES.length) {
+          swWalkSprites = makeChromaKeySpriteSequence(swWalkImages);
         }
       };
       image.src = source;
@@ -5350,10 +5439,27 @@ export function MovementLab() {
         return false;
       }
 
+      if (isDebugGrantAllItemsCommand(command)) {
+        const nextInventory = grantAllInventoryItems(
+          playerInventoryRef.current,
+        );
+        playerInventoryRef.current = nextInventory;
+        setPlayerInventory(nextInventory);
+        try {
+          savePlayerInventory(nextInventory);
+        } catch {
+          // 儲存空間不可用時，仍保留本次遊玩階段的取得結果。
+        }
+        showInteractionItemFeedback(
+          `Debug：已將 ${ITEM_DEFINITIONS.length} 種道具各 ×1 放入背包`,
+        );
+        return true;
+      }
+
       const parsed = parseDebugItemSpawnCommand(command);
       if (!parsed) {
         showInteractionItemFeedback(
-          "格式錯誤 · 請輸入：道具ID 數量（數量為 1～999）",
+          "格式錯誤 · 請輸入：Item All 或 道具ID 數量（1～999）",
         );
         return false;
       }
@@ -6474,7 +6580,8 @@ export function MovementLab() {
       }
 
       event.preventDefault();
-      activeInputMode = "keyboard-mouse";
+      activeInputMode =
+        event.pointerType === "touch" ? "mobile" : "keyboard-mouse";
       activateQuestPromptInputMode(
         event.pointerType === "touch" ? "mobile" : "keyboard-mouse",
       );
@@ -7056,6 +7163,24 @@ export function MovementLab() {
     };
 
     const drawPlayer = () => {
+      const neWalkSprite =
+        currentFacing === "NE" &&
+        wasMoving &&
+        neWalkSprites.length === NE_WALK_FRAME_SOURCES.length
+          ? neWalkSprites[
+              Math.floor(neWalkElapsedSeconds * NE_WALK_REFERENCE_FPS) %
+                neWalkSprites.length
+            ]
+          : null;
+      const nwWalkSprite =
+        currentFacing === "NW" &&
+        wasMoving &&
+        nwWalkSprites.length === NW_WALK_FRAME_SOURCES.length
+          ? nwWalkSprites[
+              Math.floor(nwWalkElapsedSeconds * NW_WALK_REFERENCE_FPS) %
+                nwWalkSprites.length
+            ]
+          : null;
       const seWalkSprite =
         currentFacing === "SE" &&
         wasMoving &&
@@ -7065,7 +7190,21 @@ export function MovementLab() {
                 seWalkSprites.length
             ]
           : null;
-      const sprite = seWalkSprite ?? sprites.get(currentFacing);
+      const swWalkSprite =
+        currentFacing === "SW" &&
+        wasMoving &&
+        swWalkSprites.length === SW_WALK_FRAME_SOURCES.length
+          ? swWalkSprites[
+              Math.floor(swWalkElapsedSeconds * SW_WALK_REFERENCE_FPS) %
+                swWalkSprites.length
+            ]
+          : null;
+      const sprite =
+        neWalkSprite ??
+        nwWalkSprite ??
+        seWalkSprite ??
+        swWalkSprite ??
+        sprites.get(currentFacing);
       const renderedHeight = sizeRef.current;
       const radius = renderedHeight * 0.14;
 
@@ -7357,7 +7496,7 @@ export function MovementLab() {
       context.fill();
       context.stroke();
 
-      context.fillStyle = "#61ead8";
+      context.fillStyle = "#ffd86a";
       context.beginPath();
       context.roundRect(left + 1, top + 1, width / 2 - 1, buttonHeight - 1, [2.5, 0, 0, 0]);
       context.fill();
@@ -7374,22 +7513,34 @@ export function MovementLab() {
     const drawPromptPill = (
       centerX: number,
       topY: number,
-      text: string,
+      verb: string,
+      targetLabel: string,
+      interactionKeyLabel: string | null,
       showMouseLeftIcon = false,
     ) => {
       context.save();
       context.font = '600 16px "Segoe UI", "Noto Sans TC", sans-serif';
-      context.textAlign = "center";
+      context.textAlign = "left";
       context.textBaseline = "middle";
-      const prefix = showMouseLeftIcon ? "按" : "";
+      const prefix = "按";
+      const keyText = interactionKeyLabel ? `[${interactionKeyLabel}]` : "";
+      const actionText = `進行${verb}`;
+      const targetText = targetLabel || "";
       const mouseIconWidth = showMouseLeftIcon ? 20 : 0;
-      const inlineGaps = showMouseLeftIcon ? 18 : 0;
-      const contentWidth = showMouseLeftIcon
-        ? context.measureText(prefix).width +
-          mouseIconWidth +
-          inlineGaps +
-          context.measureText(text).width
-        : context.measureText(text).width;
+      const inputGap = 7;
+      const targetGap = targetText ? 5 : 0;
+      const prefixWidth = context.measureText(prefix).width;
+      const keyWidth = context.measureText(keyText).width;
+      const actionWidth = context.measureText(actionText).width;
+      const targetWidth = context.measureText(targetText).width;
+      const contentWidth =
+        prefixWidth +
+        inputGap +
+        (showMouseLeftIcon ? mouseIconWidth : keyWidth) +
+        inputGap +
+        actionWidth +
+        targetGap +
+        targetWidth;
       const width = Math.max(154, contentWidth + 34);
       const height = 46;
       const left = clamp(centerX - width / 2, 8, viewportWidth - width - 8);
@@ -7401,21 +7552,30 @@ export function MovementLab() {
       context.roundRect(left, top, width, height, 18);
       context.fill();
       context.stroke();
+      const baselineY = top + height / 2 + 0.5;
+      let cursorX = left + (width - contentWidth) / 2;
       context.fillStyle = "#f3f7ed";
+      context.fillText(prefix, cursorX, baselineY);
+      cursorX += prefixWidth + inputGap;
       if (showMouseLeftIcon) {
-        let cursorX = left + (width - contentWidth) / 2;
-        const prefixWidth = context.measureText(prefix).width;
-        context.textAlign = "left";
-        context.fillText(prefix, cursorX, top + height / 2 + 0.5);
-        cursorX += prefixWidth + 7;
         drawMouseLeftClickIcon(cursorX, top + (height - 25) / 2);
-        cursorX += mouseIconWidth + 11;
-        context.fillText(text, cursorX, top + height / 2 + 0.5);
+        cursorX += mouseIconWidth;
       } else {
-        context.fillText(text, left + width / 2, top + height / 2 + 0.5);
+        context.fillStyle = "#ffd86a";
+        context.fillText(keyText, cursorX, baselineY);
+        cursorX += keyWidth;
       }
+      cursorX += inputGap;
+      context.fillStyle = "#f3f7ed";
+      context.fillText(actionText, cursorX, baselineY);
+      cursorX += actionWidth + targetGap;
+      context.fillStyle = "#65e9ed";
+      context.fillText(targetText, cursorX, baselineY);
       context.restore();
     };
+
+    const getInteractionPromptTargetLabel = (target: SceneInteractable) =>
+      target.label.trim();
 
     const drawInteractionPrompts = () => {
       const radius = sizeRef.current * 0.14;
@@ -7475,7 +7635,9 @@ export function MovementLab() {
         drawPromptPill(
           screenX,
           screenY + 18,
-          `按 [${activeInteractionKeyLabel}] 進行${playerTarget.verb ?? "互動"}`,
+          playerTarget.verb ?? "互動",
+          getInteractionPromptTargetLabel(playerTarget),
+          activeInteractionKeyLabel,
         );
       }
 
@@ -7484,13 +7646,17 @@ export function MovementLab() {
           drawPromptPill(
             virtualCursor.x,
             virtualCursor.y - 64,
-            `按 [A] 進行${cursorTarget.verb ?? "互動"}`,
+            cursorTarget.verb ?? "互動",
+            getInteractionPromptTargetLabel(cursorTarget),
+            "A",
           );
         } else {
           drawPromptPill(
             virtualCursor.x,
             virtualCursor.y - 64,
-            `進行${cursorTarget.verb ?? "互動"}`,
+            cursorTarget.verb ?? "互動",
+            getInteractionPromptTargetLabel(cursorTarget),
+            null,
             true,
           );
         }
@@ -7587,7 +7753,11 @@ export function MovementLab() {
           hasGamepadActivity,
       );
       activeInteractionKeyLabel =
-        activeInputMode === "gamepad" ? "A" : keyboardInteractionLabel;
+        activeInputMode === "gamepad"
+          ? "A"
+          : activeInputMode === "mobile"
+            ? "互動"
+            : keyboardInteractionLabel;
 
       if (gamepadInput.connected !== wasGamepadConnected) {
         wasGamepadConnected = gamepadInput.connected;
@@ -8215,12 +8385,33 @@ export function MovementLab() {
         actualMovementDistance / Math.max(deltaTime, Number.EPSILON);
       const isActuallyMoving =
         actualMovementSpeed >= FOOTSTEP_MIN_MOVEMENT_SPEED;
+      if (isActuallyMoving && currentFacing === "NE") {
+        neWalkElapsedSeconds +=
+          deltaTime *
+          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75);
+      } else {
+        neWalkElapsedSeconds = 0;
+      }
+      if (isActuallyMoving && currentFacing === "NW") {
+        nwWalkElapsedSeconds +=
+          deltaTime *
+          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75);
+      } else {
+        nwWalkElapsedSeconds = 0;
+      }
       if (isActuallyMoving && currentFacing === "SE") {
         seWalkElapsedSeconds +=
           deltaTime *
           clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75);
       } else {
         seWalkElapsedSeconds = 0;
+      }
+      if (isActuallyMoving && currentFacing === "SW") {
+        swWalkElapsedSeconds +=
+          deltaTime *
+          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75);
+      } else {
+        swWalkElapsedSeconds = 0;
       }
       updateFootstepAudio(actualMovementSpeed, deltaTime);
 
@@ -8867,7 +9058,7 @@ export function MovementLab() {
                 event.currentTarget.form?.requestSubmit();
               }
             }}
-            placeholder="Time 2000／道具ID 數量"
+            placeholder="Time 2000／Item All／道具ID 數量"
             aria-label="輸入 Debug 指令"
             autoComplete="off"
             spellCheck={false}
@@ -8982,7 +9173,6 @@ export function MovementLab() {
               <i aria-hidden="true">{stat.symbol}</i>
               <b aria-hidden="true"><em style={{ width: `${value}%` }} /></b>
               <small>{Math.round(value)}</small>
-              {renderSurvivalValueTween(stat.id)}
             </span>
           )})}
         </div>
@@ -8998,9 +9188,18 @@ export function MovementLab() {
               <span className="survival-meter" aria-hidden="true">
                 <i style={{ width: `${value}%` }} />
               </span>
-              {renderSurvivalValueTween(stat.id)}
             </div>
           )})}
+        </div>
+        <div className="survival-value-layer" aria-hidden="true">
+          {SURVIVAL_STATS.map((stat) => (
+            <span
+              className={`survival-value-slot is-${stat.id}`}
+              key={stat.id}
+            >
+              {renderSurvivalValueTween(stat.id)}
+            </span>
+          ))}
         </div>
         <button
           className="survival-toggle-hitbox"
