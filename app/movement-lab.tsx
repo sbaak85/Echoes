@@ -880,6 +880,12 @@ const SPRITE_SOURCES: Record<Direction, string> = {
   NW: "./characters/08_NW_BackLeft.png",
 };
 
+const N_WALK_FRAME_SOURCES = Array.from(
+  { length: 26 },
+  (_, index) =>
+    `./characters/walk/01_N_Back/Walking_2/Walking_N_${String(index + 1).padStart(2, "0")}.png`,
+);
+const N_WALK_REFERENCE_FPS = 26;
 const NE_WALK_FRAME_SOURCES = Array.from(
   { length: 26 },
   (_, index) =>
@@ -4757,6 +4763,7 @@ export function MovementLab() {
 
     const pressedKeys = new Set<string>();
     const sprites = new Map<Direction, HTMLCanvasElement>();
+    let nWalkSprites: HTMLCanvasElement[] = [];
     let neWalkSprites: HTMLCanvasElement[] = [];
     let nwWalkSprites: HTMLCanvasElement[] = [];
     let seWalkSprites: HTMLCanvasElement[] = [];
@@ -4774,6 +4781,7 @@ export function MovementLab() {
 
     let currentFacing: Direction = SCENE_START_FACING;
     let wasMoving = false;
+    let nWalkElapsedSeconds = 0;
     let neWalkElapsedSeconds = 0;
     let nwWalkElapsedSeconds = 0;
     let seWalkElapsedSeconds = 0;
@@ -5105,6 +5113,23 @@ export function MovementLab() {
       image.decoding = "async";
       image.onload = () => {
         sprites.set(direction as Direction, makeChromaKeySprite(image));
+      };
+      image.src = source;
+    });
+
+    const nWalkImages = new Array<HTMLImageElement>(
+      N_WALK_FRAME_SOURCES.length,
+    );
+    let loadedNWalkFrameCount = 0;
+    N_WALK_FRAME_SOURCES.forEach((source, index) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.onload = () => {
+        nWalkImages[index] = image;
+        loadedNWalkFrameCount += 1;
+        if (loadedNWalkFrameCount === N_WALK_FRAME_SOURCES.length) {
+          nWalkSprites = makeChromaKeySpriteSequence(nWalkImages);
+        }
       };
       image.src = source;
     });
@@ -7163,6 +7188,15 @@ export function MovementLab() {
     };
 
     const drawPlayer = () => {
+      const nWalkSprite =
+        currentFacing === "N" &&
+        wasMoving &&
+        nWalkSprites.length === N_WALK_FRAME_SOURCES.length
+          ? nWalkSprites[
+              Math.floor(nWalkElapsedSeconds * N_WALK_REFERENCE_FPS) %
+                nWalkSprites.length
+            ]
+          : null;
       const neWalkSprite =
         currentFacing === "NE" &&
         wasMoving &&
@@ -7200,6 +7234,7 @@ export function MovementLab() {
             ]
           : null;
       const sprite =
+        nWalkSprite ??
         neWalkSprite ??
         nwWalkSprite ??
         seWalkSprite ??
@@ -8385,6 +8420,13 @@ export function MovementLab() {
         actualMovementDistance / Math.max(deltaTime, Number.EPSILON);
       const isActuallyMoving =
         actualMovementSpeed >= FOOTSTEP_MIN_MOVEMENT_SPEED;
+      if (isActuallyMoving && currentFacing === "N") {
+        nWalkElapsedSeconds +=
+          deltaTime *
+          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75);
+      } else {
+        nWalkElapsedSeconds = 0;
+      }
       if (isActuallyMoving && currentFacing === "NE") {
         neWalkElapsedSeconds +=
           deltaTime *
@@ -10037,10 +10079,12 @@ export function MovementLab() {
           mobileInteractionActionRef.current();
         }}
       >
-        <svg viewBox="0 0 64 64" aria-hidden="true">
-          <path className="mobile-interaction-object" d="M42 8l4 4-4 4-4-4z" />
-          <path d="M15 36V24a4 4 0 0 1 8 0v8-15a4 4 0 0 1 8 0v14-12a4 4 0 0 1 8 0v13-8a4 4 0 0 1 8 0v14l4-5c3-4 9 0 6 4L47 51c-3 4-7 6-13 6h-5c-7 0-11-3-15-8l-7-9c-3-4 2-9 6-5z" />
-          <path d="M23 31v7M31 30v8M39 31v7" />
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path className="mobile-interaction-object" d="M17 1l1.5 1.5L17 4l-1.5-1.5z" />
+          <path d="M18 11V6a2 2 0 0 0-4 0v5" />
+          <path d="M14 10V4a2 2 0 0 0-4 0v6" />
+          <path d="M10 10.5V6a2 2 0 0 0-4 0v8" />
+          <path d="M6 14v-2a2 2 0 0 0-4 0v4a8 8 0 0 0 8 8h2a8 8 0 0 0 8-8v-5a2 2 0 0 0-4 0v3" />
         </svg>
       </button>
 
