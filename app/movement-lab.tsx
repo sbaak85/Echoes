@@ -898,6 +898,12 @@ const NW_WALK_FRAME_SOURCES = Array.from(
     `./characters/walk/08_NW_BackLeft/Walking_2/Walking_NW_${String(index + 1).padStart(2, "0")}.png`,
 );
 const NW_WALK_REFERENCE_FPS = 26;
+const S_WALK_FRAME_SOURCES = Array.from(
+  { length: 26 },
+  (_, index) =>
+    `./characters/walk/05_S_Front/Walking_2/Walking_S_${String(index + 1).padStart(2, "0")}.png`,
+);
+const S_WALK_REFERENCE_FPS = 26;
 const SE_WALK_FRAME_SOURCES = Array.from(
   { length: 26 },
   (_, index) =>
@@ -4766,6 +4772,7 @@ export function MovementLab() {
     let nWalkSprites: HTMLCanvasElement[] = [];
     let neWalkSprites: HTMLCanvasElement[] = [];
     let nwWalkSprites: HTMLCanvasElement[] = [];
+    let sWalkSprites: HTMLCanvasElement[] = [];
     let seWalkSprites: HTMLCanvasElement[] = [];
     let swWalkSprites: HTMLCanvasElement[] = [];
     const player = { ...SPAWN };
@@ -4784,6 +4791,7 @@ export function MovementLab() {
     let nWalkElapsedSeconds = 0;
     let neWalkElapsedSeconds = 0;
     let nwWalkElapsedSeconds = 0;
+    let sWalkElapsedSeconds = 0;
     let seWalkElapsedSeconds = 0;
     let swWalkElapsedSeconds = 0;
     let animationFrame = 0;
@@ -5163,6 +5171,23 @@ export function MovementLab() {
         loadedNwWalkFrameCount += 1;
         if (loadedNwWalkFrameCount === NW_WALK_FRAME_SOURCES.length) {
           nwWalkSprites = makeChromaKeySpriteSequence(nwWalkImages);
+        }
+      };
+      image.src = source;
+    });
+
+    const sWalkImages = new Array<HTMLImageElement>(
+      S_WALK_FRAME_SOURCES.length,
+    );
+    let loadedSWalkFrameCount = 0;
+    S_WALK_FRAME_SOURCES.forEach((source, index) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.onload = () => {
+        sWalkImages[index] = image;
+        loadedSWalkFrameCount += 1;
+        if (loadedSWalkFrameCount === S_WALK_FRAME_SOURCES.length) {
+          sWalkSprites = makeChromaKeySpriteSequence(sWalkImages);
         }
       };
       image.src = source;
@@ -7215,6 +7240,15 @@ export function MovementLab() {
                 nwWalkSprites.length
             ]
           : null;
+      const sWalkSprite =
+        currentFacing === "S" &&
+        wasMoving &&
+        sWalkSprites.length === S_WALK_FRAME_SOURCES.length
+          ? sWalkSprites[
+              Math.floor(sWalkElapsedSeconds * S_WALK_REFERENCE_FPS) %
+                sWalkSprites.length
+            ]
+          : null;
       const seWalkSprite =
         currentFacing === "SE" &&
         wasMoving &&
@@ -7237,6 +7271,7 @@ export function MovementLab() {
         nWalkSprite ??
         neWalkSprite ??
         nwWalkSprite ??
+        sWalkSprite ??
         seWalkSprite ??
         swWalkSprite ??
         sprites.get(currentFacing);
@@ -8440,6 +8475,13 @@ export function MovementLab() {
           clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75);
       } else {
         nwWalkElapsedSeconds = 0;
+      }
+      if (isActuallyMoving && currentFacing === "S") {
+        sWalkElapsedSeconds +=
+          deltaTime *
+          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75);
+      } else {
+        sWalkElapsedSeconds = 0;
       }
       if (isActuallyMoving && currentFacing === "SE") {
         seWalkElapsedSeconds +=
