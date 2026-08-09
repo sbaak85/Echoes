@@ -142,7 +142,7 @@ test("quest decorations are removed and survival meters crossfade under the heig
   assert.match(styles, /\.survival-mini-panel\s*{[\s\S]*?transition:\s*opacity\s+120ms\s+ease\s+170ms/);
   assert.match(styles, /\.survival-panel\s*{[\s\S]*?display:\s*grid[\s\S]*?transition:\s*opacity\s+120ms\s+ease\s+170ms/);
   assert.doesNotMatch(styles, /\.survival-hud\.is-expanded\s+\.survival-mini-panel\s*{[^}]*display:\s*none/);
-  assert.match(source, /className="survival-panel"\s+aria-hidden={!survivalExpanded}/);
+  assert.match(source, /className="survival-panel"\s+aria-hidden={!survivalPanelExpanded}/);
 });
 
 test("gameplay HUD shortcuts map Q and RB to quest, R and LB to survival", () => {
@@ -150,7 +150,7 @@ test("gameplay HUD shortcuts map Q and RB to quest, R and LB to survival", () =>
   assert.match(source, /if \(key === "q"\) toggleQuestPanel\(\);\s*else toggleSurvivalPanel\(\);/);
   assert.match(source, /leftBumperJustPressed\) \{\s*toggleSurvivalPanel\(\);/);
   assert.match(source, /rightBumperJustPressed\) \{\s*toggleQuestPanel\(\);/);
-  assert.match(source, /const toggleQuestPanel = \(\) => \{\s*setQuestCollapsed\(\(current\) => !current\);/);
+  assert.match(source, /const toggleQuestPanel = \(\) => \{[\s\S]*?setQuestCollapsed\(\(current\) => !current\);/);
   assert.doesNotMatch(source, /if \(!hasActiveQuestRef\.current\) return/);
   assert.match(source, /aria-keyshortcuts="Q"/);
   assert.match(source, /aria-keyshortcuts="R"/);
@@ -200,16 +200,19 @@ test("quest TAB prompt follows the latest keyboard, gamepad, or mobile input", (
 });
 
 test("empty quest HUD expands into a three-item completed history", () => {
-  assert.match(source, /const questPanelCollapsed = questCollapsed/);
+  assert.match(
+    source,
+    /const questPanelCollapsed = mobileHudLayout\s*\? questMobileMode !== "expanded"\s*:\s*questCollapsed/,
+  );
   assert.match(source, /manager\.getCompletedQuestIds\(3\)/);
   assert.match(source, /const EMPTY_QUEST_TITLE = "這個階段沒有任務"/);
   assert.match(
     source,
-    /if \(activeQuestHud !== null \|\| questHudEvent !== null\) return;\s*setQuestCollapsed\(true\);/,
+    /if \(activeQuestHud !== null \|\| questHudEvent !== null\) return;\s*setQuestCollapsed\(true\);\s*setQuestMobileMode\("mini"\);/,
   );
   assert.match(
     source,
-    /setQuestCollapsed\(initialQuestHud \? getDefaultQuestCollapsed\(\) : true\)/,
+    /setQuestCollapsed\(\s*mobileHud \? true : initialQuestHud \? getDefaultQuestCollapsed\(\) : true,?\s*\)/,
   );
   assert.doesNotMatch(source, /QUEST HISTORY|任務歷程/);
   assert.match(source, /className="quest-history"/);
@@ -219,6 +222,20 @@ test("empty quest HUD expands into a three-item completed history", () => {
   assert.doesNotMatch(source, /aria-disabled=\{!hasActiveQuest\}/);
   assert.match(styles, /\.quest-history-check\s*{[\s\S]*?rgba\(164, 175, 172, 0\.7\)/);
   assert.match(styles, /\.quest-history-title\s*{[\s\S]*?rgba\(178, 188, 185, 0\.74\)/);
+});
+
+test("mobile quest and survival HUDs default to mini and cycle through three states", () => {
+  assert.match(source, /type MobileHudPanelMode = "mini" \| "collapsed" \| "expanded"/);
+  assert.match(source, /useState<MobileHudPanelMode>\("mini"\)/);
+  assert.match(
+    source,
+    /current === "mini"\s*\? "collapsed"\s*:\s*current === "collapsed"\s*\? "expanded"\s*:\s*"mini"/,
+  );
+  assert.match(source, /className="survival-mobile-minimal-panel"/);
+  assert.match(source, /survivalMobileMode === "mini" \? " is-mobile-mini"/);
+  assert.match(source, /questMobileMode === "mini" \? " is-mobile-mini"/);
+  assert.match(styles, /\.survival-hud\.is-mobile-mini\s*{/);
+  assert.match(styles, /\.quest-hud\.is-mobile-mini\s*{/);
 });
 
 test("visible black screen absorbs pointer input and blocks world actions", () => {

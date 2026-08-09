@@ -55,6 +55,7 @@ import {
 } from "./world-item-placements";
 import {
   getDpadToggleValue,
+  shouldOptionsCursorTakeControl,
   shouldUseOptionsCursor,
   type OptionsGamepadMode,
 } from "./options-gamepad-control";
@@ -139,6 +140,13 @@ import {
 import { DialogueManager } from "./dialogue-manager";
 import { StoryEventManager } from "./story-event-manager";
 import { MainObjectiveMarker } from "./main-objective-marker";
+import {
+  enqueuePlayerInfoFloat as appendPlayerInfoFloat,
+  getPlayerInfoFloatVisuals,
+  prunePlayerInfoFloats,
+  type PlayerInfoFloatEntry,
+  type PlayerInfoFloatSegment,
+} from "./player-info-float";
 import {
   ChapterFlowManager,
   type ChapterFlowAction,
@@ -898,6 +906,12 @@ const NW_WALK_FRAME_SOURCES = Array.from(
     `./characters/walk/08_NW_BackLeft/Walking_2/Walking_NW_${String(index + 1).padStart(2, "0")}.png`,
 );
 const NW_WALK_REFERENCE_FPS = 26;
+const E_WALK_FRAME_SOURCES = Array.from(
+  { length: 26 },
+  (_, index) =>
+    `./characters/walk/03_E_Right/Walking_2/Walking_E_${String(index + 1).padStart(2, "0")}.png`,
+);
+const E_WALK_REFERENCE_FPS = 26;
 const S_WALK_FRAME_SOURCES = Array.from(
   { length: 26 },
   (_, index) =>
@@ -916,6 +930,14 @@ const SW_WALK_FRAME_SOURCES = Array.from(
     `./characters/walk/06_SW_FrontLeft/Walking_2/Walking_sw_${String(index + 1).padStart(2, "0")}.png`,
 );
 const SW_WALK_REFERENCE_FPS = 26;
+const W_WALK_FRAME_SOURCES = Array.from(
+  { length: 26 },
+  (_, index) =>
+    `./characters/walk/07_W_Left/Walking_2/Walking_W_${String(index + 1).padStart(2, "0")}.png`,
+);
+const W_WALK_REFERENCE_FPS = 26;
+const WALK_ANIMATION_SPEED_MULTIPLIER = 1.2;
+const ACCELERATED_WALK_SPEED_MULTIPLIER = 1.4;
 
 const DIRECTION_NAMES: Record<Direction, string> = {
   N: "N - 背面",
@@ -929,6 +951,7 @@ const DIRECTION_NAMES: Record<Direction, string> = {
 };
 
 const MOVEMENT_KEYS = new Set([
+  "shift",
   "w",
   "a",
   "s",
@@ -939,12 +962,13 @@ const MOVEMENT_KEYS = new Set([
   "arrowright",
 ]);
 const GAMEPAD_DEAD_ZONE = 0.18;
+const GAMEPAD_TRIGGER_ACTIVE_THRESHOLD = 0.35;
 const NATIVE_GAMEPAD_BRIDGE_URL = "http://127.0.0.1:3001/state";
 const PATHFINDING_GRID_SIZE = 18;
 const TOUCH_EFFECT_DURATION_MS = 900;
 const GAMEPAD_CURSOR_SPEED = 720;
 const FOOTSTEP_REFERENCE_SPEED = 210;
-const FOOTSTEP_REFERENCE_PLAYBACK_RATE = 1.7;
+const FOOTSTEP_REFERENCE_PLAYBACK_RATE = 1.45;
 const FOOTSTEP_MIN_MOVEMENT_SPEED = 6;
 const CARDINAL_DIRECTION_TOLERANCE = Math.tan((18 * Math.PI) / 180);
 const POINTER_RETARGET_INTERVAL_SECONDS = 0.12;
@@ -952,6 +976,79 @@ const POINTER_RETARGET_MIN_WORLD_DISTANCE = 10;
 const POINTER_HOLD_INDICATOR_DELAY_SECONDS = 0.18;
 const GAMEPAD_MENU_REPEAT_DELAY_SECONDS = 0.32;
 const GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS = 0.12;
+const DEFAULT_PLAYER_SPEED = 210;
+const DEFAULT_PLAYER_SIZE = 142;
+const PLAYER_DEFAULTS_STORAGE_KEY = "echoes:player-defaults";
+const PLAYER_SHADOW_TUNING_STORAGE_KEY = "echoes:player-shadow-tuning";
+
+type PlayerShadowTuningValue = {
+  ambientOffsetX: number;
+  ambientOffsetY: number;
+  bootOffsetX: number;
+  bootOffsetY: number;
+  widthPercent: number;
+  heightPercent: number;
+};
+
+type PlayerShadowTuning = Record<Direction, PlayerShadowTuningValue>;
+type PlayerShadowTuningField = keyof PlayerShadowTuningValue;
+
+const PLAYER_SHADOW_DIRECTIONS: Direction[] = [
+  "N",
+  "NE",
+  "E",
+  "SE",
+  "S",
+  "SW",
+  "W",
+  "NW",
+];
+
+const createDefaultPlayerShadowTuningValue = (): PlayerShadowTuningValue => ({
+  ambientOffsetX: 0,
+  ambientOffsetY: 0,
+  bootOffsetX: 0,
+  bootOffsetY: 0,
+  widthPercent: 200,
+  heightPercent: 200,
+});
+
+const createDefaultPlayerShadowTuning = (): PlayerShadowTuning =>
+  PLAYER_SHADOW_DIRECTIONS.reduce((result, direction) => {
+    result[direction] = createDefaultPlayerShadowTuningValue();
+    return result;
+  }, {} as PlayerShadowTuning);
+
+const normalizePlayerShadowTuning = (source: unknown): PlayerShadowTuning => {
+  const defaults = createDefaultPlayerShadowTuning();
+  if (!source || typeof source !== "object") return defaults;
+  const sourceRecord = source as Partial<
+    Record<Direction, Partial<PlayerShadowTuningValue>>
+  >;
+  for (const direction of PLAYER_SHADOW_DIRECTIONS) {
+    const candidate = sourceRecord[direction];
+    if (!candidate || typeof candidate !== "object") continue;
+    const readNumber = (
+      field: PlayerShadowTuningField,
+      minimum: number,
+      maximum: number,
+    ) => {
+      const value = Number(candidate[field]);
+      return Number.isFinite(value)
+        ? clamp(Math.round(value), minimum, maximum)
+        : defaults[direction][field];
+    };
+    defaults[direction] = {
+      ambientOffsetX: readNumber("ambientOffsetX", -80, 80),
+      ambientOffsetY: readNumber("ambientOffsetY", -80, 80),
+      bootOffsetX: readNumber("bootOffsetX", -80, 80),
+      bootOffsetY: readNumber("bootOffsetY", -80, 80),
+      widthPercent: readNumber("widthPercent", 50, 300),
+      heightPercent: readNumber("heightPercent", 50, 300),
+    };
+  }
+  return defaults;
+};
 
 const OPTIONS_MENU_ITEMS = [
   "dialogue-text-size",
@@ -964,6 +1061,14 @@ const OPTIONS_MENU_ITEMS = [
   "player-collision",
   "scene-collision",
   "collision-slide-tolerance",
+  "shadow-ambient-x",
+  "shadow-ambient-y",
+  "shadow-boots-x",
+  "shadow-boots-y",
+  "shadow-width",
+  "shadow-height",
+  "apply-shadow-tuning",
+  "apply-player-defaults",
   "restart-game",
 ] as const;
 
@@ -987,6 +1092,14 @@ const OPTIONS_TAB_ITEMS: Record<OptionsTab, OptionsMenuItem[]> = {
     "player-collision",
     "scene-collision",
     "collision-slide-tolerance",
+    "shadow-ambient-x",
+    "shadow-ambient-y",
+    "shadow-boots-x",
+    "shadow-boots-y",
+    "shadow-width",
+    "shadow-height",
+    "apply-shadow-tuning",
+    "apply-player-defaults",
     "restart-game",
   ],
 };
@@ -1086,11 +1199,21 @@ function getDefaultDialogueTextSize(): DialogueTextSize {
     : "small";
 }
 
+const MOBILE_HUD_MEDIA_QUERY =
+  "(max-width: 680px), (hover: none) and (pointer: coarse)";
+
+function isMobileHudLayout() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia(MOBILE_HUD_MEDIA_QUERY).matches
+  );
+}
+
+type MobileHudPanelMode = "mini" | "collapsed" | "expanded";
+
 function getDefaultQuestCollapsed() {
   if (typeof window === "undefined") return false;
-  return window.matchMedia(
-    "(max-width: 680px), (hover: none) and (pointer: coarse)",
-  ).matches;
+  return window.matchMedia(MOBILE_HUD_MEDIA_QUERY).matches;
 }
 
 const SURVIVAL_PANEL_STATE_STORAGE_KEY = "echoes:survival-panel-state";
@@ -1181,12 +1304,11 @@ function getDefaultSurvivalExpanded() {
     // 無法使用本機儲存時，仍依目前裝置類型決定預設狀態。
   }
 
-  return !window.matchMedia(
-    "(max-width: 680px), (hover: none) and (pointer: coarse)",
-  ).matches;
+  return !window.matchMedia(MOBILE_HUD_MEDIA_QUERY).matches;
 }
 
 type GamepadInput = {
+  acceleratePressed: boolean;
   actionPressed: boolean;
   backPressed: boolean;
   confirmPressed: boolean;
@@ -1270,6 +1392,7 @@ function normalizeXInputAxis(value: number) {
 function getNativeGamepadInput(state: NativeGamepadState): GamepadInput {
   if (!state.connected) {
     return {
+      acceleratePressed: false,
       actionPressed: false,
       backPressed: false,
       confirmPressed: false,
@@ -1307,6 +1430,8 @@ function getNativeGamepadInput(state: NativeGamepadState): GamepadInput {
     (state.buttons & (XINPUT_BUTTON_A | XINPUT_BUTTON_X)) !== 0;
 
   return {
+    acceleratePressed:
+      state.leftTrigger / 255 >= GAMEPAD_TRIGGER_ACTIVE_THRESHOLD,
     actionPressed,
     backPressed: (state.buttons & XINPUT_BUTTON_B) !== 0,
     confirmPressed: (state.buttons & XINPUT_BUTTON_A) !== 0,
@@ -1333,6 +1458,7 @@ function getNativeGamepadInput(state: NativeGamepadState): GamepadInput {
 function getGamepadInput(): GamepadInput {
   if (typeof navigator.getGamepads !== "function") {
     return {
+      acceleratePressed: false,
       actionPressed: false,
       backPressed: false,
       confirmPressed: false,
@@ -1363,6 +1489,7 @@ function getGamepadInput(): GamepadInput {
 
   if (!gamepad) {
     return {
+      acceleratePressed: false,
       actionPressed: false,
       backPressed: false,
       confirmPressed: false,
@@ -1392,6 +1519,9 @@ function getGamepadInput(): GamepadInput {
     Number(gamepad.buttons[13]?.pressed) - Number(gamepad.buttons[12]?.pressed);
 
   return {
+    acceleratePressed:
+      (gamepad.buttons[6]?.value ?? 0) >= GAMEPAD_TRIGGER_ACTIVE_THRESHOLD ||
+      Boolean(gamepad.buttons[6]?.pressed),
     actionPressed:
       Boolean(gamepad.buttons[0]?.pressed) ||
       Boolean(gamepad.buttons[2]?.pressed),
@@ -2526,8 +2656,11 @@ export function MovementLab() {
   const nativeGamepadRef = useRef<NativeGamepadState>(
     EMPTY_NATIVE_GAMEPAD_STATE,
   );
-  const speedRef = useRef(210);
-  const sizeRef = useRef(142);
+  const speedRef = useRef(DEFAULT_PLAYER_SPEED);
+  const sizeRef = useRef(DEFAULT_PLAYER_SIZE);
+  const playerShadowTuningRef = useRef<PlayerShadowTuning>(
+    createDefaultPlayerShadowTuning(),
+  );
   const playerPositionRef = useRef<Point>({ ...SPAWN });
   const playerFacingRef = useRef<Direction>(SCENE_START_FACING);
   const playerTeleportHandlerRef = useRef<(point: SceneTeleportPoint) => boolean>(
@@ -2602,6 +2735,8 @@ export function MovementLab() {
   );
   const survivalValueTweenSequenceRef = useRef(0);
   const survivalValueTweenExpiryTimerRef = useRef<number | null>(null);
+  const playerInfoFloatsRef = useRef<PlayerInfoFloatEntry[]>([]);
+  const playerInfoFloatSequenceRef = useRef(0);
   const timeElapsedNoticeTimerRef = useRef<number | null>(null);
   const timeElapsedNoticeSequenceRef = useRef(0);
   const timeElapsedNoticeActiveRef = useRef(false);
@@ -2679,8 +2814,18 @@ export function MovementLab() {
   const [showPlayerCollision, setShowPlayerCollision] = useState(false);
   const [showSceneCollision, setShowSceneCollision] = useState(false);
   const [dayNightEffectEnabled, setDayNightEffectEnabled] = useState(false);
-  const [speed, setSpeed] = useState(210);
-  const [size, setSize] = useState(142);
+  const [speed, setSpeed] = useState(DEFAULT_PLAYER_SPEED);
+  const [size, setSize] = useState(DEFAULT_PLAYER_SIZE);
+  const [savedPlayerDefaults, setSavedPlayerDefaults] = useState({
+    speed: DEFAULT_PLAYER_SPEED,
+    size: DEFAULT_PLAYER_SIZE,
+  });
+  const [playerShadowTuning, setPlayerShadowTuning] =
+    useState<PlayerShadowTuning>(() => createDefaultPlayerShadowTuning());
+  const [shadowTuningSaved, setShadowTuningSaved] = useState(true);
+  const [shadowTuningSaveFailed, setShadowTuningSaveFailed] = useState(false);
+  const [playerDefaultsSaveFailed, setPlayerDefaultsSaveFailed] =
+    useState(false);
   const [collisionSlideTolerance, setCollisionSlideTolerance] = useState(55);
   const [bgmEnabled, setBgmEnabled] = useState(true);
   const [bgmVolume, setBgmVolume] = useState(
@@ -2726,6 +2871,11 @@ export function MovementLab() {
   const itemPointRespawnCycle = getInteractionCycle(survivalState.gameMinutes);
   const [survivalExpanded, setSurvivalExpanded] = useState(true);
   const [questCollapsed, setQuestCollapsed] = useState(false);
+  const [mobileHudLayout, setMobileHudLayout] = useState(false);
+  const [survivalMobileMode, setSurvivalMobileMode] =
+    useState<MobileHudPanelMode>("mini");
+  const [questMobileMode, setQuestMobileMode] =
+    useState<MobileHudPanelMode>("mini");
   const [activeQuestHud, setActiveQuestHud] = useState<QuestHudView | null>(null);
   const [completedQuestHistory, setCompletedQuestHistory] = useState<QuestHistoryView[]>([]);
   const [questHudEvent, setQuestHudEvent] = useState<QuestHudEvent | null>(null);
@@ -2740,7 +2890,12 @@ export function MovementLab() {
     sequence: number;
   } | null>(null);
   const hasActiveQuest = activeQuestHud !== null;
-  const questPanelCollapsed = questCollapsed;
+  const survivalPanelExpanded = mobileHudLayout
+    ? survivalMobileMode === "expanded"
+    : survivalExpanded;
+  const questPanelCollapsed = mobileHudLayout
+    ? questMobileMode !== "expanded"
+    : questCollapsed;
   const previousSurvivalPanelHeightRef = useRef<number | null>(null);
   const previousQuestPanelHeightRef = useRef<number | null>(null);
   const [minimapCollapsed, setMinimapCollapsed] = useState(false);
@@ -2791,7 +2946,7 @@ export function MovementLab() {
       survivalHudRef.current,
       previousSurvivalPanelHeightRef.current,
     );
-  }, [survivalExpanded]);
+  }, [survivalPanelExpanded, survivalMobileMode]);
 
   useLayoutEffect(() => {
     previousQuestPanelHeightRef.current = playHudPanelHeightTween(
@@ -2803,7 +2958,22 @@ export function MovementLab() {
   useEffect(() => {
     if (activeQuestHud !== null || questHudEvent !== null) return;
     setQuestCollapsed(true);
+    setQuestMobileMode("mini");
   }, [activeQuestHud, questHudEvent]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(MOBILE_HUD_MEDIA_QUERY);
+    const updateMobileHudLayout = () => setMobileHudLayout(mediaQuery.matches);
+    updateMobileHudLayout();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", updateMobileHudLayout);
+      return () => mediaQuery.removeEventListener("change", updateMobileHudLayout);
+    }
+
+    mediaQuery.addListener(updateMobileHudLayout);
+    return () => mediaQuery.removeListener(updateMobileHudLayout);
+  }, []);
 
   const cancelBlackScreenFade = () => {
     if (blackScreenAnimationRef.current !== null) {
@@ -2962,6 +3132,7 @@ export function MovementLab() {
     questHudEventSequenceRef.current += 1;
     setActiveQuestHud(view);
     setQuestCollapsed(false);
+    setQuestMobileMode("expanded");
     setQuestHudEvent({
       kind,
       questId: view.id,
@@ -2991,6 +3162,7 @@ export function MovementLab() {
     questHudEventSequenceRef.current += 1;
     setActiveQuestHud(view);
     setQuestCollapsed(false);
+    setQuestMobileMode("expanded");
     setQuestObjectiveTween({
       questId: view.id,
       objectiveId,
@@ -3019,6 +3191,7 @@ export function MovementLab() {
     questHudEventSequenceRef.current += 1;
     setActiveQuestHud(view);
     setQuestCollapsed(false);
+    setQuestMobileMode("expanded");
     setQuestHudEvent({
       kind: "next",
       questId: view.id,
@@ -3278,8 +3451,14 @@ export function MovementLab() {
       setSurvivalState(loadedSurvivalState);
       setDayNightEffectEnabled(loadedDayNightEffectEnabled);
       setDialogueTextSize(getDefaultDialogueTextSize());
-      setQuestCollapsed(initialQuestHud ? getDefaultQuestCollapsed() : true);
-      setSurvivalExpanded(getDefaultSurvivalExpanded());
+      const mobileHud = isMobileHudLayout();
+      setMobileHudLayout(mobileHud);
+      setQuestMobileMode("mini");
+      setSurvivalMobileMode("mini");
+      setQuestCollapsed(
+        mobileHud ? true : initialQuestHud ? getDefaultQuestCollapsed() : true,
+      );
+      setSurvivalExpanded(mobileHud ? false : getDefaultSurvivalExpanded());
       setStoryReady(true);
     }, 0);
     return () => {
@@ -3468,6 +3647,53 @@ export function MovementLab() {
     survivalState.values.thirst,
   ]);
 
+  const pushPlayerInfoFloat = (
+    segments: PlayerInfoFloatSegment[],
+    now = window.performance.now(),
+  ) => {
+    playerInfoFloatSequenceRef.current += 1;
+    playerInfoFloatsRef.current = appendPlayerInfoFloat(
+      playerInfoFloatsRef.current,
+      segments,
+      playerInfoFloatSequenceRef.current,
+      now,
+    );
+  };
+
+  const showPlayerItemGain = (itemName: string, quantity: number) => {
+    pushPlayerInfoFloat([
+      { text: `+${Math.max(1, Math.floor(quantity))}`, tone: "positive" },
+      { text: ` ${itemName}`, tone: "neutral" },
+    ]);
+  };
+
+  const showPlayerSurvivalIncreases = (
+    previousValues: SurvivalGameState["values"],
+    nextValues: SurvivalGameState["values"],
+  ) => {
+    const labels: Array<[keyof SurvivalGameState["values"], string]> = [
+      ["stamina", "體力"],
+      ["hunger", "飽足"],
+      ["thirst", "飲水"],
+      ["spirit", "精神"],
+    ];
+    const now = window.performance.now();
+    for (const [metric, label] of labels) {
+      const delta = Math.round((nextValues[metric] - previousValues[metric]) * 10) / 10;
+      if (delta <= 0) continue;
+      pushPlayerInfoFloat(
+        [
+          {
+            text: `+${Number.isInteger(delta) ? delta : delta.toFixed(1)}`,
+            tone: "positive",
+          },
+          { text: ` ${label}`, tone: "neutral" },
+        ],
+        now,
+      );
+    }
+  };
+
   const showInventoryFeedback = (
     message: string,
     slotIndex = -1,
@@ -3601,6 +3827,7 @@ export function MovementLab() {
   function useInventoryItem(itemId: string, feedbackSlotIndex: number) {
     const item = ITEM_BY_ID.get(itemId);
     if (!item) return;
+    const previousSurvivalValues = { ...survivalStateRef.current.values };
     const result = useSurvivalInventoryItem(
       playerInventoryRef.current,
       survivalStateRef.current,
@@ -3619,6 +3846,10 @@ export function MovementLab() {
       playerInventoryRef.current = result.inventory;
       setSurvivalState(result.survival);
       setPlayerInventory(result.inventory);
+      showPlayerSurvivalIncreases(
+        previousSurvivalValues,
+        result.survival.values,
+      );
       try {
         saveSurvivalState(result.survival);
         savePlayerInventory(result.inventory);
@@ -4437,6 +4668,20 @@ export function MovementLab() {
   };
 
   const toggleSurvivalPanel = () => {
+    if (mobileHudLayout) {
+      setSurvivalMobileMode((current) => {
+        const nextState: MobileHudPanelMode =
+          current === "mini"
+            ? "collapsed"
+            : current === "collapsed"
+              ? "expanded"
+              : "mini";
+        setSurvivalExpanded(nextState === "expanded");
+        return nextState;
+      });
+      return;
+    }
+
     setSurvivalExpanded((current) => {
       const nextState = !current;
       try {
@@ -4452,6 +4697,20 @@ export function MovementLab() {
   };
 
   const toggleQuestPanel = () => {
+    if (mobileHudLayout) {
+      setQuestMobileMode((current) => {
+        const nextState: MobileHudPanelMode =
+          current === "mini"
+            ? "collapsed"
+            : current === "collapsed"
+              ? "expanded"
+              : "mini";
+        setQuestCollapsed(nextState !== "expanded");
+        return nextState;
+      });
+      return;
+    }
+
     setQuestCollapsed((current) => !current);
   };
 
@@ -4499,6 +4758,62 @@ export function MovementLab() {
     setSize(nextValue);
   };
 
+  const applyPlayerDefaults = () => {
+    const nextDefaults = {
+      speed: speedRef.current,
+      size: sizeRef.current,
+    };
+    try {
+      window.localStorage.setItem(
+        PLAYER_DEFAULTS_STORAGE_KEY,
+        JSON.stringify(nextDefaults),
+      );
+      setSavedPlayerDefaults(nextDefaults);
+      setPlayerDefaultsSaveFailed(false);
+    } catch {
+      setPlayerDefaultsSaveFailed(true);
+    }
+  };
+
+  const setPlayerShadowTuningValue = (
+    field: PlayerShadowTuningField,
+    value: number,
+  ) => {
+    const direction = playerFacingRef.current;
+    const isSizeField = field === "widthPercent" || field === "heightPercent";
+    const nextValue = clamp(
+      Math.round(value),
+      isSizeField ? 50 : -80,
+      isSizeField ? 300 : 80,
+    );
+    setPlayerShadowTuning((current) => {
+      const next = {
+        ...current,
+        [direction]: {
+          ...current[direction],
+          [field]: nextValue,
+        },
+      };
+      playerShadowTuningRef.current = next;
+      return next;
+    });
+    setShadowTuningSaved(false);
+    setShadowTuningSaveFailed(false);
+  };
+
+  const applyPlayerShadowTuning = () => {
+    try {
+      window.localStorage.setItem(
+        PLAYER_SHADOW_TUNING_STORAGE_KEY,
+        JSON.stringify(playerShadowTuningRef.current),
+      );
+      setShadowTuningSaved(true);
+      setShadowTuningSaveFailed(false);
+    } catch {
+      setShadowTuningSaveFailed(true);
+    }
+  };
+
   const setCollisionSlideToleranceValue = (value: number) => {
     const nextValue = clamp(Math.round(value / 5) * 5, 20, 100);
     collisionSlideToleranceRef.current = nextValue / 100;
@@ -4536,6 +4851,18 @@ export function MovementLab() {
     const tab = getOptionsTabForItem(item);
     optionsTabRef.current = tab;
     setOptionsTab(tab);
+    if (
+      optionsOpenRef.current &&
+      optionsGamepadModeRef.current === "dpad"
+    ) {
+      window.requestAnimationFrame(() => {
+        document
+          .querySelector<HTMLElement>(
+            "#options-dialog [data-gamepad-selected='true']",
+          )
+          ?.scrollIntoView({ block: "nearest", behavior: "auto" });
+      });
+    }
   };
 
   const setRestartConfirmationChoiceValue = (choice: "cancel" | "confirm") => {
@@ -4615,6 +4942,12 @@ export function MovementLab() {
       case "bgm-enabled":
         setBgmEnabledValue(!bgmEnabledRef.current);
         break;
+      case "apply-player-defaults":
+        applyPlayerDefaults();
+        break;
+      case "apply-shadow-tuning":
+        applyPlayerShadowTuning();
+        break;
       case "restart-game":
         openRestartConfirmation();
         break;
@@ -4675,6 +5008,48 @@ export function MovementLab() {
           collisionSlideToleranceRef.current * 100 + direction * 5,
         );
         break;
+      case "shadow-ambient-x":
+        setPlayerShadowTuningValue(
+          "ambientOffsetX",
+          playerShadowTuningRef.current[playerFacingRef.current].ambientOffsetX +
+            direction,
+        );
+        break;
+      case "shadow-ambient-y":
+        setPlayerShadowTuningValue(
+          "ambientOffsetY",
+          playerShadowTuningRef.current[playerFacingRef.current].ambientOffsetY +
+            direction,
+        );
+        break;
+      case "shadow-boots-x":
+        setPlayerShadowTuningValue(
+          "bootOffsetX",
+          playerShadowTuningRef.current[playerFacingRef.current].bootOffsetX +
+            direction,
+        );
+        break;
+      case "shadow-boots-y":
+        setPlayerShadowTuningValue(
+          "bootOffsetY",
+          playerShadowTuningRef.current[playerFacingRef.current].bootOffsetY +
+            direction,
+        );
+        break;
+      case "shadow-width":
+        setPlayerShadowTuningValue(
+          "widthPercent",
+          playerShadowTuningRef.current[playerFacingRef.current].widthPercent +
+            direction * 5,
+        );
+        break;
+      case "shadow-height":
+        setPlayerShadowTuningValue(
+          "heightPercent",
+          playerShadowTuningRef.current[playerFacingRef.current].heightPercent +
+            direction * 5,
+        );
+        break;
     }
   };
 
@@ -4721,6 +5096,47 @@ export function MovementLab() {
   useEffect(() => {
     const minimapCanvas = minimapCanvasRef.current;
     if (minimapCanvas) drawMiniMapGeometry(minimapCanvas);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const rawDefaults = window.localStorage.getItem(
+        PLAYER_DEFAULTS_STORAGE_KEY,
+      );
+      if (!rawDefaults) return;
+      const parsed = JSON.parse(rawDefaults) as {
+        speed?: unknown;
+        size?: unknown;
+      };
+      const savedSpeed = Number(parsed.speed);
+      const savedSize = Number(parsed.size);
+      if (!Number.isFinite(savedSpeed) || !Number.isFinite(savedSize)) return;
+
+      setSpeedValue(savedSpeed);
+      setSizeValue(savedSize);
+      setSavedPlayerDefaults({
+        speed: speedRef.current,
+        size: sizeRef.current,
+      });
+    } catch {
+      // 儲存內容失效時保留內建預設值，不阻止遊戲啟動。
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const rawTuning = window.localStorage.getItem(
+        PLAYER_SHADOW_TUNING_STORAGE_KEY,
+      );
+      if (!rawTuning) return;
+      const nextTuning = normalizePlayerShadowTuning(JSON.parse(rawTuning));
+      playerShadowTuningRef.current = nextTuning;
+      setPlayerShadowTuning(nextTuning);
+      setShadowTuningSaved(true);
+      setShadowTuningSaveFailed(false);
+    } catch {
+      setShadowTuningSaveFailed(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -4772,9 +5188,11 @@ export function MovementLab() {
     let nWalkSprites: HTMLCanvasElement[] = [];
     let neWalkSprites: HTMLCanvasElement[] = [];
     let nwWalkSprites: HTMLCanvasElement[] = [];
+    let eWalkSprites: HTMLCanvasElement[] = [];
     let sWalkSprites: HTMLCanvasElement[] = [];
     let seWalkSprites: HTMLCanvasElement[] = [];
     let swWalkSprites: HTMLCanvasElement[] = [];
+    let wWalkSprites: HTMLCanvasElement[] = [];
     const player = { ...SPAWN };
     const camera = { ...SPAWN };
     const sceneImage = new Image();
@@ -4791,9 +5209,11 @@ export function MovementLab() {
     let nWalkElapsedSeconds = 0;
     let neWalkElapsedSeconds = 0;
     let nwWalkElapsedSeconds = 0;
+    let eWalkElapsedSeconds = 0;
     let sWalkElapsedSeconds = 0;
     let seWalkElapsedSeconds = 0;
     let swWalkElapsedSeconds = 0;
+    let wWalkElapsedSeconds = 0;
     let animationFrame = 0;
     let lastTime = performance.now();
     let viewportWidth = 1;
@@ -4997,6 +5417,13 @@ export function MovementLab() {
       optionsGamepadModeRef.current = "dpad";
       virtualCursorVisible = false;
       deactivateGamepadCursor();
+      const focusedElement = document.activeElement;
+      if (
+        focusedElement instanceof HTMLElement &&
+        focusedElement.closest(".options-dialog")
+      ) {
+        focusedElement.blur();
+      }
     };
 
     const activateInventoryDpadMode = () => {
@@ -5176,6 +5603,23 @@ export function MovementLab() {
       image.src = source;
     });
 
+    const eWalkImages = new Array<HTMLImageElement>(
+      E_WALK_FRAME_SOURCES.length,
+    );
+    let loadedEWalkFrameCount = 0;
+    E_WALK_FRAME_SOURCES.forEach((source, index) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.onload = () => {
+        eWalkImages[index] = image;
+        loadedEWalkFrameCount += 1;
+        if (loadedEWalkFrameCount === E_WALK_FRAME_SOURCES.length) {
+          eWalkSprites = makeChromaKeySpriteSequence(eWalkImages);
+        }
+      };
+      image.src = source;
+    });
+
     const sWalkImages = new Array<HTMLImageElement>(
       S_WALK_FRAME_SOURCES.length,
     );
@@ -5222,6 +5666,23 @@ export function MovementLab() {
         loadedSwWalkFrameCount += 1;
         if (loadedSwWalkFrameCount === SW_WALK_FRAME_SOURCES.length) {
           swWalkSprites = makeChromaKeySpriteSequence(swWalkImages);
+        }
+      };
+      image.src = source;
+    });
+
+    const wWalkImages = new Array<HTMLImageElement>(
+      W_WALK_FRAME_SOURCES.length,
+    );
+    let loadedWWalkFrameCount = 0;
+    W_WALK_FRAME_SOURCES.forEach((source, index) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.onload = () => {
+        wWalkImages[index] = image;
+        loadedWWalkFrameCount += 1;
+        if (loadedWWalkFrameCount === W_WALK_FRAME_SOURCES.length) {
+          wWalkSprites = makeChromaKeySpriteSequence(wWalkImages);
         }
       };
       image.src = source;
@@ -5721,6 +6182,11 @@ export function MovementLab() {
         } catch {
           // localStorage 不可用時仍保留本次記憶體狀態。
         }
+        for (const { reward, item } of resolvedRewards) {
+          if (reward.delivery === "inventory") {
+            showPlayerItemGain(item.name, reward.quantity);
+          }
+        }
       }
 
       if (plannedWorldItems.length > 0) {
@@ -5762,6 +6228,7 @@ export function MovementLab() {
       elapsedGameMinutes: number,
       effects: SurvivalEffects | undefined,
     ) => {
+      const previousSurvivalValues = { ...survivalStateRef.current.values };
       let nextSurvival = survivalStateRef.current;
       if (elapsedGameMinutes > 0) {
         nextSurvival = advanceSurvivalByGameMinutes(
@@ -5772,6 +6239,10 @@ export function MovementLab() {
       nextSurvival = applySurvivalEffects(nextSurvival, effects);
       survivalStateRef.current = nextSurvival;
       setSurvivalState(nextSurvival);
+      showPlayerSurvivalIncreases(
+        previousSurvivalValues,
+        nextSurvival.values,
+      );
       saveSurvivalState(nextSurvival);
       requestStoryTriggerContactCheckRef.current();
       if (elapsedGameMinutes > 0) {
@@ -6029,6 +6500,7 @@ export function MovementLab() {
             saveQuestSaveData(questManager.exportSave());
           }
           playOneShotAudio("worldItemPickedUp");
+          showPlayerItemGain(item.name, quantity);
 
           hotbarUseSequenceRef.current += 1;
           setHotbarFeedback({
@@ -7213,6 +7685,145 @@ export function MovementLab() {
     };
 
     const drawPlayer = () => {
+      const renderedHeight = sizeRef.current;
+      const radius = renderedHeight * 0.14;
+      let activeWalkElapsedSeconds = 0;
+      let activeWalkReferenceFps = N_WALK_REFERENCE_FPS;
+      let activeWalkFrameCount = N_WALK_FRAME_SOURCES.length;
+
+      switch (currentFacing) {
+        case "NE":
+          activeWalkElapsedSeconds = neWalkElapsedSeconds;
+          activeWalkReferenceFps = NE_WALK_REFERENCE_FPS;
+          activeWalkFrameCount = NE_WALK_FRAME_SOURCES.length;
+          break;
+        case "NW":
+          activeWalkElapsedSeconds = nwWalkElapsedSeconds;
+          activeWalkReferenceFps = NW_WALK_REFERENCE_FPS;
+          activeWalkFrameCount = NW_WALK_FRAME_SOURCES.length;
+          break;
+        case "E":
+          activeWalkElapsedSeconds = eWalkElapsedSeconds;
+          activeWalkReferenceFps = E_WALK_REFERENCE_FPS;
+          activeWalkFrameCount = E_WALK_FRAME_SOURCES.length;
+          break;
+        case "S":
+          activeWalkElapsedSeconds = sWalkElapsedSeconds;
+          activeWalkReferenceFps = S_WALK_REFERENCE_FPS;
+          activeWalkFrameCount = S_WALK_FRAME_SOURCES.length;
+          break;
+        case "SE":
+          activeWalkElapsedSeconds = seWalkElapsedSeconds;
+          activeWalkReferenceFps = SE_WALK_REFERENCE_FPS;
+          activeWalkFrameCount = SE_WALK_FRAME_SOURCES.length;
+          break;
+        case "SW":
+          activeWalkElapsedSeconds = swWalkElapsedSeconds;
+          activeWalkReferenceFps = SW_WALK_REFERENCE_FPS;
+          activeWalkFrameCount = SW_WALK_FRAME_SOURCES.length;
+          break;
+        case "W":
+          activeWalkElapsedSeconds = wWalkElapsedSeconds;
+          activeWalkReferenceFps = W_WALK_REFERENCE_FPS;
+          activeWalkFrameCount = W_WALK_FRAME_SOURCES.length;
+          break;
+        case "N":
+        default:
+          activeWalkElapsedSeconds = nWalkElapsedSeconds;
+          break;
+      }
+
+      const directionVector: Record<Direction, Point> = {
+        N: { x: 0, y: -1 },
+        NE: { x: Math.SQRT1_2, y: -Math.SQRT1_2 },
+        E: { x: 1, y: 0 },
+        SE: { x: Math.SQRT1_2, y: Math.SQRT1_2 },
+        S: { x: 0, y: 1 },
+        SW: { x: -Math.SQRT1_2, y: Math.SQRT1_2 },
+        W: { x: -1, y: 0 },
+        NW: { x: -Math.SQRT1_2, y: -Math.SQRT1_2 },
+      };
+      const forward = directionVector[currentFacing];
+      const side = { x: -forward.y, y: forward.x };
+      const walkFrame =
+        activeWalkFrameCount > 0
+          ? Math.floor(activeWalkElapsedSeconds * activeWalkReferenceFps) %
+            activeWalkFrameCount
+          : 0;
+      const gaitPhase =
+        wasMoving && activeWalkFrameCount > 0
+          ? (walkFrame / activeWalkFrameCount) * Math.PI * 2
+          : 0;
+      const stride = wasMoving ? Math.sin(gaitPhase) : 0;
+      const leftContact = wasMoving ? (1 + stride) / 2 : 1;
+      const rightContact = wasMoving ? (1 - stride) / 2 : 1;
+      const sideOffset = renderedHeight * 0.043;
+      const strideOffset = renderedHeight * 0.032;
+      const shadowCenterY = player.y - renderedHeight * 0.012;
+      const shadowTuning = playerShadowTuningRef.current[currentFacing];
+      const shadowWidthScale = shadowTuning.widthPercent / 100;
+      const shadowHeightScale = shadowTuning.heightPercent / 100;
+
+      const drawSoftShadowEllipse = (
+        x: number,
+        y: number,
+        radiusX: number,
+        radiusY: number,
+        centerAlpha: number,
+        fadeStart: number,
+      ) => {
+        context.save();
+        context.translate(x, y);
+        context.scale(1, radiusY / Math.max(radiusX, Number.EPSILON));
+        const gradient = context.createRadialGradient(0, 0, 0, 0, 0, radiusX);
+        gradient.addColorStop(0, `rgba(3, 9, 12, ${centerAlpha})`);
+        gradient.addColorStop(
+          fadeStart,
+          `rgba(3, 9, 12, ${centerAlpha * 0.58})`,
+        );
+        gradient.addColorStop(1, "rgba(3, 9, 12, 0)");
+        context.fillStyle = gradient;
+        context.beginPath();
+        context.arc(0, 0, radiusX, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+      };
+
+      // The broad layer grounds the whole body without looking like a fixed black disc.
+      drawSoftShadowEllipse(
+        player.x + shadowTuning.ambientOffsetX,
+        shadowCenterY + shadowTuning.ambientOffsetY,
+        renderedHeight * 0.155 * shadowWidthScale,
+        renderedHeight * 0.047 * shadowHeightScale,
+        0.7,
+        0.48,
+      );
+
+      // The tighter layer follows the two boots and alternates contact over the walk cycle.
+      const drawBootContactShadow = (sideSign: number, contact: number) => {
+        const liftScale = 0.67 + contact * 0.33;
+        const footX =
+          player.x +
+          shadowTuning.bootOffsetX +
+          side.x * sideOffset * sideSign +
+          forward.x * strideOffset * stride * sideSign;
+        const footY =
+          shadowCenterY +
+          shadowTuning.bootOffsetY +
+          side.y * sideOffset * sideSign +
+          forward.y * strideOffset * stride * sideSign;
+        drawSoftShadowEllipse(
+          footX,
+          footY,
+          renderedHeight * 0.056 * shadowWidthScale * liftScale,
+          renderedHeight * 0.019 * shadowHeightScale * liftScale,
+          0.31 + contact * 0.25,
+          0.62,
+        );
+      };
+      drawBootContactShadow(-1, leftContact);
+      drawBootContactShadow(1, rightContact);
+
       const nWalkSprite =
         currentFacing === "N" &&
         wasMoving &&
@@ -7238,6 +7849,15 @@ export function MovementLab() {
           ? nwWalkSprites[
               Math.floor(nwWalkElapsedSeconds * NW_WALK_REFERENCE_FPS) %
                 nwWalkSprites.length
+            ]
+          : null;
+      const eWalkSprite =
+        currentFacing === "E" &&
+        wasMoving &&
+        eWalkSprites.length === E_WALK_FRAME_SOURCES.length
+          ? eWalkSprites[
+              Math.floor(eWalkElapsedSeconds * E_WALK_REFERENCE_FPS) %
+                eWalkSprites.length
             ]
           : null;
       const sWalkSprite =
@@ -7267,17 +7887,25 @@ export function MovementLab() {
                 swWalkSprites.length
             ]
           : null;
+      const wWalkSprite =
+        currentFacing === "W" &&
+        wasMoving &&
+        wWalkSprites.length === W_WALK_FRAME_SOURCES.length
+          ? wWalkSprites[
+              Math.floor(wWalkElapsedSeconds * W_WALK_REFERENCE_FPS) %
+                wWalkSprites.length
+            ]
+          : null;
       const sprite =
         nWalkSprite ??
         neWalkSprite ??
         nwWalkSprite ??
+        eWalkSprite ??
         sWalkSprite ??
         seWalkSprite ??
         swWalkSprite ??
+        wWalkSprite ??
         sprites.get(currentFacing);
-      const renderedHeight = sizeRef.current;
-      const radius = renderedHeight * 0.14;
-
       if (sprite) {
         const renderedWidth =
           renderedHeight * (sprite.width / Math.max(1, sprite.height));
@@ -7644,6 +8272,63 @@ export function MovementLab() {
       context.restore();
     };
 
+    const drawPlayerInfoFloats = (time: number) => {
+      playerInfoFloatsRef.current = prunePlayerInfoFloats(
+        playerInfoFloatsRef.current,
+        time,
+      );
+      if (playerInfoFloatsRef.current.length === 0) return;
+
+      const zoom = getSceneZoom(viewportWidth, viewportHeight);
+      const statuses = getCharacterStatuses(survivalStateRef.current.values);
+      const fontSize = 18 / zoom;
+      const rowHeight = 24;
+      const anchorY =
+        player.y -
+        sizeRef.current -
+        (24 + statuses.length * 19) / zoom;
+      const visuals = getPlayerInfoFloatVisuals(
+        playerInfoFloatsRef.current,
+        time,
+        rowHeight,
+      );
+
+      context.save();
+      context.font = `800 ${fontSize}px "Segoe UI", "Noto Sans TC", sans-serif`;
+      context.textBaseline = "bottom";
+      context.textAlign = "left";
+      context.lineJoin = "round";
+      context.lineWidth = 3 / zoom;
+
+      for (const visual of visuals) {
+        if (visual.opacity <= 0) continue;
+        const widths = visual.entry.segments.map((segment) =>
+          context.measureText(segment.text).width,
+        );
+        const totalWidth = widths.reduce((sum, width) => sum + width, 0);
+
+        context.save();
+        context.globalAlpha = visual.opacity;
+        context.translate(
+          player.x,
+          anchorY + visual.yOffset / zoom,
+        );
+        context.scale(visual.scale, visual.scale);
+        let x = -totalWidth / 2;
+        for (let index = 0; index < visual.entry.segments.length; index += 1) {
+          const segment = visual.entry.segments[index];
+          context.strokeStyle = "rgba(3, 10, 14, 0.94)";
+          context.strokeText(segment.text, x, 0);
+          context.fillStyle =
+            segment.tone === "positive" ? "#76f09a" : "#f4fbff";
+          context.fillText(segment.text, x, 0);
+          x += widths[index];
+        }
+        context.restore();
+      }
+      context.restore();
+    };
+
     const getInteractionPromptTargetLabel = (target: SceneInteractable) =>
       target.label.trim();
 
@@ -7742,6 +8427,7 @@ export function MovementLab() {
         return;
       }
 
+      const isStartingFootsteps = !footstepShouldPlay;
       footstepShouldPlay = true;
       const targetPlaybackRate = clamp(
         (movementSpeed / FOOTSTEP_REFERENCE_SPEED) *
@@ -7749,18 +8435,20 @@ export function MovementLab() {
         0.5,
         3.2,
       );
-      const playbackRateSmoothing = 1 - Math.exp(-deltaTime * 9);
-      footstepPlaybackRate +=
-        (targetPlaybackRate - footstepPlaybackRate) * playbackRateSmoothing;
+      if (isStartingFootsteps) {
+        footstepAudio.currentTime = 0;
+        footstepPlaybackRate = targetPlaybackRate;
+      } else {
+        const playbackRateSmoothing = 1 - Math.exp(-deltaTime * 9);
+        footstepPlaybackRate +=
+          (targetPlaybackRate - footstepPlaybackRate) * playbackRateSmoothing;
+      }
       footstepAudio.playbackRate = footstepPlaybackRate;
       requestFootstepPlayback();
     };
 
     const update = (deltaTime: number) => {
       const movementStart = { x: player.x, y: player.y };
-      const effectiveMovementSpeed =
-        speedRef.current *
-        getSurvivalSpeedMultiplier(survivalStateRef.current.values);
       const keyboardHorizontal =
         Number(pressedKeys.has("d") || pressedKeys.has("arrowright")) -
         Number(pressedKeys.has("a") || pressedKeys.has("arrowleft"));
@@ -7794,6 +8482,12 @@ export function MovementLab() {
       const gamepadInput = browserGamepadInput.connected
         ? browserGamepadInput
         : nativeGamepadInput;
+      const acceleratedWalkActive =
+        pressedKeys.has("shift") || gamepadInput.acceleratePressed;
+      const effectiveMovementSpeed =
+        speedRef.current *
+        getSurvivalSpeedMultiplier(survivalStateRef.current.values) *
+        (acceleratedWalkActive ? ACCELERATED_WALK_SPEED_MULTIPLIER : 1);
       const hasGamepadActivity =
         Math.abs(gamepadInput.stickX) > 0.01 ||
         Math.abs(gamepadInput.stickY) > 0.01 ||
@@ -7808,7 +8502,8 @@ export function MovementLab() {
         gamepadInput.backPressed ||
         gamepadInput.startPressed ||
         gamepadInput.leftBumperPressed ||
-        gamepadInput.rightBumperPressed;
+        gamepadInput.rightBumperPressed ||
+        gamepadInput.acceleratePressed;
       if (gamepadInput.connected && hasGamepadActivity) {
         activeInputMode = "gamepad";
         activateQuestPromptInputMode("gamepad");
@@ -7864,10 +8559,17 @@ export function MovementLab() {
         gamepadInput.cursorX,
         gamepadInput.cursorY,
       );
+      const optionsCursorCanTakeControl =
+        !optionsOpenRef.current ||
+        shouldOptionsCursorTakeControl(
+          optionsGamepadModeRef.current,
+          cursorInputLength,
+        );
       if (
         virtualCursorControlsEnabledRef.current &&
         gamepadInput.connected &&
-        cursorInputLength > 0
+        cursorInputLength > 0 &&
+        optionsCursorCanTakeControl
       ) {
         if (optionsOpenRef.current) {
           optionsGamepadModeRef.current = "cursor";
@@ -8458,44 +9160,66 @@ export function MovementLab() {
       if (isActuallyMoving && currentFacing === "N") {
         nWalkElapsedSeconds +=
           deltaTime *
-          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75);
+          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75) *
+          WALK_ANIMATION_SPEED_MULTIPLIER;
       } else {
         nWalkElapsedSeconds = 0;
       }
       if (isActuallyMoving && currentFacing === "NE") {
         neWalkElapsedSeconds +=
           deltaTime *
-          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75);
+          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75) *
+          WALK_ANIMATION_SPEED_MULTIPLIER;
       } else {
         neWalkElapsedSeconds = 0;
       }
       if (isActuallyMoving && currentFacing === "NW") {
         nwWalkElapsedSeconds +=
           deltaTime *
-          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75);
+          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75) *
+          WALK_ANIMATION_SPEED_MULTIPLIER;
       } else {
         nwWalkElapsedSeconds = 0;
+      }
+      if (isActuallyMoving && currentFacing === "E") {
+        eWalkElapsedSeconds +=
+          deltaTime *
+          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75) *
+          WALK_ANIMATION_SPEED_MULTIPLIER;
+      } else {
+        eWalkElapsedSeconds = 0;
       }
       if (isActuallyMoving && currentFacing === "S") {
         sWalkElapsedSeconds +=
           deltaTime *
-          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75);
+          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75) *
+          WALK_ANIMATION_SPEED_MULTIPLIER;
       } else {
         sWalkElapsedSeconds = 0;
       }
       if (isActuallyMoving && currentFacing === "SE") {
         seWalkElapsedSeconds +=
           deltaTime *
-          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75);
+          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75) *
+          WALK_ANIMATION_SPEED_MULTIPLIER;
       } else {
         seWalkElapsedSeconds = 0;
       }
       if (isActuallyMoving && currentFacing === "SW") {
         swWalkElapsedSeconds +=
           deltaTime *
-          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75);
+          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75) *
+          WALK_ANIMATION_SPEED_MULTIPLIER;
       } else {
         swWalkElapsedSeconds = 0;
+      }
+      if (isActuallyMoving && currentFacing === "W") {
+        wWalkElapsedSeconds +=
+          deltaTime *
+          clamp(actualMovementSpeed / FOOTSTEP_REFERENCE_SPEED, 0.55, 1.75) *
+          WALK_ANIMATION_SPEED_MULTIPLIER;
+      } else {
+        wWalkElapsedSeconds = 0;
       }
       updateFootstepAudio(actualMovementSpeed, deltaTime);
 
@@ -8648,6 +9372,7 @@ export function MovementLab() {
       drawPlayer();
       drawInteractionHintPoints(time);
       drawPlayerStatuses(time);
+      drawPlayerInfoFloats(time);
       drawTouchEffect(time);
       context.restore();
       drawHeldPointerIndicator(time);
@@ -9024,6 +9749,23 @@ export function MovementLab() {
   const dayNightStyle = getDayNightCssVariables(
     survivalState.gameMinutes,
   ) as CSSProperties;
+  const activePlayerShadowTuning = playerShadowTuning[facing];
+  const playerShadowTuningControls: Array<{
+    id: OptionsMenuItem;
+    field: PlayerShadowTuningField;
+    label: string;
+    minimum: number;
+    maximum: number;
+    step: number;
+    suffix: string;
+  }> = [
+    { id: "shadow-ambient-x", field: "ambientOffsetX", label: "環境影 X", minimum: -80, maximum: 80, step: 1, suffix: "px" },
+    { id: "shadow-ambient-y", field: "ambientOffsetY", label: "環境影 Y", minimum: -80, maximum: 80, step: 1, suffix: "px" },
+    { id: "shadow-boots-x", field: "bootOffsetX", label: "靴底影 X", minimum: -80, maximum: 80, step: 1, suffix: "px" },
+    { id: "shadow-boots-y", field: "bootOffsetY", label: "靴底影 Y", minimum: -80, maximum: 80, step: 1, suffix: "px" },
+    { id: "shadow-width", field: "widthPercent", label: "陰影寬度", minimum: 50, maximum: 300, step: 5, suffix: "%" },
+    { id: "shadow-height", field: "heightPercent", label: "陰影高度", minimum: 50, maximum: 300, step: 5, suffix: "%" },
+  ];
 
   return (
     <div
@@ -9151,6 +9893,16 @@ export function MovementLab() {
         </form>
       ) : null}
 
+      <header className="survival-clock survival-clock-mobile" aria-label="遊戲日期與時間">
+        <span>
+          Day <strong>{gameClock.day}</strong>
+        </span>
+        <span>
+          <i aria-hidden="true">{gameClock.hour >= 6 && gameClock.hour < 18 ? "☀" : "☾"}</i>
+          <strong>{String(gameClock.hour).padStart(2, "0")}:{String(gameClock.minute).padStart(2, "0")}</strong>
+        </span>
+      </header>
+
       <section
         className="compass-strip"
         aria-label={`角色目前面向：${DIRECTION_NAMES[facing]}`}
@@ -9238,8 +9990,14 @@ export function MovementLab() {
         </p>
       </section>
 
-      <aside ref={survivalHudRef} className={`survival-hud${survivalExpanded ? " is-expanded" : ""}${inventoryOpen ? " is-inventory-open" : ""}`} aria-label="生存狀態指示表">
-        <header className="survival-clock">
+      <aside
+        ref={survivalHudRef}
+        className={`survival-hud${survivalPanelExpanded ? " is-expanded" : ""}${
+          mobileHudLayout && survivalMobileMode === "mini" ? " is-mobile-mini" : ""
+        }${inventoryOpen ? " is-inventory-open" : ""}`}
+        aria-label="生存狀態指示表"
+      >
+        <header className="survival-clock survival-clock-desktop">
           <span>
             Day <strong>{gameClock.day}</strong>
           </span>
@@ -9248,7 +10006,20 @@ export function MovementLab() {
             <strong>{String(gameClock.hour).padStart(2, "0")}:{String(gameClock.minute).padStart(2, "0")}</strong>
           </span>
         </header>
-        <div className="survival-mini-panel" aria-hidden={survivalExpanded}>
+        <div
+          className="survival-mobile-minimal-panel"
+          aria-hidden={!mobileHudLayout || survivalMobileMode !== "mini"}
+        >
+          <span className="survival-mobile-mini-arrow" aria-hidden="true" />
+          <i aria-hidden="true">{SURVIVAL_STATS[0].symbol}</i>
+          <b aria-hidden="true">
+            <em style={{ width: `${survivalState.values.stamina}%` }} />
+          </b>
+        </div>
+        <div
+          className="survival-mini-panel"
+          aria-hidden={survivalPanelExpanded || survivalMobileMode === "mini"}
+        >
           {SURVIVAL_STATS.map((stat) => {
             const value = survivalState.values[stat.id];
             const critical = value <= 20;
@@ -9260,7 +10031,7 @@ export function MovementLab() {
             </span>
           )})}
         </div>
-        <div className="survival-panel" aria-hidden={!survivalExpanded}>
+        <div className="survival-panel" aria-hidden={!survivalPanelExpanded}>
           {SURVIVAL_STATS.map((stat) => {
             const value = survivalState.values[stat.id];
             const critical = value <= 20;
@@ -9288,8 +10059,8 @@ export function MovementLab() {
         <button
           className="survival-toggle-hitbox"
           type="button"
-          aria-label={survivalExpanded ? "收合生存狀態" : "展開生存狀態"}
-          aria-expanded={survivalExpanded}
+          aria-label={survivalPanelExpanded ? "收合生存狀態" : "展開生存狀態"}
+          aria-expanded={survivalPanelExpanded}
           aria-keyshortcuts="R"
           disabled={inventoryOpen}
           onClick={toggleSurvivalPanel}
@@ -9299,6 +10070,8 @@ export function MovementLab() {
       <aside
         ref={questHudRef}
         className={`quest-hud${questPanelCollapsed ? " is-collapsed" : ""}${
+          mobileHudLayout && questMobileMode === "mini" ? " is-mobile-mini" : ""
+        }${
           hasActiveQuest ? "" : " is-history"
         }${activeQuestHudEvent ? ` is-event-${activeQuestHudEvent.kind}` : ""}${
           questStageEntering ? " is-stage-entering" : ""
@@ -9312,8 +10085,11 @@ export function MovementLab() {
           <span className="quest-event-frame" aria-hidden="true" />
         ) : null}
         <header className="quest-header">
-          <span className="quest-type-icon" aria-hidden="true">
-            {hasActiveQuest ? "◇" : "✓"}
+          <span
+            className={`quest-type-icon${hasActiveQuest ? "" : " is-empty"}`}
+            aria-hidden="true"
+          >
+            {hasActiveQuest ? "◇" : null}
           </span>
           <div className="quest-title">
             <small>{activeQuestHud?.categoryLabel ?? "MAIN OBJECTIVE"}</small>
@@ -9957,6 +10733,90 @@ export function MovementLab() {
                     <output className="slider-value" htmlFor="collision-slide-tolerance">{collisionSlideTolerance}%</output>
                     <input id="collision-slide-tolerance" type="range" min="20" max="100" step="5" value={collisionSlideTolerance} onFocus={() => setOptionsMenuSelectionValue("collision-slide-tolerance")} onChange={(event) => setCollisionSlideToleranceValue(Number(event.target.value))} />
                   </div>
+                  <div className="options-section-heading shadow-tuning-heading">
+                    <span>角色陰影校準 · {facing}</span>
+                    <small>目前只調整角色正面朝向的這一組設定；移動角色改變方向後即可校準另一組。</small>
+                  </div>
+                  {playerShadowTuningControls.map((control) => (
+                    <div
+                      className="slider-row"
+                      data-gamepad-selected={
+                        optionsMenuSelection === control.id || undefined
+                      }
+                      key={control.id}
+                    >
+                      <label htmlFor={control.id}>{control.label}</label>
+                      <output className="slider-value" htmlFor={control.id}>
+                        {activePlayerShadowTuning[control.field]}
+                        {control.suffix}
+                      </output>
+                      <input
+                        id={control.id}
+                        type="range"
+                        min={control.minimum}
+                        max={control.maximum}
+                        step={control.step}
+                        value={activePlayerShadowTuning[control.field]}
+                        onFocus={() => setOptionsMenuSelectionValue(control.id)}
+                        onChange={(event) => {
+                          setOptionsMenuSelectionValue(control.id);
+                          setPlayerShadowTuningValue(
+                            control.field,
+                            Number(event.target.value),
+                          );
+                        }}
+                      />
+                    </div>
+                  ))}
+                  <button
+                    className="apply-player-defaults-option"
+                    type="button"
+                    data-gamepad-selected={
+                      optionsMenuSelection === "apply-shadow-tuning" || undefined
+                    }
+                    onFocus={() => setOptionsMenuSelectionValue("apply-shadow-tuning")}
+                    onClick={() => {
+                      setOptionsMenuSelectionValue("apply-shadow-tuning");
+                      applyPlayerShadowTuning();
+                    }}
+                  >
+                    <span>
+                      <strong>儲存八方向陰影設定</strong>
+                      <small>所有方向會一起寫入本機，下次啟動自動套用。</small>
+                    </span>
+                    <b>
+                      {shadowTuningSaveFailed
+                        ? "儲存失敗"
+                        : shadowTuningSaved
+                          ? "已套用"
+                          : "套用"}
+                    </b>
+                  </button>
+                  <button
+                    className="apply-player-defaults-option"
+                    type="button"
+                    data-gamepad-selected={optionsMenuSelection === "apply-player-defaults" || undefined}
+                    onFocus={() => setOptionsMenuSelectionValue("apply-player-defaults")}
+                    onClick={() => {
+                      setOptionsMenuSelectionValue("apply-player-defaults");
+                      applyPlayerDefaults();
+                    }}
+                  >
+                    <span>
+                      <strong>角色預設參數</strong>
+                      <small>
+                        已儲存：尺寸 {savedPlayerDefaults.size}／移動速度 {savedPlayerDefaults.speed}
+                      </small>
+                    </span>
+                    <b>
+                      {playerDefaultsSaveFailed
+                        ? "儲存失敗"
+                        : size === savedPlayerDefaults.size &&
+                            speed === savedPlayerDefaults.speed
+                          ? "已套用"
+                          : "套用"}
+                    </b>
+                  </button>
                   <button
                     className="restart-game-option"
                     type="button"
@@ -10033,7 +10893,7 @@ export function MovementLab() {
       ) : null}
 
       <p className="controls-subtitle" aria-label="操作提示">
-        <span className="controls-subtitle-desktop">WASD／方向鍵、滑鼠點擊、左搖桿移動 · 右搖桿游標 · Q／RB：任務 · R／LB：生存 · ESC／START：選項</span>
+        <span className="controls-subtitle-desktop">WASD／方向鍵、滑鼠點擊、左搖桿移動 · Shift／LT：加速行走 · 右搖桿游標 · Q／RB：任務 · R／LB：生存 · ESC／START：選項</span>
         <span className="controls-subtitle-touch">上半部點擊前往 · 下半部按住移動 · START：選項</span>
       </p>
 
