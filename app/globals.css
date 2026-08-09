@@ -4251,30 +4251,36 @@ html.dialogue-cursor-active .dialogue-box * {
   }
 
   .inventory-hotbar {
-    right: 10px;
-    bottom: 12px;
-    left: 70px;
-    gap: 6px;
+    right: 14px;
+    bottom: 14px;
+    left: 62px;
+    display: block;
+    height: 46px;
+    gap: 0;
   }
 
   .hotbar-slots {
+    width: max-content;
     justify-content: flex-start;
-    gap: 3px;
+    gap: 2px;
     padding: 4px;
   }
 
   .hotbar-slot {
-    width: min(8.6vw, 42px);
+    width: min(9vw, 44px);
   }
 
   .inventory-trigger {
-    width: 38px;
-    height: 38px;
-    flex-basis: 38px;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 46px;
+    height: 46px;
+    flex-basis: 46px;
   }
 
   .inventory-trigger-icon {
-    transform: scale(0.84);
+    transform: none;
   }
 
   .hotbar-feedback {
@@ -4462,6 +4468,11 @@ html.dialogue-cursor-active .dialogue-box * {
 }
 
 @media (max-width: 680px), (hover: none) and (pointer: coarse) {
+  .survival-hud.is-expanded:not(.is-inventory-open),
+  .quest-hud:not(.is-collapsed):not(.is-mobile-mini) {
+    z-index: 8;
+  }
+
   .survival-hud.is-mobile-mini {
     top: 14px;
     left: 14px;
@@ -4591,15 +4602,15 @@ html.dialogue-cursor-active .dialogue-box * {
 
 @media (max-width: 680px), (hover: none) and (pointer: coarse) {
   .minimap-hud {
-    right: 14px;
-    bottom: 184px;
-    width: 156px;
-    height: 156px;
+    right: 4px;
+    bottom: 80px;
+    width: 132px;
+    height: 132px;
   }
 
   .minimap-hud.is-collapsed {
-    right: 14px;
-    bottom: 72px;
+    right: 10px;
+    bottom: 76px;
     width: 46px;
     height: 46px;
   }
@@ -4622,11 +4633,24 @@ html.dialogue-cursor-active .dialogue-box * {
   }
 
   .mobile-interaction-trigger {
+    right: 118px;
+    bottom: 80px;
     display: grid;
   }
 
   .fullscreen-trigger {
+    right: 14px;
+    bottom: 70px;
     display: grid;
+    width: 46px;
+    height: 46px;
+    padding: 12px;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 34% 30%, rgba(126, 230, 217, 0.2), transparent 35%),
+      rgba(8, 18, 21, 0.84);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32), inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+    backdrop-filter: blur(16px);
   }
 
 }
