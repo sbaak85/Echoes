@@ -9,6 +9,9 @@ Version 1 fields:
 - `image` and `world`: source image name and world dimensions.
 - `grid`: editor grid size, visibility, and snapping preference.
 - `playerSpawn`: player foot position and one of the eight directions.
+- `entryPoints`: named, reusable map-entry landing points. Each record stores
+  `id`, `label`, `x`, `y`, and eight-direction `facing`; Entry Points must remain
+  inside NavMesh and are separate from the one default `playerSpawn`.
 - `navMesh`: one or more walkable polygons.
 - `collisions`: polygon, rectangle, or circle blocking shapes.
 - `interactables`: bright-yellow, non-blocking interaction polygons. Each
@@ -33,15 +36,22 @@ Version 1 fields:
   activation `width`, and `bidirectional`. While the player touches the guide
   corridor, movement input is projected onto the nearest segment and gently
   corrected toward its center line.
-- `worldLayout`: reserved world-space placement for seamless map assembly.
-- `connections`: reserved scene entry/exit records. A future record will store
-  its trigger area, target scene, target landing position and facing, and the
-  relative placement of both scenes.
+- `worldLayout`: world-space placement used by MapEditor map-page navigation.
+  Pages whose bounds touch are exposed through the four canvas arrows. The
+  editor writes a newly created page immediately beside the current page while
+  preserving each page as a separate image and scene JSON.
+- `connections`: editable entrance/exit polygons. Each record stores polygon
+  `area`, `targetSceneId`, `targetEntryPointId`, `triggerMode`
+  (`auto`/`manual`/`choice`), `transitionMode` (`seamless`/`blackout`),
+  `transferMode` (`teleport`/`pathfind`), and `cameraFocus`
+  (`player`/`sceneRoot`). This version authors and validates the data only;
+  browser runtime scene switching is not implemented yet.
 
 When an interactable is activated, the runtime emits the window event
 `echoes:interaction` with the object id, label, interaction type, and input
 source. `map_test01` includes one campfire dialogue test region with the
 default single line `...`.
 
-The runtime currently loads `map_test01.scene.json`. Scene switching and the
-world-layout preview are intentionally reserved for a later editor version.
+The runtime currently loads `map_test01.scene.json`. MapEditor can now browse
+and create adjacent pages, but runtime scene switching and multi-map transition
+rendering remain reserved for a later game version.

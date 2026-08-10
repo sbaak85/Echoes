@@ -32,7 +32,20 @@ Included in version 1:
   it; right-click near a selected polygon edge to insert a node at that point.
   Polygons always retain at least three nodes and close automatically.
 - View zoom, fit, pan, rulers, grid visibility, grid spacing, and snapping.
+- Four map-page arrows around the canvas navigate to pages whose `worldLayout`
+  bounds touch the current map on the top, right, bottom, or left. A
+  bright-white arrow means that page exists. A dark-gray arrow remains
+  clickable and opens a confirmation before creating a new adjacent page from
+  a selected image. Switching pages keeps every page in its own image and
+  `.scene.json`; unsaved changes are handled before leaving the current page.
+- The editable `sceneId` field is the map ID used by page navigation and future
+  runtime transitions. The image filename and map ID do not need to match.
 - Player spawn position and eight-direction facing.
+- `Entry Point` 工具可在 NavMesh 內建立複數地圖進入落點。每個落點都有
+  可修改的 Point ID、名稱、座標與八方向面向，不會取代單一的預設出生點。
+- `出入口多邊形` 工具可圈出地圖切換觸發範圍，並在右側設定目標地圖 ID、
+  目標 Entry Point ID、自動／手動／選項啟動、無縫／黑幕轉場、尋路／瞬移，
+  以及鏡頭跟隨角色／地圖 Root。儲存時會驗證目標地圖與 Entry Point 存在。
 - `傳送點`工具可在 NavMesh 內建立具唯一 Point ID 的傳送位置，並設定
   N／NE／E／SE／S／SW／W／NW 面向。傳送點會寫入場景 JSON 的
   `teleportPoints`，供任務啟動、完成、Stage 與 OBJ 流程引用。
@@ -107,9 +120,10 @@ Polygon drawing is completed with double-click, right-click, or Enter. Escape
 cancels the shape being drawn. The mouse wheel zooms; middle mouse or Space-drag
 pans the view.
 
-`worldLayout` and `connections` are present in the JSON schema for future
-seamless multi-scene layout, entrances, exits, and landing positions. The first
-version deliberately does not expose those fields in the editor.
+`worldLayout` now places map pages in the editor's seamless world grid.
+`entryPoints` and `connections` now store editor-authored map landing points
+and entrance/exit polygons. Runtime scene loading, camera movement, and actual
+player transfer intentionally remain outside this editor-only version.
 
 Build and publish from the repository root:
 

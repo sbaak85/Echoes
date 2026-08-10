@@ -31,6 +31,9 @@ public sealed class MainForm : Form
     private readonly Label _selectionInfoLabel = new();
     private readonly Label _zoomLabel = new();
     private readonly ToolStripStatusLabel _statusLabel = new("準備就緒");
+    private readonly Dictionary<MapPageDirection, Button> _mapPageButtons = new();
+    private readonly Dictionary<MapPageDirection, MapPageRecord?> _mapPageNeighbors = new();
+    private readonly ToolTip _mapPageToolTip = new();
     private readonly ToolStripButton _undoButton = new("復原");
     private readonly ToolStripButton _redoButton = new("重做");
     private readonly ToolStripButton _gridButton = new("格線") { CheckOnClick = true };
@@ -119,6 +122,16 @@ public sealed class MainForm : Form
     };
     private readonly Button _itemPointSpawnRequirementButton =
         CreateButton("Spawn 需求設定…", 10, 283, 255, 30);
+    private readonly GroupBox _entryPointGroup = CreateGroup("地圖 Entry Point", 112);
+    private readonly TextBox _entryPointIdText = new();
+    private readonly GroupBox _sceneConnectionGroup = CreateGroup("地圖出入口設定", 318);
+    private readonly TextBox _sceneConnectionIdText = new();
+    private readonly ComboBox _targetSceneCombo = new() { DropDownStyle = ComboBoxStyle.DropDown };
+    private readonly ComboBox _targetEntryPointCombo = new() { DropDownStyle = ComboBoxStyle.DropDown };
+    private readonly ComboBox _connectionTriggerModeCombo = new() { DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly ComboBox _connectionTransitionModeCombo = new() { DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly ComboBox _connectionTransferModeCombo = new() { DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly ComboBox _connectionCameraFocusCombo = new() { DropDownStyle = ComboBoxStyle.DropDownList };
 
     private readonly string? _projectRoot;
     private string? _imagePath;
@@ -153,7 +166,7 @@ public sealed class MainForm : Form
             SplitterWidth = 5,
             BackColor = Color.FromArgb(48, 53, 62),
         };
-        split.Panel1.Controls.Add(_canvas);
+        split.Panel1.Controls.Add(BuildMapWorkspace());
         split.Panel2.Controls.Add(BuildSidebar());
         split.SizeChanged += (_, _) =>
         {
@@ -192,6 +205,39 @@ public sealed class MainForm : Form
             new ItemPointSpawnPolicyItem("sceneEntry", "進入地圖時重新生成"),
         });
         _itemPointSpawnPolicyCombo.SelectedIndex = 0;
+        _connectionTriggerModeCombo.Items.AddRange(new object[]
+        {
+            new ConnectionOptionItem("auto", "自動（角色進入）"),
+            new ConnectionOptionItem("manual", "手動操作"),
+            new ConnectionOptionItem("choice", "跳出選項確認"),
+        });
+        _connectionTransitionModeCombo.Items.AddRange(new object[]
+        {
+            new ConnectionOptionItem("seamless", "無縫滑動"),
+            new ConnectionOptionItem("blackout", "黑幕轉場"),
+        });
+        _connectionTransferModeCombo.Items.AddRange(new object[]
+        {
+            new ConnectionOptionItem("teleport", "瞬移到 Entry Point"),
+            new ConnectionOptionItem("pathfind", "自動尋路到 Entry Point"),
+        });
+        _connectionCameraFocusCombo.Items.AddRange(new object[]
+        {
+            new ConnectionOptionItem("player", "鏡頭對準角色"),
+            new ConnectionOptionItem("sceneRoot", "鏡頭對準地圖 Root"),
+        });
+        _connectionTriggerModeCombo.SelectedIndex = 0;
+        _connectionTransitionModeCombo.SelectedIndex = 0;
+        _connectionTransferModeCombo.SelectedIndex = 0;
+        _connectionCameraFocusCombo.SelectedIndex = 0;
+        _targetSceneCombo.SelectedIndexChanged += (_, _) =>
+        {
+            if (!_syncingSelection) RefreshTargetEntryPointChoices(_targetSceneCombo.Text);
+        };
+        _targetSceneCombo.TextChanged += (_, _) =>
+        {
+            if (!_syncingSelection) RefreshTargetEntryPointChoices(_targetSceneCombo.Text);
+        };
 
         _canvas.DocumentChanged += CanvasOnDocumentChanged;
         _canvas.SelectionChanged += (_, _) =>
@@ -230,6 +276,8 @@ public sealed class MainForm : Form
             {
                 if (_canvas.SelectedTeleportPoint is not null)
                     _canvas.SetSelectedTeleportPointFacing(facing);
+                else if (_canvas.SelectedEntryPoint is not null)
+                    _canvas.SetSelectedEntryPointFacing(facing);
                 else
                     _canvas.SetPlayerFacing(facing);
             }
@@ -237,6 +285,7 @@ public sealed class MainForm : Form
 
         Shown += (_, _) => LoadDefaultTemplate();
         FormClosing += OnFormClosing;
+        FormClosed += (_, _) => _mapPageToolTip.Dispose();
         UpdateTitle();
     }
 
@@ -315,6 +364,8 @@ public sealed class MainForm : Form
         AddToolButton(toolbar, "強制引導線", EditorTool.MovementGuide, "逐點鋪設雙向箭頭移動引導路徑");
         AddToolButton(toolbar, "出生點", EditorTool.PlayerSpawn, "點擊設定玩家出生位置");
         AddToolButton(toolbar, "傳送點", EditorTool.TeleportPoint, "點擊新增可由任務指定的傳送 Point");
+        AddToolButton(toolbar, "Entry Point", EditorTool.EntryPoint, "在 NavMesh 內新增可複數使用的地圖進入落點");
+        AddToolButton(toolbar, "出入口多邊形", EditorTool.SceneExitPolygon, "圈出切換地圖的觸發範圍，完成後設定目標地圖與 Entry Point");
         toolbar.Items.Add(new ToolStripSeparator());
 
         _undoButton.ToolTipText = "復原 Ctrl+Z";
@@ -366,6 +417,70 @@ public sealed class MainForm : Form
         return status;
     }
 
+    private Control BuildMapWorkspace()
+    {
+        var workspace = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.FromArgb(14, 17, 22),
+        };
+        workspace.Controls.Add(_canvas);
+
+        AddMapPageArrow(workspace, MapPageDirection.Up, "▲", "上方");
+        AddMapPageArrow(workspace, MapPageDirection.Right, "▶", "右方");
+        AddMapPageArrow(workspace, MapPageDirection.Down, "▼", "下方");
+        AddMapPageArrow(workspace, MapPageDirection.Left, "◀", "左方");
+        workspace.SizeChanged += (_, _) => PositionMapPageArrows(workspace);
+        PositionMapPageArrows(workspace);
+        return workspace;
+    }
+
+    private void AddMapPageArrow(
+        Control workspace,
+        MapPageDirection direction,
+        string glyph,
+        string directionLabel)
+    {
+        var button = new Button
+        {
+            Text = glyph,
+            AccessibleName = $"{directionLabel}地圖頁",
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(14, 17, 22),
+            ForeColor = Color.FromArgb(82, 88, 98),
+            Font = new Font("Segoe UI Symbol", 28, FontStyle.Bold, GraphicsUnit.Pixel),
+            Cursor = Cursors.Hand,
+            TabStop = false,
+            UseVisualStyleBackColor = false,
+        };
+        button.FlatAppearance.BorderSize = 0;
+        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(37, 42, 50);
+        button.FlatAppearance.MouseOverBackColor = Color.FromArgb(28, 32, 39);
+        button.SetBounds(0, 0, 58, 58);
+        button.Click += (_, _) => NavigateMapPage(direction);
+        _mapPageButtons[direction] = button;
+        _mapPageNeighbors[direction] = null;
+        workspace.Controls.Add(button);
+        button.BringToFront();
+    }
+
+    private void PositionMapPageArrows(Control workspace)
+    {
+        if (_mapPageButtons.Count != 4) return;
+        const int edge = 8;
+        var horizontalCenter = Math.Max(edge, (workspace.ClientSize.Width - 58) / 2);
+        var verticalCenter = Math.Max(edge, (workspace.ClientSize.Height - 58) / 2);
+        _mapPageButtons[MapPageDirection.Up].Location = new Point(horizontalCenter, edge);
+        _mapPageButtons[MapPageDirection.Right].Location = new Point(
+            Math.Max(edge, workspace.ClientSize.Width - 58 - edge),
+            verticalCenter);
+        _mapPageButtons[MapPageDirection.Down].Location = new Point(
+            horizontalCenter,
+            Math.Max(edge, workspace.ClientSize.Height - 58 - edge));
+        _mapPageButtons[MapPageDirection.Left].Location = new Point(edge, verticalCenter);
+        foreach (var button in _mapPageButtons.Values) button.BringToFront();
+    }
+
     private Control BuildSidebar()
     {
         var sidebar = new FlowLayoutPanel
@@ -379,12 +494,13 @@ public sealed class MainForm : Form
         };
 
         var sceneGroup = CreateGroup("場景資料", 178);
-        AddField(sceneGroup, "場景 ID", _sceneIdText, 28);
+        AddField(sceneGroup, "地圖 ID", _sceneIdText, 28);
         AddField(sceneGroup, "顯示名稱", _displayNameText, 78);
-        var applySceneButton = CreateButton("套用場景名稱", 10, 126, 255, 30);
+        var applySceneButton = CreateButton("套用地圖資料", 10, 126, 255, 30);
         applySceneButton.Click += (_, _) =>
         {
             _canvas.UpdateSceneIdentity(_sceneIdText.Text, _displayNameText.Text);
+            RefreshMapPageNavigation();
         };
         sceneGroup.Controls.Add(applySceneButton);
         sidebar.Controls.Add(sceneGroup);
@@ -434,6 +550,34 @@ public sealed class MainForm : Form
         _deleteNodeButton.Click += (_, _) => _canvas.DeleteSelectedNode();
         layersGroup.Controls.Add(_deleteNodeButton);
         sidebar.Controls.Add(layersGroup);
+
+        var entryPointIdLabel = CreateFieldLabel("Point ID", 10, 31, 68);
+        _entryPointIdText.SetBounds(83, 27, 182, 27);
+        var applyEntryPointButton = CreateButton("套用 Entry Point ID", 10, 66, 255, 30);
+        applyEntryPointButton.Click += (_, _) =>
+        {
+            _canvas.UpdateSelectedEntryPoint(_entryPointIdText.Text);
+            RefreshLayers();
+            RefreshSelectionUi();
+        };
+        _entryPointGroup.Controls.Add(entryPointIdLabel);
+        _entryPointGroup.Controls.Add(_entryPointIdText);
+        _entryPointGroup.Controls.Add(applyEntryPointButton);
+        _entryPointGroup.Visible = false;
+        sidebar.Controls.Add(_entryPointGroup);
+
+        AddConnectionField(_sceneConnectionGroup, "出口 ID", _sceneConnectionIdText, 28);
+        AddConnectionField(_sceneConnectionGroup, "目標地圖", _targetSceneCombo, 64);
+        AddConnectionField(_sceneConnectionGroup, "目標 Entry", _targetEntryPointCombo, 100);
+        AddConnectionField(_sceneConnectionGroup, "啟動方式", _connectionTriggerModeCombo, 136);
+        AddConnectionField(_sceneConnectionGroup, "轉場方式", _connectionTransitionModeCombo, 172);
+        AddConnectionField(_sceneConnectionGroup, "角色移動", _connectionTransferModeCombo, 208);
+        AddConnectionField(_sceneConnectionGroup, "鏡頭定位", _connectionCameraFocusCombo, 244);
+        var applyConnectionButton = CreateButton("套用出入口設定", 10, 280, 255, 30);
+        applyConnectionButton.Click += (_, _) => ApplySceneConnectionSettings();
+        _sceneConnectionGroup.Controls.Add(applyConnectionButton);
+        _sceneConnectionGroup.Visible = false;
+        sidebar.Controls.Add(_sceneConnectionGroup);
 
         var typeLabel = new Label { Text = "互動類型", AutoSize = false, ForeColor = Color.FromArgb(152, 163, 174) };
         typeLabel.SetBounds(10, 30, 70, 24);
@@ -592,13 +736,13 @@ public sealed class MainForm : Form
         _itemPointGroup.Controls.Add(deleteItemPointButton);
         sidebar.Controls.Add(_itemPointGroup);
 
-        var futureGroup = CreateGroup("場景連接（已預留）", 122);
+        var futureGroup = CreateGroup("地圖頁切換", 142);
         var futureLabel = new Label
         {
             AutoSize = false,
         };
-        futureLabel.SetBounds(10, 27, 255, 78);
-        futureLabel.Text = "JSON 已保留世界位置與 connections。\r\n下一版可加入：出口／入口範圍、目標場景、落點與朝向、多張圖片拼接預覽。";
+        futureLabel.SetBounds(10, 27, 255, 98);
+        futureLabel.Text = "畫布四周箭頭可切換上下左右地圖頁。\r\n亮白：已有地圖；暗灰：按下後可確認新增。\r\nEntry Point 與出入口多邊形已可設定；\r\n遊戲端切圖與鏡頭轉場留待下一版。";
         futureLabel.ForeColor = Color.FromArgb(130, 140, 150);
         futureGroup.Controls.Add(futureLabel);
         sidebar.Controls.Add(futureGroup);
@@ -621,6 +765,189 @@ public sealed class MainForm : Form
 
         ApplyDarkInputs(sidebar);
         return sidebar;
+    }
+
+    private void RefreshMapPageNavigation()
+    {
+        var catalog = _projectRoot is null
+            ? Array.Empty<MapPageRecord>()
+            : MapPageNavigation.LoadCatalog(
+                Path.Combine(_projectRoot, "public", "maps"));
+
+        foreach (var direction in Enum.GetValues<MapPageDirection>())
+        {
+            var neighbor = _imagePath is null
+                ? null
+                : MapPageNavigation.FindNeighbor(
+                    _canvas.Document,
+                    _scenePath,
+                    direction,
+                    catalog);
+            _mapPageNeighbors[direction] = neighbor;
+
+            if (!_mapPageButtons.TryGetValue(direction, out var button)) continue;
+            var hasNeighbor = neighbor is not null;
+            button.ForeColor = hasNeighbor
+                ? Color.WhiteSmoke
+                : Color.FromArgb(82, 88, 98);
+            button.AccessibleDescription = hasNeighbor
+                ? $"切換到 {neighbor!.Document.SceneId}"
+                : $"{MapPageNavigation.GetChineseDirection(direction)}目前沒有地圖，按一下可新增";
+            _mapPageToolTip.SetToolTip(
+                button,
+                hasNeighbor
+                    ? $"{MapPageNavigation.GetChineseDirection(direction)}：{neighbor!.Document.SceneId}"
+                    : $"{MapPageNavigation.GetChineseDirection(direction)}尚無地圖資料，按一下新增");
+        }
+    }
+
+    internal void RunMapPageNavigationUiSelfTest()
+    {
+        RefreshMapPageNavigation();
+        foreach (var direction in Enum.GetValues<MapPageDirection>())
+        {
+            var hasNeighbor = _mapPageNeighbors[direction] is not null;
+            var expectedColor = hasNeighbor
+                ? Color.WhiteSmoke
+                : Color.FromArgb(82, 88, 98);
+            if (!_mapPageButtons.TryGetValue(direction, out var button) ||
+                button.ForeColor != expectedColor ||
+                !button.Enabled)
+            {
+                throw new InvalidOperationException(
+                    $"地圖頁 {direction} 箭頭沒有呈現正確的可切換／可新增狀態。");
+            }
+        }
+    }
+
+    private void NavigateMapPage(MapPageDirection direction)
+    {
+        if (_imagePath is null)
+        {
+            MessageBox.Show(
+                this,
+                "請先開啟一張場景圖片。",
+                "尚未載入地圖",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        RefreshMapPageNavigation();
+        if (_mapPageNeighbors[direction] is { } neighbor)
+        {
+            if (!ConfirmDiscardChanges()) return;
+            LoadSceneFile(neighbor.ScenePath);
+            return;
+        }
+
+        CreateAdjacentMapPage(direction);
+    }
+
+    private void CreateAdjacentMapPage(MapPageDirection direction)
+    {
+        if (_projectRoot is null || _imagePath is null) return;
+        var directionLabel = MapPageNavigation.GetChineseDirection(direction);
+        var confirmation = MessageBox.Show(
+            this,
+            $"{directionLabel}目前沒有地圖資料。\r\n\r\n是否選擇一張圖片並建立新的地圖頁？",
+            "建立相鄰地圖頁",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+        if (confirmation != DialogResult.Yes || !ConfirmDiscardChanges()) return;
+
+        using var dialog = new OpenFileDialog
+        {
+            Title = $"選擇{directionLabel}新地圖的底圖",
+            Filter = ImageLoader.FileDialogFilter,
+            CheckFileExists = true,
+            Multiselect = false,
+            InitialDirectory = Path.Combine(_projectRoot, "Assets", "map"),
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+        Bitmap? image = null;
+        try
+        {
+            image = ImageLoader.Load(dialog.FileName);
+            var mapsDirectory = Path.Combine(_projectRoot, "public", "maps");
+            Directory.CreateDirectory(mapsDirectory);
+            var imageTarget = Path.Combine(
+                mapsDirectory,
+                Path.GetFileName(dialog.FileName));
+            var sceneTarget = Path.Combine(
+                mapsDirectory,
+                $"{Path.GetFileNameWithoutExtension(dialog.FileName)}.scene.json");
+            if (File.Exists(sceneTarget))
+            {
+                MessageBox.Show(
+                    this,
+                    $"{Path.GetFileName(sceneTarget)} 已經存在，但不在目前地圖的{directionLabel}。\r\n\r\n請改選其他圖片，或先調整既有地圖頁的位置。",
+                    "地圖資料已存在",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (!PathsEqual(dialog.FileName, imageTarget))
+            {
+                if (File.Exists(imageTarget) && !FilesMatch(dialog.FileName, imageTarget))
+                {
+                    var overwrite = MessageBox.Show(
+                        this,
+                        $"遊戲資料夾已有同名圖片 {Path.GetFileName(imageTarget)}，要覆蓋嗎？",
+                        "確認覆蓋圖片",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning);
+                    if (overwrite != DialogResult.Yes) return;
+                }
+                File.Copy(dialog.FileName, imageTarget, overwrite: true);
+            }
+
+            var document = SceneDocument.CreateForImage(
+                imageTarget,
+                image.Width,
+                image.Height);
+            document.SceneId = CreateUniqueMapId(
+                Path.GetFileNameWithoutExtension(dialog.FileName));
+            document.DisplayName = document.SceneId;
+            document.WorldLayout = MapPageNavigation.CreateAdjacentLayout(
+                _canvas.Document,
+                image.Width,
+                image.Height,
+                direction);
+            SceneJson.Save(sceneTarget, document);
+
+            ApplyLoadedScene(document, image, imageTarget, sceneTarget);
+            image = null; // EditorCanvas owns the bitmap after a successful load.
+            _statusLabel.Text =
+                $"已建立 {directionLabel}地圖頁 {document.SceneId}；可在右側隨時修改地圖 ID。";
+        }
+        catch (Exception exception)
+        {
+            ShowError("無法建立相鄰地圖頁", exception);
+        }
+        finally
+        {
+            image?.Dispose();
+        }
+    }
+
+    private string CreateUniqueMapId(string requestedId)
+    {
+        if (_projectRoot is null) return requestedId;
+        var catalog = MapPageNavigation.LoadCatalog(
+            Path.Combine(_projectRoot, "public", "maps"));
+        var usedIds = catalog
+            .Select(record => record.Document.SceneId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!usedIds.Contains(requestedId)) return requestedId;
+        for (var suffix = 2; suffix < 10000; suffix++)
+        {
+            var candidate = $"{requestedId}_{suffix}";
+            if (!usedIds.Contains(candidate)) return candidate;
+        }
+        return $"{requestedId}_{Guid.NewGuid():N}";
     }
 
     private void LoadDefaultTemplate()
@@ -757,6 +1084,7 @@ public sealed class MainForm : Form
             RefreshLayers();
             RefreshSelectionUi();
             RefreshCommandState();
+            RefreshMapPageNavigation();
             UpdateTitle();
         }
         finally
@@ -799,10 +1127,12 @@ public sealed class MainForm : Form
         try
         {
             PrepareDocumentForSave(_imagePath);
+            ValidateConnectionTargets();
             SceneJson.Save(targetPath!, _canvas.Document);
             _scenePath = Path.GetFullPath(targetPath!);
             _dirty = false;
             _statusLabel.Text = $"已儲存 {Path.GetFileName(targetPath)}";
+            RefreshMapPageNavigation();
             UpdateTitle();
             return true;
         }
@@ -854,11 +1184,13 @@ public sealed class MainForm : Form
             }
 
             PrepareDocumentForSave(imageTarget);
+            ValidateConnectionTargets();
             var sceneTarget = Path.Combine(mapsDirectory, $"{Path.GetFileNameWithoutExtension(_imagePath)}.scene.json");
             SceneJson.Save(sceneTarget, _canvas.Document);
             _scenePath = sceneTarget;
             _dirty = false;
             _statusLabel.Text = $"已匯出到遊戲：public/maps/{Path.GetFileName(sceneTarget)}";
+            RefreshMapPageNavigation();
             UpdateTitle();
             return true;
         }
@@ -866,6 +1198,36 @@ public sealed class MainForm : Form
         {
             ShowError("無法匯出到遊戲", exception);
             return false;
+        }
+    }
+
+    private void ValidateConnectionTargets()
+    {
+        SceneJson.Validate(_canvas.Document);
+        if (_canvas.Document.Connections.Count == 0) return;
+        if (_projectRoot is null)
+        {
+            throw new InvalidDataException("包含地圖出入口時，必須從 Echoes 專案內儲存以驗證目標地圖。");
+        }
+        var catalog = MapPageNavigation.LoadCatalog(
+            Path.Combine(_projectRoot, "public", "maps"));
+        foreach (var connection in _canvas.Document.Connections)
+        {
+            var target = catalog.FirstOrDefault(page => page.Document.SceneId.Equals(
+                connection.TargetSceneId,
+                StringComparison.OrdinalIgnoreCase));
+            if (target is null)
+            {
+                throw new InvalidDataException(
+                    $"出入口 {connection.Id} 找不到目標地圖 {connection.TargetSceneId}。");
+            }
+            if (!target.Document.EntryPoints.Any(point => point.Id.Equals(
+                    connection.TargetEntryPointId,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidDataException(
+                    $"出入口 {connection.Id} 找不到目標 Entry Point {connection.TargetEntryPointId}。");
+            }
         }
     }
 
@@ -925,7 +1287,7 @@ public sealed class MainForm : Form
         _sceneIdText.Text = _canvas.Document.SceneId;
         _displayNameText.Text = _canvas.Document.DisplayName;
         _documentInfoLabel.Text =
-            $"NavMesh {_canvas.Document.NavMesh.Count} · Collision {_canvas.Document.Collisions.Count} · 互動 {_canvas.Document.Interactables.Count} · 傳送 {_canvas.Document.TeleportPoints.Count} · ItemPoint {_canvas.Document.ItemPoints.Count}";
+            $"NavMesh {_canvas.Document.NavMesh.Count} · Collision {_canvas.Document.Collisions.Count} · 互動 {_canvas.Document.Interactables.Count} · Entry {_canvas.Document.EntryPoints.Count} · 出入口 {_canvas.Document.Connections.Count}";
         var previousLoadingState = _loading;
         _loading = true;
         try
@@ -937,6 +1299,7 @@ public sealed class MainForm : Form
                 (int)_gridSizeInput.Minimum,
                 (int)_gridSizeInput.Maximum);
             _facingCombo.SelectedItem = _canvas.SelectedTeleportPoint?.Facing
+                ?? _canvas.SelectedEntryPoint?.Facing
                 ?? _canvas.Document.PlayerSpawn.Facing;
         }
         finally
@@ -1012,6 +1375,24 @@ public sealed class MainForm : Form
                     new LayerSelection(SceneLayerKind.TeleportPoint, index),
                     $"[傳送 Point/{point.Facing}] {point.Label} · {point.Id}",
                     point.Label));
+            }
+
+            for (var index = 0; index < _canvas.Document.EntryPoints.Count; index++)
+            {
+                var point = _canvas.Document.EntryPoints[index];
+                _layersList.Items.Add(new LayerListItem(
+                    new LayerSelection(SceneLayerKind.EntryPoint, index),
+                    $"[Entry/{point.Facing}] {point.Label} · {point.Id}",
+                    point.Label));
+            }
+
+            for (var index = 0; index < _canvas.Document.Connections.Count; index++)
+            {
+                var connection = _canvas.Document.Connections[index];
+                _layersList.Items.Add(new LayerListItem(
+                    new LayerSelection(SceneLayerKind.SceneConnection, index),
+                    $"[出入口/{connection.TriggerMode}] {connection.Label} → {connection.TargetSceneId} / {connection.TargetEntryPointId}",
+                    connection.Label));
             }
 
             for (var index = 0; index < _canvas.Document.ItemPoints.Count; index++)
@@ -1182,6 +1563,32 @@ public sealed class MainForm : Form
                 _selectionNameText.Text = point.Label;
                 _facingCombo.SelectedItem = point.Facing;
             }
+            else if (_canvas.Selection.Kind == SceneLayerKind.EntryPoint && _canvas.Selection.Index >= 0)
+            {
+                var point = _canvas.Document.EntryPoints[_canvas.Selection.Index];
+                _selectionInfoLabel.Text = $"已選取地圖 Entry Point · {point.Id} · 面向 {point.Facing}";
+                _selectionNameText.Text = point.Label;
+                _entryPointIdText.Text = point.Id;
+                _facingCombo.SelectedItem = point.Facing;
+            }
+            else if (_canvas.Selection.Kind == SceneLayerKind.SceneConnection && _canvas.Selection.Index >= 0)
+            {
+                var connection = _canvas.Document.Connections[_canvas.Selection.Index];
+                var node = _canvas.SelectedVertexIndex >= 0
+                    ? $" · Node {_canvas.SelectedVertexIndex + 1}"
+                    : "";
+                _selectionInfoLabel.Text = $"已選取地圖出入口 · {connection.Id}{node}";
+                _selectionNameText.Text = connection.Label;
+                _sceneConnectionIdText.Text = connection.Id;
+                RefreshTargetSceneChoices(connection.TargetSceneId);
+                RefreshTargetEntryPointChoices(
+                    connection.TargetSceneId,
+                    connection.TargetEntryPointId);
+                SelectConnectionOption(_connectionTriggerModeCombo, connection.TriggerMode);
+                SelectConnectionOption(_connectionTransitionModeCombo, connection.TransitionMode);
+                SelectConnectionOption(_connectionTransferModeCombo, connection.TransferMode);
+                SelectConnectionOption(_connectionCameraFocusCombo, connection.CameraFocus);
+            }
             else
             {
                 _selectionInfoLabel.Text = "尚未選取圖形";
@@ -1190,9 +1597,14 @@ public sealed class MainForm : Form
             _interactionGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.Interactable;
             _movementGuideGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.MovementGuide;
             _storyTriggerGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.StoryTrigger;
-            _facingLabel.Text = _canvas.Selection.Kind == SceneLayerKind.TeleportPoint
-                ? "傳送朝向"
-                : "出生朝向";
+            _entryPointGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.EntryPoint;
+            _sceneConnectionGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.SceneConnection;
+            _facingLabel.Text = _canvas.Selection.Kind switch
+            {
+                SceneLayerKind.TeleportPoint => "傳送朝向",
+                SceneLayerKind.EntryPoint => "Entry 朝向",
+                _ => "出生朝向",
+            };
         }
         finally
         {
@@ -1214,6 +1626,78 @@ public sealed class MainForm : Form
         if (_syncingSelection) return;
         if (_itemPointList.SelectedItem is not LayerListItem item) return;
         _canvas.SelectLayer(item.Selection);
+    }
+
+    private void ApplySceneConnectionSettings()
+    {
+        if (_canvas.SelectedSceneConnection is null)
+        {
+            _statusLabel.Text = "請先選取地圖出入口多邊形。";
+            return;
+        }
+        _canvas.UpdateSelectedSceneConnection(
+            _sceneConnectionIdText.Text,
+            _targetSceneCombo.Text,
+            _targetEntryPointCombo.Text,
+            SelectedConnectionOption(_connectionTriggerModeCombo, "auto"),
+            SelectedConnectionOption(_connectionTransitionModeCombo, "seamless"),
+            SelectedConnectionOption(_connectionTransferModeCombo, "teleport"),
+            SelectedConnectionOption(_connectionCameraFocusCombo, "player"));
+        RefreshLayers();
+        RefreshSelectionUi();
+    }
+
+    private void RefreshTargetSceneChoices(string selectedSceneId)
+    {
+        _targetSceneCombo.Items.Clear();
+        if (_projectRoot is not null)
+        {
+            foreach (var page in MapPageNavigation.LoadCatalog(
+                         Path.Combine(_projectRoot, "public", "maps")))
+            {
+                if (page.Document.SceneId.Equals(
+                        _canvas.Document.SceneId,
+                        StringComparison.OrdinalIgnoreCase)) continue;
+                _targetSceneCombo.Items.Add(page.Document.SceneId);
+            }
+        }
+        _targetSceneCombo.Text = selectedSceneId;
+    }
+
+    private void RefreshTargetEntryPointChoices(string targetSceneId, string? selectedEntryPointId = null)
+    {
+        selectedEntryPointId ??= _targetEntryPointCombo.Text;
+        _targetEntryPointCombo.Items.Clear();
+        if (_projectRoot is not null)
+        {
+            var page = MapPageNavigation.LoadCatalog(
+                    Path.Combine(_projectRoot, "public", "maps"))
+                .FirstOrDefault(candidate => candidate.Document.SceneId.Equals(
+                    targetSceneId.Trim(),
+                    StringComparison.OrdinalIgnoreCase));
+            if (page is not null)
+            {
+                foreach (var entryPoint in page.Document.EntryPoints)
+                {
+                    _targetEntryPointCombo.Items.Add(entryPoint.Id);
+                }
+            }
+        }
+        _targetEntryPointCombo.Text = selectedEntryPointId;
+    }
+
+    private static string SelectedConnectionOption(ComboBox comboBox, string fallback) =>
+        comboBox.SelectedItem is ConnectionOptionItem option ? option.Id : fallback;
+
+    private static void SelectConnectionOption(ComboBox comboBox, string id)
+    {
+        comboBox.SelectedIndex = Math.Max(
+            0,
+            comboBox.Items
+                .Cast<ConnectionOptionItem>()
+                .Select((item, index) => new { item.Id, Index = index })
+                .FirstOrDefault(item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase))
+                ?.Index ?? 0);
     }
 
     private void ApplyItemPointSettings()
@@ -1379,6 +1863,8 @@ public sealed class MainForm : Form
             SceneLayerKind.Interactable,
             SceneLayerKind.StoryTrigger,
             SceneLayerKind.MovementGuide,
+            SceneLayerKind.EntryPoint,
+            SceneLayerKind.SceneConnection,
         };
 
         foreach (var kind in layerKinds)
@@ -1415,6 +1901,8 @@ public sealed class MainForm : Form
         SceneLayerKind.StoryTrigger => _canvas.Document.StoryTriggers[selection.Index].Label,
         SceneLayerKind.MovementGuide => _canvas.Document.MovementGuides[selection.Index].Label,
         SceneLayerKind.TeleportPoint => _canvas.Document.TeleportPoints[selection.Index].Label,
+        SceneLayerKind.EntryPoint => _canvas.Document.EntryPoints[selection.Index].Label,
+        SceneLayerKind.SceneConnection => _canvas.Document.Connections[selection.Index].Label,
         SceneLayerKind.ItemPoint => _canvas.Document.ItemPoints[selection.Index].Label,
         _ => "",
     };
@@ -1644,6 +2132,8 @@ public sealed class MainForm : Form
             EditorTool.MovementGuide => "強制引導線：逐點鋪設，雙擊／右鍵／Enter 完成（至少 2 點）",
             EditorTool.PlayerSpawn => "出生點：在場景點擊位置",
             EditorTool.TeleportPoint => "傳送點：在 NavMesh 內點擊新增；選取後可設定面向與名稱",
+            EditorTool.EntryPoint => "Entry Point：在 NavMesh 內新增地圖進入落點；可設定 Point ID 與朝向",
+            EditorTool.SceneExitPolygon => "出入口多邊形：圈出切換觸發範圍；完成後在右側指定目標地圖與 Entry Point",
             _ => "準備就緒",
         };
     }
@@ -1682,7 +2172,8 @@ public sealed class MainForm : Form
     private void UpdateTitle()
     {
         var sceneName = _imagePath is null ? "未開啟場景" : Path.GetFileName(_imagePath);
-        Text = $"{(_dirty ? "*" : "")} {sceneName} — Echoes Map Editor".TrimStart();
+        var mapId = _imagePath is null ? "" : $"{_canvas.Document.SceneId} · ";
+        Text = $"{(_dirty ? "*" : "")} {mapId}{sceneName} — Echoes Map Editor".TrimStart();
     }
 
     private static ToolStripMenuItem CreateMenuItem(string text, Keys shortcut, EventHandler handler)
@@ -1733,6 +2224,24 @@ public sealed class MainForm : Form
         textBox.SetBounds(83, top - 2, 182, 27);
         parent.Controls.Add(label);
         parent.Controls.Add(textBox);
+    }
+
+    private static Label CreateFieldLabel(string text, int left, int top, int width) => new()
+    {
+        Text = text,
+        Left = left,
+        Top = top,
+        Width = width,
+        Height = 24,
+        AutoSize = false,
+        ForeColor = Color.FromArgb(152, 163, 174),
+    };
+
+    private static void AddConnectionField(Control parent, string labelText, Control input, int top)
+    {
+        parent.Controls.Add(CreateFieldLabel(labelText, 10, top + 3, 70));
+        input.SetBounds(83, top, 182, 27);
+        parent.Controls.Add(input);
     }
 
     private static Button CreateButton(string text, int left, int top, int width, int height)
@@ -1812,6 +2321,19 @@ public sealed class MainForm : Form
     private sealed class ItemPointSpawnPolicyItem
     {
         public ItemPointSpawnPolicyItem(string id, string label)
+        {
+            Id = id;
+            Label = label;
+        }
+
+        public string Id { get; }
+        public string Label { get; }
+        public override string ToString() => Label;
+    }
+
+    private sealed class ConnectionOptionItem
+    {
+        public ConnectionOptionItem(string id, string label)
         {
             Id = id;
             Label = label;

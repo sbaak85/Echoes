@@ -193,6 +193,7 @@ internal static class Program
                 try
                 {
                     form.RunLayerRenameUiSelfTest();
+                    form.RunMapPageNavigationUiSelfTest();
                     requirementsEditor.Show();
                     System.Windows.Forms.Application.DoEvents();
                     requirementsEditor.Close();
@@ -334,7 +335,7 @@ internal static class EditorSelfTest
         var scene = SceneJson.Load(scenePath);
         SceneJson.Validate(scene);
         if (
-            ItemCatalog.All.Count != 28 ||
+            ItemCatalog.All.Count != 29 ||
             ItemCatalog.Find("crystal-shard")?.Id != "R0001" ||
             ItemCatalog.Find("R0012")?.Name != "外星果實" ||
             ItemCatalog.Find("R0015")?.Name != "校正元件" ||
@@ -352,10 +353,87 @@ internal static class EditorSelfTest
 
         var roundTrip = SceneJson.Deserialize(SceneJson.Serialize(scene));
         SceneJson.Validate(roundTrip);
+        var navigationCurrent = SceneDocument.CreateForImage("current.png", 1254, 1254);
+        navigationCurrent.WorldLayout = new WorldLayout { X = 1254, Y = 0, Layer = 0 };
+        var navigationLeft = SceneDocument.CreateForImage("left.png", 1254, 1254);
+        navigationLeft.SceneId = "Scene_Left";
+        navigationLeft.WorldLayout = new WorldLayout { X = 0, Y = 0, Layer = 0 };
+        var navigationCatalog = new[]
+        {
+            new MapPageRecord(
+                Path.GetFullPath(Path.Combine(projectRoot, "current.scene.json")),
+                navigationCurrent),
+            new MapPageRecord(
+                Path.GetFullPath(Path.Combine(projectRoot, "left.scene.json")),
+                navigationLeft),
+        };
+        var leftNeighbor = MapPageNavigation.FindNeighbor(
+            navigationCurrent,
+            navigationCatalog[0].ScenePath,
+            MapPageDirection.Left,
+            navigationCatalog);
+        var rightNeighbor = MapPageNavigation.FindNeighbor(
+            navigationLeft,
+            navigationCatalog[1].ScenePath,
+            MapPageDirection.Right,
+            navigationCatalog);
+        var newDownLayout = MapPageNavigation.CreateAdjacentLayout(
+            navigationCurrent,
+            1536,
+            1536,
+            MapPageDirection.Down);
+        if (
+            leftNeighbor?.Document.SceneId != "Scene_Left" ||
+            rightNeighbor?.Document != navigationCurrent ||
+            newDownLayout.X != 1254 ||
+            newDownLayout.Y != 1254 ||
+            newDownLayout.Layer != 0
+        )
+        {
+            throw new InvalidDataException(
+                "MapEditor 地圖頁鄰接查找或新頁世界座標不正確。");
+        }
         if (roundTrip.TeleportPoints.SingleOrDefault(point => point.Id == "teleport-point-center") is not
             { X: 730, Y: 680, Facing: "S" })
         {
             throw new InvalidDataException("傳送 Point 未能正確讀取或通過場景 JSON round-trip。");
+        }
+        if (roundTrip.EntryPoints.SingleOrDefault(point => point.Id == "entry-scene3-from-scene2") is not
+            { X: 100, Y: 1140, Facing: "NE" })
+        {
+            throw new InvalidDataException("地圖 Entry Point 未能正確讀取或通過場景 JSON round-trip。");
+        }
+        if (roundTrip.Connections.SingleOrDefault(connection => connection.Id == "exit-scene3-to-scene2") is not
+            {
+                TargetSceneId: "Scene_2",
+                TargetEntryPointId: "entry-scene2-from-scene3",
+                TriggerMode: "auto",
+                TransitionMode: "seamless",
+                TransferMode: "teleport",
+                CameraFocus: "player",
+            })
+        {
+            throw new InvalidDataException("Scene_3 出入口設定未能正確通過場景 JSON round-trip。");
+        }
+        var scene2 = SceneJson.Load(Path.Combine(
+            projectRoot,
+            "public",
+            "maps",
+            "map_test02.scene.json"));
+        SceneJson.Validate(scene2);
+        var scene2Entry = scene2.EntryPoints.SingleOrDefault(
+            point => point.Id == "entry-scene2-from-scene3");
+        var scene2Exit = scene2.Connections.SingleOrDefault(
+            connection => connection.Id == "exit-scene2-to-scene3");
+        if (
+            scene2Entry is not { Facing: "NW" } ||
+            scene2Exit is not
+            {
+                TargetSceneId: "Scene_3",
+                TargetEntryPointId: "entry-scene3-from-scene2",
+            })
+        {
+            throw new InvalidDataException("Scene_2 與 Scene_3 的雙向出入口設定不完整。");
         }
         var itemPointDocument = SceneJson.Deserialize(SceneJson.Serialize(roundTrip));
         itemPointDocument.ItemPoints.Add(new SceneItemPoint

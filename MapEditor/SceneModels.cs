@@ -14,6 +14,7 @@ public sealed class SceneDocument
     public GridSettings Grid { get; set; } = new();
     public PlayerSpawn PlayerSpawn { get; set; } = new();
     public List<SceneTeleportPoint> TeleportPoints { get; set; } = new();
+    public List<SceneEntryPoint> EntryPoints { get; set; } = new();
     public List<NavMeshRegion> NavMesh { get; set; } = new();
     public List<CollisionShape> Collisions { get; set; } = new();
     public List<SceneInteractable> Interactables { get; set; } = new();
@@ -139,6 +140,13 @@ public sealed class SceneTeleportPoint : ScenePoint
 {
     public string Id { get; set; } = "";
     public string Label { get; set; } = "傳送點";
+    public string Facing { get; set; } = "S";
+}
+
+public sealed class SceneEntryPoint : ScenePoint
+{
+    public string Id { get; set; } = "";
+    public string Label { get; set; } = "地圖 Entry Point";
     public string Facing { get; set; } = "S";
 }
 
@@ -657,12 +665,23 @@ public sealed class StoryTriggerZone : ITriggerConfiguration
 public sealed class SceneConnection
 {
     public string Id { get; set; } = "";
-    public string Label { get; set; } = "Scene connection";
+    public string Label { get; set; } = "地圖出入口";
     public string Type { get; set; } = "exit";
     public List<ScenePoint> Area { get; set; } = new();
     public string TargetSceneId { get; set; } = "";
-    public PlayerSpawn TargetSpawn { get; set; } = new();
-    public WorldLayout TargetRelativePosition { get; set; } = new();
+    public string TargetEntryPointId { get; set; } = "";
+    public string TriggerMode { get; set; } = "auto";
+    public string TransitionMode { get; set; } = "seamless";
+    public string TransferMode { get; set; } = "teleport";
+    public string CameraFocus { get; set; } = "player";
+
+    // Legacy placeholders retained for reading older drafts. New editor data
+    // targets a named Entry Point instead of duplicating the landing position.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PlayerSpawn? TargetSpawn { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public WorldLayout? TargetRelativePosition { get; set; }
 }
 
 public static class SceneJson
@@ -709,6 +728,13 @@ public static class SceneJson
         {
             throw new InvalidDataException("sceneId 不可空白。");
         }
+        document.SceneId = document.SceneId.Trim();
+        document.DisplayName = string.IsNullOrWhiteSpace(document.DisplayName)
+            ? document.SceneId
+            : document.DisplayName.Trim();
+        document.WorldLayout ??= new WorldLayout();
+        document.EntryPoints ??= new List<SceneEntryPoint>();
+        document.Connections ??= new List<SceneConnection>();
 
         if (document.World.Width <= 0 || document.World.Height <= 0)
         {
@@ -1006,6 +1032,75 @@ public static class SceneJson
                 throw new InvalidDataException(
                     $"傳送 Point {teleportPoint.Id} 必須位於 NavMesh 內。");
             }
+        }
+
+        var entryPointIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < document.EntryPoints.Count; index++)
+        {
+            var entryPoint = document.EntryPoints[index];
+            entryPoint.Id = string.IsNullOrWhiteSpace(entryPoint.Id)
+                ? $"entry-point-{index + 1:000}"
+                : entryPoint.Id.Trim();
+            if (!entryPointIds.Add(entryPoint.Id))
+            {
+                throw new InvalidDataException($"地圖 Entry Point ID 重複：{entryPoint.Id}");
+            }
+            entryPoint.Label = string.IsNullOrWhiteSpace(entryPoint.Label)
+                ? $"地圖 Entry Point {index + 1}"
+                : entryPoint.Label.Trim();
+            entryPoint.Facing = NormalizeFacing(entryPoint.Facing);
+            entryPoint.X = Math.Clamp(entryPoint.X, 0, document.World.Width);
+            entryPoint.Y = Math.Clamp(entryPoint.Y, 0, document.World.Height);
+            if (!document.NavMesh.Any(region => PointInPolygon(entryPoint, region.Points)))
+            {
+                throw new InvalidDataException(
+                    $"地圖 Entry Point {entryPoint.Id} 必須位於 NavMesh 內。");
+            }
+        }
+
+        var connectionIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < document.Connections.Count; index++)
+        {
+            var connection = document.Connections[index];
+            connection.Id = string.IsNullOrWhiteSpace(connection.Id)
+                ? $"scene-exit-{index + 1:000}"
+                : connection.Id.Trim();
+            if (!connectionIds.Add(connection.Id))
+            {
+                throw new InvalidDataException($"地圖出入口 ID 重複：{connection.Id}");
+            }
+            connection.Label = string.IsNullOrWhiteSpace(connection.Label)
+                ? $"地圖出入口 {index + 1}"
+                : connection.Label.Trim();
+            connection.Type = "exit";
+            connection.Area ??= new List<ScenePoint>();
+            if (connection.Area.Count < 3)
+            {
+                throw new InvalidDataException(
+                    $"地圖出入口 {connection.Id} 至少需要 3 個 Node。");
+            }
+            connection.TargetSceneId = connection.TargetSceneId?.Trim() ?? "";
+            connection.TargetEntryPointId = connection.TargetEntryPointId?.Trim() ?? "";
+            if (connection.TargetSceneId.Length == 0 || connection.TargetEntryPointId.Length == 0)
+            {
+                throw new InvalidDataException(
+                    $"地圖出入口 {connection.Id} 必須指定目標地圖與 Entry Point。");
+            }
+            connection.TriggerMode = connection.TriggerMode switch
+            {
+                "manual" => "manual",
+                "choice" => "choice",
+                _ => "auto",
+            };
+            connection.TransitionMode = connection.TransitionMode == "blackout"
+                ? "blackout"
+                : "seamless";
+            connection.TransferMode = connection.TransferMode == "pathfind"
+                ? "pathfind"
+                : "teleport";
+            connection.CameraFocus = connection.CameraFocus == "sceneRoot"
+                ? "sceneRoot"
+                : "player";
         }
     }
 

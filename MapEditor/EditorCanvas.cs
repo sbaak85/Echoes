@@ -17,6 +17,8 @@ public enum EditorTool
     MovementGuide,
     PlayerSpawn,
     TeleportPoint,
+    EntryPoint,
+    SceneExitPolygon,
 }
 
 public enum SceneLayerKind
@@ -28,6 +30,8 @@ public enum SceneLayerKind
     StoryTrigger,
     MovementGuide,
     TeleportPoint,
+    EntryPoint,
+    SceneConnection,
     ItemPoint,
 }
 
@@ -219,6 +223,14 @@ public sealed class EditorCanvas : Control
         _selection.Kind == SceneLayerKind.TeleportPoint && IsValidSelection(_selection)
             ? _document.TeleportPoints[_selection.Index]
             : null;
+    public SceneEntryPoint? SelectedEntryPoint =>
+        _selection.Kind == SceneLayerKind.EntryPoint && IsValidSelection(_selection)
+            ? _document.EntryPoints[_selection.Index]
+            : null;
+    public SceneConnection? SelectedSceneConnection =>
+        _selection.Kind == SceneLayerKind.SceneConnection && IsValidSelection(_selection)
+            ? _document.Connections[_selection.Index]
+            : null;
     public bool CanInsertNode => CanEditSelectedVertex(requireMoreThanThreePoints: false);
     public bool CanDeleteNode => CanEditSelectedVertex(requireMoreThanThreePoints: true);
 
@@ -316,6 +328,71 @@ public sealed class EditorCanvas : Control
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    public void SetSelectedEntryPointFacing(string facing)
+    {
+        var point = SelectedEntryPoint;
+        if (point is null || point.Facing == facing) return;
+        PerformMutation(() => point.Facing = facing);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void UpdateSelectedEntryPoint(string id)
+    {
+        var point = SelectedEntryPoint;
+        id = id.Trim();
+        if (point is null || id.Length == 0 || point.Id == id) return;
+        if (_document.EntryPoints.Any(candidate =>
+                !ReferenceEquals(candidate, point) &&
+                candidate.Id.Equals(id, StringComparison.OrdinalIgnoreCase)))
+        {
+            StatusChanged?.Invoke(this, $"Entry Point ID 已存在：{id}");
+            return;
+        }
+        PerformMutation(() => point.Id = id);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void UpdateSelectedSceneConnection(
+        string id,
+        string targetSceneId,
+        string targetEntryPointId,
+        string triggerMode,
+        string transitionMode,
+        string transferMode,
+        string cameraFocus)
+    {
+        var connection = SelectedSceneConnection;
+        id = id.Trim();
+        targetSceneId = targetSceneId.Trim();
+        targetEntryPointId = targetEntryPointId.Trim();
+        if (connection is null || id.Length == 0 || targetSceneId.Length == 0 || targetEntryPointId.Length == 0)
+        {
+            StatusChanged?.Invoke(this, "出入口必須填寫 ID、目標地圖與目標 Entry Point。");
+            return;
+        }
+        if (_document.Connections.Any(candidate =>
+                !ReferenceEquals(candidate, connection) &&
+                candidate.Id.Equals(id, StringComparison.OrdinalIgnoreCase)))
+        {
+            StatusChanged?.Invoke(this, $"出入口 ID 已存在：{id}");
+            return;
+        }
+        PerformMutation(() =>
+        {
+            connection.Id = id;
+            connection.TargetSceneId = targetSceneId;
+            connection.TargetEntryPointId = targetEntryPointId;
+            connection.TriggerMode = triggerMode;
+            connection.TransitionMode = transitionMode;
+            connection.TransferMode = transferMode;
+            connection.CameraFocus = cameraFocus;
+        });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        StatusChanged?.Invoke(
+            this,
+            $"出入口已連接至 {targetSceneId} / {targetEntryPointId}。");
+    }
+
     public void UpdateSceneIdentity(string sceneId, string displayName)
     {
         sceneId = sceneId.Trim();
@@ -352,6 +429,10 @@ public sealed class EditorCanvas : Control
                     _document.MovementGuides[_selection.Index].Label = label;
                 else if (_selection.Kind == SceneLayerKind.TeleportPoint)
                     _document.TeleportPoints[_selection.Index].Label = label;
+                else if (_selection.Kind == SceneLayerKind.EntryPoint)
+                    _document.EntryPoints[_selection.Index].Label = label;
+                else if (_selection.Kind == SceneLayerKind.SceneConnection)
+                    _document.Connections[_selection.Index].Label = label;
                 else
                     _document.ItemPoints[_selection.Index].Label = label;
             }
@@ -401,6 +482,14 @@ public sealed class EditorCanvas : Control
             else if (_selection.Kind == SceneLayerKind.TeleportPoint)
             {
                 _document.TeleportPoints.RemoveAt(_selection.Index);
+            }
+            else if (_selection.Kind == SceneLayerKind.EntryPoint)
+            {
+                _document.EntryPoints.RemoveAt(_selection.Index);
+            }
+            else if (_selection.Kind == SceneLayerKind.SceneConnection)
+            {
+                _document.Connections.RemoveAt(_selection.Index);
             }
 
             _selection = LayerSelection.None;
@@ -558,6 +647,10 @@ public sealed class EditorCanvas : Control
             else if (_selection.Kind == SceneLayerKind.MovementGuide)
             {
                 ScalePoints(_document.MovementGuides[_selection.Index].Points, factor);
+            }
+            else if (_selection.Kind == SceneLayerKind.SceneConnection)
+            {
+                ScalePoints(_document.Connections[_selection.Index].Area, factor);
             }
         });
     }
@@ -1152,8 +1245,10 @@ public sealed class EditorCanvas : Control
         DrawCollisions(graphics);
         DrawInteractables(graphics);
         DrawStoryTriggers(graphics);
+        DrawSceneConnections(graphics);
         DrawMovementGuides(graphics);
         DrawTeleportPoints(graphics);
+        DrawEntryPoints(graphics);
         DrawItemPoints(graphics);
         DrawSpawn(graphics);
         DrawDraft(graphics);
@@ -1347,6 +1442,38 @@ public sealed class EditorCanvas : Control
         }
     }
 
+    private void DrawSceneConnections(Graphics graphics)
+    {
+        using var fill = new SolidBrush(Color.FromArgb(76, 255, 132, 64));
+        using var outline = new Pen(Color.FromArgb(250, 255, 170, 70), 3f / _zoom)
+        {
+            DashStyle = DashStyle.Dash,
+        };
+        using var labelFont = new Font("Segoe UI", 8f, FontStyle.Bold);
+        using var labelBrush = new SolidBrush(Color.FromArgb(250, 255, 220, 150));
+
+        for (var index = 0; index < _document.Connections.Count; index++)
+        {
+            var connection = _document.Connections[index];
+            var points = ToPointFArray(connection.Area);
+            if (points.Length < 3) continue;
+            graphics.FillPolygon(fill, points);
+            graphics.DrawPolygon(outline, points);
+            if (_selection == new LayerSelection(SceneLayerKind.SceneConnection, index))
+            {
+                DrawSelectedOutline(graphics, points);
+            }
+            var centerX = points.Average(point => point.X);
+            var centerY = points.Average(point => point.Y);
+            graphics.DrawString(
+                $"{connection.Label}\n→ {connection.TargetSceneId} / {connection.TargetEntryPointId}",
+                labelFont,
+                labelBrush,
+                centerX + 8f / _zoom,
+                centerY - 18f / _zoom);
+        }
+    }
+
     private void DrawMovementGuides(Graphics graphics)
     {
         for (var index = 0; index < _document.MovementGuides.Count; index++)
@@ -1446,6 +1573,42 @@ public sealed class EditorCanvas : Control
         }
     }
 
+    private void DrawEntryPoints(Graphics graphics)
+    {
+        using var labelFont = new Font("Segoe UI", 8f, FontStyle.Bold);
+        using var labelBrush = new SolidBrush(Color.FromArgb(250, 255, 222, 168));
+        for (var index = 0; index < _document.EntryPoints.Count; index++)
+        {
+            var point = _document.EntryPoints[index];
+            var selected = _selection == new LayerSelection(SceneLayerKind.EntryPoint, index);
+            var radius = (selected ? 12f : 10f) / _zoom;
+            using var fill = new SolidBrush(selected
+                ? Color.FromArgb(250, 255, 181, 72)
+                : Color.FromArgb(235, 245, 132, 44));
+            using var outline = new Pen(Color.White, (selected ? 3f : 2f) / _zoom);
+            var diamond = new[]
+            {
+                new PointF(point.X, point.Y - radius),
+                new PointF(point.X + radius, point.Y),
+                new PointF(point.X, point.Y + radius),
+                new PointF(point.X - radius, point.Y),
+            };
+            graphics.FillPolygon(fill, diamond);
+            graphics.DrawPolygon(outline, diamond);
+
+            var direction = DirectionVector(point.Facing);
+            var length = 38f / _zoom;
+            using var directionPen = new Pen(Color.FromArgb(250, 255, 194, 92), 3f / _zoom)
+            {
+                CustomEndCap = new AdjustableArrowCap(4f / _zoom, 5f / _zoom),
+            };
+            graphics.DrawLine(directionPen, point.X, point.Y,
+                point.X + direction.X * length, point.Y + direction.Y * length);
+            graphics.DrawString($"ENTRY · {point.Label} · {point.Id}", labelFont, labelBrush,
+                point.X + 14f / _zoom, point.Y - 21f / _zoom);
+        }
+    }
+
     private void DrawItemPoints(Graphics graphics)
     {
         using var labelFont = new Font("Segoe UI", 8f, FontStyle.Bold);
@@ -1541,7 +1704,7 @@ public sealed class EditorCanvas : Control
     {
         if (!IsValidSelection(_selection)) return;
         // Point layers draw their own selection marker and have no polygon vertices.
-        if (_selection.Kind is SceneLayerKind.ItemPoint or SceneLayerKind.TeleportPoint) return;
+        if (_selection.Kind is SceneLayerKind.ItemPoint or SceneLayerKind.TeleportPoint or SceneLayerKind.EntryPoint) return;
 
         if (_selection.Kind == SceneLayerKind.Collision)
         {
@@ -1577,6 +1740,7 @@ public sealed class EditorCanvas : Control
                 SceneLayerKind.Interactable => _document.Interactables[_selection.Index].Points,
                 SceneLayerKind.StoryTrigger => _document.StoryTriggers[_selection.Index].Points,
                 SceneLayerKind.MovementGuide => _document.MovementGuides[_selection.Index].Points,
+                SceneLayerKind.SceneConnection => _document.Connections[_selection.Index].Area,
                 _ => null,
             };
             if (points is null) return;
@@ -1688,6 +1852,7 @@ public sealed class EditorCanvas : Control
             case EditorTool.CollisionPolygon:
             case EditorTool.InteractionPolygon:
             case EditorTool.StoryTriggerPolygon:
+            case EditorTool.SceneExitPolygon:
             case EditorTool.MovementGuide:
                 if (e.Clicks >= 2)
                 {
@@ -1740,6 +1905,28 @@ public sealed class EditorCanvas : Control
                         Facing = "S",
                     });
                     _selection = new LayerSelection(SceneLayerKind.TeleportPoint, index);
+                });
+                SelectionChanged?.Invoke(this, EventArgs.Empty);
+                break;
+
+            case EditorTool.EntryPoint:
+                if (!IsPointInsideNavMesh(world))
+                {
+                    StatusChanged?.Invoke(this, "地圖 Entry Point 必須位於 NavMesh 範圍內。");
+                    break;
+                }
+                PerformMutation(() =>
+                {
+                    var index = _document.EntryPoints.Count;
+                    _document.EntryPoints.Add(new SceneEntryPoint
+                    {
+                        Id = NextId("entry-point", _document.EntryPoints.Select(item => item.Id)),
+                        Label = $"地圖 Entry Point {index + 1}",
+                        X = world.X,
+                        Y = world.Y,
+                        Facing = "S",
+                    });
+                    _selection = new LayerSelection(SceneLayerKind.EntryPoint, index);
                 });
                 SelectionChanged?.Invoke(this, EventArgs.Empty);
                 break;
@@ -2035,6 +2222,10 @@ public sealed class EditorCanvas : Control
         {
             MovePoints(_document.MovementGuides[_selection.Index].Points, deltaX, deltaY);
         }
+        else if (_selection.Kind == SceneLayerKind.SceneConnection)
+        {
+            MovePoints(_document.Connections[_selection.Index].Area, deltaX, deltaY);
+        }
         else if (_selection.Kind == SceneLayerKind.ItemPoint)
         {
             var itemPoint = _document.ItemPoints[_selection.Index];
@@ -2046,6 +2237,14 @@ public sealed class EditorCanvas : Control
         else if (_selection.Kind == SceneLayerKind.TeleportPoint)
         {
             var point = _document.TeleportPoints[_selection.Index];
+            var next = ClampToWorld(new PointF(point.X + deltaX, point.Y + deltaY));
+            if (!IsPointInsideNavMesh(next)) return false;
+            point.X = next.X;
+            point.Y = next.Y;
+        }
+        else if (_selection.Kind == SceneLayerKind.EntryPoint)
+        {
+            var point = _document.EntryPoints[_selection.Index];
             var next = ClampToWorld(new PointF(point.X + deltaX, point.Y + deltaY));
             if (!IsPointInsideNavMesh(next)) return false;
             point.X = next.X;
@@ -2131,6 +2330,23 @@ public sealed class EditorCanvas : Control
                     DialogueId = "",
                 });
                 _selection = new LayerSelection(SceneLayerKind.StoryTrigger, index);
+                _selectedVertex = -1;
+            }
+            else if (_tool == EditorTool.SceneExitPolygon)
+            {
+                var index = _document.Connections.Count;
+                _document.Connections.Add(new SceneConnection
+                {
+                    Id = NextId("scene-exit", _document.Connections.Select(item => item.Id)),
+                    Label = $"地圖出入口 {index + 1}",
+                    Type = "exit",
+                    Area = points,
+                    TriggerMode = "auto",
+                    TransitionMode = "seamless",
+                    TransferMode = "teleport",
+                    CameraFocus = "player",
+                });
+                _selection = new LayerSelection(SceneLayerKind.SceneConnection, index);
                 _selectedVertex = -1;
             }
             else
@@ -2227,6 +2443,15 @@ public sealed class EditorCanvas : Control
     private List<LayerSelection> GetHitTestCandidates(PointF point)
     {
         var candidates = new List<LayerSelection>();
+        var entryPointHitRadius = 15f / _zoom;
+        for (var index = _document.EntryPoints.Count - 1; index >= 0; index--)
+        {
+            var entryPoint = _document.EntryPoints[index];
+            if (Distance(point, new PointF(entryPoint.X, entryPoint.Y)) <= entryPointHitRadius)
+            {
+                candidates.Add(new LayerSelection(SceneLayerKind.EntryPoint, index));
+            }
+        }
         var teleportPointHitRadius = 14f / _zoom;
         for (var index = _document.TeleportPoints.Count - 1; index >= 0; index--)
         {
@@ -2267,6 +2492,14 @@ public sealed class EditorCanvas : Control
             if (PointInPolygon(point, _document.StoryTriggers[index].Points))
             {
                 candidates.Add(new LayerSelection(SceneLayerKind.StoryTrigger, index));
+            }
+        }
+
+        for (var index = _document.Connections.Count - 1; index >= 0; index--)
+        {
+            if (PointInPolygon(point, _document.Connections[index].Area))
+            {
+                candidates.Add(new LayerSelection(SceneLayerKind.SceneConnection, index));
             }
         }
 
@@ -2550,6 +2783,8 @@ public sealed class EditorCanvas : Control
             SceneLayerKind.MovementGuide => $"強制引導線 · {_document.MovementGuides[selection.Index].Label}",
             SceneLayerKind.ItemPoint => $"ItemPoint · {_document.ItemPoints[selection.Index].Label}",
             SceneLayerKind.TeleportPoint => $"傳送 Point · {_document.TeleportPoints[selection.Index].Label}",
+            SceneLayerKind.EntryPoint => $"地圖 Entry Point · {_document.EntryPoints[selection.Index].Label}",
+            SceneLayerKind.SceneConnection => $"地圖出入口 · {_document.Connections[selection.Index].Label}",
             _ => "無",
         };
     }
@@ -2793,6 +3028,7 @@ public sealed class EditorCanvas : Control
             SceneLayerKind.Interactable when IsValidSelection(_selection) => _document.Interactables[_selection.Index].Points,
             SceneLayerKind.StoryTrigger when IsValidSelection(_selection) => _document.StoryTriggers[_selection.Index].Points,
             SceneLayerKind.MovementGuide when IsValidSelection(_selection) => _document.MovementGuides[_selection.Index].Points,
+            SceneLayerKind.SceneConnection when IsValidSelection(_selection) => _document.Connections[_selection.Index].Area,
             _ => null,
         };
     }
@@ -2818,6 +3054,11 @@ public sealed class EditorCanvas : Control
         if (_selection.Kind == SceneLayerKind.MovementGuide)
         {
             return _document.MovementGuides[_selection.Index].Points;
+        }
+
+        if (_selection.Kind == SceneLayerKind.SceneConnection)
+        {
+            return _document.Connections[_selection.Index].Area;
         }
 
         if (_selection.Kind != SceneLayerKind.Collision) return null;
@@ -2861,6 +3102,8 @@ public sealed class EditorCanvas : Control
             SceneLayerKind.MovementGuide => selection.Index >= 0 && selection.Index < _document.MovementGuides.Count,
             SceneLayerKind.ItemPoint => selection.Index >= 0 && selection.Index < _document.ItemPoints.Count,
             SceneLayerKind.TeleportPoint => selection.Index >= 0 && selection.Index < _document.TeleportPoints.Count,
+            SceneLayerKind.EntryPoint => selection.Index >= 0 && selection.Index < _document.EntryPoints.Count,
+            SceneLayerKind.SceneConnection => selection.Index >= 0 && selection.Index < _document.Connections.Count,
             _ => false,
         };
     }
@@ -3014,7 +3257,7 @@ public sealed class EditorCanvas : Control
 
     private static bool IsPolygonTool(EditorTool tool)
     {
-        return tool is EditorTool.NavMeshPolygon or EditorTool.CollisionPolygon or EditorTool.InteractionPolygon or EditorTool.StoryTriggerPolygon or EditorTool.MovementGuide;
+        return tool is EditorTool.NavMeshPolygon or EditorTool.CollisionPolygon or EditorTool.InteractionPolygon or EditorTool.StoryTriggerPolygon or EditorTool.SceneExitPolygon or EditorTool.MovementGuide;
     }
 
     private static void ScalePoints(List<ScenePoint>? points, float factor)

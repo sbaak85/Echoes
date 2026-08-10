@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sceneId": "map_test01",
+  "sceneId": "Scene_3",
   "displayName": "map_test01",
   "image": {
     "file": "map_test01.png",
@@ -13,7 +13,7 @@
   },
   "grid": {
     "size": 5,
-    "visible": false,
+    "visible": true,
     "snap": true
   },
   "playerSpawn": {
@@ -28,6 +28,15 @@
       "facing": "S",
       "x": 730,
       "y": 680
+    }
+  ],
+  "entryPoints": [
+    {
+      "id": "entry-scene3-from-scene2",
+      "label": "從 Scene_2 進入",
+      "facing": "NE",
+      "x": 100,
+      "y": 1140
     }
   ],
   "navMesh": [
@@ -1531,7 +1540,7 @@
       "useRequirements": [
         {
           "kind": "item",
-          "itemId": "T0007",
+          "itemId": "T0008",
           "questId": "",
           "stageId": "",
           "stageMode": "CurrentStageOnly",
@@ -2471,9 +2480,39 @@
     }
   ],
   "worldLayout": {
-    "x": 0,
+    "x": 1254,
     "y": 0,
     "layer": 0
   },
-  "connections": []
+  "connections": [
+    {
+      "id": "exit-scene3-to-scene2",
+      "label": "前往 Scene_2",
+      "type": "exit",
+      "area": [
+        {
+          "x": 0,
+          "y": 1085
+        },
+        {
+          "x": 105,
+          "y": 1085
+        },
+        {
+          "x": 105,
+          "y": 1246
+        },
+        {
+          "x": 0,
+          "y": 1246
+        }
+      ],
+      "targetSceneId": "Scene_2",
+      "targetEntryPointId": "entry-scene2-from-scene3",
+      "triggerMode": "auto",
+      "transitionMode": "seamless",
+      "transferMode": "teleport",
+      "cameraFocus": "player"
+    }
+  ]
 }
