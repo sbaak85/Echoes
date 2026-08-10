@@ -148,6 +148,17 @@ import {
   type PlayerInfoFloatSegment,
 } from "./player-info-float";
 import {
+  PLAYER_VISUAL_PROJECT_CONFIG,
+  type PlayerShadowTuning,
+  type PlayerShadowTuningValue,
+  type PlayerVisualProjectConfig,
+} from "./player-visual-config";
+import {
+  trackBootShadowAnchors,
+  type BootOpaqueColumn,
+  type BootShadowAnchor,
+} from "./boot-shadow-tracking";
+import {
   ChapterFlowManager,
   type ChapterFlowAction,
 } from "./chapter-flow-manager";
@@ -976,21 +987,11 @@ const POINTER_RETARGET_MIN_WORLD_DISTANCE = 10;
 const POINTER_HOLD_INDICATOR_DELAY_SECONDS = 0.18;
 const GAMEPAD_MENU_REPEAT_DELAY_SECONDS = 0.32;
 const GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS = 0.12;
-const DEFAULT_PLAYER_SPEED = 210;
-const DEFAULT_PLAYER_SIZE = 142;
+const DEFAULT_PLAYER_SPEED = PLAYER_VISUAL_PROJECT_CONFIG.speed;
+const DEFAULT_PLAYER_SIZE = PLAYER_VISUAL_PROJECT_CONFIG.size;
 const PLAYER_DEFAULTS_STORAGE_KEY = "echoes:player-defaults";
 const PLAYER_SHADOW_TUNING_STORAGE_KEY = "echoes:player-shadow-tuning";
 
-type PlayerShadowTuningValue = {
-  ambientOffsetX: number;
-  ambientOffsetY: number;
-  bootOffsetX: number;
-  bootOffsetY: number;
-  widthPercent: number;
-  heightPercent: number;
-};
-
-type PlayerShadowTuning = Record<Direction, PlayerShadowTuningValue>;
 type PlayerShadowTuningField = keyof PlayerShadowTuningValue;
 
 const PLAYER_SHADOW_DIRECTIONS: Direction[] = [
@@ -1004,18 +1005,9 @@ const PLAYER_SHADOW_DIRECTIONS: Direction[] = [
   "NW",
 ];
 
-const createDefaultPlayerShadowTuningValue = (): PlayerShadowTuningValue => ({
-  ambientOffsetX: 0,
-  ambientOffsetY: 0,
-  bootOffsetX: 0,
-  bootOffsetY: 0,
-  widthPercent: 200,
-  heightPercent: 200,
-});
-
 const createDefaultPlayerShadowTuning = (): PlayerShadowTuning =>
   PLAYER_SHADOW_DIRECTIONS.reduce((result, direction) => {
-    result[direction] = createDefaultPlayerShadowTuningValue();
+    result[direction] = { ...PLAYER_VISUAL_PROJECT_CONFIG.shadows[direction] };
     return result;
   }, {} as PlayerShadowTuning);
 
@@ -1049,6 +1041,18 @@ const normalizePlayerShadowTuning = (source: unknown): PlayerShadowTuning => {
   }
   return defaults;
 };
+
+async function writePlayerVisualProjectConfig(
+  config: PlayerVisualProjectConfig,
+) {
+  const response = await fetch("/api/player-visual-config", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  });
+  return response.ok;
+}
 
 const OPTIONS_MENU_ITEMS = [
   "dialogue-text-size",
@@ -2594,6 +2598,26 @@ function makeChromaKeySpriteSequence(images: HTMLImageElement[]) {
   return cropPreparedChromaKeySprites(images.map(prepareChromaKeySprite));
 }
 
+function detectBootShadowAnchors(
+  sprite: HTMLCanvasElement,
+): [BootShadowAnchor, BootShadowAnchor] | null {
+  const context = sprite.getContext("2d", { willReadFrequently: true });
+  if (!context || sprite.width <= 0 || sprite.height <= 0) return null;
+  const pixels = context.getImageData(0, 0, sprite.width, sprite.height).data;
+  const startY = Math.floor(sprite.height * 0.48);
+  const columns: BootOpaqueColumn[] = [];
+
+  for (let x = 0; x < sprite.width; x += 1) {
+    let bottomY = -1;
+    for (let y = startY; y < sprite.height; y += 1) {
+      if (pixels[(y * sprite.width + x) * 4 + 3] >= 48) bottomY = y;
+    }
+    if (bottomY >= 0) columns.push({ x, bottomY });
+  }
+
+  return trackBootShadowAnchors(columns, sprite.width, sprite.height);
+}
+
 function tracePolygon(
   context: CanvasRenderingContext2D,
   polygon: Point[],
@@ -2659,6 +2683,9 @@ export function MovementLab() {
   const speedRef = useRef(DEFAULT_PLAYER_SPEED);
   const sizeRef = useRef(DEFAULT_PLAYER_SIZE);
   const playerShadowTuningRef = useRef<PlayerShadowTuning>(
+    createDefaultPlayerShadowTuning(),
+  );
+  const savedPlayerShadowTuningRef = useRef<PlayerShadowTuning>(
     createDefaultPlayerShadowTuning(),
   );
   const playerPositionRef = useRef<Point>({ ...SPAWN });
@@ -2823,7 +2850,9 @@ export function MovementLab() {
   const [playerShadowTuning, setPlayerShadowTuning] =
     useState<PlayerShadowTuning>(() => createDefaultPlayerShadowTuning());
   const [shadowTuningSaved, setShadowTuningSaved] = useState(true);
+  const [shadowTuningSaving, setShadowTuningSaving] = useState(false);
   const [shadowTuningSaveFailed, setShadowTuningSaveFailed] = useState(false);
+  const [playerDefaultsSaving, setPlayerDefaultsSaving] = useState(false);
   const [playerDefaultsSaveFailed, setPlayerDefaultsSaveFailed] =
     useState(false);
   const [collisionSlideTolerance, setCollisionSlideTolerance] = useState(55);
@@ -3138,6 +3167,11 @@ export function MovementLab() {
       questId: view.id,
       sequence: questHudEventSequenceRef.current,
     });
+    if (kind === "completed") {
+      playOneShotAudio("questCompleted");
+    } else if (kind === "accepted") {
+      playOneShotAudio("questStarted");
+    }
     if (kind === "accepted" || kind === "completed") {
       showQuestEventNotice(kind);
     }
@@ -3197,6 +3231,7 @@ export function MovementLab() {
       questId: view.id,
       sequence: questHudEventSequenceRef.current,
     });
+    playOneShotAudio("questStarted");
     questHudEventTimerRef.current = window.setTimeout(() => {
       questHudEventTimerRef.current = null;
       setQuestHudEvent((current) =>
@@ -4758,20 +4793,27 @@ export function MovementLab() {
     setSize(nextValue);
   };
 
-  const applyPlayerDefaults = () => {
+  const applyPlayerDefaults = async () => {
+    if (playerDefaultsSaving) return;
     const nextDefaults = {
       speed: speedRef.current,
       size: sizeRef.current,
     };
+    setPlayerDefaultsSaving(true);
+    setPlayerDefaultsSaveFailed(false);
     try {
-      window.localStorage.setItem(
-        PLAYER_DEFAULTS_STORAGE_KEY,
-        JSON.stringify(nextDefaults),
-      );
+      const saved = await writePlayerVisualProjectConfig({
+        ...nextDefaults,
+        shadows: savedPlayerShadowTuningRef.current,
+      });
+      if (!saved) throw new Error("project-config-write-failed");
       setSavedPlayerDefaults(nextDefaults);
       setPlayerDefaultsSaveFailed(false);
+      window.localStorage.removeItem(PLAYER_DEFAULTS_STORAGE_KEY);
     } catch {
       setPlayerDefaultsSaveFailed(true);
+    } finally {
+      setPlayerDefaultsSaving(false);
     }
   };
 
@@ -4801,16 +4843,28 @@ export function MovementLab() {
     setShadowTuningSaveFailed(false);
   };
 
-  const applyPlayerShadowTuning = () => {
+  const applyPlayerShadowTuning = async () => {
+    if (shadowTuningSaving) return;
+    const nextShadows = normalizePlayerShadowTuning(
+      playerShadowTuningRef.current,
+    );
+    setShadowTuningSaving(true);
+    setShadowTuningSaveFailed(false);
     try {
-      window.localStorage.setItem(
-        PLAYER_SHADOW_TUNING_STORAGE_KEY,
-        JSON.stringify(playerShadowTuningRef.current),
-      );
+      const saved = await writePlayerVisualProjectConfig({
+        speed: savedPlayerDefaults.speed,
+        size: savedPlayerDefaults.size,
+        shadows: nextShadows,
+      });
+      if (!saved) throw new Error("project-config-write-failed");
+      savedPlayerShadowTuningRef.current = nextShadows;
       setShadowTuningSaved(true);
       setShadowTuningSaveFailed(false);
+      window.localStorage.removeItem(PLAYER_SHADOW_TUNING_STORAGE_KEY);
     } catch {
       setShadowTuningSaveFailed(true);
+    } finally {
+      setShadowTuningSaving(false);
     }
   };
 
@@ -5114,12 +5168,8 @@ export function MovementLab() {
 
       setSpeedValue(savedSpeed);
       setSizeValue(savedSize);
-      setSavedPlayerDefaults({
-        speed: speedRef.current,
-        size: sizeRef.current,
-      });
     } catch {
-      // 儲存內容失效時保留內建預設值，不阻止遊戲啟動。
+      // 舊版瀏覽器設定失效時保留專案預設值，不阻止遊戲啟動。
     }
   }, []);
 
@@ -5132,7 +5182,10 @@ export function MovementLab() {
       const nextTuning = normalizePlayerShadowTuning(JSON.parse(rawTuning));
       playerShadowTuningRef.current = nextTuning;
       setPlayerShadowTuning(nextTuning);
-      setShadowTuningSaved(true);
+      setShadowTuningSaved(
+        JSON.stringify(nextTuning) ===
+          JSON.stringify(savedPlayerShadowTuningRef.current),
+      );
       setShadowTuningSaveFailed(false);
     } catch {
       setShadowTuningSaveFailed(true);
@@ -5193,6 +5246,13 @@ export function MovementLab() {
     let seWalkSprites: HTMLCanvasElement[] = [];
     let swWalkSprites: HTMLCanvasElement[] = [];
     let wWalkSprites: HTMLCanvasElement[] = [];
+    const walkBootShadowFrames: Partial<
+      Record<Direction, Array<[BootShadowAnchor, BootShadowAnchor] | null>>
+    > = {};
+    const idleBootShadowFrames = new Map<
+      Direction,
+      [BootShadowAnchor, BootShadowAnchor] | null
+    >();
     const player = { ...SPAWN };
     const camera = { ...SPAWN };
     const sceneImage = new Image();
@@ -5547,7 +5607,10 @@ export function MovementLab() {
       const image = new Image();
       image.decoding = "async";
       image.onload = () => {
-        sprites.set(direction as Direction, makeChromaKeySprite(image));
+        const sprite = makeChromaKeySprite(image);
+        const facing = direction as Direction;
+        sprites.set(facing, sprite);
+        idleBootShadowFrames.set(facing, detectBootShadowAnchors(sprite));
       };
       image.src = source;
     });
@@ -5564,6 +5627,7 @@ export function MovementLab() {
         loadedNWalkFrameCount += 1;
         if (loadedNWalkFrameCount === N_WALK_FRAME_SOURCES.length) {
           nWalkSprites = makeChromaKeySpriteSequence(nWalkImages);
+          walkBootShadowFrames.N = nWalkSprites.map(detectBootShadowAnchors);
         }
       };
       image.src = source;
@@ -5581,6 +5645,7 @@ export function MovementLab() {
         loadedNeWalkFrameCount += 1;
         if (loadedNeWalkFrameCount === NE_WALK_FRAME_SOURCES.length) {
           neWalkSprites = makeChromaKeySpriteSequence(neWalkImages);
+          walkBootShadowFrames.NE = neWalkSprites.map(detectBootShadowAnchors);
         }
       };
       image.src = source;
@@ -5598,6 +5663,7 @@ export function MovementLab() {
         loadedNwWalkFrameCount += 1;
         if (loadedNwWalkFrameCount === NW_WALK_FRAME_SOURCES.length) {
           nwWalkSprites = makeChromaKeySpriteSequence(nwWalkImages);
+          walkBootShadowFrames.NW = nwWalkSprites.map(detectBootShadowAnchors);
         }
       };
       image.src = source;
@@ -5615,6 +5681,7 @@ export function MovementLab() {
         loadedEWalkFrameCount += 1;
         if (loadedEWalkFrameCount === E_WALK_FRAME_SOURCES.length) {
           eWalkSprites = makeChromaKeySpriteSequence(eWalkImages);
+          walkBootShadowFrames.E = eWalkSprites.map(detectBootShadowAnchors);
         }
       };
       image.src = source;
@@ -5632,6 +5699,7 @@ export function MovementLab() {
         loadedSWalkFrameCount += 1;
         if (loadedSWalkFrameCount === S_WALK_FRAME_SOURCES.length) {
           sWalkSprites = makeChromaKeySpriteSequence(sWalkImages);
+          walkBootShadowFrames.S = sWalkSprites.map(detectBootShadowAnchors);
         }
       };
       image.src = source;
@@ -5649,6 +5717,7 @@ export function MovementLab() {
         loadedSeWalkFrameCount += 1;
         if (loadedSeWalkFrameCount === SE_WALK_FRAME_SOURCES.length) {
           seWalkSprites = makeChromaKeySpriteSequence(seWalkImages);
+          walkBootShadowFrames.SE = seWalkSprites.map(detectBootShadowAnchors);
         }
       };
       image.src = source;
@@ -5666,6 +5735,7 @@ export function MovementLab() {
         loadedSwWalkFrameCount += 1;
         if (loadedSwWalkFrameCount === SW_WALK_FRAME_SOURCES.length) {
           swWalkSprites = makeChromaKeySpriteSequence(swWalkImages);
+          walkBootShadowFrames.SW = swWalkSprites.map(detectBootShadowAnchors);
         }
       };
       image.src = source;
@@ -5683,6 +5753,7 @@ export function MovementLab() {
         loadedWWalkFrameCount += 1;
         if (loadedWWalkFrameCount === W_WALK_FRAME_SOURCES.length) {
           wWalkSprites = makeChromaKeySpriteSequence(wWalkImages);
+          walkBootShadowFrames.W = wWalkSprites.map(detectBootShadowAnchors);
         }
       };
       image.src = source;
@@ -7690,75 +7761,74 @@ export function MovementLab() {
       let activeWalkElapsedSeconds = 0;
       let activeWalkReferenceFps = N_WALK_REFERENCE_FPS;
       let activeWalkFrameCount = N_WALK_FRAME_SOURCES.length;
+      let activeWalkSprites = nWalkSprites;
 
       switch (currentFacing) {
         case "NE":
           activeWalkElapsedSeconds = neWalkElapsedSeconds;
           activeWalkReferenceFps = NE_WALK_REFERENCE_FPS;
           activeWalkFrameCount = NE_WALK_FRAME_SOURCES.length;
+          activeWalkSprites = neWalkSprites;
           break;
         case "NW":
           activeWalkElapsedSeconds = nwWalkElapsedSeconds;
           activeWalkReferenceFps = NW_WALK_REFERENCE_FPS;
           activeWalkFrameCount = NW_WALK_FRAME_SOURCES.length;
+          activeWalkSprites = nwWalkSprites;
           break;
         case "E":
           activeWalkElapsedSeconds = eWalkElapsedSeconds;
           activeWalkReferenceFps = E_WALK_REFERENCE_FPS;
           activeWalkFrameCount = E_WALK_FRAME_SOURCES.length;
+          activeWalkSprites = eWalkSprites;
           break;
         case "S":
           activeWalkElapsedSeconds = sWalkElapsedSeconds;
           activeWalkReferenceFps = S_WALK_REFERENCE_FPS;
           activeWalkFrameCount = S_WALK_FRAME_SOURCES.length;
+          activeWalkSprites = sWalkSprites;
           break;
         case "SE":
           activeWalkElapsedSeconds = seWalkElapsedSeconds;
           activeWalkReferenceFps = SE_WALK_REFERENCE_FPS;
           activeWalkFrameCount = SE_WALK_FRAME_SOURCES.length;
+          activeWalkSprites = seWalkSprites;
           break;
         case "SW":
           activeWalkElapsedSeconds = swWalkElapsedSeconds;
           activeWalkReferenceFps = SW_WALK_REFERENCE_FPS;
           activeWalkFrameCount = SW_WALK_FRAME_SOURCES.length;
+          activeWalkSprites = swWalkSprites;
           break;
         case "W":
           activeWalkElapsedSeconds = wWalkElapsedSeconds;
           activeWalkReferenceFps = W_WALK_REFERENCE_FPS;
           activeWalkFrameCount = W_WALK_FRAME_SOURCES.length;
+          activeWalkSprites = wWalkSprites;
           break;
         case "N":
         default:
           activeWalkElapsedSeconds = nWalkElapsedSeconds;
+          activeWalkSprites = nWalkSprites;
           break;
       }
 
-      const directionVector: Record<Direction, Point> = {
-        N: { x: 0, y: -1 },
-        NE: { x: Math.SQRT1_2, y: -Math.SQRT1_2 },
-        E: { x: 1, y: 0 },
-        SE: { x: Math.SQRT1_2, y: Math.SQRT1_2 },
-        S: { x: 0, y: 1 },
-        SW: { x: -Math.SQRT1_2, y: Math.SQRT1_2 },
-        W: { x: -1, y: 0 },
-        NW: { x: -Math.SQRT1_2, y: -Math.SQRT1_2 },
-      };
-      const forward = directionVector[currentFacing];
-      const side = { x: -forward.y, y: forward.x };
       const walkFrame =
         activeWalkFrameCount > 0
           ? Math.floor(activeWalkElapsedSeconds * activeWalkReferenceFps) %
             activeWalkFrameCount
           : 0;
-      const gaitPhase =
-        wasMoving && activeWalkFrameCount > 0
-          ? (walkFrame / activeWalkFrameCount) * Math.PI * 2
-          : 0;
-      const stride = wasMoving ? Math.sin(gaitPhase) : 0;
-      const leftContact = wasMoving ? (1 + stride) / 2 : 1;
-      const rightContact = wasMoving ? (1 - stride) / 2 : 1;
-      const sideOffset = renderedHeight * 0.043;
-      const strideOffset = renderedHeight * 0.032;
+      const walkSprite =
+        wasMoving && activeWalkSprites.length === activeWalkFrameCount
+          ? activeWalkSprites[walkFrame]
+          : null;
+      const sprite = walkSprite ?? sprites.get(currentFacing);
+      const renderedWidth = sprite
+        ? renderedHeight * (sprite.width / Math.max(1, sprite.height))
+        : renderedHeight;
+      const trackedBootAnchors = walkSprite
+        ? walkBootShadowFrames[currentFacing]?.[walkFrame] ?? null
+        : idleBootShadowFrames.get(currentFacing) ?? null;
       const shadowCenterY = player.y - renderedHeight * 0.012;
       const shadowTuning = playerShadowTuningRef.current[currentFacing];
       const shadowWidthScale = shadowTuning.widthPercent / 100;
@@ -7799,19 +7869,19 @@ export function MovementLab() {
         0.48,
       );
 
-      // The tighter layer follows the two boots and alternates contact over the walk cycle.
-      const drawBootContactShadow = (sideSign: number, contact: number) => {
+      // 靴底影直接讀取當前角色影格中的腳底像素，不再用相反方向的正弦位移猜腳步。
+      const drawBootContactShadow = (anchor: BootShadowAnchor) => {
+        const contact = anchor.contact;
         const liftScale = 0.67 + contact * 0.33;
         const footX =
-          player.x +
-          shadowTuning.bootOffsetX +
-          side.x * sideOffset * sideSign +
-          forward.x * strideOffset * stride * sideSign;
+          player.x - renderedWidth / 2 +
+          anchor.xRatio * renderedWidth +
+          shadowTuning.bootOffsetX;
         const footY =
-          shadowCenterY +
+          player.y - renderedHeight +
+          anchor.yRatio * renderedHeight +
           shadowTuning.bootOffsetY +
-          side.y * sideOffset * sideSign +
-          forward.y * strideOffset * stride * sideSign;
+          renderedHeight * 0.006;
         drawSoftShadowEllipse(
           footX,
           footY,
@@ -7821,94 +7891,15 @@ export function MovementLab() {
           0.62,
         );
       };
-      drawBootContactShadow(-1, leftContact);
-      drawBootContactShadow(1, rightContact);
+      const bootAnchors =
+        trackedBootAnchors ??
+        ([
+          { xRatio: 0.3, yRatio: 0.985, contact: 1 },
+          { xRatio: 0.7, yRatio: 0.985, contact: 1 },
+        ] as [BootShadowAnchor, BootShadowAnchor]);
+      bootAnchors.forEach(drawBootContactShadow);
 
-      const nWalkSprite =
-        currentFacing === "N" &&
-        wasMoving &&
-        nWalkSprites.length === N_WALK_FRAME_SOURCES.length
-          ? nWalkSprites[
-              Math.floor(nWalkElapsedSeconds * N_WALK_REFERENCE_FPS) %
-                nWalkSprites.length
-            ]
-          : null;
-      const neWalkSprite =
-        currentFacing === "NE" &&
-        wasMoving &&
-        neWalkSprites.length === NE_WALK_FRAME_SOURCES.length
-          ? neWalkSprites[
-              Math.floor(neWalkElapsedSeconds * NE_WALK_REFERENCE_FPS) %
-                neWalkSprites.length
-            ]
-          : null;
-      const nwWalkSprite =
-        currentFacing === "NW" &&
-        wasMoving &&
-        nwWalkSprites.length === NW_WALK_FRAME_SOURCES.length
-          ? nwWalkSprites[
-              Math.floor(nwWalkElapsedSeconds * NW_WALK_REFERENCE_FPS) %
-                nwWalkSprites.length
-            ]
-          : null;
-      const eWalkSprite =
-        currentFacing === "E" &&
-        wasMoving &&
-        eWalkSprites.length === E_WALK_FRAME_SOURCES.length
-          ? eWalkSprites[
-              Math.floor(eWalkElapsedSeconds * E_WALK_REFERENCE_FPS) %
-                eWalkSprites.length
-            ]
-          : null;
-      const sWalkSprite =
-        currentFacing === "S" &&
-        wasMoving &&
-        sWalkSprites.length === S_WALK_FRAME_SOURCES.length
-          ? sWalkSprites[
-              Math.floor(sWalkElapsedSeconds * S_WALK_REFERENCE_FPS) %
-                sWalkSprites.length
-            ]
-          : null;
-      const seWalkSprite =
-        currentFacing === "SE" &&
-        wasMoving &&
-        seWalkSprites.length === SE_WALK_FRAME_SOURCES.length
-          ? seWalkSprites[
-              Math.floor(seWalkElapsedSeconds * SE_WALK_REFERENCE_FPS) %
-                seWalkSprites.length
-            ]
-          : null;
-      const swWalkSprite =
-        currentFacing === "SW" &&
-        wasMoving &&
-        swWalkSprites.length === SW_WALK_FRAME_SOURCES.length
-          ? swWalkSprites[
-              Math.floor(swWalkElapsedSeconds * SW_WALK_REFERENCE_FPS) %
-                swWalkSprites.length
-            ]
-          : null;
-      const wWalkSprite =
-        currentFacing === "W" &&
-        wasMoving &&
-        wWalkSprites.length === W_WALK_FRAME_SOURCES.length
-          ? wWalkSprites[
-              Math.floor(wWalkElapsedSeconds * W_WALK_REFERENCE_FPS) %
-                wWalkSprites.length
-            ]
-          : null;
-      const sprite =
-        nWalkSprite ??
-        neWalkSprite ??
-        nwWalkSprite ??
-        eWalkSprite ??
-        sWalkSprite ??
-        seWalkSprite ??
-        swWalkSprite ??
-        wWalkSprite ??
-        sprites.get(currentFacing);
       if (sprite) {
-        const renderedWidth =
-          renderedHeight * (sprite.width / Math.max(1, sprite.height));
         context.drawImage(
           sprite,
           player.x - renderedWidth / 2,
@@ -10771,6 +10762,7 @@ export function MovementLab() {
                   <button
                     className="apply-player-defaults-option"
                     type="button"
+                    disabled={shadowTuningSaving}
                     data-gamepad-selected={
                       optionsMenuSelection === "apply-shadow-tuning" || undefined
                     }
@@ -10782,19 +10774,22 @@ export function MovementLab() {
                   >
                     <span>
                       <strong>儲存八方向陰影設定</strong>
-                      <small>所有方向會一起寫入本機，下次啟動自動套用。</small>
+                      <small>寫入 app/player-visual-config.ts，Commit 後可同步到其他電腦。</small>
                     </span>
                     <b>
-                      {shadowTuningSaveFailed
+                      {shadowTuningSaving
+                        ? "寫入中…"
+                        : shadowTuningSaveFailed
                         ? "儲存失敗"
                         : shadowTuningSaved
-                          ? "已套用"
-                          : "套用"}
+                          ? "已寫入專案"
+                          : "寫入專案"}
                     </b>
                   </button>
                   <button
                     className="apply-player-defaults-option"
                     type="button"
+                    disabled={playerDefaultsSaving}
                     data-gamepad-selected={optionsMenuSelection === "apply-player-defaults" || undefined}
                     onFocus={() => setOptionsMenuSelectionValue("apply-player-defaults")}
                     onClick={() => {
@@ -10805,16 +10800,18 @@ export function MovementLab() {
                     <span>
                       <strong>角色預設參數</strong>
                       <small>
-                        已儲存：尺寸 {savedPlayerDefaults.size}／移動速度 {savedPlayerDefaults.speed}
+                        專案預設：尺寸 {savedPlayerDefaults.size}／移動速度 {savedPlayerDefaults.speed}
                       </small>
                     </span>
                     <b>
-                      {playerDefaultsSaveFailed
+                      {playerDefaultsSaving
+                        ? "寫入中…"
+                        : playerDefaultsSaveFailed
                         ? "儲存失敗"
                         : size === savedPlayerDefaults.size &&
                             speed === savedPlayerDefaults.speed
-                          ? "已套用"
-                          : "套用"}
+                          ? "已寫入專案"
+                          : "寫入專案"}
                     </b>
                   </button>
                   <button

@@ -125,6 +125,30 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 0.9,
       "delaySeconds": 0
+    },
+    "questCompleted": {
+      "label": "任務完成提示",
+      "trigger": "任務提示 UI 開始播放綠色 COMPLETE 底光與外框擴散演出的瞬間播放一次。",
+      "sourceAssetPaths": [
+        "Assets/Audio/任務成功.mp3"
+      ],
+      "sources": [
+        "./audio/quest-complete.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0
+    },
+    "questStarted": {
+      "label": "任務開始或更新",
+      "trigger": "任務提示 UI 接取新任務，或開始切換到下一任務階段並播放 NEXT 演出的瞬間播放一次。",
+      "sourceAssetPaths": [
+        "Assets/Audio/任務開始.mp3"
+      ],
+      "sources": [
+        "./audio/quest-start.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0
     }
   }
   /* AUDIO_EVENT_CONFIG_END */

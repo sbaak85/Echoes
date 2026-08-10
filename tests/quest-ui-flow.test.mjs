@@ -168,6 +168,27 @@ test("quest completion trigger starts only after the COMPLETE UI finishes", () =
   assert.match(completionHandler, /else\s*{\s*completePresentation\(\);/);
 });
 
+test("quest HUD result animations start their managed audio once", () => {
+  const hudVisual = source.slice(
+    source.indexOf("const triggerQuestHudVisual"),
+    source.indexOf("const triggerQuestObjectiveTween"),
+  );
+  assert.match(
+    hudVisual,
+    /kind === "completed"[\s\S]*?playOneShotAudio\("questCompleted"\)/,
+  );
+  assert.match(
+    hudVisual,
+    /kind === "accepted"[\s\S]*?playOneShotAudio\("questStarted"\)/,
+  );
+
+  const stageTransition = source.slice(
+    source.indexOf("const triggerQuestStageTransition"),
+    source.indexOf("const scheduleQuestTeleport"),
+  );
+  assert.match(stageTransition, /playOneShotAudio\("questStarted"\)/);
+});
+
 test("quest TAB prompt follows the latest keyboard, gamepad, or mobile input", () => {
   const promptRenderer = source.slice(
     source.indexOf("function renderQuestObjectiveLabel"),
