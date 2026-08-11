@@ -96,10 +96,12 @@ import {
 import { POWER_ROUTING_INTERACTION_ID } from "./power-routing-puzzle";
 import {
   CAMP_POWER_CAPACITY,
+  CAMP_POWER_DAILY_CONSUMPTION_QUEST_ID,
   CAMP_POWER_REFILL_AMOUNT,
   CAMP_POWER_REFILL_ITEM_ID,
   CAMP_POWER_REFILL_ITEM_QUANTITY,
   CAMP_POWER_RESONATOR_INTERACTION_ID,
+  activateCampPowerDailyConsumptionAfterQuest,
   advanceCampPowerToGameMinutes,
   canRefillCampPower,
   createInitialCampPowerState,
@@ -3629,16 +3631,18 @@ export function MovementLab() {
       const loadedItemPointProgress = loadItemPointProgress();
       const loadedHotbarAssignments = loadHotbarAssignments();
       const loadedSurvivalState = loadSurvivalState();
-      const loadedCampPowerState = advanceCampPowerToGameMinutes(
-        loadCampPowerState(loadedSurvivalState.gameMinutes),
-        loadedSurvivalState.gameMinutes,
-      );
       const loadedDayNightEffectEnabled = loadDayNightEffectEnabled();
       const loadedInteractionUsage = loadInteractionUsageState(
         loadedSurvivalState.gameMinutes,
       );
       const loadedStoryProgress = loadStoryProgress();
       const loadedQuestSave = loadQuestSaveData();
+      const loadedCampPowerState = activateCampPowerDailyConsumptionAfterQuest(
+        loadCampPowerState(loadedSurvivalState.gameMinutes),
+        loadedQuestSave?.quests[CAMP_POWER_DAILY_CONSUMPTION_QUEST_ID]?.state ===
+          "completed",
+        loadedSurvivalState.gameMinutes,
+      );
       playerInventoryRef.current = loadedInventory;
       collectedWorldItemIdsRef.current = loadedCollectedWorldItemIds;
       droppedWorldItemsRef.current = loadedDroppedWorldItems;
@@ -3687,6 +3691,19 @@ export function MovementLab() {
             scheduleQuestTeleport(pointId, delayMilliseconds);
           },
           onStateChanged: (questId, entry) => {
+            if (
+              questId === CAMP_POWER_DAILY_CONSUMPTION_QUEST_ID &&
+              entry.state === "completed" &&
+              !campPowerStateRef.current.dailyConsumptionEnabled
+            ) {
+              applyCampPowerState(
+                activateCampPowerDailyConsumptionAfterQuest(
+                  campPowerStateRef.current,
+                  true,
+                  survivalStateRef.current.gameMinutes,
+                ),
+              );
+            }
             requestStoryTriggerContactCheckRef.current();
             const manager = questRuntimeManagerRef.current;
             if (manager)
@@ -5917,6 +5934,7 @@ export function MovementLab() {
       },
       (questId, questState) =>
         questRuntimeManagerRef.current?.isQuestInState(questId, questState) ?? false,
+      campPowerStateRef.current.current,
     )[0];
 
     canActivateStoryTriggerRef.current = (zone) => {

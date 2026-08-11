@@ -43,6 +43,7 @@ export type InteractionItemReward = {
 
 export type InteractionUseRequirement =
   | { kind: "item"; itemId: string; quantity: number }
+  | { kind: "campPower"; minimumPower: number }
   | { kind: "chapter"; chapter: number }
   | { kind: "quest"; questId: string }
   | {
@@ -190,6 +191,15 @@ export function normalizeInteractionUseRequirements(
         chapter: Math.min(99, Math.max(1, Math.floor(Number(candidate.chapter) || 1))),
       }];
     }
+    if (candidate.kind === "campPower") {
+      return [{
+        kind: "campPower",
+        minimumPower: Math.min(
+          50,
+          Math.max(1, Math.floor(Number(candidate.minimumPower) || 1)),
+        ),
+      }];
+    }
     if (candidate.kind === "quest") {
       const questId = typeof candidate.questId === "string"
         ? candidate.questId.trim()
@@ -266,11 +276,14 @@ export function getUnmetInteractionUseRequirements(
     questId: string,
     questState: InteractionQuestState,
   ) => boolean = () => false,
+  currentCampPower: number = 0,
 ): UnmetInteractionUseRequirement[] {
   if (!requirements?.length) return [];
   return requirements.flatMap((requirement): UnmetInteractionUseRequirement[] => {
     const actual = requirement.kind === "chapter"
       ? Math.max(1, Math.floor(currentChapter))
+      : requirement.kind === "campPower"
+        ? Math.max(0, Math.floor(currentCampPower))
       : requirement.kind === "quest"
         ? isQuestActive(requirement.questId) ? 1 : 0
         : requirement.kind === "questState"
@@ -280,6 +293,8 @@ export function getUnmetInteractionUseRequirements(
         : Math.max(0, Math.floor(inventory[requirement.itemId] ?? 0));
     const required = requirement.kind === "chapter"
       ? requirement.chapter
+      : requirement.kind === "campPower"
+        ? requirement.minimumPower
       : requirement.kind === "quest" ||
           requirement.kind === "questState" ||
           requirement.kind === "questStage"

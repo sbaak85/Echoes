@@ -103,6 +103,41 @@ test("quest requirements only pass while the quest is active", () => {
   );
 });
 
+test("camp-power requirements require at least the configured power value", () => {
+  const requirements = normalizeInteractionUseRequirements(
+    [{ kind: "campPower", minimumPower: 7 }],
+    () => null,
+  );
+
+  assert.deepEqual(requirements, [
+    { kind: "campPower", minimumPower: 7 },
+  ]);
+  assert.deepEqual(
+    getUnmetInteractionUseRequirements(
+      requirements,
+      {},
+      3,
+      () => false,
+      () => false,
+      () => false,
+      7,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    getUnmetInteractionUseRequirements(
+      requirements,
+      {},
+      3,
+      () => false,
+      () => false,
+      () => false,
+      6,
+    ),
+    [{ kind: "campPower", minimumPower: 7, actual: 6 }],
+  );
+});
+
 test("quest-state requirements preserve completed state and evaluate once on demand", () => {
   const requirements = normalizeInteractionUseRequirements(
     [{

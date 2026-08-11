@@ -3606,7 +3606,7 @@ html.dialogue-cursor-active .dialogue-box * {
   z-index: 180;
   inset: 0;
   display: grid;
-  padding: clamp(10px, 2.1vw, 34px);
+  padding: clamp(10px, 1.4vw, 22px);
   place-items: center;
   overflow: hidden;
   background:
@@ -3618,8 +3618,8 @@ html.dialogue-cursor-active .dialogue-box * {
 .power-puzzle-dialog {
   position: relative;
   display: grid;
-  width: min(1450px, 97%);
-  height: min(860px, 96%);
+  width: min(1180px, 94%);
+  height: min(700px, 90%);
   min-height: 0;
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
@@ -3675,8 +3675,8 @@ html.dialogue-cursor-active .dialogue-box * {
 .power-puzzle-header {
   position: relative;
   display: grid;
-  min-height: 86px;
-  grid-template-columns: minmax(300px, 1.1fr) minmax(330px, 1.25fr) minmax(280px, 1fr) 36px;
+  min-height: 70px;
+  grid-template-columns: minmax(260px, 1.1fr) minmax(290px, 1.25fr) minmax(240px, 1fr) 32px;
   align-items: stretch;
   border-bottom: 1px solid rgba(81, 222, 224, 0.28);
   background: rgba(2, 17, 21, 0.73);
@@ -3686,14 +3686,14 @@ html.dialogue-cursor-active .dialogue-box * {
   display: flex;
   min-width: 0;
   align-items: center;
-  padding: 15px 22px;
+  padding: 10px 16px;
   border-right: 1px solid rgba(73, 208, 211, 0.18);
 }
 
 .power-puzzle-title > span {
-  margin-right: 19px;
+  margin-right: 12px;
   color: #62f4f2;
-  font-size: 49px;
+  font-size: 38px;
   line-height: 1;
   text-shadow: 0 0 18px rgba(45, 229, 230, 0.5);
 }
@@ -3710,7 +3710,7 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .power-puzzle-title h2 {
   color: #5cf0ee;
-  font-size: clamp(18px, 1.55vw, 27px);
+  font-size: clamp(17px, 1.35vw, 23px);
   font-weight: 520;
   letter-spacing: 0.06em;
 }
@@ -3718,7 +3718,7 @@ html.dialogue-cursor-active .dialogue-box * {
 .power-puzzle-title p,
 .power-puzzle-header small {
   display: block;
-  margin-top: 4px;
+  margin-top: 2px;
   color: #25cdd0;
   font-family: Consolas, "SFMono-Regular", monospace;
   font-size: 11px;
@@ -3726,12 +3726,12 @@ html.dialogue-cursor-active .dialogue-box * {
 }
 
 .power-puzzle-capacity {
-  gap: 17px;
+  gap: 10px;
 }
 
 .power-puzzle-capacity > span {
   color: #58e4e4;
-  font-size: 17px;
+  font-size: 15px;
 }
 
 .power-puzzle-capacity > strong,
@@ -3739,20 +3739,79 @@ html.dialogue-cursor-active .dialogue-box * {
   flex: 0 0 auto;
   color: #67eeed;
   font-family: Consolas, "SFMono-Regular", monospace;
-  font-size: clamp(17px, 1.7vw, 28px);
+  font-size: clamp(17px, 1.5vw, 23px);
   font-weight: 500;
+}
+
+.power-capacity-meter {
+  position: relative;
+  display: block;
+  width: clamp(130px, 17vw, 235px);
+  height: 18px;
+  flex: 1 1 auto;
+  overflow: hidden;
+  border: 1px solid rgba(99, 239, 238, 0.72);
+  border-radius: 5px;
+  background:
+    linear-gradient(90deg, rgba(29, 126, 132, 0.12), transparent 24%),
+    rgba(1, 14, 18, 0.92);
+  box-shadow:
+    inset 0 0 10px rgba(28, 144, 151, 0.13),
+    0 0 7px rgba(63, 223, 224, 0.12);
+}
+
+.power-capacity-meter::before {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(30deg, transparent 0 47%, rgba(55, 194, 197, 0.12) 48% 49%, transparent 50%) 0 0 / 42px 100%,
+    linear-gradient(-30deg, transparent 0 47%, rgba(55, 194, 197, 0.09) 48% 49%, transparent 50%) 20px 0 / 42px 100%;
+  content: "";
+  pointer-events: none;
+}
+
+.power-capacity-meter > b {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #baffff 0%, #69fbf7 42%, #24cbd3 100%);
+  box-shadow:
+    0 0 12px rgba(70, 250, 247, 0.72),
+    inset 0 0 7px rgba(235, 255, 255, 0.95);
+  transition: width 320ms cubic-bezier(0.2, 0.78, 0.25, 1);
+}
+
+.power-capacity-meter > b::before {
+  position: absolute;
+  inset: 0 -24px;
+  background:
+    repeating-linear-gradient(125deg, transparent 0 6px, rgba(255, 255, 255, 0.95) 7px 8px, transparent 9px 14px),
+    repeating-linear-gradient(55deg, transparent 0 8px, rgba(195, 255, 255, 0.8) 9px 10px, transparent 11px 17px);
+  content: "";
+  filter: blur(0.2px) drop-shadow(0 0 3px #efffff);
+  animation: power-capacity-current 720ms linear infinite;
+  opacity: 0.85;
+}
+
+@keyframes power-capacity-current {
+  from { transform: translateX(-14px); }
+  to { transform: translateX(14px); }
 }
 
 .power-cell-strip {
   display: flex;
   min-width: 0;
-  gap: clamp(4px, 0.5vw, 9px);
+  gap: clamp(3px, 0.38vw, 6px);
 }
 
 .power-cell-strip b,
 .power-device-cells i {
   display: block;
-  width: clamp(13px, 1.35vw, 23px);
+  width: clamp(11px, 1.05vw, 18px);
   aspect-ratio: 1;
   border: 1px solid rgba(95, 189, 191, 0.32);
   border-radius: 3px;
@@ -3774,18 +3833,18 @@ html.dialogue-cursor-active .dialogue-box * {
 }
 
 .power-puzzle-status {
-  gap: 13px;
+  gap: 9px;
 }
 
 .power-puzzle-status > span {
   color: #f0a74b;
-  font-size: 42px;
+  font-size: 32px;
   line-height: 1;
 }
 
 .power-puzzle-status p {
   color: #f2b44f;
-  font-size: 17px;
+  font-size: 15px;
 }
 
 .power-puzzle-status small {
@@ -3795,7 +3854,7 @@ html.dialogue-cursor-active .dialogue-box * {
 .power-puzzle-status strong {
   margin-left: auto;
   color: #f3b352;
-  font-size: clamp(15px, 1.2vw, 21px);
+  font-size: clamp(14px, 1.05vw, 18px);
   font-weight: 560;
   white-space: nowrap;
 }
@@ -3817,8 +3876,8 @@ html.dialogue-cursor-active .dialogue-box * {
   top: 8px;
   right: 8px;
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   place-items: center;
   border: 1px solid rgba(134, 225, 222, 0.25);
@@ -3826,7 +3885,7 @@ html.dialogue-cursor-active .dialogue-box * {
   background: rgba(2, 14, 18, 0.9);
   color: #8cacab;
   cursor: pointer;
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .power-puzzle-close:hover:not(:disabled) {
@@ -3841,9 +3900,9 @@ html.dialogue-cursor-active .dialogue-box * {
 .power-puzzle-body {
   display: grid;
   min-height: 0;
-  grid-template-columns: minmax(0, 1.85fr) minmax(280px, 0.95fr);
-  gap: 12px;
-  padding: 12px;
+  grid-template-columns: minmax(0, 1.85fr) minmax(240px, 0.95fr);
+  gap: 8px;
+  padding: 8px;
 }
 
 .power-puzzle-device-panel,
@@ -3861,12 +3920,12 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .power-puzzle-column-headings {
   display: grid;
-  grid-template-columns: minmax(220px, 1.5fr) minmax(120px, 0.72fr) minmax(190px, 1fr);
-  gap: 12px;
-  padding: 12px 22px 10px;
+  grid-template-columns: minmax(190px, 1.5fr) minmax(100px, 0.72fr) minmax(160px, 1fr);
+  gap: 8px;
+  padding: 8px 14px 7px;
   border-bottom: 1px solid rgba(70, 200, 202, 0.18);
   color: #57e6e4;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .power-puzzle-column-headings small,
@@ -3882,18 +3941,18 @@ html.dialogue-cursor-active .dialogue-box * {
 .power-puzzle-device-list {
   display: grid;
   min-height: 0;
-  grid-template-rows: repeat(5, minmax(68px, 1fr));
-  gap: 6px;
-  padding: 7px;
+  grid-template-rows: repeat(5, minmax(54px, 1fr));
+  gap: 4px;
+  padding: 5px;
 }
 
 .power-device-row {
   display: grid;
   min-height: 0;
-  grid-template-columns: minmax(230px, 1.55fr) minmax(132px, 0.72fr) minmax(210px, 1.15fr);
-  gap: 9px;
+  grid-template-columns: minmax(190px, 1.55fr) minmax(110px, 0.72fr) minmax(170px, 1.15fr);
+  gap: 6px;
   align-items: center;
-  padding: 7px 13px;
+  padding: 4px 9px;
   border: 1px solid rgba(60, 188, 191, 0.23);
   border-radius: 4px;
   background: linear-gradient(90deg, rgba(9, 43, 48, 0.66), rgba(2, 19, 23, 0.53));
@@ -3937,13 +3996,13 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .power-device-identity > i {
   display: grid;
-  width: 58px;
-  height: 48px;
-  flex: 0 0 58px;
-  margin-right: 14px;
+  width: 44px;
+  height: 38px;
+  flex: 0 0 44px;
+  margin-right: 9px;
   place-items: center;
   color: #77d9d8;
-  font-size: 36px;
+  font-size: 28px;
   font-style: normal;
   line-height: 1;
   text-shadow: 0 0 15px rgba(76, 221, 220, 0.25);
@@ -3957,7 +4016,7 @@ html.dialogue-cursor-active .dialogue-box * {
   display: block;
   overflow: hidden;
   color: #c8f8f5;
-  font-size: clamp(15px, 1.45vw, 23px);
+  font-size: clamp(14px, 1.2vw, 19px);
   font-weight: 480;
   letter-spacing: 0.04em;
   text-overflow: ellipsis;
@@ -3966,7 +4025,7 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .power-device-identity small {
   display: block;
-  margin-top: 3px;
+  margin-top: 1px;
   overflow: hidden;
   color: #39d9da;
   font-family: Consolas, "SFMono-Regular", monospace;
@@ -3982,7 +4041,7 @@ html.dialogue-cursor-active .dialogue-box * {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
+  gap: 7px;
   padding: 0;
   border: 0;
   background: none;
@@ -3993,9 +4052,9 @@ html.dialogue-cursor-active .dialogue-box * {
 .power-breaker-track {
   position: relative;
   display: block;
-  width: 37px;
-  height: 54px;
-  flex: 0 0 37px;
+  width: 31px;
+  height: 44px;
+  flex: 0 0 31px;
   border: 2px solid #536264;
   border-radius: 4px;
   background: linear-gradient(90deg, #1c2526, #4a5150 50%, #151c1d);
@@ -4019,10 +4078,10 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .power-breaker-track > i {
   position: absolute;
-  right: 6px;
-  bottom: 5px;
-  left: 6px;
-  height: 21px;
+  right: 5px;
+  bottom: 4px;
+  left: 5px;
+  height: 17px;
   border: 1px solid #8b9290;
   border-radius: 2px;
   background: linear-gradient(#dbded7, #747b79);
@@ -4033,17 +4092,17 @@ html.dialogue-cursor-active .dialogue-box * {
 .power-breaker.is-on .power-breaker-track > i {
   background: linear-gradient(#c8fff6, #7bb6ad);
   box-shadow: 0 0 9px rgba(90, 244, 225, 0.5);
-  transform: translateY(-21px);
+  transform: translateY(-17px);
 }
 
 .power-breaker strong {
-  min-width: 48px;
-  padding: 7px 6px;
+  min-width: 42px;
+  padding: 5px;
   border: 1px solid rgba(121, 144, 145, 0.33);
   border-radius: 3px;
   color: inherit;
   font-family: Consolas, "SFMono-Regular", monospace;
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 500;
 }
 
@@ -4059,39 +4118,39 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .power-device-cells {
   display: flex;
-  gap: clamp(4px, 0.52vw, 8px);
+  gap: clamp(3px, 0.4vw, 6px);
 }
 
 .power-puzzle-info-panel {
   display: grid;
   min-height: 0;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  padding: 10px;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  padding: 7px;
 }
 
 .power-puzzle-info-panel > header {
-  padding: 0 2px 7px;
+  padding: 0 2px 5px;
   color: #59e8e6;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .power-info-identity {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 7px 9px;
   border: 1px solid rgba(80, 212, 214, 0.3);
   background: rgba(7, 36, 41, 0.66);
 }
 
 .power-info-identity > i {
   display: grid;
-  width: 58px;
-  height: 52px;
-  flex: 0 0 58px;
+  width: 44px;
+  height: 42px;
+  flex: 0 0 44px;
   place-items: center;
   color: #7ce6e3;
-  font-size: 38px;
+  font-size: 30px;
   font-style: normal;
 }
 
@@ -4102,15 +4161,15 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .power-info-identity h3 {
   color: #c9f8f5;
-  font-size: clamp(19px, 1.7vw, 28px);
+  font-size: clamp(17px, 1.45vw, 22px);
   font-weight: 470;
 }
 
 .power-info-identity p {
-  margin-top: 5px;
+  margin-top: 3px;
   color: #6fd5d5;
   font-family: Consolas, "SFMono-Regular", monospace;
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .power-puzzle-info-panel dl {
@@ -4130,28 +4189,72 @@ html.dialogue-cursor-active .dialogue-box * {
 .power-puzzle-info-panel dt,
 .power-puzzle-info-panel dd {
   margin: 0;
-  padding: 7px 9px;
+  padding: 5px 7px;
 }
 
 .power-puzzle-info-panel dt {
   color: #51e2df;
-  font-size: 14px;
+  font-size: 15px;
+}
+
+.power-puzzle-info-panel dt small {
+  font-size: 11px;
 }
 
 .power-puzzle-info-panel dd {
   border-left: 1px solid rgba(83, 192, 195, 0.13);
   color: #bdd8d7;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
 .power-puzzle-info-panel dd.is-on { color: #84e97a; }
 .power-puzzle-info-panel dd.is-critical { color: #ffc55d; }
 
+.power-info-illustration {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  margin: 7px 0 0;
+  overflow: hidden;
+  place-items: center;
+  background: transparent;
+}
+
+.power-info-illustration::before {
+  position: absolute;
+  width: 82%;
+  height: 72%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(36, 203, 208, 0.13), rgba(36, 203, 208, 0.035) 48%, transparent 74%);
+  filter: blur(10px);
+  content: "";
+  pointer-events: none;
+}
+
+.power-info-illustration img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  animation: power-device-illustration-in 180ms ease-out both;
+  filter: drop-shadow(0 10px 13px rgba(0, 0, 0, 0.48)) drop-shadow(0 0 8px rgba(57, 218, 219, 0.08));
+  object-fit: contain;
+  opacity: 0.92;
+  transform: scale(1.08);
+}
+
+@keyframes power-device-illustration-in {
+  from { opacity: 0; transform: scale(1.02); }
+  to { opacity: 0.92; transform: scale(1.08); }
+}
+
 .power-puzzle-footer {
   display: grid;
-  min-height: 104px;
-  grid-template-columns: minmax(390px, 1.35fr) minmax(260px, 1fr) minmax(250px, 0.75fr);
+  min-height: 82px;
+  grid-template-columns: minmax(330px, 1.35fr) minmax(230px, 1fr) minmax(200px, 0.75fr);
   border-top: 1px solid rgba(81, 222, 224, 0.25);
   background: rgba(2, 14, 18, 0.88);
 }
@@ -4164,14 +4267,14 @@ html.dialogue-cursor-active .dialogue-box * {
 .power-current-load {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 17px;
+  gap: 10px;
   align-items: center;
-  padding: 18px 22px;
+  padding: 10px 14px;
 }
 
 .power-current-load > span {
   color: #55e3e1;
-  font-size: 17px;
+  font-size: 15px;
 }
 
 .power-cell-strip.is-load {
@@ -4179,7 +4282,7 @@ html.dialogue-cursor-active .dialogue-box * {
 }
 
 .power-cell-strip.is-load b {
-  width: clamp(10px, 1.08vw, 18px);
+  width: clamp(9px, 0.9vw, 15px);
 }
 
 .power-cell-strip.is-load b.is-unavailable {
@@ -4197,21 +4300,21 @@ html.dialogue-cursor-active .dialogue-box * {
 .power-puzzle-feedback {
   display: flex;
   align-items: center;
-  gap: 15px;
-  padding: 17px 21px;
+  gap: 10px;
+  padding: 10px 14px;
   color: #e8ae54;
 }
 
 .power-puzzle-feedback > span {
   flex: 0 0 auto;
-  font-size: 38px;
+  font-size: 30px;
   line-height: 1;
 }
 
 .power-puzzle-feedback p {
   margin: 0;
-  font-size: 15px;
-  line-height: 1.45;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .power-puzzle-feedback.is-danger {
@@ -4229,8 +4332,8 @@ html.dialogue-cursor-active .dialogue-box * {
   align-content: center;
   justify-items: center;
   gap: 3px;
-  margin: 13px 17px;
-  padding: 11px 22px;
+  margin: 8px 10px;
+  padding: 8px 14px;
   border: 2px solid rgba(144, 196, 189, 0.55);
   border-radius: 5px;
   background:
@@ -4267,14 +4370,14 @@ html.dialogue-cursor-active .dialogue-box * {
 }
 
 .power-puzzle-apply strong {
-  font-size: clamp(19px, 1.8vw, 29px);
+  font-size: clamp(18px, 1.5vw, 23px);
   font-weight: 570;
   letter-spacing: 0.12em;
 }
 
 .power-puzzle-apply small {
   color: #d6cfc0;
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.12em;
 }
 

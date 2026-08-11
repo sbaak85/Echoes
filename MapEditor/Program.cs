@@ -98,6 +98,7 @@ internal static class Program
                         Quantity = 3,
                     },
                     new InteractionUseRequirement { Kind = "chapter", Chapter = 4 },
+                    new InteractionUseRequirement { Kind = "campPower", MinimumPower = 8 },
                 },
                 new[]
                 {
@@ -335,10 +336,11 @@ internal static class EditorSelfTest
         var scene = SceneJson.Load(scenePath);
         SceneJson.Validate(scene);
         if (
-            ItemCatalog.All.Count != 29 ||
+            ItemCatalog.All.Count != 30 ||
             ItemCatalog.Find("crystal-shard")?.Id != "R0001" ||
             ItemCatalog.Find("R0012")?.Name != "外星果實" ||
             ItemCatalog.Find("R0015")?.Name != "校正元件" ||
+            ItemCatalog.Find("T0009")?.Name != "多功能折刀" ||
             ItemCatalog.Find("R0100")?.Name != "全回復道具（測試用）"
         )
         {
@@ -704,6 +706,7 @@ internal static class EditorSelfTest
             new() { Kind = "item", ItemId = "R0011", Quantity = 3 },
             new() { Kind = "chapter", Chapter = 4 },
             new() { Kind = "quest", QuestId = "QUEST_TEST_ACTIVE" },
+            new() { Kind = "campPower", MinimumPower = 8 },
             new()
             {
                 Kind = "questStage",
@@ -752,7 +755,7 @@ internal static class EditorSelfTest
             multiPointRoundTrip.Interactables[0].CompletionDialogue?.Lines.FirstOrDefault() is not
                 { Speaker: "Sbaak", Text: "互動已完成。" } ||
             !multiPointRoundTrip.Interactables[0].AllowAttemptWhenRequirementsUnmet ||
-            multiPointRoundTrip.Interactables[0].UseRequirements?.Count != 4 ||
+            multiPointRoundTrip.Interactables[0].UseRequirements?.Count != 5 ||
             multiPointRoundTrip.Interactables[0].UseRequirements?[0] is not
                 { Kind: "item", ItemId: "R0011", Quantity: 3 } ||
             multiPointRoundTrip.Interactables[0].UseRequirements?[1] is not
@@ -760,6 +763,8 @@ internal static class EditorSelfTest
             multiPointRoundTrip.Interactables[0].UseRequirements?[2] is not
                 { Kind: "quest", QuestId: "QUEST_TEST_ACTIVE" } ||
             multiPointRoundTrip.Interactables[0].UseRequirements?[3] is not
+                { Kind: "campPower", MinimumPower: 8 } ||
+            multiPointRoundTrip.Interactables[0].UseRequirements?[4] is not
                 {
                     Kind: "questStage",
                     QuestId: "QUEST_TEST_ACTIVE",
@@ -810,10 +815,12 @@ internal static class EditorSelfTest
         {
             if (
                 !requirementsEditor.AllowAttemptWhenRequirementsUnmet ||
-                requirementsEditor.UseRequirements.Count != 4 ||
+                requirementsEditor.UseRequirements.Count != 5 ||
                 requirementsEditor.UseRequirements[2] is not
                     { Kind: "quest", QuestId: "QUEST_TEST_ACTIVE" } ||
                 requirementsEditor.UseRequirements[3] is not
+                    { Kind: "campPower", MinimumPower: 8 } ||
+                requirementsEditor.UseRequirements[4] is not
                     {
                         Kind: "questStage",
                         QuestId: "QUEST_TEST_ACTIVE",

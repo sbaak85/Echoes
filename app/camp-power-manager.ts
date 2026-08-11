@@ -4,6 +4,7 @@ export const CAMP_POWER_STORAGE_KEY = "echoes:camp-power:v1";
 export const CAMP_POWER_CAPACITY = 50;
 export const CAMP_POWER_INITIAL_VALUE = 3;
 export const CAMP_POWER_DAILY_CONSUMPTION = 1;
+export const CAMP_POWER_DAILY_CONSUMPTION_QUEST_ID = "QUEST_CH03_MAIN_004";
 export const CAMP_POWER_RESONATOR_INTERACTION_ID = "interaction-013";
 export const CAMP_POWER_REFILL_ITEM_ID = "R0001";
 export const CAMP_POWER_REFILL_ITEM_QUANTITY = 1;
@@ -95,6 +96,17 @@ export function advanceCampPowerToGameMinutes(
     ),
     lastProcessedCycle: currentCycle,
   };
+}
+
+export function activateCampPowerDailyConsumptionAfterQuest(
+  state: CampPowerState,
+  questCompleted: boolean,
+  gameMinutes: number,
+): CampPowerState {
+  const activated = questCompleted && !state.dailyConsumptionEnabled
+    ? setCampPowerDailyConsumptionEnabled(state, true, gameMinutes)
+    : state;
+  return advanceCampPowerToGameMinutes(activated, gameMinutes);
 }
 
 export function canRefillCampPower(state: CampPowerState, ownedItemCount: number) {

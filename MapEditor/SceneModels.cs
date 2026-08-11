@@ -370,6 +370,8 @@ public sealed class InteractionUseRequirement
     public string DisableStageId { get; set; } = "";
     public int Quantity { get; set; } = 1;
     public int Chapter { get; set; } = 1;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int MinimumPower { get; set; }
 
     public InteractionUseRequirement Clone() => new()
     {
@@ -383,6 +385,7 @@ public sealed class InteractionUseRequirement
         DisableStageId = DisableStageId,
         Quantity = Quantity,
         Chapter = Chapter,
+        MinimumPower = MinimumPower,
     };
 }
 
@@ -419,6 +422,7 @@ public static class ItemCatalog
             ["lantern"] = "T0006",
             ["welding-tool"] = "T0007",
             ["digging-shovel"] = "T0008",
+            ["multifunction-folding-knife"] = "T0009",
             ["navigation-data"] = "Q0001",
             ["memory-charm"] = "Q0002",
             ["ancient-plate"] = "Q0003",
@@ -452,6 +456,7 @@ public static class ItemCatalog
         new("T0006", "照明燈"),
         new("T0007", "銲槍工具"),
         new("T0008", "挖掘鏟"),
+        new("T0009", "多功能折刀"),
         new("Q0001", "飛船導航資料"),
         new("Q0002", "遺留下的記憶物"),
         new("Q0003", "古代符號板"),
@@ -836,14 +841,35 @@ public static class SceneJson
                         StringComparison.OrdinalIgnoreCase)
                         ? "chapter"
                         : requirement.Kind.Equals(
+                            "campPower",
+                            StringComparison.OrdinalIgnoreCase)
+                            ? "campPower"
+                        : requirement.Kind.Equals(
                             "quest",
                             StringComparison.OrdinalIgnoreCase)
                             ? "quest"
+                            : requirement.Kind.Equals(
+                                "questState",
+                                StringComparison.OrdinalIgnoreCase)
+                                ? "questState"
                             : requirement.Kind.Equals(
                                 "questStage",
                                 StringComparison.OrdinalIgnoreCase)
                                 ? "questStage"
                                 : "item";
+                    if (requirement.Kind == "campPower")
+                    {
+                        requirement.ItemId = "";
+                        requirement.QuestId = "";
+                        requirement.QuestState = null;
+                        requirement.StageId = "";
+                        requirement.DisableQuestId = "";
+                        requirement.DisableStageId = "";
+                        requirement.Quantity = 1;
+                        requirement.Chapter = 1;
+                        requirement.MinimumPower = Math.Clamp(requirement.MinimumPower, 1, 50);
+                        continue;
+                    }
                     if (requirement.Kind == "chapter")
                     {
                         requirement.ItemId = "";
@@ -853,6 +879,7 @@ public static class SceneJson
                         requirement.DisableStageId = "";
                         requirement.Chapter = Math.Clamp(requirement.Chapter, 1, 99);
                         requirement.Quantity = 1;
+                        requirement.MinimumPower = 0;
                         continue;
                     }
                     if (requirement.Kind == "quest")
@@ -864,10 +891,37 @@ public static class SceneJson
                         requirement.DisableStageId = "";
                         requirement.Quantity = 1;
                         requirement.Chapter = 1;
+                        requirement.MinimumPower = 0;
                         if (requirement.QuestId.Length == 0)
                         {
                             throw new InvalidDataException(
                                 $"互動多邊形 {interactable.Id} 的需求任務 ID 不可空白。");
+                        }
+                        continue;
+                    }
+                    if (requirement.Kind == "questState")
+                    {
+                        requirement.ItemId = "";
+                        requirement.QuestId = requirement.QuestId.Trim();
+                        requirement.QuestState = requirement.QuestState switch
+                        {
+                            "locked" => "locked",
+                            "available" => "available",
+                            "active" => "active",
+                            "failed" => "failed",
+                            "abandoned" => "abandoned",
+                            _ => "completed",
+                        };
+                        requirement.StageId = "";
+                        requirement.DisableQuestId = "";
+                        requirement.DisableStageId = "";
+                        requirement.Quantity = 1;
+                        requirement.Chapter = 1;
+                        requirement.MinimumPower = 0;
+                        if (requirement.QuestId.Length == 0)
+                        {
+                            throw new InvalidDataException(
+                                $"互動多邊形 {interactable.Id} 的任務狀態條件不可空白。");
                         }
                         continue;
                     }
@@ -886,6 +940,7 @@ public static class SceneJson
                         requirement.DisableStageId = requirement.DisableStageId.Trim();
                         requirement.Quantity = 1;
                         requirement.Chapter = 1;
+                        requirement.MinimumPower = 0;
                         if (requirement.QuestId.Length == 0 || requirement.StageId.Length == 0)
                         {
                             throw new InvalidDataException(
@@ -917,6 +972,7 @@ public static class SceneJson
                     requirement.DisableStageId = "";
                     requirement.Quantity = Math.Clamp(requirement.Quantity, 1, 99);
                     requirement.Chapter = 1;
+                    requirement.MinimumPower = 0;
                 }
             }
             else
@@ -1243,6 +1299,10 @@ public static class SceneJson
                 StringComparison.OrdinalIgnoreCase)
                 ? "chapter"
                 : requirement.Kind.Equals(
+                    "campPower",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "campPower"
+                : requirement.Kind.Equals(
                     "quest",
                     StringComparison.OrdinalIgnoreCase)
                     ? "quest"
@@ -1255,6 +1315,19 @@ public static class SceneJson
                         StringComparison.OrdinalIgnoreCase)
                         ? "questStage"
                         : "item";
+            if (requirement.Kind == "campPower")
+            {
+                requirement.ItemId = "";
+                requirement.QuestId = "";
+                requirement.QuestState = null;
+                requirement.StageId = "";
+                requirement.DisableQuestId = "";
+                requirement.DisableStageId = "";
+                requirement.Quantity = 1;
+                requirement.Chapter = 1;
+                requirement.MinimumPower = Math.Clamp(requirement.MinimumPower, 1, 50);
+                continue;
+            }
             if (requirement.Kind == "chapter")
             {
                 requirement.ItemId = "";
@@ -1265,6 +1338,7 @@ public static class SceneJson
                 requirement.DisableStageId = "";
                 requirement.Chapter = Math.Clamp(requirement.Chapter, 1, 99);
                 requirement.Quantity = 1;
+                requirement.MinimumPower = 0;
                 continue;
             }
             if (requirement.Kind == "quest")
@@ -1277,6 +1351,7 @@ public static class SceneJson
                 requirement.DisableStageId = "";
                 requirement.Quantity = 1;
                 requirement.Chapter = 1;
+                requirement.MinimumPower = 0;
                 if (requirement.QuestId.Length == 0)
                 {
                     throw new InvalidDataException(
@@ -1302,6 +1377,7 @@ public static class SceneJson
                 requirement.DisableStageId = "";
                 requirement.Quantity = 1;
                 requirement.Chapter = 1;
+                requirement.MinimumPower = 0;
                 if (requirement.QuestId.Length == 0)
                 {
                     throw new InvalidDataException(
@@ -1325,6 +1401,7 @@ public static class SceneJson
                 requirement.DisableStageId = requirement.DisableStageId.Trim();
                 requirement.Quantity = 1;
                 requirement.Chapter = 1;
+                requirement.MinimumPower = 0;
                 if (requirement.QuestId.Length == 0 || requirement.StageId.Length == 0)
                 {
                     throw new InvalidDataException(
@@ -1358,6 +1435,7 @@ public static class SceneJson
             requirement.DisableStageId = "";
             requirement.Quantity = Math.Clamp(requirement.Quantity, 1, 99);
             requirement.Chapter = 1;
+            requirement.MinimumPower = 0;
         }
     }
 

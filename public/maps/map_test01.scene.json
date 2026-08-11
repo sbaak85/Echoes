@@ -1106,6 +1106,18 @@
           "disableStageId": "",
           "quantity": 1,
           "chapter": 1
+        },
+        {
+          "kind": "campPower",
+          "itemId": "",
+          "questId": "",
+          "stageId": "",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1,
+          "minimumPower": 1
         }
       ],
       "interactionPoints": [
@@ -2405,16 +2417,16 @@
           "y": 300
         },
         {
-          "x": 1140,
-          "y": 340
+          "x": 1145,
+          "y": 345
         },
         {
-          "x": 1155,
-          "y": 340
+          "x": 1165,
+          "y": 345
         },
         {
-          "x": 1210,
-          "y": 295
+          "x": 1220,
+          "y": 300
         },
         {
           "x": 1120,
@@ -2447,6 +2459,17 @@
       },
       "useRequirements": [
         {
+          "kind": "questStage",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_001",
+          "stageId": "QUEST_CH03_MAIN_001_STAGE_02",
+          "stageMode": "UnlockFromStage",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        },
+        {
           "kind": "item",
           "itemId": "R0001",
           "questId": "",
@@ -2458,7 +2481,6 @@
           "chapter": 1
         }
       ],
-      "allowAttemptWhenRequirementsUnmet": true,
       "interactionPoints": [
         {
           "facing": "NW",
@@ -2544,6 +2566,115 @@
           }
         ]
       }
+    },
+    {
+      "id": "interaction-014",
+      "label": "\u5DE5\u5177\u8CA8\u7BB1",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 680,
+          "y": 310
+        },
+        {
+          "x": 645,
+          "y": 335
+        },
+        {
+          "x": 645,
+          "y": 385
+        },
+        {
+          "x": 695,
+          "y": 420
+        },
+        {
+          "x": 745,
+          "y": 395
+        },
+        {
+          "x": 745,
+          "y": 310
+        }
+      ],
+      "type": "check",
+      "verb": "\u6AA2\u67E5",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionLimitMode": "once",
+      "itemRewards": [
+        {
+          "itemId": "T0003",
+          "quantity": 1,
+          "delivery": "world"
+        }
+      ],
+      "useRequirements": [
+        {
+          "kind": "questStage",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_004",
+          "stageId": "QUEST_CH03_MAIN_004_STAGE_01",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 699.26434,
+        "y": 331.3129
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u9019\u88E1\u4E5F\u627E\u627E\u770B...",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u627E\u627E\u770B\u9019\u88E1...",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u8CA8\u6AC3\u7DE8\u865F...TX7041...\u627E\u770B\u770B\u9019\u88E1",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
+      }
     }
   ],
   "movementGuides": [
@@ -2586,20 +2717,20 @@
       "label": "\u5DE6\u4E0B\u9053\u8DEF\u30FB\u5C1A\u672A\u6E96\u5099\u597D",
       "points": [
         {
-          "x": 175,
-          "y": 1005
+          "x": 150,
+          "y": 1020
         },
         {
-          "x": 257,
-          "y": 953
+          "x": 232,
+          "y": 968
         },
         {
-          "x": 375,
-          "y": 1035
+          "x": 350,
+          "y": 1050
         },
         {
-          "x": 295,
-          "y": 1100
+          "x": 270,
+          "y": 1115
         }
       ],
       "once": true,
@@ -2721,21 +2852,6 @@
       },
       "x": 676.0829,
       "y": 920.794
-    },
-    {
-      "id": "item-point-004",
-      "label": "ItemPoint 4",
-      "itemId": "T0003",
-      "quantity": 1,
-      "spawnPolicy": "once",
-      "showOnMinimap": true,
-      "spawnRequirement": {
-        "questId": "QUEST_CH03_MAIN_004",
-        "stageId": "QUEST_CH03_MAIN_004_STAGE_01",
-        "stageMode": "CurrentStageOnly"
-      },
-      "x": 650,
-      "y": 335
     }
   ],
   "worldLayout": {

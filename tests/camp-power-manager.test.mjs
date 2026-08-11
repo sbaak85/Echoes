@@ -4,10 +4,12 @@ import test from "node:test";
 import {
   CAMP_POWER_CAPACITY,
   CAMP_POWER_DAILY_CONSUMPTION,
+  CAMP_POWER_DAILY_CONSUMPTION_QUEST_ID,
   CAMP_POWER_INITIAL_VALUE,
   CAMP_POWER_REFILL_AMOUNT,
   CAMP_POWER_REFILL_ITEM_ID,
   advanceCampPowerToGameMinutes,
+  activateCampPowerDailyConsumptionAfterQuest,
   canRefillCampPower,
   createInitialCampPowerState,
   refillCampPower,
@@ -35,6 +37,30 @@ test("啟用每日消耗後，每跨一個 06:00 週期扣除 1 點並封底於 
   assert.equal(advanceCampPowerToGameMinutes(enabled, 360 + 10 * 1440).current, 0);
 });
 
+test("任務 4 完成後才啟用耗電，啟用當下不追扣舊週期", () => {
+  assert.equal(CAMP_POWER_DAILY_CONSUMPTION_QUEST_ID, "QUEST_CH03_MAIN_004");
+  const initial = createInitialCampPowerState(360);
+  const stillDisabled = activateCampPowerDailyConsumptionAfterQuest(
+    initial,
+    false,
+    360 + 5 * 1440,
+  );
+  assert.equal(stillDisabled.current, 3);
+  assert.equal(stillDisabled.dailyConsumptionEnabled, false);
+
+  const activated = activateCampPowerDailyConsumptionAfterQuest(
+    stillDisabled,
+    true,
+    360 + 5 * 1440,
+  );
+  assert.equal(activated.current, 3);
+  assert.equal(activated.dailyConsumptionEnabled, true);
+  assert.equal(
+    advanceCampPowerToGameMinutes(activated, 360 + 6 * 1440).current,
+    2,
+  );
+});
+
 test("一個藍色晶體碎片補充 2 點，滿 50 後不可再灌入", () => {
   assert.equal(CAMP_POWER_REFILL_ITEM_ID, "R0001");
   assert.equal(CAMP_POWER_REFILL_AMOUNT, 2);
@@ -48,7 +74,7 @@ test("一個藍色晶體碎片補充 2 點，滿 50 後不可再灌入", () => {
   assert.equal(refillCampPower(full), full);
 });
 
-test("發電共振器可重複投入單顆 R0001，且未提前綁定任務階段", () => {
+test("發電共振器在指定任務階段解鎖後可重複投入單顆 R0001", () => {
   const scene = JSON.parse(
     readFileSync(new URL("../public/maps/map_test01.scene.json", import.meta.url), "utf8"),
   );
@@ -63,9 +89,12 @@ test("發電共振器可重複投入單顆 R0001，且未提前綁定任務階�
       itemId,
       quantity,
     })),
-    [{ kind: "item", itemId: "R0001", quantity: 1 }],
+    [
+      { kind: "questStage", itemId: "", quantity: 1 },
+      { kind: "item", itemId: "R0001", quantity: 1 },
+    ],
   );
-  assert.equal(resonator.allowAttemptWhenRequirementsUnmet, true);
+  assert.notEqual(resonator.interactionLimitMode, "once");
 });
 
 test("遊戲場景包含 10 x 5 的營地電力格與灌入確認視窗", () => {

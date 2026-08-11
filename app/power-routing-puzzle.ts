@@ -1,4 +1,5 @@
 export const POWER_ROUTING_CAPACITY = 3;
+export const POWER_ROUTING_RESERVE_MAX_CAPACITY = 50;
 export const POWER_ROUTING_DISPLAY_CELL_COUNT = 10;
 export const POWER_ROUTING_DEVICE_CELL_COUNT = 6;
 export const POWER_ROUTING_INTERACTION_ID = "interaction-012";
@@ -19,6 +20,7 @@ export type PowerRoutingDevice = {
   name: string;
   englishName: string;
   icon: string;
+  image: string;
   power: number;
   required: boolean;
   functionLabel: string;
@@ -31,6 +33,7 @@ export const POWER_ROUTING_DEVICES: readonly PowerRoutingDevice[] = [
     name: "工作臺主機",
     englishName: "WORKBENCH CORE",
     icon: "▣",
+    image: "./ui/power-devices/workbench-core-transparent.png",
     power: 3,
     required: true,
     functionLabel: "工作臺核心控制處理器",
@@ -41,6 +44,7 @@ export const POWER_ROUTING_DEVICES: readonly PowerRoutingDevice[] = [
     name: "資料終端",
     englishName: "DATA TERMINAL",
     icon: "▤",
+    image: "./ui/power-devices/data-terminal-transparent.png",
     power: 2,
     required: true,
     functionLabel: "診斷資料與操作介面",
@@ -51,6 +55,7 @@ export const POWER_ROUTING_DEVICES: readonly PowerRoutingDevice[] = [
     name: "照明系統",
     englishName: "LIGHTING SYSTEM",
     icon: "☼",
+    image: "./ui/power-devices/lighting-system-transparent.png",
     power: 2,
     required: false,
     functionLabel: "營地工作區域照明",
@@ -61,6 +66,7 @@ export const POWER_ROUTING_DEVICES: readonly PowerRoutingDevice[] = [
     name: "加熱模組",
     englishName: "HEATER MODULE",
     icon: "♨",
+    image: "./ui/power-devices/heater-module-transparent.png",
     power: 2,
     required: false,
     functionLabel: "低溫環境加熱設備",
@@ -71,6 +77,7 @@ export const POWER_ROUTING_DEVICES: readonly PowerRoutingDevice[] = [
     name: "冷卻循環",
     englishName: "COOLING LOOP",
     icon: "✣",
+    image: "./ui/power-devices/cooling-loop-transparent.png",
     power: 1,
     required: true,
     functionLabel: "核心散熱與熱量交換",

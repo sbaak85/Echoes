@@ -12,6 +12,7 @@ import {
   POWER_ROUTING_CAPACITY,
   POWER_ROUTING_DEVICE_CELL_COUNT,
   POWER_ROUTING_DISPLAY_CELL_COUNT,
+  POWER_ROUTING_RESERVE_MAX_CAPACITY,
   POWER_ROUTING_DEVICES,
   createInitialPowerRoutingState,
   evaluatePowerRouting,
@@ -160,6 +161,10 @@ export const PowerRoutingPuzzle = forwardRef<
     POWER_ROUTING_DISPLAY_CELL_COUNT,
     evaluation.load,
   );
+  const reserveCapacityPercent = Math.min(
+    100,
+    Math.max(0, (evaluation.capacity / POWER_ROUTING_RESERVE_MAX_CAPACITY) * 100),
+  );
 
   return (
     <div className="power-puzzle-overlay" data-power-puzzle-open="true">
@@ -179,12 +184,17 @@ export const PowerRoutingPuzzle = forwardRef<
           </div>
           <div className="power-puzzle-capacity">
             <span>備用電力總量<small>TOTAL POWER AVAILABLE</small></span>
-            <i className="power-cell-strip" aria-hidden="true">
-              {Array.from({ length: POWER_ROUTING_DISPLAY_CELL_COUNT }, (_, index) => (
-                <b className={index < evaluation.capacity ? "is-active" : ""} key={index} />
-              ))}
+            <i
+              className="power-capacity-meter"
+              role="meter"
+              aria-label={`備用電力目前 ${evaluation.capacity} UNIT`}
+              aria-valuemin={0}
+              aria-valuemax={POWER_ROUTING_RESERVE_MAX_CAPACITY}
+              aria-valuenow={evaluation.capacity}
+            >
+              <b style={{ width: `${reserveCapacityPercent}%` }} />
             </i>
-            <strong>/ {evaluation.capacity} UNIT</strong>
+            <strong>{evaluation.capacity} UNIT</strong>
           </div>
           <div className={`power-puzzle-status is-${evaluation.overloaded ? "danger" : evaluation.success ? "stable" : "warning"}`}>
             <span aria-hidden="true">⚠</span>
@@ -272,6 +282,14 @@ export const PowerRoutingPuzzle = forwardRef<
               <div><dt>系統類型<small>SYSTEM TYPE</small></dt><dd className={selectedDevice.required ? "is-critical" : ""}>{selectedDevice.required ? "關鍵系統" : "輔助系統"}</dd></div>
               <div><dt>說明<small>DESCRIPTION</small></dt><dd>{selectedDevice.description}</dd></div>
             </dl>
+            <figure className="power-info-illustration">
+              <img
+                key={selectedDevice.id}
+                src={selectedDevice.image}
+                alt={`${selectedDevice.name}裝置插圖`}
+                draggable={false}
+              />
+            </figure>
           </aside>
         </div>
 
