@@ -33,10 +33,10 @@
   "entryPoints": [
     {
       "id": "entry-scene3-from-scene2",
-      "label": "從 Scene_2 進入",
+      "label": "\u5F9E Scene_2 \u9032\u5165",
       "facing": "NE",
       "x": 100,
-      "y": 1140
+      "y": 1145
     }
   ],
   "navMesh": [
@@ -2487,24 +2487,28 @@
   "connections": [
     {
       "id": "exit-scene3-to-scene2",
-      "label": "前往 Scene_2",
+      "label": "\u524D\u5F80 Scene_2",
       "type": "exit",
       "area": [
         {
           "x": 0,
-          "y": 1085
+          "y": 1100
         },
         {
-          "x": 105,
-          "y": 1085
+          "x": 55,
+          "y": 1080
         },
         {
-          "x": 105,
-          "y": 1246
+          "x": 220,
+          "y": 1205
+        },
+        {
+          "x": 160,
+          "y": 1250
         },
         {
           "x": 0,
-          "y": 1246
+          "y": 1250
         }
       ],
       "targetSceneId": "Scene_2",

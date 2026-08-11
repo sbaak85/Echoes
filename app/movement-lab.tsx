@@ -11,6 +11,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import mapTest01Scene from "../public/maps/map_test01.scene.json";
+import mapTest02Scene from "../public/maps/map_test02.scene.json";
 import questDocumentSource from "../public/quests/quest-data.json";
 import {
   AUDIO_EVENT_CONFIG,
@@ -410,6 +411,7 @@ type SceneFile = {
   sceneId: string;
   image: { file: string; width: number; height: number };
   world: { width: number; height: number };
+  worldLayout?: { x: number; y: number; layer?: number };
   playerSpawn: Point & { facing: string };
   navMesh?: Array<{ id: string; label: string; points: Point[] }>;
   collisions?: Array<{
@@ -425,23 +427,96 @@ type SceneFile = {
   storyTriggers?: StoryTriggerZone[];
   itemPoints?: SceneItemPoint[];
   teleportPoints?: Array<Point & { id: string; label: string; facing: string }>;
+  entryPoints?: Array<Point & { id: string; label: string; facing: string }>;
+  connections?: Array<{
+    id: string;
+    label: string;
+    type: "exit";
+    area: Point[];
+    targetSceneId: string;
+    targetEntryPointId: string;
+    triggerMode?: "auto" | "manual" | "choice";
+    transitionMode?: "seamless" | "blackout";
+    transferMode?: "teleport" | "pathfind";
+    cameraFocus?: "player" | "sceneRoot";
+  }>;
 };
 
-const SCENE_DATA = mapTest01Scene as SceneFile;
-const WORLD = SCENE_DATA.world;
-const MAP_SOURCE = `./maps/${SCENE_DATA.image.file}`;
-const SPAWN: Point = {
+const SCENE_REGISTRY = new Map<string, SceneFile>(
+  [mapTest01Scene, mapTest02Scene].map((scene) => {
+    const typedScene = scene as SceneFile;
+    return [typedScene.sceneId, typedScene];
+  }),
+);
+
+// Keep only decoded scene background images warm.  NavMesh, collision and
+// minimap data remain scene-local and are still activated only on transfer.
+const SCENE_IMAGE_CACHE = new Map<string, HTMLImageElement>();
+
+function getSceneImageSource(scene: SceneFile) {
+  return `./maps/${scene.image.file}`;
+}
+
+function preloadSceneImage(scene: SceneFile) {
+  if (typeof Image === "undefined" || SCENE_IMAGE_CACHE.has(scene.sceneId)) {
+    return;
+  }
+
+  const image = new Image();
+  image.decoding = "async";
+  image.addEventListener(
+    "error",
+    () => {
+      if (SCENE_IMAGE_CACHE.get(scene.sceneId) === image) {
+        SCENE_IMAGE_CACHE.delete(scene.sceneId);
+      }
+    },
+    { once: true },
+  );
+  image.src = getSceneImageSource(scene);
+  SCENE_IMAGE_CACHE.set(scene.sceneId, image);
+
+  // decode() asks the browser to finish image decoding before a later scene
+  // transfer needs to draw it. Loading errors stay non-fatal and are evicted
+  // so a later scene render can retry.
+  void image.decode().catch(() => undefined);
+}
+
+function preloadAdjacentSceneImages(scene: SceneFile) {
+  const adjacentSceneIds = new Set(
+    (scene.connections ?? []).map((connection) => connection.targetSceneId),
+  );
+  adjacentSceneIds.forEach((sceneId) => {
+    const adjacentScene = SCENE_REGISTRY.get(sceneId);
+    if (adjacentScene) preloadSceneImage(adjacentScene);
+  });
+}
+
+function getSceneWorldLayout(scene: SceneFile) {
+  return scene.worldLayout ?? { x: 0, y: 0, layer: 0 };
+}
+
+function toStreamedWorldPoint(scene: SceneFile, point: Point): Point {
+  const layout = getSceneWorldLayout(scene);
+  return { x: layout.x + point.x, y: layout.y + point.y };
+}
+
+const DEFAULT_SCENE_ID = (mapTest01Scene as SceneFile).sceneId;
+let SCENE_DATA = mapTest01Scene as SceneFile;
+let WORLD = SCENE_DATA.world;
+let MAP_SOURCE = getSceneImageSource(SCENE_DATA);
+let SPAWN: Point = {
   x: SCENE_DATA.playerSpawn.x,
   y: SCENE_DATA.playerSpawn.y,
 };
-const SCENE_START_FACING = (
+let SCENE_START_FACING = (
   ["N", "NE", "E", "SE", "S", "SW", "W", "NW"].includes(
     SCENE_DATA.playerSpawn.facing,
   )
     ? SCENE_DATA.playerSpawn.facing
     : "S"
 ) as Direction;
-const SCENE_TELEPORT_POINTS: SceneTeleportPoint[] = (
+let SCENE_TELEPORT_POINTS: SceneTeleportPoint[] = (
   SCENE_DATA.teleportPoints ?? []
 ).flatMap((point) => {
   const id = typeof point.id === "string" ? point.id.trim() : "";
@@ -754,9 +829,9 @@ const DEFAULT_SCENE_COLLIDERS: SceneCollider[] = [
   },
 ];
 
-const NAV_REGIONS =
+let NAV_REGIONS =
   SCENE_DATA.navMesh?.map((region) => region.points) ?? DEFAULT_NAV_REGIONS;
-const SCENE_COLLIDERS =
+let SCENE_COLLIDERS =
   SCENE_DATA.collisions?.map((collision): SceneCollider => {
     if (collision.shape === "circle") {
       return {
@@ -774,13 +849,16 @@ const SCENE_COLLIDERS =
       points: collision.points ?? [],
     };
   }) ?? DEFAULT_SCENE_COLLIDERS;
-const MINI_MAP_GEOMETRY = buildMiniMapGeometry(
+let MINI_MAP_GEOMETRY = buildMiniMapGeometry(
   WORLD,
   NAV_REGIONS,
   SCENE_COLLIDERS,
   192,
 );
-const WORLD_ITEM_INTERACTABLES: SceneInteractable[] = WORLD_ITEM_PLACEMENTS
+const MINI_MAP_GEOMETRY_CACHE = new Map<string, typeof MINI_MAP_GEOMETRY>([
+  [SCENE_DATA.sceneId, MINI_MAP_GEOMETRY],
+]);
+let WORLD_ITEM_INTERACTABLES: SceneInteractable[] = WORLD_ITEM_PLACEMENTS
   .filter((placement) => placement.sceneId === SCENE_DATA.sceneId)
   .flatMap((placement) => {
     const item = ITEM_BY_ID.get(placement.itemId);
@@ -802,22 +880,104 @@ const WORLD_ITEM_INTERACTABLES: SceneInteractable[] = WORLD_ITEM_PLACEMENTS
       },
     ];
   });
-const STATIC_SCENE_INTERACTABLES = [
+let STATIC_SCENE_INTERACTABLES = [
   ...(SCENE_DATA.interactables ?? []),
   ...WORLD_ITEM_INTERACTABLES,
 ];
-const SCENE_MOVEMENT_GUIDES = SCENE_DATA.movementGuides ?? [];
-const SCENE_STORY_TRIGGERS = SCENE_DATA.storyTriggers ?? [];
-const SCENE_ITEM_POINTS = normalizeSceneItemPoints(
+let SCENE_MOVEMENT_GUIDES = SCENE_DATA.movementGuides ?? [];
+let SCENE_STORY_TRIGGERS = SCENE_DATA.storyTriggers ?? [];
+let SCENE_ITEM_POINTS = normalizeSceneItemPoints(
   SCENE_DATA.itemPoints,
   resolveItemId,
 );
-const ITEM_POINT_RUNTIME_POSITIONS = new Map(
+let ITEM_POINT_RUNTIME_POSITIONS = new Map(
   SCENE_ITEM_POINTS.map((itemPoint) => [
     itemPoint.id,
     findNearestSafeItemPointPosition(itemPoint),
   ]),
 );
+
+function activateSceneRuntime(scene: SceneFile) {
+  SCENE_DATA = scene;
+  WORLD = scene.world;
+  MAP_SOURCE = getSceneImageSource(scene);
+  SPAWN = { x: scene.playerSpawn.x, y: scene.playerSpawn.y };
+  SCENE_START_FACING = (
+    ["N", "NE", "E", "SE", "S", "SW", "W", "NW"].includes(
+      scene.playerSpawn.facing,
+    )
+      ? scene.playerSpawn.facing
+      : "S"
+  ) as Direction;
+  SCENE_TELEPORT_POINTS = (scene.teleportPoints ?? []).flatMap((point) => {
+    const id = typeof point.id === "string" ? point.id.trim() : "";
+    if (!id || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return [];
+    const facing = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"].includes(
+      point.facing,
+    )
+      ? (point.facing as Direction)
+      : "S";
+    return [{ ...point, id, facing }];
+  });
+  NAV_REGIONS = scene.navMesh?.map((region) => region.points) ?? DEFAULT_NAV_REGIONS;
+  SCENE_COLLIDERS =
+    scene.collisions?.map((collision): SceneCollider => {
+      if (collision.shape === "circle") {
+        return {
+          kind: "circle",
+          label: collision.label,
+          x: collision.center?.x ?? 0,
+          y: collision.center?.y ?? 0,
+          radius: collision.radius ?? 0,
+        };
+      }
+      return {
+        kind: "polygon",
+        label: collision.label,
+        points: collision.points ?? [],
+      };
+    }) ?? DEFAULT_SCENE_COLLIDERS;
+  const cachedMiniMapGeometry = MINI_MAP_GEOMETRY_CACHE.get(scene.sceneId);
+  MINI_MAP_GEOMETRY =
+    cachedMiniMapGeometry ??
+    buildMiniMapGeometry(WORLD, NAV_REGIONS, SCENE_COLLIDERS, 192);
+  if (!cachedMiniMapGeometry) {
+    MINI_MAP_GEOMETRY_CACHE.set(scene.sceneId, MINI_MAP_GEOMETRY);
+  }
+  WORLD_ITEM_INTERACTABLES = WORLD_ITEM_PLACEMENTS
+    .filter((placement) => placement.sceneId === scene.sceneId)
+    .flatMap((placement) => {
+      const item = ITEM_BY_ID.get(placement.itemId);
+      if (!item) return [];
+      return [{
+        id: `world-item:${placement.id}`,
+        label: item.name,
+        position: placement.position,
+        interactionPoint: placement.interactionPoint,
+        pickRadius: placement.pickRadius,
+        activationDistance: placement.activationDistance,
+        type: "pickup" as const,
+        verb: "拾取",
+        itemId: item.id,
+        quantity: placement.quantity,
+        worldItemId: placement.id,
+        worldItemKind: "placed" as const,
+      }];
+    });
+  STATIC_SCENE_INTERACTABLES = [
+    ...(scene.interactables ?? []),
+    ...WORLD_ITEM_INTERACTABLES,
+  ];
+  SCENE_MOVEMENT_GUIDES = scene.movementGuides ?? [];
+  SCENE_STORY_TRIGGERS = scene.storyTriggers ?? [];
+  SCENE_ITEM_POINTS = normalizeSceneItemPoints(scene.itemPoints, resolveItemId);
+  ITEM_POINT_RUNTIME_POSITIONS = new Map(
+    SCENE_ITEM_POINTS.map((itemPoint) => [
+      itemPoint.id,
+      findNearestSafeItemPointPosition(itemPoint),
+    ]),
+  );
+}
 
 function getItemPointInteractable(itemPoint: SceneItemPoint): SceneInteractable | null {
   const item = ITEM_BY_ID.get(itemPoint.itemId);
@@ -881,10 +1041,12 @@ function buildSceneInteractables(
       const interactable = getItemPointInteractable(itemPoint);
       return interactable ? [interactable] : [];
     }),
-    ...droppedWorldItems.flatMap((placement) => {
+    ...droppedWorldItems
+      .filter((placement) => placement.sceneId === SCENE_DATA.sceneId)
+      .flatMap((placement) => {
       const interactable = getDroppedWorldItemInteractable(placement);
       return interactable ? [interactable] : [];
-    }),
+      }),
   ];
 }
 
@@ -2667,6 +2829,9 @@ function drawMiniMapGeometry(canvas: HTMLCanvasElement) {
 const INITIAL_SURVIVAL_STATE = createInitialSurvivalState();
 
 export function MovementLab() {
+  const [currentSceneId, setCurrentSceneId] = useState(DEFAULT_SCENE_ID);
+  const currentSceneData =
+    SCENE_REGISTRY.get(currentSceneId) ?? SCENE_REGISTRY.get(DEFAULT_SCENE_ID)!;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cursorCanvasRef = useRef<HTMLCanvasElement>(null);
   const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -2690,6 +2855,8 @@ export function MovementLab() {
   );
   const playerPositionRef = useRef<Point>({ ...SPAWN });
   const playerFacingRef = useRef<Direction>(SCENE_START_FACING);
+  const sceneArrivalLockedRef = useRef(false);
+  const sceneTransitioningRef = useRef(false);
   const playerTeleportHandlerRef = useRef<(point: SceneTeleportPoint) => boolean>(
     () => false,
   );
@@ -5150,7 +5317,7 @@ export function MovementLab() {
   useEffect(() => {
     const minimapCanvas = minimapCanvasRef.current;
     if (minimapCanvas) drawMiniMapGeometry(minimapCanvas);
-  }, []);
+  }, [currentSceneId]);
 
   useEffect(() => {
     try {
@@ -5236,6 +5403,31 @@ export function MovementLab() {
     const cursorContext = cursorCanvas.getContext("2d");
     if (!context || !cursorContext) return;
 
+    preloadSceneImage(currentSceneData);
+    preloadAdjacentSceneImages(currentSceneData);
+
+    sceneTransitioningRef.current = false;
+    sceneInteractablesRef.current = buildSceneInteractables(
+      droppedWorldItemsRef.current,
+      itemPointProgressRef.current,
+      survivalStateRef.current.gameMinutes,
+      sceneEntryCollectedItemPointIdsRef.current,
+      questRuntimeManagerRef.current,
+    );
+    setActiveMinimapItemPoints(
+      SCENE_ITEM_POINTS.filter(
+        (itemPoint) =>
+          itemPoint.showOnMinimap &&
+          isItemPointAvailable(
+            itemPoint,
+            itemPointProgressRef.current,
+            survivalStateRef.current.gameMinutes,
+            sceneEntryCollectedItemPointIdsRef.current,
+            questRuntimeManagerRef.current,
+          ),
+      ),
+    );
+
     const pressedKeys = new Set<string>();
     const sprites = new Map<Direction, HTMLCanvasElement>();
     let nWalkSprites: HTMLCanvasElement[] = [];
@@ -5253,18 +5445,22 @@ export function MovementLab() {
       Direction,
       [BootShadowAnchor, BootShadowAnchor] | null
     >();
-    const player = { ...SPAWN };
-    const camera = { ...SPAWN };
-    const sceneImage = new Image();
-    sceneImage.decoding = "async";
-    sceneImage.src = MAP_SOURCE;
+    const player = { ...playerPositionRef.current };
+    const camera = { ...playerPositionRef.current };
+    let activeSceneImage =
+      SCENE_IMAGE_CACHE.get(currentSceneData.sceneId) ?? new Image();
+    if (!activeSceneImage.src) {
+      activeSceneImage.decoding = "async";
+      activeSceneImage.src = MAP_SOURCE;
+      SCENE_IMAGE_CACHE.set(currentSceneData.sceneId, activeSceneImage);
+    }
     const audioEvents = new AudioEventManager();
     audioEventManagerRef.current = audioEvents;
     audioEvents.setVolume("bgm", bgmVolumeRef.current);
     const footstepAudio = audioEvents.getAudio("footsteps");
     const bgmAudio = audioEvents.getAudio("bgm");
 
-    let currentFacing: Direction = SCENE_START_FACING;
+    let currentFacing: Direction = playerFacingRef.current;
     let wasMoving = false;
     let nWalkElapsedSeconds = 0;
     let neWalkElapsedSeconds = 0;
@@ -5304,6 +5500,140 @@ export function MovementLab() {
     let storyTriggerContactCheckRequested = false;
     requestStoryTriggerContactCheckRef.current = () => {
       storyTriggerContactCheckRequested = true;
+    };
+    type SceneStreamTransition = {
+      sourceScene: SceneFile;
+      targetScene: SceneFile;
+      targetEntry: Point & { id: string; label: string; facing: string };
+      targetFacing: Direction;
+      sourcePlayerGlobal: Point;
+      targetPlayerGlobal: Point;
+      sourceCameraGlobal: Point;
+      targetCameraGlobal: Point;
+      elapsedSeconds: number;
+      durationSeconds: number;
+    };
+    let sceneStreamTransition: SceneStreamTransition | null = null;
+    let sceneArrivalLockOrigin: Point | null = null;
+
+    const refreshActiveSceneRuntime = () => {
+      activeSceneImage =
+        SCENE_IMAGE_CACHE.get(SCENE_DATA.sceneId) ?? new Image();
+      if (!activeSceneImage.src) {
+        activeSceneImage.decoding = "async";
+        activeSceneImage.src = MAP_SOURCE;
+        SCENE_IMAGE_CACHE.set(SCENE_DATA.sceneId, activeSceneImage);
+      }
+      sceneInteractablesRef.current = buildSceneInteractables(
+        droppedWorldItemsRef.current,
+        itemPointProgressRef.current,
+        survivalStateRef.current.gameMinutes,
+        sceneEntryCollectedItemPointIdsRef.current,
+        questRuntimeManagerRef.current,
+      );
+      setActiveMinimapItemPoints(
+        SCENE_ITEM_POINTS.filter(
+          (itemPoint) =>
+            itemPoint.showOnMinimap &&
+            isItemPointAvailable(
+              itemPoint,
+              itemPointProgressRef.current,
+              survivalStateRef.current.gameMinutes,
+              sceneEntryCollectedItemPointIdsRef.current,
+              questRuntimeManagerRef.current,
+            ),
+        ),
+      );
+      activeStoryTriggerZoneIds.clear();
+      eligibleStoryTriggerZoneIds.clear();
+      storyTriggerContactCheckRequested = true;
+      lastMinimapPlayerX = Number.NaN;
+      lastMinimapPlayerY = Number.NaN;
+    };
+
+    const transferToConnectedScene = (
+      connection: NonNullable<SceneFile["connections"]>[number],
+    ) => {
+      if (sceneTransitioningRef.current) return false;
+      const targetScene = SCENE_REGISTRY.get(connection.targetSceneId);
+      if (!targetScene) {
+        console.warn(
+          `[SceneTransition] Unknown target scene: ${connection.targetSceneId}`,
+        );
+        return false;
+      }
+      const targetEntry = (targetScene.entryPoints ?? []).find(
+        (entry) => entry.id === connection.targetEntryPointId,
+      );
+      if (!targetEntry) {
+        console.warn(
+          `[SceneTransition] Unknown entry point ${connection.targetEntryPointId} in ${targetScene.sceneId}`,
+        );
+        return false;
+      }
+
+      const targetFacing = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"].includes(
+        targetEntry.facing,
+      )
+        ? (targetEntry.facing as Direction)
+        : "S";
+      preloadSceneImage(targetScene);
+      preloadAdjacentSceneImages(targetScene);
+      const sourceScene = SCENE_DATA;
+      const sourceLayout = getSceneWorldLayout(sourceScene);
+      const targetLayout = getSceneWorldLayout(targetScene);
+      const zoom = getSceneZoom(viewportWidth, viewportHeight);
+      const targetCameraLocal = {
+        x: getCameraCoordinate(
+          targetEntry.x,
+          viewportWidth,
+          targetScene.world.width,
+          zoom,
+        ),
+        y: getCameraCoordinate(
+          targetEntry.y,
+          viewportHeight,
+          targetScene.world.height,
+          zoom,
+        ),
+      };
+      const sourcePlayerGlobal = toStreamedWorldPoint(sourceScene, player);
+      const targetPlayerGlobal = toStreamedWorldPoint(targetScene, targetEntry);
+      const travelDistance = Math.hypot(
+        targetPlayerGlobal.x - sourcePlayerGlobal.x,
+        targetPlayerGlobal.y - sourcePlayerGlobal.y,
+      );
+      sceneTransitioningRef.current = true;
+      sceneStreamTransition = {
+        sourceScene,
+        targetScene,
+        targetEntry,
+        targetFacing,
+        sourcePlayerGlobal,
+        targetPlayerGlobal,
+        sourceCameraGlobal: {
+          x: sourceLayout.x + camera.x,
+          y: sourceLayout.y + camera.y,
+        },
+        targetCameraGlobal: {
+          x: targetLayout.x + targetCameraLocal.x,
+          y: targetLayout.y + targetCameraLocal.y,
+        },
+        elapsedSeconds: 0,
+        durationSeconds: clamp(travelDistance / 360, 0.42, 0.72),
+      };
+      pressedKeys.clear();
+      autoPath = [];
+      autoDestination = null;
+      pendingInteraction = null;
+      touchEffect = null;
+      heldPointerScreen = null;
+      footstepShouldPlay = false;
+      footstepAudio.pause();
+      wasMoving = false;
+      setMoving(false);
+      setMobileInteractionTarget(null);
+      return true;
     };
     const virtualCursor = { x: 0, y: 0 };
     let virtualCursorPositioned = false;
@@ -7388,13 +7718,31 @@ export function MovementLab() {
     canvas.addEventListener("lostpointercapture", onPointerCancel);
     requestBgmPlayback();
 
-    const drawMap = () => {
-      context.fillStyle = "#07121f";
-      context.fillRect(0, 0, WORLD.width, WORLD.height);
-
-      if (sceneImage.complete && sceneImage.naturalWidth > 0) {
-        context.drawImage(sceneImage, 0, 0, WORLD.width, WORLD.height);
+    const drawStreamedSceneImages = (originScene: SceneFile | null) => {
+      const originLayout = originScene
+        ? getSceneWorldLayout(originScene)
+        : { x: 0, y: 0, layer: 0 };
+      const activeLayer = getSceneWorldLayout(SCENE_DATA).layer ?? 0;
+      for (const scene of SCENE_REGISTRY.values()) {
+        const layout = getSceneWorldLayout(scene);
+        if ((layout.layer ?? 0) !== activeLayer) continue;
+        const image =
+          scene.sceneId === SCENE_DATA.sceneId
+            ? activeSceneImage
+            : SCENE_IMAGE_CACHE.get(scene.sceneId);
+        if (!image?.complete || image.naturalWidth <= 0) continue;
+        context.drawImage(
+          image,
+          layout.x - originLayout.x,
+          layout.y - originLayout.y,
+          scene.world.width,
+          scene.world.height,
+        );
       }
+    };
+
+    const drawMap = () => {
+      drawStreamedSceneImages(SCENE_DATA);
     };
 
     const drawWorldItemPickups = (time: number) => {
@@ -8439,6 +8787,40 @@ export function MovementLab() {
     };
 
     const update = (deltaTime: number) => {
+      if (sceneStreamTransition) {
+        sceneStreamTransition.elapsedSeconds = Math.min(
+          sceneStreamTransition.durationSeconds,
+          sceneStreamTransition.elapsedSeconds + deltaTime,
+        );
+        if (
+          sceneStreamTransition.elapsedSeconds >=
+          sceneStreamTransition.durationSeconds
+        ) {
+          const completedTransition = sceneStreamTransition;
+          const targetLayout = getSceneWorldLayout(completedTransition.targetScene);
+          activateSceneRuntime(completedTransition.targetScene);
+          sceneEntryCollectedItemPointIdsRef.current.clear();
+          player.x = completedTransition.targetEntry.x;
+          player.y = completedTransition.targetEntry.y;
+          playerPositionRef.current = { x: player.x, y: player.y };
+          currentFacing = completedTransition.targetFacing;
+          playerFacingRef.current = completedTransition.targetFacing;
+          camera.x = completedTransition.targetCameraGlobal.x - targetLayout.x;
+          camera.y = completedTransition.targetCameraGlobal.y - targetLayout.y;
+          sceneArrivalLockedRef.current = true;
+          sceneArrivalLockOrigin = {
+            x: completedTransition.targetEntry.x,
+            y: completedTransition.targetEntry.y,
+          };
+          refreshActiveSceneRuntime();
+          setFacing(completedTransition.targetFacing);
+          setCurrentSceneId(completedTransition.targetScene.sceneId);
+          sceneStreamTransition = null;
+          sceneTransitioningRef.current = false;
+        }
+        return;
+      }
+
       const movementStart = { x: player.x, y: player.y };
       const keyboardHorizontal =
         Number(pressedKeys.has("d") || pressedKeys.has("arrowright")) -
@@ -9277,6 +9659,38 @@ export function MovementLab() {
       playerPositionRef.current.x = player.x;
       playerPositionRef.current.y = player.y;
       playerFacingRef.current = currentFacing;
+      const touchingSceneConnections = (SCENE_DATA.connections ?? []).filter(
+        (connection) =>
+          connection.area.length >= 3 && pointInPolygon(player, connection.area),
+      );
+      if (sceneArrivalLockedRef.current) {
+        const distanceFromArrival = sceneArrivalLockOrigin
+          ? Math.hypot(
+              player.x - sceneArrivalLockOrigin.x,
+              player.y - sceneArrivalLockOrigin.y,
+            )
+          : 0;
+        if (
+          touchingSceneConnections.length === 0 &&
+          distanceFromArrival >= 48
+        ) {
+          sceneArrivalLockedRef.current = false;
+          sceneArrivalLockOrigin = null;
+        }
+      } else if (
+        !storyInputLockedRef.current &&
+        !optionsOpenRef.current &&
+        !inventoryOpenRef.current &&
+        !dialoguePlaybackRef.current &&
+        !sceneTransitioningRef.current
+      ) {
+        const automaticConnection = touchingSceneConnections.find(
+          (connection) => (connection.triggerMode ?? "auto") === "auto",
+        );
+        if (automaticConnection && transferToConnectedScene(automaticConnection)) {
+          return;
+        }
+      }
       if (!storyInputLockedRef.current) {
         const shouldRecheckTouchingStoryTriggers =
           storyTriggerContactCheckRequested;
@@ -9356,15 +9770,54 @@ export function MovementLab() {
       context.save();
       context.translate(viewportWidth / 2, viewportHeight / 2);
       context.scale(zoom, zoom);
-      context.translate(-camera.x, -camera.y);
-      drawMap();
-      drawWorldItemPickups(time);
-      drawSceneCollision();
-      drawPlayer();
-      drawInteractionHintPoints(time);
-      drawPlayerStatuses(time);
-      drawPlayerInfoFloats(time);
-      drawTouchEffect(time);
+      if (sceneStreamTransition) {
+        const progress = clamp(
+          sceneStreamTransition.elapsedSeconds /
+            sceneStreamTransition.durationSeconds,
+          0,
+          1,
+        );
+        const easedProgress = progress * progress * (3 - 2 * progress);
+        const transitionCamera = {
+          x:
+            sceneStreamTransition.sourceCameraGlobal.x +
+            (sceneStreamTransition.targetCameraGlobal.x -
+              sceneStreamTransition.sourceCameraGlobal.x) *
+              easedProgress,
+          y:
+            sceneStreamTransition.sourceCameraGlobal.y +
+            (sceneStreamTransition.targetCameraGlobal.y -
+              sceneStreamTransition.sourceCameraGlobal.y) *
+              easedProgress,
+        };
+        context.translate(-transitionCamera.x, -transitionCamera.y);
+        drawStreamedSceneImages(null);
+        const previousPlayerX = player.x;
+        const previousPlayerY = player.y;
+        player.x =
+          sceneStreamTransition.sourcePlayerGlobal.x +
+          (sceneStreamTransition.targetPlayerGlobal.x -
+            sceneStreamTransition.sourcePlayerGlobal.x) *
+            easedProgress;
+        player.y =
+          sceneStreamTransition.sourcePlayerGlobal.y +
+          (sceneStreamTransition.targetPlayerGlobal.y -
+            sceneStreamTransition.sourcePlayerGlobal.y) *
+            easedProgress;
+        drawPlayer();
+        player.x = previousPlayerX;
+        player.y = previousPlayerY;
+      } else {
+        context.translate(-camera.x, -camera.y);
+        drawMap();
+        drawWorldItemPickups(time);
+        drawSceneCollision();
+        drawPlayer();
+        drawInteractionHintPoints(time);
+        drawPlayerStatuses(time);
+        drawPlayerInfoFloats(time);
+        drawTouchEffect(time);
+      }
       context.restore();
       drawHeldPointerIndicator(time);
       drawTouchJoystick(time);
@@ -9427,7 +9880,8 @@ export function MovementLab() {
       document.documentElement.classList.remove("gamepad-input-active");
       document.documentElement.classList.remove("dialogue-cursor-active");
     };
-    // The canvas simulation must be initialized once; gamepad actions use refs.
+    // The game loop and prepared animation/audio resources stay alive while
+    // Scene_2 and Scene_3 stream through the shared world canvas.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -9974,7 +10428,7 @@ export function MovementLab() {
         <h1>地圖測試場景</h1>
         <div className="status-row">
           <i className="status-dot" aria-hidden="true" />
-          <span>map_test01 · NavMesh ready</span>
+          <span>{currentSceneData.image.file.replace(/\.[^.]+$/, "")} · NavMesh ready</span>
         </div>
         <p className={`hud-gamepad-status${gamepadConnected ? " is-connected" : ""}`}>
           🎮 {gamepadConnected ? "手把已連線" : "請按手把任一按鈕啟用"}
@@ -10942,8 +11396,8 @@ export function MovementLab() {
               ref={minimapPlayerMarkerRef}
               className="minimap-player-marker"
               style={{
-                left: `${clamp(SPAWN.x / WORLD.width, 0, 1) * 100}%`,
-                top: `${clamp(SPAWN.y / WORLD.height, 0, 1) * 100}%`,
+                left: `${clamp(playerPositionRef.current.x / WORLD.width, 0, 1) * 100}%`,
+                top: `${clamp(playerPositionRef.current.y / WORLD.height, 0, 1) * 100}%`,
               }}
             />
           </span>

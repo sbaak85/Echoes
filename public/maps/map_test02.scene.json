@@ -17,18 +17,18 @@
     "snap": true
   },
   "playerSpawn": {
-    "x": 1170,
-    "y": 1140,
-    "facing": "NW"
+    "x": 770,
+    "y": 800,
+    "facing": "S"
   },
   "teleportPoints": [],
   "entryPoints": [
     {
       "id": "entry-scene2-from-scene3",
-      "label": "從 Scene_3 進入",
+      "label": "\u5F9E Scene_3 \u9032\u5165",
       "facing": "NW",
-      "x": 1170,
-      "y": 1140
+      "x": 1160,
+      "y": 1160
     }
   ],
   "navMesh": [
@@ -101,8 +101,8 @@
           "y": 520
         },
         {
-          "x": 885,
-          "y": 480
+          "x": 895,
+          "y": 470
         },
         {
           "x": 810,
@@ -117,12 +117,12 @@
           "y": 525
         },
         {
-          "x": 580,
-          "y": 505
+          "x": 570,
+          "y": 495
         },
         {
-          "x": 510,
-          "y": 530
+          "x": 500,
+          "y": 525
         },
         {
           "x": 510,
@@ -287,8 +287,168 @@
       ]
     }
   ],
-  "collisions": [],
-  "interactables": [],
+  "collisions": [
+    {
+      "id": "collision-001",
+      "label": "\u591A\u908A\u5F62\u78B0\u649E 1",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 990,
+          "y": 1135
+        },
+        {
+          "x": 1010,
+          "y": 1150
+        },
+        {
+          "x": 1030,
+          "y": 1135
+        },
+        {
+          "x": 1010,
+          "y": 1120
+        }
+      ]
+    },
+    {
+      "id": "collision-002",
+      "label": "\u591A\u908A\u5F62\u78B0\u649E 2",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1045,
+          "y": 1170
+        },
+        {
+          "x": 1070,
+          "y": 1185
+        },
+        {
+          "x": 1090,
+          "y": 1170
+        },
+        {
+          "x": 1065,
+          "y": 1155
+        }
+      ]
+    }
+  ],
+  "interactables": [
+    {
+      "id": "interaction-001",
+      "label": "\u5E73\u6ED1\u77F3\u58C1",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 550,
+          "y": 970
+        },
+        {
+          "x": 550,
+          "y": 935
+        },
+        {
+          "x": 590,
+          "y": 910
+        },
+        {
+          "x": 675,
+          "y": 970
+        },
+        {
+          "x": 675,
+          "y": 990
+        },
+        {
+          "x": 625,
+          "y": 1020
+        }
+      ],
+      "type": "interaction",
+      "verb": "\u4E92\u52D5",
+      "survivalRequirements": {
+        "mode": "all",
+        "stamina": {
+          "comparison": "atLeast",
+          "value": 60
+        }
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "useRequirements": [
+        {
+          "kind": "item",
+          "itemId": "T0001",
+          "questId": "",
+          "stageId": "",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
+      "interactionPoints": [
+        {
+          "facing": "SW",
+          "x": 626.04224,
+          "y": 955.4448
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 597.2404,
+        "y": 978.7977
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "..."
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u592A\u6ED1\u4E86...\u9019\u6A23\u6C92\u8FA6\u6CD5\u4E0B\u53BB\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u9019\u6A23\u6C92\u6CD5\u76F4\u63A5\u4E0B\u53BB\uFF0C\u5F97\u627E\u500B\u5DE5\u5177\u624D\u884C\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u77F3\u58C1\u592A\u6ED1\u592A\u5E73\u6574\u4E86...\u5F97\u88FD\u4F5C\u4E00\u500B\u6500\u722C\u5DE5\u5177\u624D\u884C\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          }
+        ]
+      }
+    }
+  ],
   "movementGuides": [],
   "storyTriggers": [],
   "itemPoints": [],
@@ -300,16 +460,16 @@
   "connections": [
     {
       "id": "exit-scene2-to-scene3",
-      "label": "返回 Scene_3",
+      "label": "\u8FD4\u56DE Scene_3",
       "type": "exit",
       "area": [
         {
-          "x": 1180,
-          "y": 1065
+          "x": 1190,
+          "y": 1075
         },
         {
           "x": 1254,
-          "y": 1065
+          "y": 1110
         },
         {
           "x": 1254,
@@ -318,6 +478,10 @@
         {
           "x": 1080,
           "y": 1254
+        },
+        {
+          "x": 1015,
+          "y": 1215
         }
       ],
       "targetSceneId": "Scene_3",
