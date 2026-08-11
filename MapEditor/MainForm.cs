@@ -124,6 +124,29 @@ public sealed class MainForm : Form
         CreateButton("Spawn 需求設定…", 10, 283, 255, 30);
     private readonly GroupBox _entryPointGroup = CreateGroup("地圖 Entry Point", 112);
     private readonly TextBox _entryPointIdText = new();
+    private readonly GroupBox _teleportPointGroup = CreateGroup("傳送 Point 設定", 160);
+    private readonly CheckBox _teleportBlackoutCheck = new()
+    {
+        Text = "使用黑幕轉場",
+        AutoSize = true,
+    };
+    private readonly NumericUpDown _teleportBlackoutFadeInput = new()
+    {
+        Minimum = 0,
+        Maximum = 30,
+        DecimalPlaces = 1,
+        Increment = 0.1m,
+        Value = 0.3m,
+        TextAlign = HorizontalAlignment.Right,
+    };
+    private readonly NumericUpDown _teleportBlackoutHoldInput = new()
+    {
+        Minimum = 0,
+        Maximum = 3600,
+        DecimalPlaces = 1,
+        Increment = 0.1m,
+        TextAlign = HorizontalAlignment.Right,
+    };
     private readonly GroupBox _sceneConnectionGroup = CreateGroup("地圖出入口設定", 318);
     private readonly TextBox _sceneConnectionIdText = new();
     private readonly ComboBox _targetSceneCombo = new() { DropDownStyle = ComboBoxStyle.DropDown };
@@ -353,7 +376,7 @@ public sealed class MainForm : Form
             (_, _) => OpenAudioEventEditor()));
         toolbar.Items.Add(new ToolStripSeparator());
 
-        AddToolButton(toolbar, "選取", EditorTool.Select, "選取、拖曳圖形或頂點");
+        AddToolButton(toolbar, "選取", EditorTool.Select, "選取、拖曳圖形、頂點或互動 Point");
         AddToolButton(toolbar, "平移", EditorTool.Pan, "拖曳觀看場景；也可用滑鼠中鍵或 Space");
         AddToolButton(toolbar, "NavMesh", EditorTool.NavMeshPolygon, "逐點圈出可行走範圍，雙擊／右鍵／Enter 完成");
         AddToolButton(toolbar, "碰撞多邊形", EditorTool.CollisionPolygon, "逐點圈出不可通行範圍");
@@ -550,6 +573,33 @@ public sealed class MainForm : Form
         _deleteNodeButton.Click += (_, _) => _canvas.DeleteSelectedNode();
         layersGroup.Controls.Add(_deleteNodeButton);
         sidebar.Controls.Add(layersGroup);
+
+        _teleportBlackoutCheck.SetBounds(10, 25, 255, 24);
+        _teleportBlackoutCheck.CheckedChanged += (_, _) =>
+        {
+            if (_syncingSelection) return;
+            _teleportBlackoutFadeInput.Enabled = _teleportBlackoutCheck.Checked;
+            _teleportBlackoutHoldInput.Enabled = _teleportBlackoutCheck.Checked;
+        };
+        _teleportPointGroup.Controls.Add(_teleportBlackoutCheck);
+        _teleportPointGroup.Controls.Add(CreateFieldLabel("Fade IN 秒數", 10, 53, 121));
+        _teleportPointGroup.Controls.Add(CreateFieldLabel("全黑停留秒數", 144, 53, 121));
+        _teleportBlackoutFadeInput.SetBounds(10, 75, 121, 27);
+        _teleportBlackoutHoldInput.SetBounds(144, 75, 121, 27);
+        _teleportPointGroup.Controls.Add(_teleportBlackoutFadeInput);
+        _teleportPointGroup.Controls.Add(_teleportBlackoutHoldInput);
+        var applyTeleportBlackoutButton = CreateButton("套用傳送黑幕設定", 10, 114, 255, 30);
+        applyTeleportBlackoutButton.Click += (_, _) =>
+        {
+            _canvas.UpdateSelectedTeleportPointBlackout(
+                _teleportBlackoutCheck.Checked,
+                (float)_teleportBlackoutFadeInput.Value,
+                (float)_teleportBlackoutHoldInput.Value);
+            RefreshSelectionUi();
+        };
+        _teleportPointGroup.Controls.Add(applyTeleportBlackoutButton);
+        _teleportPointGroup.Visible = false;
+        sidebar.Controls.Add(_teleportPointGroup);
 
         var entryPointIdLabel = CreateFieldLabel("Point ID", 10, 31, 68);
         _entryPointIdText.SetBounds(83, 27, 182, 27);
@@ -754,7 +804,7 @@ public sealed class MainForm : Form
             Text =
                 "NavMesh／多邊形：逐點點擊，雙擊、右鍵或 Enter 完成。\r\n\r\n" +
                 "矩形／圓形：按住滑鼠拖曳。\r\n\r\n" +
-                "選取：拖曳整個圖形；拖曳黃色節點可修正頂點或圓形半徑。\r\n\r\n" +
+                "選取：拖曳整個圖形；拖曳黃色節點可修正頂點或圓形半徑；互動 Point 可直接點住搬移。\r\n\r\n" +
                 "Node：點選後按 Del 刪除；在多邊形邊線按右鍵可新增 Node。\r\n\r\n" +
                 "滾輪縮放，中鍵或 Space 拖曳平移。",
             ForeColor = Color.FromArgb(176, 184, 192),
@@ -1484,7 +1534,8 @@ public sealed class MainForm : Form
                         ? $"每日 {dailyLimitValue} 次"
                         : "無限";
                 _survivalSummaryLabel.Text =
-                    $"需求 {FormatRequirements(interactable.SurvivalRequirements)} · 物/章/任務 {interactable.UseRequirements?.Count ?? 0}\r\n" +
+                    $"需求 {FormatRequirements(interactable.SurvivalRequirements)} · 物/章/任務 {interactable.UseRequirements?.Count ?? 0}" +
+                    $" · 未達可嘗試 {(interactable.AllowAttemptWhenRequirementsUnmet ? "是" : "否")}\r\n" +
                     $"效果 體{effects.Stamina:+0.#;-0.#;0} 餓{effects.Hunger:+0.#;-0.#;0} 渴{effects.Thirst:+0.#;-0.#;0} 精{effects.Spirit:+0.#;-0.#;0} 時{effects.TimeMinutes / 60:0.#}h · {limit} · 獎勵 {interactable.ItemRewards?.Count ?? (interactable.ItemReward is null ? 0 : 1)} 種";
                 _dialogueMoreButton.Enabled = true;
             }
@@ -1562,6 +1613,17 @@ public sealed class MainForm : Form
                 _selectionInfoLabel.Text = $"已選取傳送 Point · {point.Id} · 面向 {point.Facing}";
                 _selectionNameText.Text = point.Label;
                 _facingCombo.SelectedItem = point.Facing;
+                _teleportBlackoutCheck.Checked = point.BlackoutEnabled;
+                _teleportBlackoutFadeInput.Value = Math.Clamp(
+                    (decimal)point.BlackoutFadeSeconds,
+                    _teleportBlackoutFadeInput.Minimum,
+                    _teleportBlackoutFadeInput.Maximum);
+                _teleportBlackoutHoldInput.Value = Math.Clamp(
+                    (decimal)point.BlackoutHoldSeconds,
+                    _teleportBlackoutHoldInput.Minimum,
+                    _teleportBlackoutHoldInput.Maximum);
+                _teleportBlackoutFadeInput.Enabled = point.BlackoutEnabled;
+                _teleportBlackoutHoldInput.Enabled = point.BlackoutEnabled;
             }
             else if (_canvas.Selection.Kind == SceneLayerKind.EntryPoint && _canvas.Selection.Index >= 0)
             {
@@ -1597,6 +1659,7 @@ public sealed class MainForm : Form
             _interactionGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.Interactable;
             _movementGuideGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.MovementGuide;
             _storyTriggerGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.StoryTrigger;
+            _teleportPointGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.TeleportPoint;
             _entryPointGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.EntryPoint;
             _sceneConnectionGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.SceneConnection;
             _facingLabel.Text = _canvas.Selection.Kind switch
@@ -1961,7 +2024,15 @@ public sealed class MainForm : Form
                 interactionLimitMode,
                 useRequirements,
                 itemRewards,
-                quests);
+                quests,
+                allowAttemptWhenRequirementsUnmet:
+                    selectedInteractable.AllowAttemptWhenRequirementsUnmet,
+                teleportPoints: _canvas.Document.TeleportPoints,
+                completionTeleportPointId:
+                    selectedInteractable.CompletionTeleportPointId,
+                completionTeleportDelaySeconds:
+                    selectedInteractable.CompletionTeleportDelaySeconds,
+                showCompletionTeleportOption: true);
             if (editor.ShowDialog(this) != DialogResult.OK) return;
             _canvas.UpdateSelectedInteractionConfiguration(
                 selectedType,
@@ -1971,7 +2042,10 @@ public sealed class MainForm : Form
                 editor.DailyLimit,
                 editor.InteractionLimitMode,
                 editor.UseRequirements,
-                editor.ItemRewards);
+                editor.ItemRewards,
+                editor.AllowAttemptWhenRequirementsUnmet,
+                editor.CompletionTeleportPointId,
+                editor.CompletionTeleportDelaySeconds);
         }
         finally
         {
@@ -2006,7 +2080,8 @@ public sealed class MainForm : Form
                 itemRewards,
                 quests,
                 trigger.StartQuestIds,
-                showQuestStartOptions: true);
+                showQuestStartOptions: true,
+                showAllowAttemptOption: false);
             editor.Text = "劇情觸發需求與完成效果";
             if (editor.ShowDialog(this) != DialogResult.OK) return;
             _canvas.UpdateSelectedStoryTriggerConfiguration(
@@ -2121,7 +2196,7 @@ public sealed class MainForm : Form
 
         _statusLabel.Text = tool switch
         {
-            EditorTool.Select => "選取工具：拖曳圖形或黃色頂點；Alt＋左鍵循環重疊圖形；右鍵可直接指定圖層",
+            EditorTool.Select => "選取工具：拖曳圖形、黃色頂點或互動 Point；Alt＋左鍵循環重疊圖形；右鍵可直接指定圖層",
             EditorTool.Pan => "平移工具：拖曳畫布",
             EditorTool.NavMeshPolygon => "NavMesh：逐點圈出可行走範圍",
             EditorTool.CollisionPolygon => "Collision：逐點圈出不可通行範圍",

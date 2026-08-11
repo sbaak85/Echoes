@@ -13,7 +13,7 @@
   },
   "grid": {
     "size": 5,
-    "visible": true,
+    "visible": false,
     "snap": true
   },
   "playerSpawn": {
@@ -21,7 +21,28 @@
     "y": 800,
     "facing": "S"
   },
-  "teleportPoints": [],
+  "teleportPoints": [
+    {
+      "id": "teleport-point-scene2-cliff-upper",
+      "label": "\u77F3\u58C1\u4E0A\u5C64\u843D\u9EDE",
+      "facing": "NE",
+      "blackoutEnabled": true,
+      "blackoutFadeSeconds": 0.3,
+      "blackoutHoldSeconds": 0,
+      "x": 616.04224,
+      "y": 960.4448
+    },
+    {
+      "id": "teleport-point-scene2-cliff-lower",
+      "label": "\u77F3\u58C1\u4E0B\u5C64\u843D\u9EDE",
+      "facing": "SW",
+      "blackoutEnabled": true,
+      "blackoutFadeSeconds": 0.3,
+      "blackoutHoldSeconds": 0,
+      "x": 547.0139,
+      "y": 1145.9346
+    }
+  ],
   "entryPoints": [
     {
       "id": "entry-scene2-from-scene3",
@@ -174,7 +195,7 @@
         },
         {
           "x": 5,
-          "y": 710
+          "y": 720
         },
         {
           "x": 75,
@@ -285,6 +306,64 @@
           "y": 1250
         }
       ]
+    },
+    {
+      "id": "nav-002",
+      "label": "NavMesh 2",
+      "points": [
+        {
+          "x": 360,
+          "y": 1155
+        },
+        {
+          "x": 520,
+          "y": 1040
+        },
+        {
+          "x": 625,
+          "y": 1105
+        },
+        {
+          "x": 595,
+          "y": 1125
+        },
+        {
+          "x": 595,
+          "y": 1175
+        },
+        {
+          "x": 610,
+          "y": 1180
+        },
+        {
+          "x": 665,
+          "y": 1145
+        },
+        {
+          "x": 695,
+          "y": 1160
+        },
+        {
+          "x": 715,
+          "y": 1150
+        },
+        {
+          "x": 860,
+          "y": 1235
+        },
+        {
+          "x": 860,
+          "y": 1250
+        },
+        {
+          "x": 480,
+          "y": 1250
+        },
+        {
+          "x": 360,
+          "y": 1170
+        }
+      ]
     }
   ],
   "collisions": [
@@ -366,19 +445,27 @@
           "y": 1020
         }
       ],
-      "type": "interaction",
-      "verb": "\u4E92\u52D5",
+      "type": "move",
+      "verb": "\u79FB\u52D5",
       "survivalRequirements": {
         "mode": "all",
         "stamina": {
           "comparison": "atLeast",
-          "value": 60
+          "value": 40
+        },
+        "hunger": {
+          "comparison": "atLeast",
+          "value": 20
+        },
+        "thirst": {
+          "comparison": "atLeast",
+          "value": 20
         }
       },
       "survivalEffects": {
-        "stamina": 0,
-        "hunger": 0,
-        "thirst": 0,
+        "stamina": -10,
+        "hunger": -10,
+        "thirst": -10,
         "spirit": 0,
         "timeMinutes": 0
       },
@@ -395,11 +482,13 @@
           "chapter": 1
         }
       ],
+      "allowAttemptWhenRequirementsUnmet": true,
+      "completionTeleportPointId": "teleport-point-scene2-cliff-lower",
       "interactionPoints": [
         {
           "facing": "SW",
-          "x": 626.04224,
-          "y": 955.4448
+          "x": 624.61865,
+          "y": 966.68567
         }
       ],
       "interactionHintPoint": {
@@ -416,7 +505,21 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "..."
+            "text": "\u7A0D\u5FAE\u9019\u908A\u7D81\u7DCA...\u5F9E\u9019\u88E1\u964D\u4E0B\u53BB\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u7D81\u7DCA\u9019\u88E1\uFF0C\u7528\u529B\u62C9\u7DCA!",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u9019\u6A23\u5C31\u53EF\u4EE5\u6500\u964D\u4E0B\u53BB\u4E86!",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           }
         ]
       },
@@ -435,15 +538,123 @@
           },
           {
             "speaker": "Sbaak",
-            "text": "\u9019\u6A23\u6C92\u6CD5\u76F4\u63A5\u4E0B\u53BB\uFF0C\u5F97\u627E\u500B\u5DE5\u5177\u624D\u884C\u3002",
+            "text": "\u9019\u6A23\u6C92\u6CD5\u76F4\u63A5\u4E0B\u53BB\uFF0C\u5F97\u627E\u500B\u7E69\u7D22\u624D\u884C\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
             "speaker": "Sbaak",
-            "text": "\u77F3\u58C1\u592A\u6ED1\u592A\u5E73\u6574\u4E86...\u5F97\u88FD\u4F5C\u4E00\u500B\u6500\u722C\u5DE5\u5177\u624D\u884C\u3002",
+            "text": "\u77F3\u58C1\u592A\u6ED1\u592A\u5E73\u6574\u4E86...\u5F97\u6709\u4E00\u500B\u6500\u722C\u5DE5\u5177\u624D\u884C\uFF0C\u770B\u770B\u6709\u6C92\u6709\u7E69\u7D22...",
             "randomGroupId": "random-group-1",
             "weight": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "interaction-002",
+      "label": "\u77F3\u58C1\u4E0B\u5C64",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 530,
+          "y": 1030
+        },
+        {
+          "x": 640,
+          "y": 1100
+        },
+        {
+          "x": 600,
+          "y": 1130
+        },
+        {
+          "x": 600,
+          "y": 1170
+        },
+        {
+          "x": 585,
+          "y": 1180
+        },
+        {
+          "x": 445,
+          "y": 1090
+        }
+      ],
+      "type": "move",
+      "verb": "\u79FB\u52D5",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": -10,
+        "hunger": -10,
+        "thirst": -10,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "useRequirements": [
+        {
+          "kind": "item",
+          "itemId": "T0001",
+          "questId": "",
+          "stageId": "",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
+      "completionTeleportPointId": "teleport-point-scene2-cliff-upper",
+      "interactionPoints": [
+        {
+          "facing": "NE",
+          "x": 557.4567,
+          "y": 1120.8988
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 580.2877,
+        "y": 1071.2863
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u6293\u7DCA\u7E69\u7D22\uFF0C\u8E0F\u597D\u9019\u88E1...!"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u6211\u7684\u7E69\u5B50\u52D2~!?"
+          }
+        ]
+      },
+      "completionDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u4E0A\u4F86\u4E86!"
           }
         ]
       }
@@ -451,7 +662,18 @@
   ],
   "movementGuides": [],
   "storyTriggers": [],
-  "itemPoints": [],
+  "itemPoints": [
+    {
+      "id": "item-point-001",
+      "label": "ItemPoint 1",
+      "itemId": "T0008",
+      "quantity": 1,
+      "spawnPolicy": "once",
+      "showOnMinimap": true,
+      "x": 435,
+      "y": 1175
+    }
+  ],
   "worldLayout": {
     "x": 0,
     "y": 0,

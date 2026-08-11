@@ -48,9 +48,15 @@ Included in version 1:
   以及鏡頭跟隨角色／地圖 Root。儲存時會驗證目標地圖與 Entry Point 存在。
 - `傳送點`工具可在 NavMesh 內建立具唯一 Point ID 的傳送位置，並設定
   N／NE／E／SE／S／SW／W／NW 面向。傳送點會寫入場景 JSON 的
-  `teleportPoints`，供任務啟動、完成、Stage 與 OBJ 流程引用。
+  `teleportPoints`，供任務啟動、完成、Stage、OBJ 與互動完成流程引用。
+  選取傳送 Point 後，右側可決定是否使用黑幕，並分別設定 Fade IN 秒數
+  與全黑停留秒數；Fade OUT 會沿用 Fade IN 秒數。角色會在全黑時傳送。
+  互動區可在「互動需求與完成效果 → 完成效果」選擇完成後傳送 Point
+  與延遲秒數，適合連接彼此不相通的 NavMesh 區域。
 - Multiple interaction Points per interaction polygon. Right-click inside a
   selected interaction polygon to add another Point and choose its facing.
+  With the Select tool, left-click and drag a yellow interaction Point to move
+  it directly; it remains constrained to its parent interaction polygon.
 - One optional interaction hint Point per interaction polygon. Right-click
   inside the selected polygon to add or move the translucent white in-game
   prompt dot, or remove it from the same context menu.

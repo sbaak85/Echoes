@@ -56,6 +56,7 @@ import {
 } from "./world-item-placements";
 import {
   getDpadToggleValue,
+  OPTIONS_CURSOR_TAKEOVER_THRESHOLD,
   shouldOptionsCursorTakeControl,
   shouldUseOptionsCursor,
   type OptionsGamepadMode,
@@ -88,6 +89,25 @@ import {
   type InteractionItemReward,
   type InteractionUseRequirement,
 } from "./interaction-flow";
+import {
+  PowerRoutingPuzzle,
+  type PowerRoutingPuzzleController,
+} from "./power-routing-puzzle.tsx";
+import { POWER_ROUTING_INTERACTION_ID } from "./power-routing-puzzle";
+import {
+  CAMP_POWER_CAPACITY,
+  CAMP_POWER_REFILL_AMOUNT,
+  CAMP_POWER_REFILL_ITEM_ID,
+  CAMP_POWER_REFILL_ITEM_QUANTITY,
+  CAMP_POWER_RESONATOR_INTERACTION_ID,
+  advanceCampPowerToGameMinutes,
+  canRefillCampPower,
+  createInitialCampPowerState,
+  loadCampPowerState,
+  refillCampPower,
+  saveCampPowerState,
+  type CampPowerState,
+} from "./camp-power-manager";
 import {
   createInitialStoryProgress,
   loadStoryProgress,
@@ -326,6 +346,9 @@ type SceneInteractable = {
   itemRewards?: InteractionItemReward[];
   itemReward?: InteractionItemReward;
   useRequirements?: InteractionUseRequirement[];
+  allowAttemptWhenRequirementsUnmet?: boolean;
+  completionTeleportPointId?: string;
+  completionTeleportDelaySeconds?: number;
   itemId?: string;
   quantity?: number;
   worldItemId?: string;
@@ -341,6 +364,7 @@ type PendingInteraction = {
   source: "gamepad" | "pointer" | "keyboard" | "mobile";
   repathAttempts?: number;
 };
+type PowerPuzzleSession = Pick<PendingInteraction, "interactable" | "source">;
 type DialoguePlayback = {
   interactable: SceneInteractable;
   lineIndex: number;
@@ -405,6 +429,9 @@ type SceneTeleportPoint = Point & {
   id: string;
   label: string;
   facing: Direction;
+  blackoutEnabled: boolean;
+  blackoutFadeSeconds: number;
+  blackoutHoldSeconds: number;
 };
 
 type SceneFile = {
@@ -426,7 +453,16 @@ type SceneFile = {
   movementGuides?: MovementGuide[];
   storyTriggers?: StoryTriggerZone[];
   itemPoints?: SceneItemPoint[];
-  teleportPoints?: Array<Point & { id: string; label: string; facing: string }>;
+  teleportPoints?: Array<
+    Point & {
+      id: string;
+      label: string;
+      facing: string;
+      blackoutEnabled?: boolean;
+      blackoutFadeSeconds?: number;
+      blackoutHoldSeconds?: number;
+    }
+  >;
   entryPoints?: Array<Point & { id: string; label: string; facing: string }>;
   connections?: Array<{
     id: string;
@@ -524,7 +560,14 @@ let SCENE_TELEPORT_POINTS: SceneTeleportPoint[] = (
   const facing = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"].includes(point.facing)
     ? point.facing as Direction
     : "S";
-  return [{ ...point, id, facing }];
+  return [{
+    ...point,
+    id,
+    facing,
+    blackoutEnabled: point.blackoutEnabled === true,
+    blackoutFadeSeconds: Math.max(0, Number(point.blackoutFadeSeconds ?? 0)),
+    blackoutHoldSeconds: Math.max(0, Number(point.blackoutHoldSeconds ?? 0)),
+  }];
 });
 
 // The map has one main plateau and two lower approach roads. The three
@@ -917,7 +960,14 @@ function activateSceneRuntime(scene: SceneFile) {
     )
       ? (point.facing as Direction)
       : "S";
-    return [{ ...point, id, facing }];
+    return [{
+      ...point,
+      id,
+      facing,
+      blackoutEnabled: point.blackoutEnabled === true,
+      blackoutFadeSeconds: Math.max(0, Number(point.blackoutFadeSeconds ?? 0)),
+      blackoutHoldSeconds: Math.max(0, Number(point.blackoutHoldSeconds ?? 0)),
+    }];
   });
   NAV_REGIONS = scene.navMesh?.map((region) => region.points) ?? DEFAULT_NAV_REGIONS;
   SCENE_COLLIDERS =
@@ -2882,6 +2932,20 @@ export function MovementLab() {
   const restartConfirmationOpenRef = useRef(false);
   const restartConfirmationChoiceRef = useRef<"cancel" | "confirm">("cancel");
   const inventoryOpenRef = useRef(false);
+  const powerPuzzleOpenRef = useRef(false);
+  const powerPuzzleSessionRef = useRef<PowerPuzzleSession | null>(null);
+  const powerPuzzleControllerRef = useRef<PowerRoutingPuzzleController | null>(null);
+  const powerPuzzleGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
+  const powerPuzzleCursorRearmRequiredRef = useRef(false);
+  const completePowerPuzzleInteractionRef = useRef<() => void>(() => {});
+  const campPowerStateRef = useRef<CampPowerState>(
+    createInitialCampPowerState(INITIAL_SURVIVAL_STATE.gameMinutes),
+  );
+  const campPowerConfirmationOpenRef = useRef(false);
+  const campPowerConfirmationChoiceRef = useRef<"cancel" | "confirm">("cancel");
+  const campPowerConfirmationGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
+  const campPowerConfirmationCursorRearmRequiredRef = useRef(false);
+  const confirmCampPowerRefillRef = useRef<() => void>(() => {});
   const optionsTabRef = useRef<OptionsTab>("display");
   const optionsMenuSelectionRef = useRef<OptionsMenuItem>(
     OPTIONS_MENU_ITEMS[0],
@@ -3001,6 +3065,13 @@ export function MovementLab() {
   const [restartConfirmationChoice, setRestartConfirmationChoice] =
     useState<"cancel" | "confirm">("cancel");
   const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [powerPuzzleOpen, setPowerPuzzleOpen] = useState(false);
+  const [campPowerState, setCampPowerState] = useState<CampPowerState>(() =>
+    createInitialCampPowerState(INITIAL_SURVIVAL_STATE.gameMinutes),
+  );
+  const [campPowerConfirmationOpen, setCampPowerConfirmationOpen] = useState(false);
+  const [campPowerConfirmationChoice, setCampPowerConfirmationChoice] =
+    useState<"cancel" | "confirm">("cancel");
   const [stageFullscreen, setStageFullscreen] = useState(false);
   const [optionsTab, setOptionsTab] = useState<OptionsTab>("display");
   const [optionsMenuSelection, setOptionsMenuSelection] =
@@ -3136,6 +3207,84 @@ export function MovementLab() {
     setQuestPromptInputMode(mode);
   };
   const [dialogueView, setDialogueView] = useState<DialogueView>(null);
+  const powerPuzzlePreviewStartedRef = useRef(false);
+
+  const applyCampPowerState = (nextState: CampPowerState) => {
+    campPowerStateRef.current = nextState;
+    setCampPowerState(nextState);
+    try {
+      saveCampPowerState(nextState);
+    } catch {
+      // 儲存空間不可用時，仍保留本次工作階段的營地電力。
+    }
+  };
+
+  const syncCampPowerToGameMinutes = (gameMinutes: number) => {
+    const nextState = advanceCampPowerToGameMinutes(
+      campPowerStateRef.current,
+      gameMinutes,
+    );
+    if (nextState !== campPowerStateRef.current) applyCampPowerState(nextState);
+  };
+
+  const setCampPowerConfirmationChoiceValue = (
+    choice: "cancel" | "confirm",
+  ) => {
+    campPowerConfirmationChoiceRef.current = choice;
+    setCampPowerConfirmationChoice(choice);
+  };
+
+  const closeCampPowerConfirmation = () => {
+    campPowerConfirmationOpenRef.current = false;
+    campPowerConfirmationGamepadModeRef.current = "dpad";
+    campPowerConfirmationCursorRearmRequiredRef.current = false;
+    setCampPowerConfirmationOpen(false);
+    setCampPowerConfirmationChoiceValue("cancel");
+  };
+
+  const confirmCampPowerRefill = () => {
+    confirmCampPowerRefillRef.current();
+  };
+
+  const closePowerRoutingPuzzle = () => {
+    powerPuzzleOpenRef.current = false;
+    powerPuzzleSessionRef.current = null;
+    powerPuzzleGamepadModeRef.current = "dpad";
+    powerPuzzleCursorRearmRequiredRef.current = false;
+    setPowerPuzzleOpen(false);
+  };
+
+  const openPowerRoutingPuzzle = (
+    interactable: SceneInteractable,
+    source: PendingInteraction["source"],
+  ) => {
+    dismissTimeElapsedNotice();
+    optionsOpenRef.current = false;
+    inventoryOpenRef.current = false;
+    setOptionsOpen(false);
+    setInventoryOpen(false);
+    powerPuzzleSessionRef.current = { interactable, source };
+    powerPuzzleOpenRef.current = true;
+    powerPuzzleGamepadModeRef.current = "dpad";
+    powerPuzzleCursorRearmRequiredRef.current = false;
+    setPowerPuzzleOpen(true);
+  };
+
+  useEffect(() => {
+    if (powerPuzzlePreviewStartedRef.current) return;
+    if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      return;
+    }
+    if (new URLSearchParams(window.location.search).get("powerPuzzlePreview") !== "1") {
+      return;
+    }
+    const interactable = SCENE_DATA.interactables.find(
+      (candidate) => candidate.id === POWER_ROUTING_INTERACTION_ID,
+    );
+    if (!interactable) return;
+    powerPuzzlePreviewStartedRef.current = true;
+    openPowerRoutingPuzzle(interactable, "keyboard");
+  }, []);
 
   useLayoutEffect(() => {
     previousSurvivalPanelHeightRef.current = playHudPanelHeightTween(
@@ -3480,6 +3629,10 @@ export function MovementLab() {
       const loadedItemPointProgress = loadItemPointProgress();
       const loadedHotbarAssignments = loadHotbarAssignments();
       const loadedSurvivalState = loadSurvivalState();
+      const loadedCampPowerState = advanceCampPowerToGameMinutes(
+        loadCampPowerState(loadedSurvivalState.gameMinutes),
+        loadedSurvivalState.gameMinutes,
+      );
       const loadedDayNightEffectEnabled = loadDayNightEffectEnabled();
       const loadedInteractionUsage = loadInteractionUsageState(
         loadedSurvivalState.gameMinutes,
@@ -3492,6 +3645,7 @@ export function MovementLab() {
       itemPointProgressRef.current = loadedItemPointProgress;
       hotbarAssignmentsRef.current = loadedHotbarAssignments;
       survivalStateRef.current = loadedSurvivalState;
+      campPowerStateRef.current = loadedCampPowerState;
       dayNightEffectEnabledRef.current = loadedDayNightEffectEnabled;
       previousSurvivalDisplayValuesRef.current = getSurvivalDisplayValues(
         loadedSurvivalState.values,
@@ -3651,6 +3805,8 @@ export function MovementLab() {
       setCollectedWorldItemIds(loadedCollectedWorldItemIds);
       setHotbarAssignments(loadedHotbarAssignments);
       setSurvivalState(loadedSurvivalState);
+      setCampPowerState(loadedCampPowerState);
+      saveCampPowerState(loadedCampPowerState);
       setDayNightEffectEnabled(loadedDayNightEffectEnabled);
       setDialogueTextSize(getDefaultDialogueTextSize());
       const mobileHud = isMobileHudLayout();
@@ -4039,6 +4195,8 @@ export function MovementLab() {
 
     if (result.status === "not-owned") {
       message = `尚未持有「${item.name}」`;
+    } else if (result.status === "interaction-only") {
+      message = `「${item.name}」需要透過對應裝置使用`;
     } else if (result.status === "not-configured") {
       message = `嘗試使用「${item.name}」· 功能尚未開放`;
     } else if (result.status === "full") {
@@ -4830,6 +4988,7 @@ export function MovementLab() {
   };
 
   const setOptionsPanelOpen = (open: boolean) => {
+    if (open && powerPuzzleOpenRef.current) return;
     if (open && storyFlowActiveRef.current) {
       cancelStorySkipHold();
       chapterFlowManager.pause();
@@ -4917,6 +5076,7 @@ export function MovementLab() {
   };
 
   const setInventoryPanelOpen = (open: boolean) => {
+    if (open && powerPuzzleOpenRef.current) return;
     if (open && storyInputLockedRef.current) return;
     if (open) dismissTimeElapsedNotice();
     const wasOpen = inventoryOpenRef.current;
@@ -5640,6 +5800,8 @@ export function MovementLab() {
     let virtualCursorVisible = false;
     let gamepadCursorActive = false;
     let gamepadInputCursorHidden = false;
+    let powerPuzzleCursorShownForSession = false;
+    let campPowerConfirmationCursorShownForSession = false;
     const touchJoystick = {
       input: { x: 0, y: 0 },
       inputOrigin: { x: 0, y: 0 },
@@ -5766,9 +5928,10 @@ export function MovementLab() {
 
     const isInteractableConditionActive = (
       interactable: SceneInteractable,
-    ) => shouldExposeInteraction(
-      Boolean(getInteractionUseRequirementFailure(interactable)),
-    );
+    ) => interactable.allowAttemptWhenRequirementsUnmet === true ||
+      shouldExposeInteraction(
+        Boolean(getInteractionUseRequirementFailure(interactable)),
+      );
 
     const isInteractableSelectable = (interactable: SceneInteractable) =>
       isInteractableConditionActive(interactable) &&
@@ -5820,6 +5983,34 @@ export function MovementLab() {
       inventoryGamepadModeRef.current = "dpad";
       virtualCursorVisible = false;
       deactivateGamepadCursor();
+    };
+
+    const activatePowerPuzzleDpadMode = () => {
+      powerPuzzleGamepadModeRef.current = "dpad";
+      powerPuzzleCursorRearmRequiredRef.current = true;
+      virtualCursorVisible = true;
+      activateGamepadCursor();
+      const focusedElement = document.activeElement;
+      if (
+        focusedElement instanceof HTMLElement &&
+        focusedElement.closest(".power-puzzle-dialog")
+      ) {
+        focusedElement.blur();
+      }
+    };
+
+    const activateCampPowerConfirmationDpadMode = () => {
+      campPowerConfirmationGamepadModeRef.current = "dpad";
+      campPowerConfirmationCursorRearmRequiredRef.current = true;
+      virtualCursorVisible = true;
+      activateGamepadCursor();
+      const focusedElement = document.activeElement;
+      if (
+        focusedElement instanceof HTMLElement &&
+        focusedElement.closest(".camp-power-confirmation")
+      ) {
+        focusedElement.blur();
+      }
     };
 
     const setGamepadInputCursorHidden = (hidden: boolean) => {
@@ -5918,8 +6109,19 @@ export function MovementLab() {
       eligibleStoryTriggerZoneIds.clear();
       player.x = point.x;
       player.y = point.y;
-      camera.x = point.x;
-      camera.y = point.y;
+      const zoom = getSceneZoom(viewportWidth, viewportHeight);
+      camera.x = getCameraCoordinate(
+        point.x,
+        viewportWidth,
+        WORLD.width,
+        zoom,
+      );
+      camera.y = getCameraCoordinate(
+        point.y,
+        viewportHeight,
+        WORLD.height,
+        zoom,
+      );
       currentFacing = point.facing;
       playerPositionRef.current = { x: point.x, y: point.y };
       playerFacingRef.current = point.facing;
@@ -5929,9 +6131,74 @@ export function MovementLab() {
       storyTriggerContactCheckRequested = true;
       return true;
     };
-    playerTeleportHandlerRef.current = teleportPlayer;
+
+    const teleportPlayerWithTransition = (point: SceneTeleportPoint) => {
+      if (!point.blackoutEnabled) return teleportPlayer(point);
+
+      const fadeMilliseconds = Math.max(
+        0,
+        point.blackoutFadeSeconds * 1000,
+      );
+      const holdMilliseconds = Math.max(
+        0,
+        point.blackoutHoldSeconds * 1000,
+      );
+      timePassInputLockedRef.current = true;
+      pressedKeys.clear();
+      setActiveKeyboardKeys([]);
+
+      const fadeBackToScene = () => {
+        fadeBlackScreen(0, fadeMilliseconds, () => {
+          timePassInputLockedRef.current = false;
+        });
+      };
+      const teleportAtFullBlack = () => {
+        teleportPlayer(point);
+        if (holdMilliseconds <= 0) {
+          fadeBackToScene();
+          return;
+        }
+        const holdTimerId = window.setTimeout(() => {
+          teleportTimerIdsRef.current.delete(holdTimerId);
+          fadeBackToScene();
+        }, holdMilliseconds);
+        teleportTimerIdsRef.current.add(holdTimerId);
+      };
+      fadeBlackScreen(255, fadeMilliseconds, teleportAtFullBlack);
+      return true;
+    };
+    playerTeleportHandlerRef.current = teleportPlayerWithTransition;
     const pendingTeleportPoints = pendingTeleportPointsRef.current.splice(0);
-    for (const point of pendingTeleportPoints) teleportPlayer(point);
+    for (const point of pendingTeleportPoints) {
+      teleportPlayerWithTransition(point);
+    }
+
+    const scheduleInteractionTeleport = (interactable: SceneInteractable) => {
+      const pointId = interactable.completionTeleportPointId?.trim();
+      if (!pointId) return;
+      const point = SCENE_TELEPORT_POINTS.find(
+        (candidate) => candidate.id === pointId,
+      );
+      if (!point) {
+        console.warn(
+          `[InteractionTeleport] Unknown teleport Point ID: ${pointId}`,
+        );
+        return;
+      }
+      const delayMilliseconds = Math.max(
+        0,
+        Number(interactable.completionTeleportDelaySeconds ?? 0) * 1000,
+      );
+      if (delayMilliseconds === 0) {
+        teleportPlayerWithTransition(point);
+        return;
+      }
+      const timerId = window.setTimeout(() => {
+        teleportTimerIdsRef.current.delete(timerId);
+        teleportPlayerWithTransition(point);
+      }, delayMilliseconds);
+      teleportTimerIdsRef.current.add(timerId);
+    };
 
     Object.entries(SPRITE_SOURCES).forEach(([direction, source]) => {
       const image = new Image();
@@ -6144,6 +6411,40 @@ export function MovementLab() {
       activateQuestPromptInputMode("keyboard-mouse");
       if (timePassInputLockedRef.current) {
         event.preventDefault();
+        return;
+      }
+      if (campPowerConfirmationOpenRef.current) {
+        event.preventDefault();
+        if (key === "escape" && !event.repeat) {
+          playOneShotAudio("uiInput");
+          closeCampPowerConfirmation();
+        } else if (
+          (key === "arrowleft" || key === "arrowright") &&
+          !event.repeat
+        ) {
+          playOneShotAudio("uiInput");
+          setCampPowerConfirmationChoiceValue(
+            key === "arrowright" ? "confirm" : "cancel",
+          );
+        } else if (key === "enter" && !event.repeat) {
+          playOneShotAudio("uiInput");
+          if (campPowerConfirmationChoiceRef.current === "confirm") {
+            confirmCampPowerRefill();
+          } else {
+            closeCampPowerConfirmation();
+          }
+        }
+        return;
+      }
+      if (powerPuzzleOpenRef.current) {
+        if (
+          eventTarget instanceof HTMLButtonElement &&
+          (event.code === "Enter" || event.code === "Space")
+        ) {
+          return;
+        }
+        event.preventDefault();
+        if (key === "escape" && !event.repeat) closePowerRoutingPuzzle();
         return;
       }
       if (
@@ -6639,6 +6940,7 @@ export function MovementLab() {
       }
       nextSurvival = applySurvivalEffects(nextSurvival, effects);
       survivalStateRef.current = nextSurvival;
+      syncCampPowerToGameMinutes(nextSurvival.gameMinutes);
       setSurvivalState(nextSurvival);
       showPlayerSurvivalIncreases(
         previousSurvivalValues,
@@ -6938,6 +7240,7 @@ export function MovementLab() {
         });
         saveQuestSaveData(questManager.exportSave());
       }
+      scheduleInteractionTeleport(interactable);
       const completionDialogue = selectInteractionDialogue(
         interactable,
         "completion",
@@ -6945,6 +7248,98 @@ export function MovementLab() {
       if (completionDialogue) {
         openDialogue(interactable, undefined, completionDialogue);
       }
+      return true;
+    };
+
+    completePowerPuzzleInteractionRef.current = () => {
+      const session = powerPuzzleSessionRef.current;
+      closePowerRoutingPuzzle();
+      if (!session) return;
+      completeInteraction(session.interactable, session.source);
+    };
+
+    const openCampPowerRefillConfirmation = (
+      interactable: SceneInteractable,
+      source: PendingInteraction["source"],
+    ) => {
+      const ownedCrystalCount =
+        playerInventoryRef.current[CAMP_POWER_REFILL_ITEM_ID] ?? 0;
+      if (campPowerStateRef.current.current >= CAMP_POWER_CAPACITY) {
+        showInteractionItemFeedback("營地電力已達 50/50，無法再灌入晶體。");
+        return true;
+      }
+      if (!canRefillCampPower(campPowerStateRef.current, ownedCrystalCount)) {
+        return openInteractionFailureDialogue(interactable, source);
+      }
+
+      campPowerConfirmationOpenRef.current = true;
+      campPowerConfirmationGamepadModeRef.current = "dpad";
+      campPowerConfirmationCursorRearmRequiredRef.current = false;
+      setCampPowerConfirmationChoiceValue("cancel");
+      setCampPowerConfirmationOpen(true);
+
+      confirmCampPowerRefillRef.current = () => {
+        const applyRefill = () => {
+          const currentInventory = playerInventoryRef.current;
+          const currentCrystalCount =
+            currentInventory[CAMP_POWER_REFILL_ITEM_ID] ?? 0;
+          if (
+            !canRefillCampPower(
+              campPowerStateRef.current,
+              currentCrystalCount,
+            )
+          ) {
+            closeCampPowerConfirmation();
+            showInteractionItemFeedback(
+              campPowerStateRef.current.current >= CAMP_POWER_CAPACITY
+                ? "營地電力已達 50/50，無法再灌入晶體。"
+                : "藍色晶體碎片數量不足。",
+            );
+            return;
+          }
+
+          const previousPower = campPowerStateRef.current.current;
+          const nextInventory = removeInventoryItem(
+            currentInventory,
+            CAMP_POWER_REFILL_ITEM_ID,
+            CAMP_POWER_REFILL_ITEM_QUANTITY,
+          );
+          const nextPower = refillCampPower(campPowerStateRef.current);
+          playerInventoryRef.current = nextInventory;
+          setPlayerInventory(nextInventory);
+          applyCampPowerState(nextPower);
+          try {
+            savePlayerInventory(nextInventory);
+          } catch {
+            // 儲存空間不可用時，仍保留本次工作階段的消耗結果。
+          }
+
+          const actualGain = nextPower.current - previousPower;
+          showInteractionItemFeedback(
+            `消耗「藍色晶體碎片」×${CAMP_POWER_REFILL_ITEM_QUANTITY} · ` +
+              `營地電力 +${actualGain}（${nextPower.current}/${CAMP_POWER_CAPACITY}）`,
+          );
+          const questManager = questRuntimeManagerRef.current;
+          if (questManager) {
+            questGameEventSequenceRef.current += 1;
+            questManager.handleEvent({
+              type: "itemUsed",
+              targetId: CAMP_POWER_REFILL_ITEM_ID,
+              amount: CAMP_POWER_REFILL_ITEM_QUANTITY,
+              eventId:
+                `itemUsed:${CAMP_POWER_REFILL_ITEM_ID}:${Date.now()}:` +
+                `${questGameEventSequenceRef.current}`,
+            });
+            saveQuestSaveData(questManager.exportSave());
+          }
+          completeInteraction(interactable, source);
+        };
+
+        closeCampPowerConfirmation();
+        const dialogue = selectInteractionDialogue(interactable, "success");
+        if (dialogue) openDialogue(interactable, applyRefill, dialogue);
+        else applyRefill();
+      };
       return true;
     };
 
@@ -6958,8 +7353,21 @@ export function MovementLab() {
         return openInteractionFailureDialogue(interactable, source);
       }
       if (!isInteractableConditionActive(interactable)) return false;
+      if (getInteractionUseRequirementFailure(interactable)) {
+        return openInteractionFailureDialogue(interactable, source);
+      }
       if (getInteractionRequirementFailure(interactable)) {
         return openInteractionFailureDialogue(interactable, source);
+      }
+      if (interactable.id === CAMP_POWER_RESONATOR_INTERACTION_ID) {
+        return openCampPowerRefillConfirmation(interactable, source);
+      }
+      if (interactable.id === POWER_ROUTING_INTERACTION_ID) {
+        openPowerRoutingPuzzle(interactable, source);
+        if (source === "pointer") {
+          pointerInteractionTriggeredId = interactable.id;
+        }
+        return true;
       }
 
       const hasDialogueSequence = shouldCompleteAfterDialogue(interactable);
@@ -7064,7 +7472,7 @@ export function MovementLab() {
       playAcceptedInteractionSound = false,
       allowInteractableSelection = true,
     ) => {
-      if (blackScreenOpacityRef.current > 0) return;
+      if (blackScreenOpacityRef.current > 0 || powerPuzzleOpenRef.current) return;
 
       const selectedInteractable = allowInteractableSelection
         ? forcedInteractable ??
@@ -7244,6 +7652,7 @@ export function MovementLab() {
     };
 
     const activateBestInteraction = (source: PendingInteraction["source"]) => {
+      if (powerPuzzleOpenRef.current) return;
       if (dialoguePlaybackRef.current) {
         advanceDialogue();
         return;
@@ -7368,13 +7777,14 @@ export function MovementLab() {
       }
 
       const interactive = element.closest<HTMLElement>(
-        "button:not(:disabled), input:not(:disabled), select:not(:disabled), [role='button']",
+        "button:not(:disabled), input:not(:disabled), select:not(:disabled), [role='button'], .power-device-row[data-device-id]",
       );
       if (interactive) {
         interactive.focus({ preventScroll: true });
         if (
           interactive instanceof HTMLButtonElement ||
-          interactive.getAttribute("role") === "button"
+          interactive.getAttribute("role") === "button" ||
+          interactive.matches(".power-device-row[data-device-id]")
         ) {
           interactive.click();
         }
@@ -7382,7 +7792,7 @@ export function MovementLab() {
       }
 
       return element.closest(
-        ".inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .dialogue-box, .quest-hud",
+        ".inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .dialogue-box, .quest-hud",
       )
         ? "blocked"
         : "none";
@@ -7914,7 +8324,7 @@ export function MovementLab() {
         const targetOpacity =
           activeDialogueTargetId === interactable.id ? 0 : 1;
         const targetEmphasis =
-          playerTarget?.id === interactable.id && targetOpacity > 0 ? 1 : 0;
+          activePromptTargetId === interactable.id && targetOpacity > 0 ? 1 : 0;
         if (animation.opacity < targetOpacity) {
           animation.opacity = Math.min(
             targetOpacity,
@@ -7975,6 +8385,66 @@ export function MovementLab() {
         if (interactionName && emphasis > 0.001) {
           const labelOffset = 50 / zoom;
           context.globalAlpha = animation.opacity * emphasis;
+          if (interactable.id === CAMP_POWER_RESONATOR_INTERACTION_ID) {
+            const powerValue = campPowerStateRef.current.current;
+            const columns = 10;
+            const rows = 5;
+            const powerUiScale = 1.2;
+            const cellWidth = (8 * powerUiScale) / zoom;
+            const cellHeight = (5 * powerUiScale) / zoom;
+            const cellGap = (2 * powerUiScale) / zoom;
+            const gridWidth =
+              columns * cellWidth + (columns - 1) * cellGap;
+            const gridHeight = rows * cellHeight + (rows - 1) * cellGap;
+            const gridLeft = -gridWidth / 2;
+            const gridTop = -120 / zoom;
+
+            context.font = `700 ${(11 * powerUiScale) / zoom}px Consolas, monospace`;
+            context.textAlign = "center";
+            context.textBaseline = "bottom";
+            context.lineWidth = 2.4 / zoom;
+            context.strokeStyle = "rgba(3, 12, 17, 0.88)";
+            context.strokeText(
+              `營地電力 ${powerValue}/${CAMP_POWER_CAPACITY}`,
+              0,
+              gridTop - (5 * powerUiScale) / zoom,
+            );
+            context.fillStyle = "rgba(119, 242, 239, 0.98)";
+            context.fillText(
+              `營地電力 ${powerValue}/${CAMP_POWER_CAPACITY}`,
+              0,
+              gridTop - (5 * powerUiScale) / zoom,
+            );
+
+            for (let index = 0; index < CAMP_POWER_CAPACITY; index += 1) {
+              const column = index % columns;
+              const row = Math.floor(index / columns);
+              const x = gridLeft + column * (cellWidth + cellGap);
+              const y = gridTop + row * (cellHeight + cellGap);
+              context.beginPath();
+              context.rect(x, y, cellWidth, cellHeight);
+              context.fillStyle =
+                index < powerValue
+                  ? "rgba(74, 239, 232, 0.96)"
+                  : "rgba(5, 28, 34, 0.82)";
+              context.fill();
+              context.strokeStyle =
+                index < powerValue
+                  ? "rgba(186, 255, 251, 0.94)"
+                  : "rgba(82, 177, 181, 0.46)";
+              context.lineWidth = 0.8 / zoom;
+              context.stroke();
+            }
+
+            context.strokeStyle = "rgba(77, 221, 223, 0.56)";
+            context.lineWidth = 1 / zoom;
+            context.strokeRect(
+              gridLeft - (5 * powerUiScale) / zoom,
+              gridTop - (5 * powerUiScale) / zoom,
+              gridWidth + (10 * powerUiScale) / zoom,
+              gridHeight + (10 * powerUiScale) / zoom,
+            );
+          }
           context.font = `600 ${16 / zoom}px "Microsoft JhengHei UI", system-ui, sans-serif`;
           context.textAlign = "center";
           context.textBaseline = "bottom";
@@ -8928,26 +9398,91 @@ export function MovementLab() {
         }
       }
 
+      if (!powerPuzzleOpenRef.current) {
+        powerPuzzleCursorShownForSession = false;
+      } else if (
+        gamepadInput.connected &&
+        !powerPuzzleCursorShownForSession
+      ) {
+        virtualCursorVisible = true;
+        activateGamepadCursor();
+        powerPuzzleCursorShownForSession = true;
+      }
+      if (!campPowerConfirmationOpenRef.current) {
+        campPowerConfirmationCursorShownForSession = false;
+      } else if (
+        gamepadInput.connected &&
+        !campPowerConfirmationCursorShownForSession
+      ) {
+        virtualCursorVisible = true;
+        activateGamepadCursor();
+        campPowerConfirmationCursorShownForSession = true;
+      }
+
       const cursorInputLength = Math.hypot(
         gamepadInput.cursorX,
         gamepadInput.cursorY,
       );
-      const optionsCursorCanTakeControl =
-        !optionsOpenRef.current ||
-        shouldOptionsCursorTakeControl(
-          optionsGamepadModeRef.current,
-          cursorInputLength,
-        );
+      if (
+        powerPuzzleOpenRef.current &&
+        powerPuzzleCursorRearmRequiredRef.current &&
+        cursorInputLength <= 0.1
+      ) {
+        powerPuzzleCursorRearmRequiredRef.current = false;
+      }
+      const powerPuzzleDirectionalInputActive =
+        powerPuzzleOpenRef.current &&
+        (Math.abs(gamepadInput.dpadX) > 0 ||
+          Math.abs(gamepadInput.dpadY) > 0 ||
+          Math.abs(gamepadInput.stickX) >= 0.65 ||
+          Math.abs(gamepadInput.stickY) >= 0.65);
+      if (powerPuzzleDirectionalInputActive) {
+        activatePowerPuzzleDpadMode();
+      }
+      if (
+        campPowerConfirmationOpenRef.current &&
+        campPowerConfirmationCursorRearmRequiredRef.current &&
+        cursorInputLength <= 0.1
+      ) {
+        campPowerConfirmationCursorRearmRequiredRef.current = false;
+      }
+      const campPowerConfirmationDirectionalInputActive =
+        campPowerConfirmationOpenRef.current &&
+        (Math.abs(gamepadInput.dpadX) > 0 ||
+          Math.abs(gamepadInput.stickX) >= 0.65);
+      if (campPowerConfirmationDirectionalInputActive) {
+        activateCampPowerConfirmationDpadMode();
+      }
+      const menuCursorCanTakeControl =
+        (!optionsOpenRef.current ||
+          shouldOptionsCursorTakeControl(
+            optionsGamepadModeRef.current,
+            cursorInputLength,
+          )) &&
+        (!powerPuzzleOpenRef.current ||
+          (!powerPuzzleDirectionalInputActive &&
+            !powerPuzzleCursorRearmRequiredRef.current &&
+            (powerPuzzleGamepadModeRef.current === "cursor" ||
+              cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD))) &&
+        (!campPowerConfirmationOpenRef.current ||
+          (!campPowerConfirmationDirectionalInputActive &&
+            !campPowerConfirmationCursorRearmRequiredRef.current &&
+            (campPowerConfirmationGamepadModeRef.current === "cursor" ||
+              cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD)));
       if (
         virtualCursorControlsEnabledRef.current &&
         gamepadInput.connected &&
         cursorInputLength > 0 &&
-        optionsCursorCanTakeControl
+        menuCursorCanTakeControl
       ) {
         if (optionsOpenRef.current) {
           optionsGamepadModeRef.current = "cursor";
         } else if (inventoryOpenRef.current) {
           inventoryGamepadModeRef.current = "cursor";
+        } else if (powerPuzzleOpenRef.current) {
+          powerPuzzleGamepadModeRef.current = "cursor";
+        } else if (campPowerConfirmationOpenRef.current) {
+          campPowerConfirmationGamepadModeRef.current = "cursor";
         }
         activateGamepadCursor();
         const marginX = Math.min(16, viewportWidth / 2);
@@ -8970,7 +9505,12 @@ export function MovementLab() {
         gamepadInput.connected &&
         gamepadInput.startPressed &&
         !wasGamepadStartPressed;
-      if (startJustPressed && !timePassInputLockedRef.current) {
+      if (
+        startJustPressed &&
+        !timePassInputLockedRef.current &&
+        !powerPuzzleOpenRef.current &&
+        !campPowerConfirmationOpenRef.current
+      ) {
         toggleOptionsPanel();
       }
       wasGamepadStartPressed = gamepadInput.startPressed;
@@ -8983,7 +9523,9 @@ export function MovementLab() {
         backJustPressed &&
         storyFlowActiveRef.current &&
         !timePassInputLockedRef.current &&
-        !optionsOpenRef.current
+        !optionsOpenRef.current &&
+        !powerPuzzleOpenRef.current &&
+        !campPowerConfirmationOpenRef.current
       ) {
         beginStorySkipHold("gamepad");
       }
@@ -9002,8 +9544,17 @@ export function MovementLab() {
         gamepadInput.connected &&
         gamepadInput.rightBumperPressed &&
         !wasGamepadRightBumperPressed;
+      let campPowerConfirmationMenuOpen = campPowerConfirmationOpenRef.current;
+      let powerPuzzleMenuOpen = powerPuzzleOpenRef.current;
       let optionsMenuOpen = optionsOpenRef.current;
-      if (optionsMenuOpen && backJustPressed) {
+      if (campPowerConfirmationMenuOpen && backJustPressed) {
+        playOneShotAudio("uiInput");
+        closeCampPowerConfirmation();
+        campPowerConfirmationMenuOpen = false;
+      } else if (powerPuzzleMenuOpen && backJustPressed) {
+        powerPuzzleControllerRef.current?.cancel();
+        powerPuzzleMenuOpen = false;
+      } else if (optionsMenuOpen && backJustPressed) {
         if (restartConfirmationOpenRef.current) {
           closeRestartConfirmation();
         } else {
@@ -9020,13 +9571,118 @@ export function MovementLab() {
       }
       const inventoryMenuOpen = inventoryOpenRef.current;
 
-      if (!optionsMenuOpen && !inventoryMenuOpen) {
+      if (
+        !campPowerConfirmationMenuOpen &&
+        !powerPuzzleMenuOpen &&
+        !optionsMenuOpen &&
+        !inventoryMenuOpen
+      ) {
         heldGamepadDpadX = 0;
         heldGamepadDpadY = 0;
         gamepadDpadXRepeatSeconds = 0;
         gamepadDpadYRepeatSeconds = 0;
       }
-      if (optionsMenuOpen) {
+      if (campPowerConfirmationMenuOpen) {
+        gameplayHotbarDpadX = 0;
+        const horizontalInput =
+          Math.abs(gamepadInput.dpadX) > 0
+            ? gamepadInput.dpadX
+            : Math.abs(gamepadInput.stickX) >= 0.65
+              ? gamepadInput.stickX
+              : 0;
+        const dpadHorizontal = Math.sign(horizontalInput);
+        if (dpadHorizontal === 0) {
+          heldGamepadDpadX = 0;
+          gamepadDpadXRepeatSeconds = 0;
+        } else if (dpadHorizontal !== heldGamepadDpadX) {
+          activateCampPowerConfirmationDpadMode();
+          heldGamepadDpadX = dpadHorizontal;
+          gamepadDpadXRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
+          playOneShotAudio("uiInput");
+          setCampPowerConfirmationChoiceValue(
+            dpadHorizontal > 0 ? "confirm" : "cancel",
+          );
+        }
+
+        if (
+          gamepadInput.confirmPressed &&
+          !wasGamepadConfirmPressed
+        ) {
+          if (campPowerConfirmationGamepadModeRef.current === "cursor") {
+            activateVirtualCursorUi();
+          } else if (campPowerConfirmationChoiceRef.current === "confirm") {
+            playOneShotAudio("uiInput");
+            confirmCampPowerRefill();
+          } else {
+            playOneShotAudio("uiInput");
+            closeCampPowerConfirmation();
+          }
+        }
+      } else if (powerPuzzleMenuOpen) {
+        gameplayHotbarDpadX = 0;
+        const verticalInput =
+          Math.abs(gamepadInput.dpadY) > 0
+            ? gamepadInput.dpadY
+            : Math.abs(gamepadInput.stickY) >= 0.65
+              ? gamepadInput.stickY
+              : 0;
+        const dpadVertical = Math.sign(verticalInput);
+        if (dpadVertical === 0) {
+          heldGamepadDpadY = 0;
+          gamepadDpadYRepeatSeconds = 0;
+        } else if (dpadVertical !== heldGamepadDpadY) {
+          activatePowerPuzzleDpadMode();
+          heldGamepadDpadY = dpadVertical;
+          gamepadDpadYRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
+          powerPuzzleControllerRef.current?.moveSelection(dpadVertical);
+        } else {
+          gamepadDpadYRepeatSeconds -= deltaTime;
+          if (gamepadDpadYRepeatSeconds <= 0) {
+            activatePowerPuzzleDpadMode();
+            powerPuzzleControllerRef.current?.moveSelection(dpadVertical);
+            gamepadDpadYRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
+          }
+        }
+
+        const horizontalInput =
+          Math.abs(gamepadInput.dpadX) > 0
+            ? gamepadInput.dpadX
+            : Math.abs(gamepadInput.stickX) >= 0.65
+              ? gamepadInput.stickX
+              : 0;
+        const dpadHorizontal = Math.sign(horizontalInput);
+        if (dpadHorizontal === 0) {
+          heldGamepadDpadX = 0;
+          gamepadDpadXRepeatSeconds = 0;
+        } else if (dpadHorizontal !== heldGamepadDpadX) {
+          activatePowerPuzzleDpadMode();
+          heldGamepadDpadX = dpadHorizontal;
+          gamepadDpadXRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
+          powerPuzzleControllerRef.current?.setSelectedDeviceActive(
+            dpadHorizontal > 0,
+          );
+        } else {
+          gamepadDpadXRepeatSeconds -= deltaTime;
+          if (gamepadDpadXRepeatSeconds <= 0) {
+            activatePowerPuzzleDpadMode();
+            powerPuzzleControllerRef.current?.setSelectedDeviceActive(
+              dpadHorizontal > 0,
+            );
+            gamepadDpadXRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
+          }
+        }
+
+        if (
+          gamepadInput.confirmPressed &&
+          !wasGamepadConfirmPressed
+        ) {
+          if (powerPuzzleGamepadModeRef.current === "cursor") {
+            activateVirtualCursorUi();
+          } else {
+            powerPuzzleControllerRef.current?.activateSelection();
+          }
+        }
+      } else if (optionsMenuOpen) {
         gameplayHotbarDpadX = 0;
         if (leftBumperJustPressed) {
           activateOptionsDpadMode();
@@ -9162,6 +9818,7 @@ export function MovementLab() {
         const canToggleGameplayHud =
           !storyInputLockedRef.current &&
           !timePassInputLockedRef.current &&
+          !powerPuzzleOpenRef.current &&
           !dialoguePlaybackRef.current;
         if (canToggleGameplayHud && leftBumperJustPressed) {
           toggleSurvivalPanel();
@@ -9174,6 +9831,7 @@ export function MovementLab() {
         if (
           !storyInputLockedRef.current &&
           !timePassInputLockedRef.current &&
+          !powerPuzzleOpenRef.current &&
           hotbarDpadHorizontal !== 0 &&
           gameplayHotbarDpadX === 0
         ) {
@@ -9184,6 +9842,7 @@ export function MovementLab() {
         if (
           !storyInputLockedRef.current &&
           !timePassInputLockedRef.current &&
+          !powerPuzzleOpenRef.current &&
           gamepadInput.connected &&
           gamepadInput.hotbarUsePressed &&
           !wasGamepadHotbarUsePressed
@@ -9249,6 +9908,8 @@ export function MovementLab() {
         timePassInputLockedRef.current ||
         dialoguePlaybackRef.current ||
         inventoryOpenRef.current ||
+        powerPuzzleOpenRef.current ||
+        campPowerConfirmationOpenRef.current ||
         debugItemSpawnerOpenRef.current ||
         survivalStateRef.current.gameOverReason
       ) {
@@ -9601,6 +10262,8 @@ export function MovementLab() {
         storyFlowActiveRef.current ||
         optionsOpenRef.current ||
         inventoryOpenRef.current ||
+        powerPuzzleOpenRef.current ||
+        campPowerConfirmationOpenRef.current ||
         debugItemSpawnerOpenRef.current ||
         Boolean(dialoguePlaybackRef.current);
       if (!survivalPaused && !survivalStateRef.current.gameOverReason) {
@@ -9625,6 +10288,7 @@ export function MovementLab() {
             return !wasEligible && isEligible;
           });
         survivalStateRef.current = nextSurvivalState;
+        syncCampPowerToGameMinutes(nextSurvivalState.gameMinutes);
         if (touchingStorySurvivalConditionBecameEligible) {
           requestStoryTriggerContactCheckRef.current();
         }
@@ -9681,6 +10345,7 @@ export function MovementLab() {
         !storyInputLockedRef.current &&
         !optionsOpenRef.current &&
         !inventoryOpenRef.current &&
+        !powerPuzzleOpenRef.current &&
         !dialoguePlaybackRef.current &&
         !sceneTransitioningRef.current
       ) {
@@ -9691,7 +10356,7 @@ export function MovementLab() {
           return;
         }
       }
-      if (!storyInputLockedRef.current) {
+      if (!storyInputLockedRef.current && !powerPuzzleOpenRef.current) {
         const shouldRecheckTouchingStoryTriggers =
           storyTriggerContactCheckRequested;
         storyTriggerContactCheckRequested = false;
@@ -9863,7 +10528,7 @@ export function MovementLab() {
       canActivateStoryTriggerRef.current = () => false;
       completeStoryTriggerRef.current = () => false;
       requestStoryTriggerContactCheckRef.current = () => {};
-      if (playerTeleportHandlerRef.current === teleportPlayer) {
+      if (playerTeleportHandlerRef.current === teleportPlayerWithTransition) {
         playerTeleportHandlerRef.current = () => false;
       }
       stopFootsteps();
@@ -10050,6 +10715,7 @@ export function MovementLab() {
     hotbarAssignmentsRef.current = progress.hotbarAssignments;
     currentStoryChapterRef.current = progress.story.currentChapter;
     storyProgressRef.current = progress.story;
+    campPowerStateRef.current = progress.campPower;
     droppedWorldItemSequenceRef.current = 0;
     itemPointProgressRef.current = progress.itemPointProgress;
     sceneEntryCollectedItemPointIdsRef.current.clear();
@@ -10060,6 +10726,7 @@ export function MovementLab() {
     applyDroppedWorldItems(progress.droppedWorldItems);
 
     setSurvivalState(progress.survival);
+    setCampPowerState(progress.campPower);
     setPlayerInventory(progress.inventory);
     setCollectedWorldItemIds(progress.collectedWorldItemIds);
     setHotbarAssignments(progress.hotbarAssignments);
@@ -10984,6 +11651,82 @@ export function MovementLab() {
         </menu>
       ) : null}
 
+      {powerPuzzleOpen ? (
+        <PowerRoutingPuzzle
+          ref={powerPuzzleControllerRef}
+          availablePower={campPowerState.current}
+          onCancel={closePowerRoutingPuzzle}
+          onComplete={() => completePowerPuzzleInteractionRef.current()}
+          onInput={() => playOneShotAudio("uiInput")}
+        />
+      ) : null}
+
+      {campPowerConfirmationOpen ? (
+        <div
+          className="camp-power-confirmation-overlay"
+          onMouseDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            playOneShotAudio("uiInput");
+            closeCampPowerConfirmation();
+          }}
+        >
+          <section
+            className="camp-power-confirmation"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="camp-power-confirmation-title"
+          >
+            <small>CAMP POWER RESONATOR</small>
+            <h3 id="camp-power-confirmation-title">灌入藍色晶體碎片？</h3>
+            <p>
+              是否消耗「藍色晶體碎片」×{CAMP_POWER_REFILL_ITEM_QUANTITY}，
+              為營地補充 {CAMP_POWER_REFILL_AMOUNT} 點電力？
+            </p>
+            <div className="camp-power-confirmation-preview" aria-live="polite">
+              <span>目前電力</span>
+              <strong>{campPowerState.current}/{CAMP_POWER_CAPACITY}</strong>
+              <i aria-hidden="true">→</i>
+              <strong className="is-next">
+                {Math.min(
+                  CAMP_POWER_CAPACITY,
+                  campPowerState.current + CAMP_POWER_REFILL_AMOUNT,
+                )}/{CAMP_POWER_CAPACITY}
+              </strong>
+            </div>
+            <p className="camp-power-confirmation-owned">
+              目前持有：藍色晶體碎片 ×{playerInventory[CAMP_POWER_REFILL_ITEM_ID] ?? 0}
+            </p>
+            <div className="camp-power-confirmation-actions">
+              <button
+                className={campPowerConfirmationChoice === "cancel" ? "is-selected" : undefined}
+                type="button"
+                data-gamepad-selected={campPowerConfirmationChoice === "cancel" || undefined}
+                onFocus={() => setCampPowerConfirmationChoiceValue("cancel")}
+                onClick={() => {
+                  playOneShotAudio("uiInput");
+                  closeCampPowerConfirmation();
+                }}
+              >
+                取消
+              </button>
+              <button
+                className={`is-confirm${campPowerConfirmationChoice === "confirm" ? " is-selected" : ""}`}
+                type="button"
+                data-gamepad-selected={campPowerConfirmationChoice === "confirm" || undefined}
+                onFocus={() => setCampPowerConfirmationChoiceValue("confirm")}
+                onClick={() => {
+                  playOneShotAudio("uiInput");
+                  confirmCampPowerRefill();
+                }}
+              >
+                確認灌入
+              </button>
+            </div>
+            <footer>十字鍵／左搖桿：選擇　A：確認　B：取消</footer>
+          </section>
+        </div>
+      ) : null}
+
       {optionsOpen ? (
         <div
           className="options-overlay"
@@ -11411,6 +12154,7 @@ export function MovementLab() {
           mobileInteractionTarget &&
           !optionsOpen &&
           !inventoryOpen &&
+          !powerPuzzleOpen &&
           !dialogueView
             ? " is-visible"
             : ""
@@ -11425,6 +12169,7 @@ export function MovementLab() {
           !mobileInteractionTarget ||
           optionsOpen ||
           inventoryOpen ||
+          powerPuzzleOpen ||
           Boolean(dialogueView)
         }
         onClick={(event) => {
@@ -11441,7 +12186,7 @@ export function MovementLab() {
         </svg>
       </button>
 
-      {!optionsOpen && !inventoryOpen && !dialogueView ? (
+      {!optionsOpen && !inventoryOpen && !powerPuzzleOpen && !dialogueView ? (
         <button
           className="fullscreen-trigger"
           type="button"
@@ -11470,7 +12215,7 @@ export function MovementLab() {
 
       <canvas
         ref={cursorCanvasRef}
-        className="cursor-layer"
+        className={`cursor-layer${powerPuzzleOpen || campPowerConfirmationOpen ? " is-over-modal" : ""}`}
         aria-hidden="true"
       />
       </main>

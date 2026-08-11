@@ -46,6 +46,7 @@ internal enum DragMode
     MoveShape,
     Vertex,
     CircleRadius,
+    InteractionPoint,
 }
 
 public sealed class EditorCanvas : Control
@@ -88,12 +89,14 @@ public sealed class EditorCanvas : Control
     private PointF _pan = new(20, 20);
     private PointF _lastMouseScreen;
     private PointF _lastDragWorld;
+    private PointF _interactionPointDragOffset;
     private PointF _draftCursor;
     private PointF? _shapeStart;
     private PointF? _shapeEnd;
     private DragMode _dragMode;
     private int _activeHandle = -1;
     private int _selectedVertex = -1;
+    private int _selectedInteractionPoint = -1;
     private LayerSelection _contextSelection = LayerSelection.None;
     private int _contextEdgeIndex = -1;
     private int _contextInteractionPointIndex = -1;
@@ -261,6 +264,7 @@ public sealed class EditorCanvas : Control
         _document = document;
         _selection = LayerSelection.None;
         _selectedVertex = -1;
+        _selectedInteractionPoint = -1;
         _draftPoints.Clear();
         _undo.Clear();
         _redo.Clear();
@@ -325,6 +329,31 @@ public sealed class EditorCanvas : Control
         var point = SelectedTeleportPoint;
         if (point is null || point.Facing == facing) return;
         PerformMutation(() => point.Facing = facing);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void UpdateSelectedTeleportPointBlackout(
+        bool enabled,
+        float fadeSeconds,
+        float holdSeconds)
+    {
+        var point = SelectedTeleportPoint;
+        if (point is null) return;
+        fadeSeconds = Math.Clamp(fadeSeconds, 0, 30);
+        holdSeconds = Math.Clamp(holdSeconds, 0, 3600);
+        if (
+            point.BlackoutEnabled == enabled &&
+            Math.Abs(point.BlackoutFadeSeconds - fadeSeconds) < 0.0001f &&
+            Math.Abs(point.BlackoutHoldSeconds - holdSeconds) < 0.0001f)
+        {
+            return;
+        }
+        PerformMutation(() =>
+        {
+            point.BlackoutEnabled = enabled;
+            point.BlackoutFadeSeconds = fadeSeconds;
+            point.BlackoutHoldSeconds = holdSeconds;
+        });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -445,6 +474,7 @@ public sealed class EditorCanvas : Control
         if (_selection == selection) return;
         _selection = selection;
         _selectedVertex = -1;
+        _selectedInteractionPoint = -1;
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         Invalidate();
     }
@@ -494,6 +524,7 @@ public sealed class EditorCanvas : Control
 
             _selection = LayerSelection.None;
             _selectedVertex = -1;
+            _selectedInteractionPoint = -1;
         });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -795,7 +826,10 @@ public sealed class EditorCanvas : Control
         int? dailyLimit,
         string? interactionLimitMode,
         IEnumerable<InteractionUseRequirement> useRequirements,
-        IEnumerable<InteractionItemReward> itemRewards)
+        IEnumerable<InteractionItemReward> itemRewards,
+        bool allowAttemptWhenRequirementsUnmet,
+        string? completionTeleportPointId,
+        float completionTeleportDelaySeconds)
     {
         var interactable = SelectedInteractable;
         if (interactable is null) return;
@@ -816,6 +850,13 @@ public sealed class EditorCanvas : Control
         var rewardList = itemRewards
             .Select(reward => reward.Clone())
             .ToList();
+        completionTeleportPointId = string.IsNullOrWhiteSpace(completionTeleportPointId)
+            ? null
+            : completionTeleportPointId.Trim();
+        completionTeleportDelaySeconds = Math.Clamp(
+            completionTeleportDelaySeconds,
+            0,
+            3600);
         PerformMutation(() =>
         {
             interactable.Type = type;
@@ -827,10 +868,17 @@ public sealed class EditorCanvas : Control
             interactable.UseRequirements = requirementList.Count == 0
                 ? null
                 : requirementList;
+            interactable.AllowAttemptWhenRequirementsUnmet =
+                allowAttemptWhenRequirementsUnmet;
             interactable.ItemRewards = rewardList.Count == 0
                 ? null
                 : rewardList;
             interactable.ItemReward = null;
+            interactable.CompletionTeleportPointId = completionTeleportPointId;
+            interactable.CompletionTeleportDelaySeconds =
+                completionTeleportPointId is null
+                    ? 0
+                    : completionTeleportDelaySeconds;
         });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -858,6 +906,7 @@ public sealed class EditorCanvas : Control
         _document = SceneJson.Deserialize(_undo.Pop());
         _selection = LayerSelection.None;
         _selectedVertex = -1;
+        _selectedInteractionPoint = -1;
         NotifyDocumentReplaced();
     }
 
@@ -868,6 +917,7 @@ public sealed class EditorCanvas : Control
         _document = SceneJson.Deserialize(_redo.Pop());
         _selection = LayerSelection.None;
         _selectedVertex = -1;
+        _selectedInteractionPoint = -1;
         NotifyDocumentReplaced();
     }
 
@@ -889,6 +939,7 @@ public sealed class EditorCanvas : Control
                 _document = SceneJson.Deserialize(_mutationBefore);
                 _selection = LayerSelection.None;
                 _selectedVertex = -1;
+                _selectedInteractionPoint = -1;
                 restoredDocument = true;
             }
             catch (Exception exception)
@@ -915,6 +966,7 @@ public sealed class EditorCanvas : Control
         var originalDocument = SceneJson.Serialize(_document);
         var originalSelection = _selection;
         var originalSelectedVertex = _selectedVertex;
+        var originalSelectedInteractionPoint = _selectedInteractionPoint;
         using var renderTarget = new Bitmap(
             Math.Max(1, ClientSize.Width),
             Math.Max(1, ClientSize.Height));
@@ -951,6 +1003,7 @@ public sealed class EditorCanvas : Control
             _document = SceneJson.Deserialize(originalDocument);
             _selection = originalSelection;
             _selectedVertex = originalSelectedVertex;
+            _selectedInteractionPoint = originalSelectedInteractionPoint;
             _dragMode = DragMode.None;
             _activeHandle = -1;
             _mutationBefore = null;
@@ -963,6 +1016,7 @@ public sealed class EditorCanvas : Control
         var originalDocument = _document;
         var originalSelection = _selection;
         var originalSelectedVertex = _selectedVertex;
+        var originalSelectedInteractionPoint = _selectedInteractionPoint;
         var originalMutationBefore = _mutationBefore;
 
         try
@@ -1041,6 +1095,7 @@ public sealed class EditorCanvas : Control
                 },
                 SurvivalEffects = new SurvivalEffects { Stamina = -9, TimeMinutes = 60 },
                 DailyInteractionLimit = 2,
+                AllowAttemptWhenRequirementsUnmet = true,
                 UseRequirements = new List<InteractionUseRequirement>
                 {
                     new() { Kind = "item", ItemId = ItemCatalog.All[0].Id, Quantity = 2 },
@@ -1060,12 +1115,47 @@ public sealed class EditorCanvas : Control
                 preservedInteraction.SurvivalEffects.Stamina != -9 ||
                 preservedInteraction.SurvivalEffects.TimeMinutes != 60 ||
                 preservedInteraction.DailyInteractionLimit != 2 ||
+                !preservedInteraction.AllowAttemptWhenRequirementsUnmet ||
                 preservedInteraction.UseRequirements?.Single().Quantity != 2 ||
                 preservedInteraction.ItemRewards?.Single().Quantity != 3)
             {
                 throw new InvalidOperationException(
                     "Changing an interaction type did not preserve its requirements and completion effects.");
             }
+            preservedInteraction.InteractionPoints = new List<InteractionPoint>
+            {
+                new() { X = 10, Y = 10, Facing = "S" },
+            };
+            if (
+                !TryHitInteractionPoint(
+                    new PointF(10, 10),
+                    out var interactionPointSelection,
+                    out var interactionPointIndex) ||
+                interactionPointSelection !=
+                    new LayerSelection(SceneLayerKind.Interactable, overlapInteractableIndex) ||
+                interactionPointIndex != 0
+            )
+            {
+                throw new InvalidOperationException(
+                    "Clicking an interaction Point did not select its parent interaction polygon.");
+            }
+            _selection = interactionPointSelection;
+            _selectedInteractionPoint = interactionPointIndex;
+            _interactionPointDragOffset = PointF.Empty;
+            _dragMode = DragMode.InteractionPoint;
+            if (!UpdateSelectionDrag(new PointF(16, 16)) ||
+                preservedInteraction.EffectiveInteractionPoints[0] is not { X: 16, Y: 16 })
+            {
+                throw new InvalidOperationException(
+                    "Dragging an interaction Point inside its polygon failed.");
+            }
+            if (UpdateSelectionDrag(new PointF(30, 30)) ||
+                preservedInteraction.EffectiveInteractionPoints[0] is not { X: 16, Y: 16 })
+            {
+                throw new InvalidOperationException(
+                    "An interaction Point was allowed to leave its parent polygon.");
+            }
+            _dragMode = DragMode.None;
             var overlapNavMeshIndex = _document.NavMesh.Count;
             _document.NavMesh.Add(new NavMeshRegion
             {
@@ -1122,6 +1212,7 @@ public sealed class EditorCanvas : Control
             _document = originalDocument;
             _selection = originalSelection;
             _selectedVertex = originalSelectedVertex;
+            _selectedInteractionPoint = originalSelectedInteractionPoint;
             _mutationBefore = originalMutationBefore;
             _undo.Clear();
             _redo.Clear();
@@ -1370,9 +1461,14 @@ public sealed class EditorCanvas : Control
                 DrawSelectedOutline(graphics, points);
             }
 
-            foreach (var interactionPoint in interactable.EffectiveInteractionPoints)
+            var interactionPoints = interactable.EffectiveInteractionPoints;
+            for (var pointIndex = 0; pointIndex < interactionPoints.Count; pointIndex++)
             {
-                DrawInteractionPoint(graphics, interactionPoint);
+                DrawInteractionPoint(
+                    graphics,
+                    interactionPoints[pointIndex],
+                    _selection == new LayerSelection(SceneLayerKind.Interactable, index) &&
+                    _selectedInteractionPoint == pointIndex);
             }
             if (interactable.InteractionHintPoint is { } interactionHintPoint)
             {
@@ -1381,10 +1477,31 @@ public sealed class EditorCanvas : Control
         }
     }
 
-    private void DrawInteractionPoint(Graphics graphics, InteractionPoint point)
+    private void DrawInteractionPoint(
+        Graphics graphics,
+        InteractionPoint point,
+        bool selected)
     {
         var center = new PointF(point.X, point.Y);
         var radius = 8f / _zoom;
+        if (selected)
+        {
+            var selectionRadius = 13f / _zoom;
+            using var selectionGlow = new SolidBrush(Color.FromArgb(52, 106, 244, 255));
+            using var selectionOutline = new Pen(Color.FromArgb(255, 119, 247, 255), 2.5f / _zoom);
+            graphics.FillEllipse(
+                selectionGlow,
+                center.X - selectionRadius,
+                center.Y - selectionRadius,
+                selectionRadius * 2,
+                selectionRadius * 2);
+            graphics.DrawEllipse(
+                selectionOutline,
+                center.X - selectionRadius,
+                center.Y - selectionRadius,
+                selectionRadius * 2,
+                selectionRadius * 2);
+        }
         using var fill = new SolidBrush(Color.FromArgb(238, 255, 232, 74));
         using var outline = new Pen(Color.FromArgb(245, 45, 40, 18), 2f / _zoom);
         graphics.FillEllipse(fill, center.X - radius, center.Y - radius, radius * 2, radius * 2);
@@ -1903,6 +2020,9 @@ public sealed class EditorCanvas : Control
                         X = world.X,
                         Y = world.Y,
                         Facing = "S",
+                        BlackoutEnabled = false,
+                        BlackoutFadeSeconds = 0.3f,
+                        BlackoutHoldSeconds = 0,
                     });
                     _selection = new LayerSelection(SceneLayerKind.TeleportPoint, index);
                 });
@@ -2109,6 +2229,33 @@ public sealed class EditorCanvas : Control
 
     private void BeginSelectDrag(PointF world, bool cycleOverlappingShapes = false)
     {
+        if (
+            !cycleOverlappingShapes &&
+            TryHitInteractionPoint(world, out var interactionSelection, out var interactionPointIndex)
+        )
+        {
+            SelectLayer(interactionSelection);
+            _selectedInteractionPoint = interactionPointIndex;
+            SetSelectedVertex(-1);
+            var interactionPoint = _document.Interactables[interactionSelection.Index]
+                .EffectiveInteractionPoints[interactionPointIndex];
+            var snappedWorld = SnapAndClamp(world);
+            _interactionPointDragOffset = new PointF(
+                interactionPoint.X - snappedWorld.X,
+                interactionPoint.Y - snappedWorld.Y);
+            BeginMutation();
+            _dragMode = DragMode.InteractionPoint;
+            _lastDragWorld = snappedWorld;
+            Capture = true;
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+            StatusChanged?.Invoke(
+                this,
+                $"已選取互動 Point {interactionPointIndex + 1}；拖曳可調整位置。位置會限制在所屬互動區內。");
+            RequestRender();
+            return;
+        }
+
+        _selectedInteractionPoint = -1;
         var handle = cycleOverlappingShapes ? -1 : HitSelectedHandle(world);
         if (handle >= 0)
         {
@@ -2144,6 +2291,35 @@ public sealed class EditorCanvas : Control
     private bool UpdateSelectionDrag(PointF world)
     {
         if (!IsValidSelection(_selection) || !IsFinite(world)) return false;
+
+        if (_dragMode == DragMode.InteractionPoint)
+        {
+            if (_selection.Kind != SceneLayerKind.Interactable) return false;
+            var interactable = _document.Interactables[_selection.Index];
+            var interactionPoints = interactable.EnsureInteractionPoints();
+            if (
+                _selectedInteractionPoint < 0 ||
+                _selectedInteractionPoint >= interactionPoints.Count
+            )
+            {
+                return false;
+            }
+            var next = ClampToWorld(new PointF(
+                world.X + _interactionPointDragOffset.X,
+                world.Y + _interactionPointDragOffset.Y));
+            if (!PointInPolygon(next, interactable.Points)) return false;
+            var interactionPoint = interactionPoints[_selectedInteractionPoint];
+            if (
+                Math.Abs(interactionPoint.X - next.X) < 0.001f &&
+                Math.Abs(interactionPoint.Y - next.Y) < 0.001f
+            )
+            {
+                return false;
+            }
+            interactionPoint.X = next.X;
+            interactionPoint.Y = next.Y;
+            return true;
+        }
 
         if (_dragMode == DragMode.CircleRadius)
         {
@@ -2796,6 +2972,7 @@ public sealed class EditorCanvas : Control
         _contextInteractionPoint = ClampToWorld(world);
         _contextInteractionHintPoint = ClampToWorld(world);
         _contextInteractionPointIndex = FindInteractionPointAtContext(world);
+        _selectedInteractionPoint = _contextInteractionPointIndex;
 
         if (_contextInteractionPointIndex >= 0)
         {
@@ -2870,10 +3047,12 @@ public sealed class EditorCanvas : Control
             if (interactionPointIndex >= 0 && interactionPointIndex < interactionPoints.Count)
             {
                 interactionPoints[interactionPointIndex] = interactionPoint;
+                _selectedInteractionPoint = interactionPointIndex;
             }
             else
             {
                 interactionPoints.Add(interactionPoint);
+                _selectedInteractionPoint = interactionPoints.Count - 1;
             }
         });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -2896,6 +3075,7 @@ public sealed class EditorCanvas : Control
             var interactionPoints = interactable.EnsureInteractionPoints();
             interactionPoints.RemoveAt(interactionPointIndex);
             interactable.NormalizeInteractionPoints();
+            _selectedInteractionPoint = -1;
         });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         StatusChanged?.Invoke(
@@ -2946,6 +3126,32 @@ public sealed class EditorCanvas : Control
             }
         }
         return nearestIndex;
+    }
+
+    private bool TryHitInteractionPoint(
+        PointF world,
+        out LayerSelection selection,
+        out int interactionPointIndex)
+    {
+        var threshold = 13f / _zoom;
+        for (var interactableIndex = _document.Interactables.Count - 1;
+             interactableIndex >= 0;
+             interactableIndex--)
+        {
+            var interactionPoints = _document.Interactables[interactableIndex]
+                .EffectiveInteractionPoints;
+            for (var pointIndex = interactionPoints.Count - 1; pointIndex >= 0; pointIndex--)
+            {
+                if (Distance(world, ToPointF(interactionPoints[pointIndex])) > threshold) continue;
+                selection = new LayerSelection(SceneLayerKind.Interactable, interactableIndex);
+                interactionPointIndex = pointIndex;
+                return true;
+            }
+        }
+
+        selection = LayerSelection.None;
+        interactionPointIndex = -1;
+        return false;
     }
 
     private void InsertNodeAtContextLocation()

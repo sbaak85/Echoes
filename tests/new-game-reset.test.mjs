@@ -7,6 +7,10 @@ import {
 } from "../app/new-game-reset.ts";
 import { DEFAULT_HOTBAR_ASSIGNMENTS } from "../app/hotbar-assignments.ts";
 import { INITIAL_PLAYER_INVENTORY } from "../app/item-database.ts";
+import {
+  CAMP_POWER_INITIAL_VALUE,
+  CAMP_POWER_STORAGE_KEY,
+} from "../app/camp-power-manager.ts";
 
 test("新遊戲進度回到第三章第 3 天 06:00 與完整生存值", () => {
   const progress = createNewGameProgress();
@@ -20,6 +24,8 @@ test("新遊戲進度回到第三章第 3 天 06:00 與完整生存值", () => {
   assert.equal(progress.survival.gameOverReason, null);
   assert.deepEqual(progress.interactionUsage.counts, {});
   assert.deepEqual(progress.interactionUsage.completedOnceIds, []);
+  assert.equal(progress.campPower.current, CAMP_POWER_INITIAL_VALUE);
+  assert.equal(progress.campPower.dailyConsumptionEnabled, false);
 });
 
 test("新遊戲會重建初始資源並清空場景進度", () => {
@@ -60,6 +66,11 @@ test("重新開始只覆寫遊戲進度儲存，不清除 Options 偏好", () =>
       JSON.parse(values.get("echoes:dropped-world-items:v1")),
       [],
     );
+    assert.deepEqual(JSON.parse(values.get(CAMP_POWER_STORAGE_KEY)), {
+      current: CAMP_POWER_INITIAL_VALUE,
+      dailyConsumptionEnabled: false,
+      lastProcessedCycle: 0,
+    });
   } finally {
     if (previousWindow === undefined) delete globalThis.window;
     else globalThis.window = previousWindow;

@@ -399,7 +399,7 @@ internal static class EditorSelfTest
             throw new InvalidDataException("傳送 Point 未能正確讀取或通過場景 JSON round-trip。");
         }
         if (roundTrip.EntryPoints.SingleOrDefault(point => point.Id == "entry-scene3-from-scene2") is not
-            { X: 100, Y: 1140, Facing: "NE" })
+            { X: 100, Y: 1145, Facing: "NE" })
         {
             throw new InvalidDataException("地圖 Entry Point 未能正確讀取或通過場景 JSON round-trip。");
         }
@@ -434,6 +434,29 @@ internal static class EditorSelfTest
             })
         {
             throw new InvalidDataException("Scene_2 與 Scene_3 的雙向出入口設定不完整。");
+        }
+        var cliffUpperPoint = scene2.TeleportPoints.SingleOrDefault(
+            point => point.Id == "teleport-point-scene2-cliff-upper");
+        var cliffLowerPoint = scene2.TeleportPoints.SingleOrDefault(
+            point => point.Id == "teleport-point-scene2-cliff-lower");
+        var cliffUpperInteraction = scene2.Interactables.SingleOrDefault(
+            interactable => interactable.Id == "interaction-001");
+        var cliffLowerInteraction = scene2.Interactables.SingleOrDefault(
+            interactable => interactable.Id == "interaction-002");
+        if (
+            cliffUpperPoint is not { Facing: "NE", BlackoutEnabled: true } ||
+            cliffLowerPoint is not { Facing: "SW", BlackoutEnabled: true } ||
+            Math.Abs(cliffUpperPoint.BlackoutFadeSeconds - 0.3f) > 0.0001f ||
+            Math.Abs(cliffUpperPoint.BlackoutHoldSeconds) > 0.0001f ||
+            Math.Abs(cliffLowerPoint.BlackoutFadeSeconds - 0.3f) > 0.0001f ||
+            Math.Abs(cliffLowerPoint.BlackoutHoldSeconds) > 0.0001f ||
+            cliffUpperInteraction?.CompletionTeleportPointId != cliffLowerPoint.Id ||
+            cliffLowerInteraction?.CompletionTeleportPointId != cliffUpperPoint.Id ||
+            cliffUpperInteraction.UseRequirements?.SingleOrDefault()?.ItemId != "T0001" ||
+            cliffLowerInteraction.UseRequirements?.SingleOrDefault()?.ItemId != "T0001")
+        {
+            throw new InvalidDataException(
+                "Scene_2 石壁上下層傳送 Point、往返互動或繩索需求設定不完整。");
         }
         var itemPointDocument = SceneJson.Deserialize(SceneJson.Serialize(roundTrip));
         itemPointDocument.ItemPoints.Add(new SceneItemPoint
@@ -691,6 +714,7 @@ internal static class EditorSelfTest
                 DisableStageId = "QUEST_TEST_CLOSE_STAGE_01",
             },
         };
+        multiPointInteractable.AllowAttemptWhenRequirementsUnmet = true;
         var expectedInteractionPointCount = interactionPoints.Count;
         var multiPointRoundTrip = SceneJson.Deserialize(SceneJson.Serialize(multiPointDocument));
         SceneJson.Validate(multiPointRoundTrip);
@@ -727,6 +751,7 @@ internal static class EditorSelfTest
                 } ||
             multiPointRoundTrip.Interactables[0].CompletionDialogue?.Lines.FirstOrDefault() is not
                 { Speaker: "Sbaak", Text: "互動已完成。" } ||
+            !multiPointRoundTrip.Interactables[0].AllowAttemptWhenRequirementsUnmet ||
             multiPointRoundTrip.Interactables[0].UseRequirements?.Count != 4 ||
             multiPointRoundTrip.Interactables[0].UseRequirements?[0] is not
                 { Kind: "item", ItemId: "R0011", Quantity: 3 } ||
@@ -779,9 +804,12 @@ internal static class EditorSelfTest
                     }),
             },
             new[] { "QUEST_TEST_CLOSE" },
-            showQuestStartOptions: true))
+            showQuestStartOptions: true,
+            allowAttemptWhenRequirementsUnmet:
+                multiPointRoundTrip.Interactables[0].AllowAttemptWhenRequirementsUnmet))
         {
             if (
+                !requirementsEditor.AllowAttemptWhenRequirementsUnmet ||
                 requirementsEditor.UseRequirements.Count != 4 ||
                 requirementsEditor.UseRequirements[2] is not
                     { Kind: "quest", QuestId: "QUEST_TEST_ACTIVE" } ||

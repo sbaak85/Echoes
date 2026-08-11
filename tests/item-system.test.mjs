@@ -114,6 +114,19 @@ test("中央道具資料庫固定保留 100 欄，現有 29 項道具都有分�
   );
 });
 
+test("藍色晶體碎片標記為裝置互動使用，不會被玩家直接吃掉", () => {
+  const crystal = ITEM_DEFINITIONS.find((item) => item.id === "R0001");
+  assert.equal(crystal?.usable, true);
+  assert.equal(crystal?.useMode, "interaction");
+  const result = useSurvivalInventoryItem(
+    { R0001: 1 },
+    createInitialSurvivalState(),
+    "R0001",
+  );
+  assert.equal(result.status, "interaction-only");
+  assert.equal(result.inventory.R0001, 1);
+});
+
 test("每項道具都有轉移、丟棄與每格堆疊量標籤", () => {
   ITEM_DEFINITIONS.forEach((item) => {
     assert.equal(typeof item.inventoryRules.transferable, "boolean");

@@ -291,8 +291,9 @@ export function getUnmetInteractionUseRequirements(
 
 export function shouldExposeInteraction(
   hasUseRequirementFailure: boolean,
+  allowAttemptWhenRequirementsUnmet = false,
 ): boolean {
-  return !hasUseRequirementFailure;
+  return allowAttemptWhenRequirementsUnmet || !hasUseRequirementFailure;
 }
 
 export function normalizeInteractionItemReward(

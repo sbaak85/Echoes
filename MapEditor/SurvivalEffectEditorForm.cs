@@ -2,6 +2,11 @@ namespace Echoes.MapEditor;
 
 public sealed class SurvivalEffectEditorForm : Form
 {
+    private sealed record TeleportPointChoice(string Id, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
     private sealed record UseRequirementChoice(string Kind, string Id, string Label)
     {
         public override string ToString() => Label;
@@ -75,6 +80,23 @@ public sealed class SurvivalEffectEditorForm : Form
     };
     private readonly Button _useRequirementToggle = CreateButton("", 18, 330, 350, 32);
     private readonly Button _addUseRequirementButton = CreateButton("＋", 378, 330, 46, 32);
+    private readonly CheckBox _allowAttemptWhenRequirementsUnmet = new()
+    {
+        Text = "條件未達時仍顯示並可嘗試",
+        AutoSize = true,
+    };
+    private readonly ComboBox _completionTeleportPoint = new()
+    {
+        DropDownStyle = ComboBoxStyle.DropDownList,
+    };
+    private readonly NumericUpDown _completionTeleportDelay = new()
+    {
+        Minimum = 0,
+        Maximum = 3600,
+        DecimalPlaces = 1,
+        Increment = 0.1m,
+        TextAlign = HorizontalAlignment.Right,
+    };
     private readonly Panel _useRequirementList = new()
     {
         AutoScroll = true,
@@ -131,6 +153,17 @@ public sealed class SurvivalEffectEditorForm : Form
     public List<InteractionUseRequirement> UseRequirements =>
         _useRequirementRows.Select(ReadUseRequirement).ToList();
 
+    public bool AllowAttemptWhenRequirementsUnmet =>
+        _allowAttemptWhenRequirementsUnmet.Checked;
+
+    public string? CompletionTeleportPointId =>
+        (_completionTeleportPoint.SelectedItem as TeleportPointChoice)?.Id is { Length: > 0 } id
+            ? id
+            : null;
+
+    public float CompletionTeleportDelaySeconds =>
+        (float)_completionTeleportDelay.Value;
+
     public List<InteractionItemReward> ItemRewards =>
         _rewardRows.Select(ReadReward).ToList();
 
@@ -150,7 +183,13 @@ public sealed class SurvivalEffectEditorForm : Form
         IEnumerable<InteractionItemReward>? itemRewards,
         IEnumerable<QuestCatalogEntry>? quests,
         IEnumerable<string>? startQuestIds = null,
-        bool showQuestStartOptions = false)
+        bool showQuestStartOptions = false,
+        bool allowAttemptWhenRequirementsUnmet = false,
+        bool showAllowAttemptOption = true,
+        IEnumerable<SceneTeleportPoint>? teleportPoints = null,
+        string? completionTeleportPointId = null,
+        float completionTeleportDelaySeconds = 0,
+        bool showCompletionTeleportOption = false)
     {
         SuspendLayout();
         SetStyle(
@@ -230,13 +269,19 @@ public sealed class SurvivalEffectEditorForm : Form
         BuildRequirementsPage(
             requirementPage,
             requirements ?? new SurvivalRequirements(),
-            useRequirementList);
+            useRequirementList,
+            allowAttemptWhenRequirementsUnmet,
+            showAllowAttemptOption);
         BuildEffectsPage(
             effectPage,
             effects ?? new SurvivalEffects(),
             dailyLimit,
             interactionLimitMode,
-            itemRewards?.Select(reward => reward.Clone()).ToList() ?? new());
+            itemRewards?.Select(reward => reward.Clone()).ToList() ?? new(),
+            teleportPoints?.ToArray() ?? Array.Empty<SceneTeleportPoint>(),
+            completionTeleportPointId,
+            completionTeleportDelaySeconds,
+            showCompletionTeleportOption);
         if (questStartPage is not null)
         {
             BuildQuestStartPage(questStartPage, configuredStartQuestIds);
@@ -260,7 +305,9 @@ public sealed class SurvivalEffectEditorForm : Form
     private void BuildRequirementsPage(
         Control page,
         SurvivalRequirements requirements,
-        IReadOnlyCollection<InteractionUseRequirement> useRequirements)
+        IReadOnlyCollection<InteractionUseRequirement> useRequirements,
+        bool allowAttemptWhenRequirementsUnmet,
+        bool showAllowAttemptOption)
     {
         var explanation = new Label
         {
@@ -353,6 +400,23 @@ public sealed class SurvivalEffectEditorForm : Form
             foreach (var row in _useRequirementRows.ToList()) RemoveUseRequirementRow(row);
         };
         page.Controls.Add(clearButton);
+
+        if (showAllowAttemptOption)
+        {
+            _allowAttemptWhenRequirementsUnmet.Checked =
+                allowAttemptWhenRequirementsUnmet;
+            _allowAttemptWhenRequirementsUnmet.SetBounds(18, 562, 390, 28);
+            page.Controls.Add(_allowAttemptWhenRequirementsUnmet);
+
+            var attemptExplanation = new Label
+            {
+                Text = "勾選後仍會顯示提示並可走近嘗試；未達條件時只播放不可互動台詞，不結算完成效果。",
+                AutoSize = false,
+                ForeColor = Color.FromArgb(154, 166, 177),
+            };
+            attemptExplanation.SetBounds(38, 594, 386, 54);
+            page.Controls.Add(attemptExplanation);
+        }
     }
 
     private void AddUseRequirementRow(
@@ -587,7 +651,11 @@ public sealed class SurvivalEffectEditorForm : Form
         SurvivalEffects effects,
         int? dailyLimit,
         string? interactionLimitMode,
-        IReadOnlyCollection<InteractionItemReward> itemRewards)
+        IReadOnlyCollection<InteractionItemReward> itemRewards,
+        IReadOnlyCollection<SceneTeleportPoint> teleportPoints,
+        string? completionTeleportPointId,
+        float completionTeleportDelaySeconds,
+        bool showCompletionTeleportOption)
     {
         var explanation = new Label
         {
@@ -649,18 +717,62 @@ public sealed class SurvivalEffectEditorForm : Form
         RefreshLimitHint();
         page.Controls.Add(resetTime);
 
-        var defaultsButton = CreateButton($"套用「{_defaults.Label}」預設值", 18, 370, 210, 34);
+        var nextSectionTop = 370;
+        if (showCompletionTeleportOption)
+        {
+            AddFieldLabel(page, "完成後傳送 Point", 370);
+            _completionTeleportPoint.SetBounds(186, 367, 236, 28);
+            _completionTeleportPoint.Items.Add(new TeleportPointChoice("", "無"));
+            _completionTeleportPoint.Items.AddRange(
+                teleportPoints
+                    .Select(point => (object)new TeleportPointChoice(
+                        point.Id,
+                        $"{point.Id}｜{point.Label}"))
+                    .ToArray());
+            _completionTeleportPoint.SelectedIndex = Math.Max(
+                0,
+                _completionTeleportPoint.Items
+                    .Cast<TeleportPointChoice>()
+                    .Select((choice, index) => new { choice, index })
+                    .FirstOrDefault(entry => entry.choice.Id.Equals(
+                        completionTeleportPointId?.Trim() ?? "",
+                        StringComparison.OrdinalIgnoreCase))
+                    ?.index ?? 0);
+            page.Controls.Add(_completionTeleportPoint);
+
+            AddFieldLabel(page, "傳送延遲（秒）", 410);
+            _completionTeleportDelay.SetBounds(186, 407, 236, 28);
+            _completionTeleportDelay.Value = Math.Clamp(
+                (decimal)completionTeleportDelaySeconds,
+                _completionTeleportDelay.Minimum,
+                _completionTeleportDelay.Maximum);
+            _completionTeleportDelay.Enabled =
+                _completionTeleportPoint.SelectedIndex > 0;
+            _completionTeleportPoint.SelectedIndexChanged += (_, _) =>
+                _completionTeleportDelay.Enabled =
+                    _completionTeleportPoint.SelectedIndex > 0;
+            page.Controls.Add(_completionTeleportDelay);
+            nextSectionTop = 454;
+        }
+
+        var defaultsButton = CreateButton(
+            $"套用「{_defaults.Label}」預設值",
+            18,
+            nextSectionTop,
+            210,
+            34);
         defaultsButton.Click += (_, _) => ApplyDefaults();
         page.Controls.Add(defaultsButton);
 
-        _rewardToggle.SetBounds(18, 420, 350, 32);
+        var rewardTop = nextSectionTop + 50;
+        _rewardToggle.SetBounds(18, rewardTop, 350, 32);
         _rewardToggle.Click += (_, _) =>
         {
             _rewardsExpanded = !_rewardsExpanded;
             RefreshRewardLayout();
         };
         page.Controls.Add(_rewardToggle);
-        _addRewardButton.SetBounds(378, 420, 46, 32);
+        _addRewardButton.SetBounds(378, rewardTop, 46, 32);
         _addRewardButton.Click += (_, _) =>
         {
             AddRewardRow(new InteractionItemReward
@@ -673,7 +785,11 @@ public sealed class SurvivalEffectEditorForm : Form
             RefreshRewardLayout();
         };
         page.Controls.Add(_addRewardButton);
-        _rewardList.SetBounds(18, 460, 406, 160);
+        _rewardList.SetBounds(
+            18,
+            rewardTop + 40,
+            406,
+            showCompletionTeleportOption ? 88 : 160);
         page.Controls.Add(_rewardList);
         _rewardList.SuspendLayout();
         foreach (var reward in itemRewards)

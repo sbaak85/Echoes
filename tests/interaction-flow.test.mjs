@@ -73,9 +73,10 @@ test("任務階段需求支援本階段、永久解鎖與條件關閉", () => {
   );
 });
 
-test("only item, chapter, or quest failures hide and deactivate interactions", () => {
+test("use requirement failures hide by default but can remain visible and attemptable", () => {
   assert.equal(shouldExposeInteraction(false), true);
   assert.equal(shouldExposeInteraction(true), false);
+  assert.equal(shouldExposeInteraction(true, true), true);
 });
 
 test("quest requirements only pass while the quest is active", () => {

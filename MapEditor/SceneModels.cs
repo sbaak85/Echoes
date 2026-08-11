@@ -141,6 +141,9 @@ public sealed class SceneTeleportPoint : ScenePoint
     public string Id { get; set; } = "";
     public string Label { get; set; } = "傳送點";
     public string Facing { get; set; } = "S";
+    public bool BlackoutEnabled { get; set; }
+    public float BlackoutFadeSeconds { get; set; } = 0.3f;
+    public float BlackoutHoldSeconds { get; set; }
 }
 
 public sealed class SceneEntryPoint : ScenePoint
@@ -177,6 +180,15 @@ public sealed class SceneInteractable : ITriggerConfiguration
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<InteractionUseRequirement>? UseRequirements { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AllowAttemptWhenRequirementsUnmet { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CompletionTeleportPointId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public float CompletionTeleportDelaySeconds { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<InteractionPoint>? InteractionPoints { get; set; }
@@ -1025,12 +1037,38 @@ public static class SceneJson
                 ? $"傳送點 {index + 1}"
                 : teleportPoint.Label.Trim();
             teleportPoint.Facing = NormalizeFacing(teleportPoint.Facing);
+            teleportPoint.BlackoutFadeSeconds = Math.Clamp(
+                teleportPoint.BlackoutFadeSeconds,
+                0,
+                30);
+            teleportPoint.BlackoutHoldSeconds = Math.Clamp(
+                teleportPoint.BlackoutHoldSeconds,
+                0,
+                3600);
             teleportPoint.X = Math.Clamp(teleportPoint.X, 0, document.World.Width);
             teleportPoint.Y = Math.Clamp(teleportPoint.Y, 0, document.World.Height);
             if (!document.NavMesh.Any(region => PointInPolygon(teleportPoint, region.Points)))
             {
                 throw new InvalidDataException(
                     $"傳送 Point {teleportPoint.Id} 必須位於 NavMesh 內。");
+            }
+        }
+
+        foreach (var interactable in document.Interactables)
+        {
+            interactable.CompletionTeleportPointId =
+                string.IsNullOrWhiteSpace(interactable.CompletionTeleportPointId)
+                    ? null
+                    : interactable.CompletionTeleportPointId.Trim();
+            interactable.CompletionTeleportDelaySeconds = Math.Clamp(
+                interactable.CompletionTeleportDelaySeconds,
+                0,
+                3600);
+            if (interactable.CompletionTeleportPointId is not null &&
+                !teleportPointIds.Contains(interactable.CompletionTeleportPointId))
+            {
+                throw new InvalidDataException(
+                    $"互動多邊形 {interactable.Id} 指定了未知傳送 Point {interactable.CompletionTeleportPointId}。");
             }
         }
 

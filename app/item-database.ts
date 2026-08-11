@@ -25,6 +25,7 @@ export type ItemDefinition = {
   description: string;
   weight: number;
   usable: boolean;
+  useMode?: "direct" | "interaction";
   survivalEffects: SurvivalEffects;
   inventoryRules: ItemInventoryRules;
   debugSpawnDelivery?: ItemDebugSpawnDelivery;
@@ -54,7 +55,8 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       category: "resource",
       description: "帶有微弱共振反應的晶體碎片，可作為能源與精密裝置的材料。",
       weight: 0.2,
-      usable: false,
+      usable: true,
+      useMode: "interaction",
       survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 99 },
     },
@@ -617,7 +619,7 @@ export type OwnedItemStack = {
 };
 
 export type SurvivalItemUseResult = {
-  status: "success" | "not-owned" | "not-configured" | "full";
+  status: "success" | "not-owned" | "not-configured" | "interaction-only" | "full";
   inventory: PlayerInventory;
   survival: SurvivalGameState;
   item: ItemDefinition | null;
@@ -724,6 +726,9 @@ export function useSurvivalInventoryItem(
   const item = ITEM_BY_ID.get(itemId) ?? null;
   if (!item || (inventory[itemId] ?? 0) <= 0) {
     return { status: "not-owned", inventory, survival, item };
+  }
+  if (item.useMode === "interaction") {
+    return { status: "interaction-only", inventory, survival, item };
   }
   if (!item.usable || !hasConfiguredSurvivalEffects(item.survivalEffects)) {
     return { status: "not-configured", inventory, survival, item };

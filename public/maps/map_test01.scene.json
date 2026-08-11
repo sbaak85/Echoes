@@ -13,7 +13,7 @@
   },
   "grid": {
     "size": 5,
-    "visible": true,
+    "visible": false,
     "snap": true
   },
   "playerSpawn": {
@@ -26,6 +26,9 @@
       "id": "teleport-point-center",
       "label": "\u5730\u5716\u4E2D\u592E\u50B3\u9001\u9EDE",
       "facing": "S",
+      "blackoutEnabled": false,
+      "blackoutFadeSeconds": 0.3,
+      "blackoutHoldSeconds": 0,
       "x": 730,
       "y": 680
     }
@@ -1109,7 +1112,7 @@
         {
           "facing": "NW",
           "x": 1092.1777,
-          "y": 572.5066
+          "y": 577.5066
         }
       ],
       "interactionHintPoint": {
@@ -2282,6 +2285,262 @@
           {
             "speaker": "Sbaak",
             "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
+      }
+    },
+    {
+      "id": "interaction-012",
+      "label": "\u96FB\u529B\u5206\u914D\u7CFB\u7D71",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1045,
+          "y": 290
+        },
+        {
+          "x": 1090,
+          "y": 315
+        },
+        {
+          "x": 1090,
+          "y": 340
+        },
+        {
+          "x": 1105,
+          "y": 350
+        },
+        {
+          "x": 1105,
+          "y": 390
+        },
+        {
+          "x": 1060,
+          "y": 425
+        },
+        {
+          "x": 1015,
+          "y": 425
+        },
+        {
+          "x": 990,
+          "y": 410
+        },
+        {
+          "x": 990,
+          "y": 325
+        }
+      ],
+      "type": "investigate",
+      "verb": "\u8ABF\u67E5",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionPoints": [
+        {
+          "facing": "NW",
+          "x": 1075.1395,
+          "y": 395.5428
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 1054.0961,
+        "y": 342.2901
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u90A3\u5C31\u4F86\u8ABF\u6574\u770B\u770B\u3002"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
+      },
+      "completionDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u6210\u529F\u4E86!"
+          }
+        ]
+      }
+    },
+    {
+      "id": "interaction-013",
+      "label": "\u767C\u96FB\u5171\u632F\u5668",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1070,
+          "y": 300
+        },
+        {
+          "x": 1140,
+          "y": 340
+        },
+        {
+          "x": 1155,
+          "y": 340
+        },
+        {
+          "x": 1210,
+          "y": 295
+        },
+        {
+          "x": 1120,
+          "y": 235
+        },
+        {
+          "x": 1070,
+          "y": 270
+        }
+      ],
+      "type": "operation",
+      "verb": "\u64CD\u4F5C",
+      "survivalRequirements": {
+        "mode": "all",
+        "stamina": {
+          "comparison": "atLeast",
+          "value": 60
+        },
+        "spirit": {
+          "comparison": "atLeast",
+          "value": 60
+        }
+      },
+      "survivalEffects": {
+        "stamina": -3,
+        "hunger": -3,
+        "thirst": -3,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "useRequirements": [
+        {
+          "kind": "item",
+          "itemId": "R0001",
+          "questId": "",
+          "stageId": "",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
+      "allowAttemptWhenRequirementsUnmet": true,
+      "interactionPoints": [
+        {
+          "facing": "NW",
+          "x": 1140.7815,
+          "y": 311.07938
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 1114.1552,
+        "y": 265.12744
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u5C071\u584A\u85CD\u8272\u6676\u9AD4\u788E\u7247\u653E\u5165\u5171\u632F\u5668...\u593E\u7DCA\u9396\u5B9A...",
+            "randomGroupId": "random-group-1",
+            "weight": 2
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u628A\u9019\u584A\u85CD\u8272\u6676\u9AD4\u788E\u7247\u593E\u7DCA\u5728\u5171\u632F\u5668\u63D2\u69FD\u88E1...",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u73FE\u5728\u770B\u8D77\u4F86\u5171\u632F\u6548\u7387\u4E0D\u5920..."
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u5982\u679C\u653E\u5165\u80FD\u63D0\u9AD8\u5171\u632F\u5EA6\u7684\u71C3\u6599\u61C9\u8A72\u5C31\u53EF\u4EE5\u89E3\u6C7A\u767C\u96FB\u554F\u984C\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 2
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u5982\u679C\u653E\u5165\u90A3\u500B\u795E\u5947\u7684\u85CD\u8272\u9707\u76EA\u9AD4\u4F3C\u4E4E\u53EF\u4EE5\u6062\u5FA9\u5171\u632F\u6548\u7387...\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 2
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u8981\u5617\u8A66\u770B\u770B\u653E\u5165\u90A3\u500B\u85CD\u8272\u6676\u9AD4\u788E\u7247\u4F86\u63D0\u9AD8\u5171\u632F\u7A0B\u5EA6\u55CE?",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          }
+        ]
+      },
+      "completionDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u5B89\u88DD\u5B8C\u6210\u4E86! \u9019\u6A23\u555F\u52D5\u770B\u770B!",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u5B89\u88DD\u597D\u4E86! \u61C9\u8A72\u53EF\u4EE5\u958B\u59CB\u767C\u96FB\u4E86!",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           }
         ]
       }

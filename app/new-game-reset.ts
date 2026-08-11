@@ -30,6 +30,11 @@ import {
   type StoryProgress,
 } from "./story-progress.ts";
 import { saveQuestSaveData } from "./quest-runtime-manager.ts";
+import {
+  createInitialCampPowerState,
+  saveCampPowerState,
+  type CampPowerState,
+} from "./camp-power-manager.ts";
 
 export type NewGameProgress = {
   survival: SurvivalGameState;
@@ -40,6 +45,7 @@ export type NewGameProgress = {
   itemPointProgress: ItemPointProgress;
   hotbarAssignments: (string | null)[];
   story: StoryProgress;
+  campPower: CampPowerState;
 };
 
 export function createNewGameProgress(): NewGameProgress {
@@ -53,6 +59,7 @@ export function createNewGameProgress(): NewGameProgress {
     itemPointProgress: createInitialItemPointProgress(),
     hotbarAssignments: [...DEFAULT_HOTBAR_ASSIGNMENTS],
     story: createInitialStoryProgress(),
+    campPower: createInitialCampPowerState(survival.gameMinutes),
   };
 }
 
@@ -66,6 +73,7 @@ export function resetStoredNewGameProgress(): NewGameProgress {
   saveItemPointProgress(progress.itemPointProgress);
   saveHotbarAssignments(progress.hotbarAssignments);
   saveStoryProgress(progress.story);
+  saveCampPowerState(progress.campPower);
   saveQuestSaveData({ schemaVersion: 1, quests: {} });
   return progress;
 }
