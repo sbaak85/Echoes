@@ -1,0 +1,4 @@
+interface:
+  display_name: "Browser Game UI Controls"
+  short_description: "Hide native focus and add default gamepad menu controls"
+  default_prompt: "Use $browser-ui-focus-visuals to hide browser-native focus visuals and give every clickable UI default left-stick navigation and A-button activation."
