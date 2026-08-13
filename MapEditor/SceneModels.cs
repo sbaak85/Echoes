@@ -202,6 +202,10 @@ public sealed class SceneInteractable : ITriggerConfiguration
     public ScenePoint? InteractionHintPoint { get; set; }
 
     public float ActivationDistance { get; set; } = 52;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SkipSuccessDialogue { get; set; }
+
     public DialogueScript Dialogue { get; set; } = DialogueScript.CreateDefault();
     public DialogueScript FailureDialogue { get; set; } = DialogueScript.CreateFailureDefault();
 
@@ -360,6 +364,7 @@ public sealed class InteractionItemReward
 public sealed class InteractionUseRequirement
 {
     public string Kind { get; set; } = "item";
+    public string Scope { get; set; } = "both";
     public string ItemId { get; set; } = "";
     public string QuestId { get; set; } = "";
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -376,6 +381,7 @@ public sealed class InteractionUseRequirement
     public InteractionUseRequirement Clone() => new()
     {
         Kind = Kind,
+        Scope = Scope,
         ItemId = ItemId,
         QuestId = QuestId,
         QuestState = QuestState,
@@ -836,6 +842,12 @@ public static class SceneJson
             {
                 foreach (var requirement in interactable.UseRequirements)
                 {
+                    requirement.Scope = requirement.Scope switch
+                    {
+                        "prompt" => "prompt",
+                        "interaction" => "interaction",
+                        _ => "both",
+                    };
                     requirement.Kind = requirement.Kind.Equals(
                         "chapter",
                         StringComparison.OrdinalIgnoreCase)
@@ -1294,6 +1306,12 @@ public static class SceneJson
 
         foreach (var requirement in trigger.UseRequirements)
         {
+            requirement.Scope = requirement.Scope switch
+            {
+                "prompt" => "prompt",
+                "interaction" => "interaction",
+                _ => "both",
+            };
             requirement.Kind = requirement.Kind.Equals(
                 "chapter",
                 StringComparison.OrdinalIgnoreCase)

@@ -76,6 +76,7 @@ import {
 import { resetStoredNewGameProgress } from "./new-game-reset";
 import {
   evaluateInteractionStageRequirement,
+  filterInteractionRequirementsByPurpose,
   getUnmetInteractionUseRequirements,
   normalizeInteractionItemRewards,
   normalizeInteractionUseRequirements,
@@ -138,6 +139,7 @@ import {
   recordInteractionUse,
   saveInteractionUsageState,
   saveSurvivalState,
+  shouldShowLockedInteractionHint,
   type InteractionUsageState,
   type SurvivalEffects,
   type SurvivalGameState,
@@ -356,6 +358,7 @@ type SceneInteractable = {
   worldItemId?: string;
   worldItemKind?: "placed" | "dropped" | "itemPoint";
   itemPointId?: string;
+  skipSuccessDialogue?: boolean;
   dialogue?: InteractionDialogueScript;
   failureDialogue?: InteractionDialogueScript;
   completionDialogue?: InteractionDialogueScript;
@@ -5914,11 +5917,20 @@ export function MovementLab() {
 
     const getInteractionUseRequirementFailure = (
       interactable: SceneInteractable,
+      purpose: "prompt" | "interaction" | "all" = "interaction",
     ) => getUnmetInteractionUseRequirements(
-      normalizeInteractionUseRequirements(
-        interactable.useRequirements,
-        resolveItemId,
-      ),
+      purpose === "all"
+        ? normalizeInteractionUseRequirements(
+            interactable.useRequirements,
+            resolveItemId,
+          )
+        : filterInteractionRequirementsByPurpose(
+            normalizeInteractionUseRequirements(
+              interactable.useRequirements,
+              resolveItemId,
+            ),
+            purpose,
+          ),
       playerInventoryRef.current,
       currentStoryChapterRef.current,
       (questId) =>
@@ -5941,15 +5953,15 @@ export function MovementLab() {
       const trigger = toStoryTriggerInteractable(zone);
       return !isInteractableLocked(trigger) &&
         !getInteractionRequirementFailure(trigger) &&
-        !getInteractionUseRequirementFailure(trigger);
+        !getInteractionUseRequirementFailure(trigger, "all");
     };
 
     const isInteractableConditionActive = (
       interactable: SceneInteractable,
-    ) => interactable.allowAttemptWhenRequirementsUnmet === true ||
-      shouldExposeInteraction(
-        Boolean(getInteractionUseRequirementFailure(interactable)),
-      );
+    ) => shouldExposeInteraction(
+      Boolean(getInteractionUseRequirementFailure(interactable, "prompt")),
+      interactable.allowAttemptWhenRequirementsUnmet === true,
+    );
 
     const isInteractableSelectable = (interactable: SceneInteractable) =>
       isInteractableConditionActive(interactable) &&
@@ -8317,6 +8329,10 @@ export function MovementLab() {
         }
 
         if (isInteractableLocked(interactable)) {
+          if (!shouldShowLockedInteractionHint(interactable.interactionLimitMode)) {
+            interactionHintAnimation.delete(interactable.id);
+            return;
+          }
           const radius = 8 / zoom;
           context.save();
           context.translate(point.x, point.y);

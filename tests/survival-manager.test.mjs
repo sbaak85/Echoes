@@ -18,6 +18,7 @@ import {
   getSurvivalSpeedMultiplier,
   isInteractionLocked,
   recordInteractionUse,
+  shouldShowLockedInteractionHint,
 } from "../app/survival-manager.ts";
 
 test("elapsed interaction time is formatted as compact game hours", () => {
@@ -122,6 +123,12 @@ test("interaction effects clamp values and daily usage resets at 06:00", () => {
     isInteractionLocked(usage, "quest-terminal", null, "once"),
     true,
   );
+});
+
+test("唯一一次互動完成後隱藏提示點，每日限制仍顯示鎖定提示", () => {
+  assert.equal(shouldShowLockedInteractionHint("once"), false);
+  assert.equal(shouldShowLockedInteractionHint(null), true);
+  assert.equal(shouldShowLockedInteractionHint(undefined), true);
 });
 
 test("互動需求支援至少、低於與以下，舊資料預設全部成立", () => {

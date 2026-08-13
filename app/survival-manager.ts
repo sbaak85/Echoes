@@ -463,6 +463,10 @@ export function isInteractionLocked(
   return normalizedLimit !== null && (state.counts[interactableId] ?? 0) >= normalizedLimit;
 }
 
+export function shouldShowLockedInteractionHint(limitMode?: unknown) {
+  return limitMode !== "once";
+}
+
 export function recordInteractionUse(
   state: InteractionUsageState,
   interactableId: string,

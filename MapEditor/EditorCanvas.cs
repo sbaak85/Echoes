@@ -886,7 +886,8 @@ public sealed class EditorCanvas : Control
     public void UpdateSelectedDialogues(
         DialogueScript successDialogue,
         DialogueScript failureDialogue,
-        DialogueScript? completionDialogue)
+        DialogueScript? completionDialogue,
+        bool skipSuccessDialogue)
     {
         var interactable = SelectedInteractable;
         if (interactable is null) return;
@@ -895,6 +896,7 @@ public sealed class EditorCanvas : Control
             interactable.Dialogue = successDialogue.Clone();
             interactable.FailureDialogue = failureDialogue.Clone();
             interactable.CompletionDialogue = completionDialogue?.Clone();
+            interactable.SkipSuccessDialogue = skipSuccessDialogue;
         });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -1098,7 +1100,13 @@ public sealed class EditorCanvas : Control
                 AllowAttemptWhenRequirementsUnmet = true,
                 UseRequirements = new List<InteractionUseRequirement>
                 {
-                    new() { Kind = "item", ItemId = ItemCatalog.All[0].Id, Quantity = 2 },
+                    new()
+                    {
+                        Kind = "item",
+                        Scope = "interaction",
+                        ItemId = ItemCatalog.All[0].Id,
+                        Quantity = 2,
+                    },
                 },
                 ItemRewards = new List<InteractionItemReward>
                 {
@@ -1117,6 +1125,7 @@ public sealed class EditorCanvas : Control
                 preservedInteraction.DailyInteractionLimit != 2 ||
                 !preservedInteraction.AllowAttemptWhenRequirementsUnmet ||
                 preservedInteraction.UseRequirements?.Single().Quantity != 2 ||
+                preservedInteraction.UseRequirements?.Single().Scope != "interaction" ||
                 preservedInteraction.ItemRewards?.Single().Quantity != 3)
             {
                 throw new InvalidOperationException(

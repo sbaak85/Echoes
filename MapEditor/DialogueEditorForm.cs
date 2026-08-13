@@ -17,6 +17,12 @@ public sealed class DialogueEditorForm : Form
     private readonly NumericUpDown _successDelayInput = CreateDelayInput();
     private readonly NumericUpDown _failureDelayInput = CreateDelayInput();
     private readonly NumericUpDown _completionDelayInput = CreateDelayInput();
+    private readonly CheckBox _skipSuccessDialogue = new()
+    {
+        Text = "成功時不播放腳本／直接結算",
+        AutoSize = true,
+        ForeColor = Color.FromArgb(226, 230, 234),
+    };
     private readonly List<string> _speakers;
     private readonly Dictionary<DataGridView, HashSet<int>> _selectedRows = new();
     private bool _handlingSpeakerChoice;
@@ -24,6 +30,7 @@ public sealed class DialogueEditorForm : Form
     public DialogueScript SuccessDialogue { get; private set; }
     public DialogueScript FailureDialogue { get; private set; }
     public DialogueScript? CompletionDialogue { get; private set; }
+    public bool SkipSuccessDialogue { get; private set; }
 
     private DataGridView ActiveGrid => _tabs.SelectedIndex switch
     {
@@ -35,7 +42,8 @@ public sealed class DialogueEditorForm : Form
     public DialogueEditorForm(
         DialogueScript successDialogue,
         DialogueScript failureDialogue,
-        DialogueScript? completionDialogue)
+        DialogueScript? completionDialogue,
+        bool skipSuccessDialogue = false)
     {
         Text = "對話腳本編輯器";
         StartPosition = FormStartPosition.CenterParent;
@@ -47,6 +55,8 @@ public sealed class DialogueEditorForm : Form
         SuccessDialogue = successDialogue.Clone();
         FailureDialogue = failureDialogue.Clone();
         CompletionDialogue = completionDialogue?.Clone();
+        SkipSuccessDialogue = skipSuccessDialogue;
+        _skipSuccessDialogue.Checked = skipSuccessDialogue;
         var editableCompletionDialogue = CompletionDialogue ?? new DialogueScript();
         _speakers = SuccessDialogue.Speakers
             .Concat(FailureDialogue.Speakers)
@@ -95,7 +105,8 @@ public sealed class DialogueEditorForm : Form
             "可互動時的對話",
             "條件成立並開始互動時播放；對話結束後才會執行互動。",
             _successGrid,
-            _successDelayInput);
+            _successDelayInput,
+            _skipSuccessDialogue);
         var failurePage = CreateDialoguePage(
             "不可互動時的對話",
             "門檻不足、每日次數用完或缺少必要道具時播放；不會結算互動。",
@@ -145,6 +156,7 @@ public sealed class DialogueEditorForm : Form
         : this(dialogue, DialogueScript.CreateFailureDefault(), null)
     {
         Text = $"章節對話腳本編輯器 · {sectionName}";
+        _skipSuccessDialogue.Visible = false;
         while (_tabs.TabPages.Count > 1)
         {
             _tabs.TabPages.RemoveAt(_tabs.TabPages.Count - 1);
@@ -269,7 +281,8 @@ public sealed class DialogueEditorForm : Form
         string title,
         string hintText,
         DataGridView grid,
-        NumericUpDown delayInput)
+        NumericUpDown delayInput,
+        CheckBox? extraSetting = null)
     {
         var page = new TabPage(title)
         {
@@ -317,6 +330,11 @@ public sealed class DialogueEditorForm : Form
         settings.Controls.Add(delayLabel);
         settings.Controls.Add(delayInput);
         settings.Controls.Add(unitLabel);
+        if (extraSetting is not null)
+        {
+            extraSetting.SetBounds(438, 41, 290, 25);
+            settings.Controls.Add(extraSetting);
+        }
         settings.Controls.Add(groupHint);
         page.Controls.Add(grid);
         page.Controls.Add(settings);
@@ -812,6 +830,7 @@ public sealed class DialogueEditorForm : Form
                 Speakers = speakers.ToList(),
                 Lines = completionLines,
             };
+        SkipSuccessDialogue = _skipSuccessDialogue.Checked;
         DialogResult = DialogResult.OK;
     }
 

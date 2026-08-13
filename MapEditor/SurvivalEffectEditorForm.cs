@@ -12,9 +12,15 @@ public sealed class SurvivalEffectEditorForm : Form
         public override string ToString() => Label;
     }
 
+    private sealed record RequirementScopeChoice(string Id, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
     private sealed class UseRequirementControls
     {
         public Panel Row { get; } = new();
+        public ComboBox Scope { get; } = new() { DropDownStyle = ComboBoxStyle.DropDownList };
         public ComboBox Target { get; } = new() { DropDownStyle = ComboBoxStyle.DropDownList };
         public ComboBox Amount { get; } = new() { DropDownStyle = ComboBoxStyle.DropDownList };
         public Button StageSettings { get; } = CreateButton("設定…", 0, 0, 136, 28);
@@ -83,7 +89,7 @@ public sealed class SurvivalEffectEditorForm : Form
     private readonly Button _addUseRequirementButton = CreateButton("＋", 378, 366, 46, 32);
     private readonly CheckBox _allowAttemptWhenRequirementsUnmet = new()
     {
-        Text = "條件未達時仍顯示並可嘗試",
+        Text = "無視提示條件，仍顯示並可嘗試",
         AutoSize = true,
     };
     private readonly ComboBox _completionTeleportPoint = new()
@@ -105,6 +111,7 @@ public sealed class SurvivalEffectEditorForm : Form
         BorderStyle = BorderStyle.FixedSingle,
     };
     private readonly List<UseRequirementControls> _useRequirementRows = new();
+    private readonly bool _showRequirementScope;
     private bool _useRequirementsExpanded;
     private readonly Button _rewardToggle = CreateButton("", 18, 378, 350, 32);
     private readonly Button _addRewardButton = CreateButton("＋", 378, 378, 46, 32);
@@ -215,6 +222,7 @@ public sealed class SurvivalEffectEditorForm : Form
             ControlStyles.OptimizedDoubleBuffer,
             true);
         _defaults = InteractionTypeDefaults.Get(interactionType);
+        _showRequirementScope = showAllowAttemptOption;
         var useRequirementList = useRequirements?
             .Select(requirement => requirement.Clone())
             .ToList() ?? new List<InteractionUseRequirement>();
@@ -399,21 +407,33 @@ public sealed class SurvivalEffectEditorForm : Form
         };
         page.Controls.Add(_addUseRequirementButton);
         _useRequirementList.SetBounds(18, 406, 406, 100);
+        if (_showRequirementScope)
+        {
+            var scopeHeader = new Label
+            {
+                Text = "用途",
+                AutoSize = false,
+                ForeColor = Color.FromArgb(145, 158, 170),
+            };
+            scopeHeader.SetBounds(8, 2, 88, 20);
+            _useRequirementList.Controls.Add(scopeHeader);
+        }
         var targetHeader = new Label
         {
             Text = "條件項目",
             AutoSize = false,
             ForeColor = Color.FromArgb(145, 158, 170),
         };
-        targetHeader.SetBounds(8, 2, 230, 20);
+        targetHeader.SetBounds(_showRequirementScope ? 106 : 8, 2,
+            _showRequirementScope ? 126 : 230, 20);
         _useRequirementList.Controls.Add(targetHeader);
         var amountHeader = new Label
         {
-            Text = "數量／章節／任務／階段",
+            Text = "設定",
             AutoSize = false,
             ForeColor = Color.FromArgb(145, 158, 170),
         };
-        amountHeader.SetBounds(254, 2, 92, 20);
+        amountHeader.SetBounds(244, 2, 88, 20);
         _useRequirementList.Controls.Add(amountHeader);
         page.Controls.Add(_useRequirementList);
         _useRequirementList.SuspendLayout();
@@ -444,7 +464,7 @@ public sealed class SurvivalEffectEditorForm : Form
 
             var attemptExplanation = new Label
             {
-                Text = "勾選後仍會顯示提示並可走近嘗試；未達條件時只播放不可互動台詞，不結算完成效果。",
+                Text = "通常請用每條需求的「用途」設定。勾選此項會無視所有提示條件，仍顯示並允許嘗試。",
                 AutoSize = false,
                 ForeColor = Color.FromArgb(154, 166, 177),
             };
@@ -462,7 +482,22 @@ public sealed class SurvivalEffectEditorForm : Form
         controls.Row.Height = 38;
         controls.Row.Width = 378;
         controls.Row.BackColor = Color.FromArgb(25, 28, 34);
-        controls.Target.SetBounds(4, 5, 180, 28);
+        controls.Scope.Items.AddRange(new object[]
+        {
+            new RequirementScopeChoice("both", "提示＋互動"),
+            new RequirementScopeChoice("prompt", "僅提示"),
+            new RequirementScopeChoice("interaction", "僅互動"),
+        });
+        controls.Scope.SelectedIndex = requirement.Scope switch
+        {
+            "prompt" => 1,
+            "interaction" => 2,
+            _ => 0,
+        };
+        controls.Scope.DropDownWidth = 112;
+        controls.Target.SetBounds(_showRequirementScope ? 102 : 4, 5,
+            _showRequirementScope ? 132 : 180, 28);
+        controls.Target.DropDownWidth = 280;
         controls.Target.BeginUpdate();
         controls.Target.Items.AddRange(_useRequirementComboItems);
         controls.Target.SelectedIndex = _useRequirementChoiceItems
@@ -474,14 +509,19 @@ public sealed class SurvivalEffectEditorForm : Form
                  entry.choice.Id.Equals(requirement.ItemId, StringComparison.OrdinalIgnoreCase)))
             ?.index ?? 0;
         controls.Target.EndUpdate();
-        controls.Amount.SetBounds(190, 5, 136, 28);
-        controls.StageSettings.SetBounds(190, 5, 136, 28);
+        controls.Amount.SetBounds(240, 5, 92, 28);
+        controls.StageSettings.SetBounds(240, 5, 92, 28);
         controls.StageSettings.Click += (_, _) => EditSpecialRequirement(controls);
         ConfigureRequirementAmount(controls, requirement);
         controls.Target.SelectedIndexChanged += (_, _) =>
             ConfigureRequirementAmount(controls, null);
-        controls.Remove.SetBounds(334, 5, 36, 28);
+        controls.Remove.SetBounds(338, 5, 32, 28);
         controls.Remove.Click += (_, _) => RemoveUseRequirementRow(controls);
+        if (_showRequirementScope)
+        {
+            controls.Scope.SetBounds(4, 5, 92, 28);
+            controls.Row.Controls.Add(controls.Scope);
+        }
         controls.Row.Controls.Add(controls.Target);
         controls.Row.Controls.Add(controls.Amount);
         controls.Row.Controls.Add(controls.StageSettings);
@@ -507,7 +547,7 @@ public sealed class SurvivalEffectEditorForm : Form
             _useRequirementRows[index].Row.SetBounds(4, 24 + index * 40, 378, 38);
         }
         _useRequirementToggle.Text =
-            $"{(_useRequirementsExpanded ? "▼" : "▶")} 道具／進度需求（{_useRequirementRows.Count}）";
+            $"{(_useRequirementsExpanded ? "▼" : "▶")} 提示／互動需求（{_useRequirementRows.Count}）";
         _useRequirementList.Visible = _useRequirementsExpanded;
     }
 
@@ -598,7 +638,7 @@ public sealed class SurvivalEffectEditorForm : Form
             _useRequirementChoiceItems[0];
         var amount = Math.Max(1, controls.Amount.SelectedIndex + 1);
         var selectedQuest = controls.Amount.SelectedItem as UseRequirementChoice;
-        return choice.Kind == "questStage"
+        var requirement = choice.Kind == "questStage"
             ? controls.StageRequirement.Clone()
             : choice.Kind == "questState"
             ? controls.StateRequirement.Clone()
@@ -620,6 +660,9 @@ public sealed class SurvivalEffectEditorForm : Form
                 ItemId = choice.Id,
                 Quantity = amount,
             };
+        requirement.Scope =
+            (controls.Scope.SelectedItem as RequirementScopeChoice)?.Id ?? "both";
+        return requirement;
     }
 
     private void EditSpecialRequirement(UseRequirementControls controls)

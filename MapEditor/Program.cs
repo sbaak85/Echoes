@@ -454,8 +454,10 @@ internal static class EditorSelfTest
             Math.Abs(cliffLowerPoint.BlackoutHoldSeconds) > 0.0001f ||
             cliffUpperInteraction?.CompletionTeleportPointId != cliffLowerPoint.Id ||
             cliffLowerInteraction?.CompletionTeleportPointId != cliffUpperPoint.Id ||
-            cliffUpperInteraction.UseRequirements?.SingleOrDefault()?.ItemId != "T0001" ||
-            cliffLowerInteraction.UseRequirements?.SingleOrDefault()?.ItemId != "T0001")
+            cliffUpperInteraction.UseRequirements?.Any(requirement =>
+                requirement.Kind == "item" && requirement.ItemId == "T0001") != true ||
+            cliffLowerInteraction.UseRequirements?.Any(requirement =>
+                requirement.Kind == "item" && requirement.ItemId == "T0001") != true)
         {
             throw new InvalidDataException(
                 "Scene_2 石壁上下層傳送 Point、往返互動或繩索需求設定不完整。");
@@ -701,10 +703,11 @@ internal static class EditorSelfTest
                 new() { Speaker = "Sbaak", Text = "互動已完成。" },
             },
         };
+        multiPointInteractable.SkipSuccessDialogue = true;
         multiPointInteractable.UseRequirements = new List<InteractionUseRequirement>
         {
-            new() { Kind = "item", ItemId = "R0011", Quantity = 3 },
-            new() { Kind = "chapter", Chapter = 4 },
+            new() { Kind = "item", Scope = "interaction", ItemId = "R0011", Quantity = 3 },
+            new() { Kind = "chapter", Scope = "prompt", Chapter = 4 },
             new() { Kind = "quest", QuestId = "QUEST_TEST_ACTIVE" },
             new() { Kind = "campPower", MinimumPower = 8 },
             new()
@@ -754,12 +757,13 @@ internal static class EditorSelfTest
                 } ||
             multiPointRoundTrip.Interactables[0].CompletionDialogue?.Lines.FirstOrDefault() is not
                 { Speaker: "Sbaak", Text: "互動已完成。" } ||
+            !multiPointRoundTrip.Interactables[0].SkipSuccessDialogue ||
             !multiPointRoundTrip.Interactables[0].AllowAttemptWhenRequirementsUnmet ||
             multiPointRoundTrip.Interactables[0].UseRequirements?.Count != 5 ||
             multiPointRoundTrip.Interactables[0].UseRequirements?[0] is not
-                { Kind: "item", ItemId: "R0011", Quantity: 3 } ||
+                { Kind: "item", Scope: "interaction", ItemId: "R0011", Quantity: 3 } ||
             multiPointRoundTrip.Interactables[0].UseRequirements?[1] is not
-                { Kind: "chapter", Chapter: 4 } ||
+                { Kind: "chapter", Scope: "prompt", Chapter: 4 } ||
             multiPointRoundTrip.Interactables[0].UseRequirements?[2] is not
                 { Kind: "quest", QuestId: "QUEST_TEST_ACTIVE" } ||
             multiPointRoundTrip.Interactables[0].UseRequirements?[3] is not
@@ -816,6 +820,8 @@ internal static class EditorSelfTest
             if (
                 !requirementsEditor.AllowAttemptWhenRequirementsUnmet ||
                 requirementsEditor.UseRequirements.Count != 5 ||
+                requirementsEditor.UseRequirements[0].Scope != "interaction" ||
+                requirementsEditor.UseRequirements[1].Scope != "prompt" ||
                 requirementsEditor.UseRequirements[2] is not
                     { Kind: "quest", QuestId: "QUEST_TEST_ACTIVE" } ||
                 requirementsEditor.UseRequirements[3] is not

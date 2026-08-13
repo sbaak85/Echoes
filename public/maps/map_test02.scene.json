@@ -13,7 +13,7 @@
   },
   "grid": {
     "size": 5,
-    "visible": false,
+    "visible": true,
     "snap": true
   },
   "playerSpawn": {
@@ -40,7 +40,7 @@
       "blackoutFadeSeconds": 0.3,
       "blackoutHoldSeconds": 0,
       "x": 547.0139,
-      "y": 1145.9346
+      "y": 1155.9346
     }
   ],
   "entryPoints": [
@@ -471,7 +471,20 @@
       },
       "useRequirements": [
         {
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_002",
+          "stageId": "QUEST_CH03_MAIN_002_STAGE_01",
+          "stageMode": "UnlockFromStage",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        },
+        {
           "kind": "item",
+          "scope": "interaction",
           "itemId": "T0001",
           "questId": "",
           "stageId": "",
@@ -482,13 +495,12 @@
           "chapter": 1
         }
       ],
-      "allowAttemptWhenRequirementsUnmet": true,
       "completionTeleportPointId": "teleport-point-scene2-cliff-lower",
       "interactionPoints": [
         {
           "facing": "SW",
           "x": 624.61865,
-          "y": 966.68567
+          "y": 971.68567
         }
       ],
       "interactionHintPoint": {
@@ -595,7 +607,20 @@
       },
       "useRequirements": [
         {
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_002",
+          "stageId": "QUEST_CH03_MAIN_002_STAGE_01",
+          "stageMode": "UnlockFromStage",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        },
+        {
           "kind": "item",
+          "scope": "both",
           "itemId": "T0001",
           "questId": "",
           "stageId": "",
@@ -610,8 +635,8 @@
       "interactionPoints": [
         {
           "facing": "NE",
-          "x": 557.4567,
-          "y": 1120.8988
+          "x": 562.4567,
+          "y": 1125.8988
         }
       ],
       "interactionHintPoint": {

@@ -72,7 +72,10 @@ test("story trigger zones reuse interaction requirements and completion effects"
   );
   assert.match(storyActivationSource, /isInteractableLocked\(trigger\)/);
   assert.match(storyActivationSource, /getInteractionRequirementFailure\(trigger\)/);
-  assert.match(storyActivationSource, /getInteractionUseRequirementFailure\(trigger\)/);
+  assert.match(
+    storyActivationSource,
+    /getInteractionUseRequirementFailure\(trigger, "all"\)/,
+  );
 
   const storyContactSource = movementLabSource.slice(
     movementLabSource.indexOf("const shouldRecheckTouchingStoryTriggers"),

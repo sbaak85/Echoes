@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   evaluateInteractionStageRequirement,
+  filterInteractionRequirementsByPurpose,
   getUnmetInteractionUseRequirements,
   normalizeInteractionItemReward,
   normalizeInteractionItemRewards,
@@ -77,6 +78,56 @@ test("use requirement failures hide by default but can remain visible and attemp
   assert.equal(shouldExposeInteraction(false), true);
   assert.equal(shouldExposeInteraction(true), false);
   assert.equal(shouldExposeInteraction(true, true), true);
+});
+
+test("interaction requirements can independently control prompt visibility and success", () => {
+  const requirements = normalizeInteractionUseRequirements(
+    [
+      {
+        kind: "questStage",
+        questId: "QUEST_CH03_MAIN_002",
+        stageId: "QUEST_CH03_MAIN_002_STAGE_01",
+        stageMode: "CurrentStageOnly",
+      },
+      {
+        kind: "item",
+        itemId: "rope",
+        quantity: 1,
+        scope: "interaction",
+      },
+      {
+        kind: "chapter",
+        chapter: 3,
+        scope: "prompt",
+      },
+    ],
+    (itemId) => itemId === "rope" ? "R0008" : null,
+  );
+
+  assert.deepEqual(
+    filterInteractionRequirementsByPurpose(requirements, "prompt"),
+    [
+      {
+        kind: "questStage",
+        questId: "QUEST_CH03_MAIN_002",
+        stageId: "QUEST_CH03_MAIN_002_STAGE_01",
+        stageMode: "CurrentStageOnly",
+      },
+      { kind: "chapter", chapter: 3, scope: "prompt" },
+    ],
+  );
+  assert.deepEqual(
+    filterInteractionRequirementsByPurpose(requirements, "interaction"),
+    [
+      {
+        kind: "questStage",
+        questId: "QUEST_CH03_MAIN_002",
+        stageId: "QUEST_CH03_MAIN_002_STAGE_01",
+        stageMode: "CurrentStageOnly",
+      },
+      { kind: "item", itemId: "R0008", quantity: 1, scope: "interaction" },
+    ],
+  );
 });
 
 test("quest requirements only pass while the quest is active", () => {
@@ -268,6 +319,21 @@ test("操作、採集與移動互動只要有腳本，都必須先完成對話�
       type,
     );
   }
+});
+
+test("互動可選擇略過成功腳本並直接結算，失敗腳本不受影響", () => {
+  const success = { lines: [{ speaker: "Sbaak", text: "開始操作。" }] };
+  const failure = { lines: [{ speaker: "Echo", text: "目前無法使用。" }] };
+  const interactable = {
+    type: "operation",
+    skipSuccessDialogue: true,
+    dialogue: success,
+    failureDialogue: failure,
+  };
+
+  assert.equal(shouldCompleteAfterDialogue(interactable), false);
+  assert.equal(selectInteractionDialogue(interactable, "success"), null);
+  assert.equal(selectInteractionDialogue(interactable, "failure"), failure);
 });
 
 test("互動 Tween 優先使用互動提示點，未設定時才回到多邊形中心", () => {

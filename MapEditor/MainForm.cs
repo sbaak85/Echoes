@@ -1526,7 +1526,7 @@ public sealed class MainForm : Form
                         .FirstOrDefault(item => item.Id.Equals(interactable.Type, StringComparison.OrdinalIgnoreCase))
                         ?.Index ?? 0);
                 _dialogueSummaryLabel.Text =
-                    $"可互動 {interactable.Dialogue.Lines.Count} · 不可互動 {interactable.FailureDialogue.Lines.Count} · 完成後 {interactable.CompletionDialogue?.Lines.Count ?? 0} 句";
+                    $"可互動 {(interactable.SkipSuccessDialogue ? "直接結算" : $"{interactable.Dialogue.Lines.Count} 句")} · 不可互動 {interactable.FailureDialogue.Lines.Count} · 完成後 {interactable.CompletionDialogue?.Lines.Count ?? 0} 句";
                 var effects = interactable.SurvivalEffects;
                 var limit = interactable.InteractionLimitMode == "once"
                     ? "唯一一次"
@@ -1986,12 +1986,14 @@ public sealed class MainForm : Form
         using var editor = new DialogueEditorForm(
             interactable.Dialogue,
             interactable.FailureDialogue,
-            interactable.CompletionDialogue);
+            interactable.CompletionDialogue,
+            interactable.SkipSuccessDialogue);
         if (editor.ShowDialog(this) != DialogResult.OK) return;
         _canvas.UpdateSelectedDialogues(
             editor.SuccessDialogue,
             editor.FailureDialogue,
-            editor.CompletionDialogue);
+            editor.CompletionDialogue,
+            editor.SkipSuccessDialogue);
         RefreshSelectionUi();
     }
 

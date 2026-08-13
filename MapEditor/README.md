@@ -77,10 +77,22 @@ Included in version 1:
   weight from 1-999 (default 1), and only one line is chosen from that group
   whenever the dialogue starts. Groups can also be dissolved back into normal
   lines without deleting their text.
+- The `可互動時的對話` tab provides `成功時不播放腳本／直接結算` beside
+  the character-delay setting. When enabled, a successful interaction skips the
+  opening dialogue and immediately performs its effects, rewards, usage count,
+  quest event, and teleport flow. Failure and post-completion dialogue remain
+  independent, and the stored success lines are kept for later reuse.
 - The requirement editor can require registered items, a chapter number, or an
   active `QUEST_...` quest. Quest choices are loaded from
   `public/quests/quest-data.json`; the interaction is enabled only while that
   quest is accepted and currently active.
+- Each interaction requirement row has an independent purpose: `提示＋互動`
+  checks the condition both before showing the prompt and again when the player
+  attempts the interaction; `僅提示` only gates prompt visibility; `僅互動`
+  lets the prompt appear without that condition but blocks success and uses the
+  failure dialogue until it becomes true. Existing scene data without a purpose
+  keeps the original `提示＋互動` behavior. The legacy global option for showing
+  an unmet interaction remains available as an explicit visibility override.
 - Story Trigger polygons reuse the same requirements and completion-effects
   editor. Their automatic entry trigger can be gated by survival meters,
   inventory items, chapter, active quest, quest stage, and daily/one-time use.

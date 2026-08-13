@@ -53,7 +53,7 @@ test("Scene_2 石壁上下層各有一個位於不同 NavMesh 的傳送 Point", 
   );
 });
 
-test("interaction-001 與 interaction-002 以繩索為不消耗的持有條件並互傳", async () => {
+test("interaction-001 與 interaction-002 依任務階段開放並以繩索為不消耗條件互傳", async () => {
   const scene = JSON.parse(
     await readFile(new URL("../public/maps/map_test02.scene.json", import.meta.url), "utf8"),
   );
@@ -76,12 +76,29 @@ test("interaction-001 與 interaction-002 以繩索為不消耗的持有條件�
       interactable.useRequirements,
       resolveItemId,
     );
+    const stageRequirement = requirements.find(
+      (requirement) => requirement.kind === "questStage",
+    );
+    const itemRequirement = requirements.find(
+      (requirement) => requirement.kind === "item",
+    );
+    assert.deepEqual(stageRequirement, {
+      kind: "questStage",
+      questId: "QUEST_CH03_MAIN_002",
+      stageId: "QUEST_CH03_MAIN_002_STAGE_01",
+      stageMode: "UnlockFromStage",
+    });
+    assert.deepEqual(itemRequirement, {
+      kind: "item",
+      itemId: "T0001",
+      quantity: 1,
+      ...(interactable.id === "interaction-001"
+        ? { scope: "interaction" }
+        : {}),
+    });
     const inventory = { T0001: 1 };
-    assert.deepEqual(requirements, [
-      { kind: "item", itemId: "T0001", quantity: 1 },
-    ]);
     assert.deepEqual(
-      getUnmetInteractionUseRequirements(requirements, inventory, 3),
+      getUnmetInteractionUseRequirements([itemRequirement], inventory, 3),
       [],
     );
     assert.deepEqual(inventory, { T0001: 1 });

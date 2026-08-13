@@ -1,5 +1,6 @@
 export type InteractionFlowDescriptor = {
   type?: string;
+  skipSuccessDialogue?: boolean;
   dialogue?: InteractionDialogueScript;
   failureDialogue?: InteractionDialogueScript;
   completionDialogue?: InteractionDialogueScript;
@@ -41,24 +42,33 @@ export type InteractionItemReward = {
   delivery: InteractionItemRewardDelivery;
 };
 
+export type InteractionRequirementScope =
+  | "both"
+  | "prompt"
+  | "interaction";
+
+type InteractionRequirementScopeField = {
+  scope?: InteractionRequirementScope;
+};
+
 export type InteractionUseRequirement =
-  | { kind: "item"; itemId: string; quantity: number }
-  | { kind: "campPower"; minimumPower: number }
-  | { kind: "chapter"; chapter: number }
-  | { kind: "quest"; questId: string }
-  | {
+  | (InteractionRequirementScopeField & { kind: "item"; itemId: string; quantity: number })
+  | (InteractionRequirementScopeField & { kind: "campPower"; minimumPower: number })
+  | (InteractionRequirementScopeField & { kind: "chapter"; chapter: number })
+  | (InteractionRequirementScopeField & { kind: "quest"; questId: string })
+  | (InteractionRequirementScopeField & {
       kind: "questState";
       questId: string;
       questState: InteractionQuestState;
-    }
-  | {
+    })
+  | (InteractionRequirementScopeField & {
       kind: "questStage";
       questId: string;
       stageId: string;
       stageMode: InteractionStageMode;
       disableQuestId?: string;
       disableStageId?: string;
-    };
+    });
 
 export type InteractionStageMode =
   | "CurrentStageOnly"
@@ -99,14 +109,20 @@ export function evaluateInteractionStageRequirement(
 export function shouldCompleteAfterDialogue(
   interactable: InteractionFlowDescriptor,
 ) {
-  return interactable.type !== "pickup" && interactable.dialogue != null;
+  return interactable.type !== "pickup" &&
+    interactable.skipSuccessDialogue !== true &&
+    interactable.dialogue != null;
 }
 
 export function selectInteractionDialogue(
   interactable: InteractionFlowDescriptor,
   outcome: "success" | "failure" | "completion",
 ) {
-  if (outcome === "success") return interactable.dialogue ?? null;
+  if (outcome === "success") {
+    return interactable.skipSuccessDialogue === true
+      ? null
+      : interactable.dialogue ?? null;
+  }
   if (outcome === "completion") {
     const dialogue = interactable.completionDialogue;
     return dialogue?.lines?.some((line) => line.text.trim())
@@ -185,10 +201,14 @@ export function normalizeInteractionUseRequirements(
   return value.flatMap((raw): InteractionUseRequirement[] => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
     const candidate = raw as Record<string, unknown>;
+    const scope = candidate.scope === "prompt" || candidate.scope === "interaction"
+      ? { scope: candidate.scope }
+      : {};
     if (candidate.kind === "chapter") {
       return [{
         kind: "chapter",
         chapter: Math.min(99, Math.max(1, Math.floor(Number(candidate.chapter) || 1))),
+        ...scope,
       }];
     }
     if (candidate.kind === "campPower") {
@@ -198,13 +218,14 @@ export function normalizeInteractionUseRequirements(
           50,
           Math.max(1, Math.floor(Number(candidate.minimumPower) || 1)),
         ),
+        ...scope,
       }];
     }
     if (candidate.kind === "quest") {
       const questId = typeof candidate.questId === "string"
         ? candidate.questId.trim()
         : "";
-      return questId ? [{ kind: "quest", questId }] : [];
+      return questId ? [{ kind: "quest", questId, ...scope }] : [];
     }
     if (candidate.kind === "questState") {
       const questId = typeof candidate.questId === "string"
@@ -221,7 +242,7 @@ export function normalizeInteractionUseRequirements(
       ].includes(String(candidate.questState))
         ? candidate.questState as InteractionQuestState
         : "completed";
-      return [{ kind: "questState", questId, questState }];
+      return [{ kind: "questState", questId, questState, ...scope }];
     }
     if (candidate.kind === "questStage") {
       const questId = typeof candidate.questId === "string"
@@ -250,6 +271,7 @@ export function normalizeInteractionUseRequirements(
         ...(stageMode === "UnlockUntilCondition" && disableQuestId && disableStageId
           ? { disableQuestId, disableStageId }
           : {}),
+        ...scope,
       }];
     }
     const itemId = typeof candidate.itemId === "string"
@@ -260,8 +282,19 @@ export function normalizeInteractionUseRequirements(
       kind: "item",
       itemId,
       quantity: Math.min(99, Math.max(1, Math.floor(Number(candidate.quantity) || 1))),
+      ...scope,
     }];
   });
+}
+
+export function filterInteractionRequirementsByPurpose(
+  requirements: readonly InteractionUseRequirement[] | undefined,
+  purpose: "prompt" | "interaction",
+): InteractionUseRequirement[] {
+  return requirements?.filter((requirement) => {
+    const scope = requirement.scope ?? "both";
+    return scope === "both" || scope === purpose;
+  }) ?? [];
 }
 
 export function getUnmetInteractionUseRequirements(
