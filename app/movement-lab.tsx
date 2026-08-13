@@ -96,6 +96,11 @@ import {
 } from "./power-routing-puzzle.tsx";
 import { POWER_ROUTING_INTERACTION_ID } from "./power-routing-puzzle";
 import {
+  FrequencyCalibrationPuzzle,
+  type FrequencyCalibrationPuzzleController,
+} from "./frequency-calibration-puzzle.tsx";
+import { FREQUENCY_CALIBRATION_COMPLETION_FLAG } from "./frequency-calibration-puzzle";
+import {
   CAMP_POWER_CAPACITY,
   CAMP_POWER_DAILY_CONSUMPTION_QUEST_ID,
   CAMP_POWER_REFILL_AMOUNT,
@@ -2938,8 +2943,11 @@ export function MovementLab() {
   const restartConfirmationChoiceRef = useRef<"cancel" | "confirm">("cancel");
   const inventoryOpenRef = useRef(false);
   const powerPuzzleOpenRef = useRef(false);
+  const frequencyPuzzleOpenRef = useRef(false);
   const powerPuzzleSessionRef = useRef<PowerPuzzleSession | null>(null);
   const powerPuzzleControllerRef = useRef<PowerRoutingPuzzleController | null>(null);
+  const frequencyPuzzleControllerRef =
+    useRef<FrequencyCalibrationPuzzleController | null>(null);
   const powerPuzzleGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
   const powerPuzzleCursorRearmRequiredRef = useRef(false);
   const completePowerPuzzleInteractionRef = useRef<() => void>(() => {});
@@ -3071,6 +3079,7 @@ export function MovementLab() {
     useState<"cancel" | "confirm">("cancel");
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [powerPuzzleOpen, setPowerPuzzleOpen] = useState(false);
+  const [frequencyPuzzleOpen, setFrequencyPuzzleOpen] = useState(false);
   const [campPowerState, setCampPowerState] = useState<CampPowerState>(() =>
     createInitialCampPowerState(INITIAL_SURVIVAL_STATE.gameMinutes),
   );
@@ -3213,6 +3222,7 @@ export function MovementLab() {
   };
   const [dialogueView, setDialogueView] = useState<DialogueView>(null);
   const powerPuzzlePreviewStartedRef = useRef(false);
+  const frequencyPuzzlePreviewStartedRef = useRef(false);
 
   const applyCampPowerState = (nextState: CampPowerState) => {
     campPowerStateRef.current = nextState;
@@ -3253,10 +3263,27 @@ export function MovementLab() {
 
   const closePowerRoutingPuzzle = () => {
     powerPuzzleOpenRef.current = false;
+    frequencyPuzzleOpenRef.current = false;
     powerPuzzleSessionRef.current = null;
     powerPuzzleGamepadModeRef.current = "dpad";
     powerPuzzleCursorRearmRequiredRef.current = false;
     setPowerPuzzleOpen(false);
+    setFrequencyPuzzleOpen(false);
+  };
+
+  const openFrequencyCalibrationPuzzle = () => {
+    dismissTimeElapsedNotice();
+    optionsOpenRef.current = false;
+    inventoryOpenRef.current = false;
+    setOptionsOpen(false);
+    setInventoryOpen(false);
+    powerPuzzleSessionRef.current = null;
+    powerPuzzleOpenRef.current = true;
+    frequencyPuzzleOpenRef.current = true;
+    powerPuzzleGamepadModeRef.current = "dpad";
+    powerPuzzleCursorRearmRequiredRef.current = false;
+    setFrequencyPuzzleOpen(true);
+    setPowerPuzzleOpen(true);
   };
 
   const openPowerRoutingPuzzle = (
@@ -3268,6 +3295,8 @@ export function MovementLab() {
     inventoryOpenRef.current = false;
     setOptionsOpen(false);
     setInventoryOpen(false);
+    frequencyPuzzleOpenRef.current = false;
+    setFrequencyPuzzleOpen(false);
     powerPuzzleSessionRef.current = { interactable, source };
     powerPuzzleOpenRef.current = true;
     powerPuzzleGamepadModeRef.current = "dpad";
@@ -3289,6 +3318,18 @@ export function MovementLab() {
     if (!interactable) return;
     powerPuzzlePreviewStartedRef.current = true;
     openPowerRoutingPuzzle(interactable, "keyboard");
+  }, []);
+
+  useEffect(() => {
+    if (frequencyPuzzlePreviewStartedRef.current) return;
+    if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      return;
+    }
+    if (new URLSearchParams(window.location.search).get("frequencyCalibrationPreview") !== "1") {
+      return;
+    }
+    frequencyPuzzlePreviewStartedRef.current = true;
+    openFrequencyCalibrationPuzzle();
   }, []);
 
   useLayoutEffect(() => {
@@ -4789,6 +4830,17 @@ export function MovementLab() {
     const next = {
       ...current,
       completedEventIds: [...current.completedEventIds, eventId],
+    };
+    storyProgressRef.current = next;
+    saveStoryProgress(next);
+  };
+
+  const setStoryFlag = (flagId: string, value: boolean) => {
+    const current = storyProgressRef.current;
+    if (current.storyFlags[flagId] === value) return;
+    const next = {
+      ...current,
+      storyFlags: { ...current.storyFlags, [flagId]: value },
     };
     storyProgressRef.current = next;
     saveStoryProgress(next);
@@ -9469,7 +9521,9 @@ export function MovementLab() {
         (Math.abs(gamepadInput.dpadX) > 0 ||
           Math.abs(gamepadInput.dpadY) > 0 ||
           Math.abs(gamepadInput.stickX) >= 0.65 ||
-          Math.abs(gamepadInput.stickY) >= 0.65);
+          Math.abs(gamepadInput.stickY) >= 0.65 ||
+          (frequencyPuzzleOpenRef.current &&
+            Math.abs(gamepadInput.cursorX) >= 0.18));
       if (powerPuzzleDirectionalInputActive) {
         activatePowerPuzzleDpadMode();
       }
@@ -9494,7 +9548,8 @@ export function MovementLab() {
             cursorInputLength,
           )) &&
         (!powerPuzzleOpenRef.current ||
-          (!powerPuzzleDirectionalInputActive &&
+          (!frequencyPuzzleOpenRef.current &&
+            !powerPuzzleDirectionalInputActive &&
             !powerPuzzleCursorRearmRequiredRef.current &&
             (powerPuzzleGamepadModeRef.current === "cursor" ||
               cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD))) &&
@@ -9586,7 +9641,11 @@ export function MovementLab() {
         closeCampPowerConfirmation();
         campPowerConfirmationMenuOpen = false;
       } else if (powerPuzzleMenuOpen && backJustPressed) {
-        powerPuzzleControllerRef.current?.cancel();
+        if (frequencyPuzzleOpenRef.current) {
+          frequencyPuzzleControllerRef.current?.cancel();
+        } else {
+          powerPuzzleControllerRef.current?.cancel();
+        }
         powerPuzzleMenuOpen = false;
       } else if (optionsMenuOpen && backJustPressed) {
         if (restartConfirmationOpenRef.current) {
@@ -9654,10 +9713,19 @@ export function MovementLab() {
         }
       } else if (powerPuzzleMenuOpen) {
         gameplayHotbarDpadX = 0;
+        if (frequencyPuzzleOpenRef.current) {
+          frequencyPuzzleControllerRef.current?.setGamepadAnalogInput({
+            leftX: gamepadInput.stickX,
+            leftY: gamepadInput.stickY,
+            rightX: gamepadInput.cursorX,
+            deltaTime,
+          });
+        }
         const verticalInput =
           Math.abs(gamepadInput.dpadY) > 0
             ? gamepadInput.dpadY
-            : Math.abs(gamepadInput.stickY) >= 0.65
+            : !frequencyPuzzleOpenRef.current &&
+                Math.abs(gamepadInput.stickY) >= 0.65
               ? gamepadInput.stickY
               : 0;
         const dpadVertical = Math.sign(verticalInput);
@@ -9668,12 +9736,20 @@ export function MovementLab() {
           activatePowerPuzzleDpadMode();
           heldGamepadDpadY = dpadVertical;
           gamepadDpadYRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
-          powerPuzzleControllerRef.current?.moveSelection(dpadVertical);
+          if (frequencyPuzzleOpenRef.current) {
+            frequencyPuzzleControllerRef.current?.moveSelection(dpadVertical);
+          } else {
+            powerPuzzleControllerRef.current?.moveSelection(dpadVertical);
+          }
         } else {
           gamepadDpadYRepeatSeconds -= deltaTime;
           if (gamepadDpadYRepeatSeconds <= 0) {
             activatePowerPuzzleDpadMode();
-            powerPuzzleControllerRef.current?.moveSelection(dpadVertical);
+            if (frequencyPuzzleOpenRef.current) {
+              frequencyPuzzleControllerRef.current?.moveSelection(dpadVertical);
+            } else {
+              powerPuzzleControllerRef.current?.moveSelection(dpadVertical);
+            }
             gamepadDpadYRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
           }
         }
@@ -9681,7 +9757,8 @@ export function MovementLab() {
         const horizontalInput =
           Math.abs(gamepadInput.dpadX) > 0
             ? gamepadInput.dpadX
-            : Math.abs(gamepadInput.stickX) >= 0.65
+            : !frequencyPuzzleOpenRef.current &&
+                Math.abs(gamepadInput.stickX) >= 0.65
               ? gamepadInput.stickX
               : 0;
         const dpadHorizontal = Math.sign(horizontalInput);
@@ -9692,16 +9769,28 @@ export function MovementLab() {
           activatePowerPuzzleDpadMode();
           heldGamepadDpadX = dpadHorizontal;
           gamepadDpadXRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
-          powerPuzzleControllerRef.current?.setSelectedDeviceActive(
-            dpadHorizontal > 0,
-          );
+          if (frequencyPuzzleOpenRef.current) {
+            frequencyPuzzleControllerRef.current?.setSelectedDeviceActive(
+              dpadHorizontal > 0,
+            );
+          } else {
+            powerPuzzleControllerRef.current?.setSelectedDeviceActive(
+              dpadHorizontal > 0,
+            );
+          }
         } else {
           gamepadDpadXRepeatSeconds -= deltaTime;
           if (gamepadDpadXRepeatSeconds <= 0) {
             activatePowerPuzzleDpadMode();
-            powerPuzzleControllerRef.current?.setSelectedDeviceActive(
-              dpadHorizontal > 0,
-            );
+            if (frequencyPuzzleOpenRef.current) {
+              frequencyPuzzleControllerRef.current?.setSelectedDeviceActive(
+                dpadHorizontal > 0,
+              );
+            } else {
+              powerPuzzleControllerRef.current?.setSelectedDeviceActive(
+                dpadHorizontal > 0,
+              );
+            }
             gamepadDpadXRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
           }
         }
@@ -9712,6 +9801,8 @@ export function MovementLab() {
         ) {
           if (powerPuzzleGamepadModeRef.current === "cursor") {
             activateVirtualCursorUi();
+          } else if (frequencyPuzzleOpenRef.current) {
+            frequencyPuzzleControllerRef.current?.activateSelection();
           } else {
             powerPuzzleControllerRef.current?.activateSelection();
           }
@@ -11685,12 +11776,23 @@ export function MovementLab() {
         </menu>
       ) : null}
 
-      {powerPuzzleOpen ? (
+      {powerPuzzleOpen && !frequencyPuzzleOpen ? (
         <PowerRoutingPuzzle
           ref={powerPuzzleControllerRef}
           availablePower={campPowerState.current}
           onCancel={closePowerRoutingPuzzle}
           onComplete={() => completePowerPuzzleInteractionRef.current()}
+          onInput={() => playOneShotAudio("uiInput")}
+        />
+      ) : null}
+
+      {frequencyPuzzleOpen ? (
+        <FrequencyCalibrationPuzzle
+          ref={frequencyPuzzleControllerRef}
+          onCancel={closePowerRoutingPuzzle}
+          onComplete={() => {
+            setStoryFlag(FREQUENCY_CALIBRATION_COMPLETION_FLAG, true);
+          }}
           onInput={() => playOneShotAudio("uiInput")}
         />
       ) : null}
