@@ -102,6 +102,56 @@ export const AUDIO_EVENT_CONFIG = (
       "volume": 0.7,
       "delaySeconds": 0
     },
+    "frequencyCoarseTick": {
+      "label": "調頻粗調刻度切換",
+      "trigger": "調頻小遊戲的預調輪盤實際切換至另一格頻段刻度時播放一次；停留在同一格不重複播放，且不再播放一般 Input 音效。",
+      "sourceAssetPaths": [
+        "Assets/Audio/刻度.mp3"
+      ],
+      "sources": [
+        "./audio/frequency-coarse-tick.mp3"
+      ],
+      "volume": 0.72,
+      "delaySeconds": 0
+    },
+    "frequencyFineFar": {
+      "label": "調頻微調－遠離目標",
+      "trigger": "玩家持續調整微調頻率時循環播放；接近度低於 20% 時主導，20% 至 80% 之間與接近音軌降低音量後交叉淡化，停止調整或關閉視窗時暫停。播放中音量會在小聲與正常之間柔和往返。",
+      "sourceAssetPaths": [
+        "Assets/Audio/調頻遠離.mp3"
+      ],
+      "sources": [
+        "./audio/frequency-fine-far.mp3"
+      ],
+      "volume": 0.58,
+      "delaySeconds": 0,
+      "loop": true
+    },
+    "frequencyFineNear": {
+      "label": "調頻微調－接近目標",
+      "trigger": "玩家持續調整微調頻率時循環播放；接近度高於 80% 時主導，20% 至 80% 之間與遠離音軌降低音量後交叉淡化。播放中音量會在小聲、正常與較大聲之間柔和往返，且愈接近命中整體愈大聲。",
+      "sourceAssetPaths": [
+        "Assets/Audio/調頻接近.mp3"
+      ],
+      "sources": [
+        "./audio/frequency-fine-near.mp3"
+      ],
+      "volume": 0.78,
+      "delaySeconds": 0,
+      "loop": true
+    },
+    "frequencyLocked": {
+      "label": "調頻精準命中並鎖定",
+      "trigger": "調頻達到可命中範圍後，玩家按下鎖定頻率按鈕或手把 RT 的當下播放一次；非命中鎖定只播放一般 Input 音效。",
+      "sourceAssetPaths": [
+        "Assets/Audio/調頻成功.mp3"
+      ],
+      "sources": [
+        "./audio/frequency-lock-success.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0
+    },
     "worldItemLanded": {
       "label": "場上道具觸地",
       "trigger": "互動獎勵、Debug 生成或背包丟棄的道具完成主要拋物線，第一次碰到場上地面的瞬間播放一次；飛行途中、後續小彈跳與滑動階段不重複播放。",
@@ -155,6 +205,42 @@ export const AUDIO_EVENT_CONFIG = (
 ) as const satisfies Record<string, AudioEventDefinition>;
 
 export type AudioEventName = keyof typeof AUDIO_EVENT_CONFIG;
+
+export type FrequencyFineAudioMix = {
+  farVolume: number;
+  nearVolume: number;
+};
+
+/**
+ * 將調頻接近度轉成兩條循環音軌的即時音量。
+ * 0~20% 由遠離音主導、80~100% 由接近音主導，中間以 Smoothstep
+ * 交叉淡化；phase 以 0~1 循環，提供持續調整時的柔和呼吸感。
+ */
+export function getFrequencyFineAudioMix(
+  strength: number,
+  phase: number,
+): FrequencyFineAudioMix {
+  const closeness = Math.min(1, Math.max(0, strength / 100));
+  const rawBlend = Math.min(1, Math.max(0, (closeness - 0.2) / 0.6));
+  const nearWeight = rawBlend * rawBlend * (3 - 2 * rawBlend);
+  const farWeight = 1 - nearWeight;
+  const wave = (Math.sin(phase * Math.PI * 2) + 1) / 2;
+  const farPulse = 0.35 + wave * 0.65;
+  const nearPulse = 0.28 + wave * 0.97;
+  const proximityBoost = 0.45 + closeness * 0.55;
+
+  return {
+    farVolume: clampVolume(
+      AUDIO_EVENT_CONFIG.frequencyFineFar.volume * farWeight * farPulse,
+    ),
+    nearVolume: clampVolume(
+      AUDIO_EVENT_CONFIG.frequencyFineNear.volume *
+        nearWeight *
+        nearPulse *
+        proximityBoost,
+    ),
+  };
+}
 
 type AudioEventRuntime = {
   audio: HTMLAudioElement;

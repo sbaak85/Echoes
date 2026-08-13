@@ -50,9 +50,10 @@ test("左搖桿以正上方為零度並可完整對應 360 度旋鈕", () => {
 });
 
 test("遊戲提供本機側邊面板試玩入口與完成事件", async () => {
-  const [component, movementLab] = await Promise.all([
+  const [component, movementLab, styles] = await Promise.all([
     readFile(new URL("../app/frequency-calibration-puzzle.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
   assert.match(component, /drawFrequencyWaveform/);
   assert.match(component, /echoes:frequency-calibration-complete|FREQUENCY_CALIBRATION_EVENT_NAME/);
@@ -62,6 +63,48 @@ test("遊戲提供本機側邊面板試玩入口與完成事件", async () => {
   assert.match(component, /updateDialAngle\(coarseBandToDialAngle\(nextCoarse\)\)/);
   assert.doesNotMatch(component, /updateDialAngle\(dialAngle\)/);
   assert.match(component, />預調頻率</);
+  assert.match(component, /frequency-trigger-key[^>]*>LT</);
+  assert.match(component, /frequency-trigger-key[^>]*>RT</);
+  assert.match(component, /resetFrequency: reset/);
+  assert.match(component, /lockFrequency,/);
+  assert.match(component, /目前的頻率不正確/);
+  assert.match(movementLab, /leftTriggerJustPressed/);
+  assert.match(movementLab, /rightTriggerJustPressed/);
+  assert.match(movementLab, /resetFrequency\(\)/);
+  assert.match(movementLab, /lockFrequency\(\)/);
+  assert.match(movementLab, /frequencyCoarseTick/);
+  assert.match(movementLab, /continueFrequencyFineTuningAudio/);
+  assert.match(movementLab, /success \? "frequencyLocked" : "uiInput"/);
+  assert.match(component, /onCoarseStep\?\.\(\)/);
+  assert.match(component, /onFineTuning\?\.\(evaluateFrequencyCalibration/);
+  assert.match(component, /onLockAttempt\?\.\(currentEvaluation\.canLock\)/);
+  const coarseAudioBlock = component.slice(
+    component.indexOf("const changeCoarse"),
+    component.indexOf("const changeFine"),
+  );
+  const fineAudioBlock = component.slice(
+    component.indexOf("const changeFine"),
+    component.indexOf("const lockFrequency"),
+  );
+  assert.doesNotMatch(coarseAudioBlock, /onInput\?\./);
+  assert.doesNotMatch(fineAudioBlock, /onInput\?\./);
+  assert.match(styles, /\.frequency-puzzle-overlay \*\s*\{[^}]*cursor:\s*none !important/s);
+  assert.doesNotMatch(movementLab, /style=\{frequencyPuzzleOpen \? \{ display: "none" \} : undefined\}/);
+  assert.match(
+    movementLab,
+    /if \(frequencyPuzzleOpenRef\.current\) \{[\s\S]*?virtualCursorVisible = true;[\s\S]*?return;/,
+  );
+  assert.match(
+    movementLab,
+    /virtualCursorVisible = activeInputMode === "keyboard-mouse"/,
+  );
+  assert.match(styles, /\.frequency-puzzle-dialog :focus-visible\s*\{[^}]*outline:\s*none !important/s);
+  assert.match(component, /fineInputRef\.current\?\.blur\(\)/);
+  assert.match(component, /setSelectionFrameVisible\(false\)/);
+  assert.match(
+    component,
+    /selectedControl === "fine" && selectionFrameVisible \? " is-selected"/,
+  );
 });
 
 test("校頻成功會記錄旗標、播放世界觀訊息並在末句停留一秒後關閉", async () => {

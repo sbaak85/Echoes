@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { stat } from "node:fs/promises";
 
-import { AUDIO_EVENT_CONFIG } from "../app/audio-event-manager.ts";
+import {
+  AUDIO_EVENT_CONFIG,
+  getFrequencyFineAudioMix,
+} from "../app/audio-event-manager.ts";
 
 test("介面點擊音效集中登記 InPut.mp3 與完整觸發時機", () => {
   const event = AUDIO_EVENT_CONFIG.uiInput;
@@ -61,4 +64,57 @@ test("任務提示音效的遊戲載入檔案已存在", async () => {
   );
   assert.ok(completeAudio.size > 0);
   assert.ok(startAudio.size > 0);
+});
+
+test("調頻四種聲音事件集中登記並使用正確素材", async () => {
+  const tick = AUDIO_EVENT_CONFIG.frequencyCoarseTick;
+  assert.deepEqual(tick.sourceAssetPaths, ["Assets/Audio/刻度.mp3"]);
+  assert.deepEqual(tick.sources, ["./audio/frequency-coarse-tick.mp3"]);
+  assert.equal(tick.loop, undefined);
+  assert.match(tick.trigger, /另一格/);
+
+  const far = AUDIO_EVENT_CONFIG.frequencyFineFar;
+  assert.deepEqual(far.sourceAssetPaths, ["Assets/Audio/調頻遠離.mp3"]);
+  assert.deepEqual(far.sources, ["./audio/frequency-fine-far.mp3"]);
+  assert.equal(far.loop, true);
+  assert.match(far.trigger, /交叉淡化/);
+
+  const near = AUDIO_EVENT_CONFIG.frequencyFineNear;
+  assert.deepEqual(near.sourceAssetPaths, ["Assets/Audio/調頻接近.mp3"]);
+  assert.deepEqual(near.sources, ["./audio/frequency-fine-near.mp3"]);
+  assert.equal(near.loop, true);
+  assert.match(near.trigger, /愈接近命中整體愈大聲/);
+
+  const locked = AUDIO_EVENT_CONFIG.frequencyLocked;
+  assert.deepEqual(locked.sourceAssetPaths, ["Assets/Audio/調頻成功.mp3"]);
+  assert.deepEqual(locked.sources, ["./audio/frequency-lock-success.mp3"]);
+  assert.equal(locked.loop, undefined);
+  assert.match(locked.trigger, /非命中鎖定只播放一般 Input/);
+
+  const files = await Promise.all(
+    [tick, far, near, locked].map((event) =>
+      stat(new URL(`../public/${event.sources[0].replace(/^\.\//, "")}`, import.meta.url)),
+    ),
+  );
+  files.forEach((file) => assert.ok(file.size > 0));
+});
+
+test("微調遠離與接近音軌會依接近度交叉淡化並來回變化音量", () => {
+  const far = getFrequencyFineAudioMix(0, 0.25);
+  const near = getFrequencyFineAudioMix(100, 0.25);
+  const overlap = getFrequencyFineAudioMix(50, 0.25);
+  const quietFar = getFrequencyFineAudioMix(0, 0.75);
+  const quietNear = getFrequencyFineAudioMix(100, 0.75);
+  const closer = getFrequencyFineAudioMix(100, 0.25);
+  const lessClose = getFrequencyFineAudioMix(85, 0.25);
+
+  assert.ok(far.farVolume > 0);
+  assert.equal(far.nearVolume, 0);
+  assert.equal(near.farVolume, 0);
+  assert.ok(near.nearVolume > 0);
+  assert.ok(overlap.farVolume > 0);
+  assert.ok(overlap.nearVolume > 0);
+  assert.ok(quietFar.farVolume < far.farVolume);
+  assert.ok(quietNear.nearVolume < near.nearVolume);
+  assert.ok(closer.nearVolume > lessClose.nearVolume);
 });

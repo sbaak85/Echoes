@@ -16,6 +16,7 @@ import questDocumentSource from "../public/quests/quest-data.json";
 import {
   AUDIO_EVENT_CONFIG,
   AudioEventManager,
+  getFrequencyFineAudioMix,
   type AudioEventName,
 } from "./audio-event-manager";
 import {
@@ -1548,7 +1549,9 @@ type GamepadInput = {
   hotbarUsePressed: boolean;
   label: string | null;
   leftBumperPressed: boolean;
+  leftTriggerPressed: boolean;
   rightBumperPressed: boolean;
+  rightTriggerPressed: boolean;
   secondaryActionPressed: boolean;
   startPressed: boolean;
   stickX: number;
@@ -1632,7 +1635,9 @@ function getNativeGamepadInput(state: NativeGamepadState): GamepadInput {
       hotbarUsePressed: false,
       label: null,
       leftBumperPressed: false,
+      leftTriggerPressed: false,
       rightBumperPressed: false,
+      rightTriggerPressed: false,
       secondaryActionPressed: false,
       startPressed: false,
       stickX: 0,
@@ -1671,7 +1676,11 @@ function getNativeGamepadInput(state: NativeGamepadState): GamepadInput {
     hotbarUsePressed: (state.buttons & XINPUT_BUTTON_Y) !== 0,
     label: `Windows XInput Controller ${state.index + 1}`,
     leftBumperPressed: (state.buttons & XINPUT_BUTTON_LEFT_BUMPER) !== 0,
+    leftTriggerPressed:
+      state.leftTrigger / 255 >= GAMEPAD_TRIGGER_ACTIVE_THRESHOLD,
     rightBumperPressed: (state.buttons & XINPUT_BUTTON_RIGHT_BUMPER) !== 0,
+    rightTriggerPressed:
+      state.rightTrigger / 255 >= GAMEPAD_TRIGGER_ACTIVE_THRESHOLD,
     secondaryActionPressed: (state.buttons & XINPUT_BUTTON_X) !== 0,
     startPressed: (state.buttons & XINPUT_BUTTON_START) !== 0,
     stickX: leftX,
@@ -1698,7 +1707,9 @@ function getGamepadInput(): GamepadInput {
       hotbarUsePressed: false,
       label: null,
       leftBumperPressed: false,
+      leftTriggerPressed: false,
       rightBumperPressed: false,
+      rightTriggerPressed: false,
       secondaryActionPressed: false,
       startPressed: false,
       stickX: 0,
@@ -1763,7 +1774,13 @@ function getGamepadInput(): GamepadInput {
     hotbarUsePressed: Boolean(gamepad.buttons[3]?.pressed),
     label: gamepad.id || `Gamepad ${gamepad.index + 1}`,
     leftBumperPressed: Boolean(gamepad.buttons[4]?.pressed),
+    leftTriggerPressed:
+      (gamepad.buttons[6]?.value ?? 0) >= GAMEPAD_TRIGGER_ACTIVE_THRESHOLD ||
+      Boolean(gamepad.buttons[6]?.pressed),
     rightBumperPressed: Boolean(gamepad.buttons[5]?.pressed),
+    rightTriggerPressed:
+      (gamepad.buttons[7]?.value ?? 0) >= GAMEPAD_TRIGGER_ACTIVE_THRESHOLD ||
+      Boolean(gamepad.buttons[7]?.pressed),
     secondaryActionPressed: Boolean(gamepad.buttons[2]?.pressed),
     startPressed: Boolean(gamepad.buttons[9]?.pressed),
     stickX: applyGamepadDeadZone(gamepad.axes[0] ?? 0),
@@ -2931,6 +2948,11 @@ export function MovementLab() {
   const virtualCursorControlsEnabledRef = useRef(true);
   const questPromptInputModeRef = useRef<QuestPromptInputMode>("keyboard-mouse");
   const audioEventManagerRef = useRef<AudioEventManager | null>(null);
+  const frequencyFineAudioFrameRef = useRef<number | null>(null);
+  const frequencyFineAudioActiveUntilRef = useRef(0);
+  const frequencyFineAudioStartedAtRef = useRef(0);
+  const frequencyFineAudioStrengthRef = useRef(0);
+  const frequencyFineAudioPlayingRef = useRef(false);
   const requestBgmPlaybackRef = useRef<() => void>(() => {});
   const optionsOpenRef = useRef(false);
   const debugItemSpawnerOpenRef = useRef(false);
@@ -2944,6 +2966,8 @@ export function MovementLab() {
   const inventoryOpenRef = useRef(false);
   const powerPuzzleOpenRef = useRef(false);
   const frequencyPuzzleOpenRef = useRef(false);
+  const puzzleSelectionOpenRef = useRef(false);
+  const puzzleSelectionChoiceRef = useRef<"power" | "frequency">("power");
   const powerPuzzleSessionRef = useRef<PowerPuzzleSession | null>(null);
   const powerPuzzleControllerRef = useRef<PowerRoutingPuzzleController | null>(null);
   const frequencyPuzzleControllerRef =
@@ -3080,6 +3104,9 @@ export function MovementLab() {
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [powerPuzzleOpen, setPowerPuzzleOpen] = useState(false);
   const [frequencyPuzzleOpen, setFrequencyPuzzleOpen] = useState(false);
+  const [puzzleSelectionOpen, setPuzzleSelectionOpen] = useState(false);
+  const [puzzleSelectionChoice, setPuzzleSelectionChoice] =
+    useState<"power" | "frequency">("power");
   const [campPowerState, setCampPowerState] = useState<CampPowerState>(() =>
     createInitialCampPowerState(INITIAL_SURVIVAL_STATE.gameMinutes),
   );
@@ -3262,13 +3289,21 @@ export function MovementLab() {
   };
 
   const closePowerRoutingPuzzle = () => {
+    stopFrequencyFineTuningAudio(true);
     powerPuzzleOpenRef.current = false;
     frequencyPuzzleOpenRef.current = false;
+    puzzleSelectionOpenRef.current = false;
     powerPuzzleSessionRef.current = null;
     powerPuzzleGamepadModeRef.current = "dpad";
     powerPuzzleCursorRearmRequiredRef.current = false;
     setPowerPuzzleOpen(false);
     setFrequencyPuzzleOpen(false);
+    setPuzzleSelectionOpen(false);
+  };
+
+  const setPuzzleSelectionChoiceValue = (choice: "power" | "frequency") => {
+    puzzleSelectionChoiceRef.current = choice;
+    setPuzzleSelectionChoice(choice);
   };
 
   const openFrequencyCalibrationPuzzle = () => {
@@ -3302,6 +3337,42 @@ export function MovementLab() {
     powerPuzzleGamepadModeRef.current = "dpad";
     powerPuzzleCursorRearmRequiredRef.current = false;
     setPowerPuzzleOpen(true);
+  };
+
+  const openInteractionPuzzleSelection = (
+    interactable: SceneInteractable,
+    source: PendingInteraction["source"],
+  ) => {
+    dismissTimeElapsedNotice();
+    optionsOpenRef.current = false;
+    inventoryOpenRef.current = false;
+    setOptionsOpen(false);
+    setInventoryOpen(false);
+    powerPuzzleSessionRef.current = { interactable, source };
+    frequencyPuzzleOpenRef.current = false;
+    puzzleSelectionOpenRef.current = true;
+    powerPuzzleOpenRef.current = true;
+    powerPuzzleGamepadModeRef.current = "dpad";
+    powerPuzzleCursorRearmRequiredRef.current = false;
+    setPuzzleSelectionChoiceValue("power");
+    setFrequencyPuzzleOpen(false);
+    setPuzzleSelectionOpen(true);
+    setPowerPuzzleOpen(true);
+  };
+
+  const chooseInteractionPuzzle = (choice: "power" | "frequency") => {
+    const session = powerPuzzleSessionRef.current;
+    if (!session) {
+      closePowerRoutingPuzzle();
+      return;
+    }
+    puzzleSelectionOpenRef.current = false;
+    setPuzzleSelectionOpen(false);
+    if (choice === "frequency") {
+      openFrequencyCalibrationPuzzle();
+      return;
+    }
+    openPowerRoutingPuzzle(session.interactable, session.source);
   };
 
   useEffect(() => {
@@ -4606,6 +4677,68 @@ export function MovementLab() {
     });
   };
 
+  const stopFrequencyFineTuningAudio = (reset = false) => {
+    if (frequencyFineAudioFrameRef.current !== null) {
+      window.cancelAnimationFrame(frequencyFineAudioFrameRef.current);
+      frequencyFineAudioFrameRef.current = null;
+    }
+    frequencyFineAudioActiveUntilRef.current = 0;
+    frequencyFineAudioPlayingRef.current = false;
+    const audioEvents = audioEventManagerRef.current;
+    audioEvents?.stop("frequencyFineFar", { reset });
+    audioEvents?.stop("frequencyFineNear", { reset });
+  };
+
+  const updateFrequencyFineTuningAudio = (time: number) => {
+    const audioEvents = audioEventManagerRef.current;
+    if (
+      !audioEvents ||
+      !frequencyPuzzleOpenRef.current ||
+      time > frequencyFineAudioActiveUntilRef.current
+    ) {
+      stopFrequencyFineTuningAudio(false);
+      return;
+    }
+
+    const elapsedSeconds = Math.max(
+      0,
+      (time - frequencyFineAudioStartedAtRef.current) / 1000,
+    );
+    const mix = getFrequencyFineAudioMix(
+      frequencyFineAudioStrengthRef.current,
+      (elapsedSeconds / 1.15) % 1,
+    );
+    audioEvents.setVolume("frequencyFineFar", mix.farVolume);
+    audioEvents.setVolume("frequencyFineNear", mix.nearVolume);
+    frequencyFineAudioFrameRef.current = window.requestAnimationFrame(
+      updateFrequencyFineTuningAudio,
+    );
+  };
+
+  const continueFrequencyFineTuningAudio = (strength: number) => {
+    const audioEvents = audioEventManagerRef.current;
+    if (!audioEvents) return;
+    const now = performance.now();
+    frequencyFineAudioStrengthRef.current = clamp(strength, 0, 100);
+    frequencyFineAudioActiveUntilRef.current = now + 150;
+
+    if (!frequencyFineAudioPlayingRef.current) {
+      frequencyFineAudioPlayingRef.current = true;
+      frequencyFineAudioStartedAtRef.current = now;
+      const initialMix = getFrequencyFineAudioMix(strength, 0);
+      audioEvents.setVolume("frequencyFineFar", initialMix.farVolume);
+      audioEvents.setVolume("frequencyFineNear", initialMix.nearVolume);
+      void audioEvents.play("frequencyFineFar").catch(() => {});
+      void audioEvents.play("frequencyFineNear").catch(() => {});
+    }
+
+    if (frequencyFineAudioFrameRef.current === null) {
+      frequencyFineAudioFrameRef.current = window.requestAnimationFrame(
+        updateFrequencyFineTuningAudio,
+      );
+    }
+  };
+
   const stopDialogueTypingAudio = () => {
     audioEventManagerRef.current?.stop("dialogueTyping");
   };
@@ -5721,7 +5854,9 @@ export function MovementLab() {
     let wasGamepadHotbarUsePressed = false;
     let wasGamepadStartPressed = false;
     let wasGamepadLeftBumperPressed = false;
+    let wasGamepadLeftTriggerPressed = false;
     let wasGamepadRightBumperPressed = false;
+    let wasGamepadRightTriggerPressed = false;
     let heldGamepadDpadX = 0;
     let heldGamepadDpadY = 0;
     let gamepadDpadXRepeatSeconds = 0;
@@ -6078,6 +6213,28 @@ export function MovementLab() {
         focusedElement.closest(".power-puzzle-dialog")
       ) {
         focusedElement.blur();
+      }
+    };
+
+    const activateFrequencyPuzzleControlMode = () => {
+      powerPuzzleGamepadModeRef.current = "dpad";
+      powerPuzzleCursorRearmRequiredRef.current = true;
+      virtualCursorVisible = false;
+      deactivateGamepadCursor();
+      const focusedElement = document.activeElement;
+      if (
+        focusedElement instanceof HTMLElement &&
+        focusedElement.closest(".frequency-puzzle-dialog")
+      ) {
+        focusedElement.blur();
+      }
+    };
+
+    const activateCurrentPuzzleControlMode = () => {
+      if (frequencyPuzzleOpenRef.current) {
+        activateFrequencyPuzzleControlMode();
+      } else {
+        activatePowerPuzzleDpadMode();
       }
     };
 
@@ -6519,6 +6676,30 @@ export function MovementLab() {
         return;
       }
       if (powerPuzzleOpenRef.current) {
+        if (puzzleSelectionOpenRef.current) {
+          event.preventDefault();
+          if (key === "escape" && !event.repeat) {
+            playOneShotAudio("uiInput");
+            closePowerRoutingPuzzle();
+          } else if (
+            (key === "arrowleft" ||
+              key === "arrowup" ||
+              key === "arrowright" ||
+              key === "arrowdown") &&
+            !event.repeat
+          ) {
+            playOneShotAudio("uiInput");
+            setPuzzleSelectionChoiceValue(
+              key === "arrowright" || key === "arrowdown"
+                ? "frequency"
+                : "power",
+            );
+          } else if ((key === "enter" || key === " ") && !event.repeat) {
+            playOneShotAudio("uiInput");
+            chooseInteractionPuzzle(puzzleSelectionChoiceRef.current);
+          }
+          return;
+        }
         if (
           eventTarget instanceof HTMLButtonElement &&
           (event.code === "Enter" || event.code === "Space")
@@ -6670,6 +6851,7 @@ export function MovementLab() {
       virtualCursorVisible = false;
       stopFootsteps();
       audioEvents.stop("dialogueTyping", { reset: false });
+      stopFrequencyFineTuningAudio(false);
     };
 
     const onVisibilityChange = () => {
@@ -6677,6 +6859,7 @@ export function MovementLab() {
         stopFootsteps();
         audioEvents.stop("bgm", { reset: false });
         audioEvents.stop("dialogueTyping", { reset: false });
+        stopFrequencyFineTuningAudio(false);
       } else {
         bgmPlayBlocked = false;
         requestBgmPlayback();
@@ -7445,7 +7628,7 @@ export function MovementLab() {
         return openCampPowerRefillConfirmation(interactable, source);
       }
       if (interactable.id === POWER_ROUTING_INTERACTION_ID) {
-        openPowerRoutingPuzzle(interactable, source);
+        openInteractionPuzzleSelection(interactable, source);
         if (source === "pointer") {
           pointerInteractionTriggeredId = interactable.id;
         }
@@ -8093,6 +8276,13 @@ export function MovementLab() {
           virtualCursorVisible = false;
           return;
         }
+        const bounds = canvas.getBoundingClientRect();
+        virtualCursor.x = clamp(event.clientX - bounds.left, 0, viewportWidth);
+        virtualCursor.y = clamp(event.clientY - bounds.top, 0, viewportHeight);
+        virtualCursorVisible = true;
+        return;
+      }
+      if (frequencyPuzzleOpenRef.current) {
         const bounds = canvas.getBoundingClientRect();
         virtualCursor.x = clamp(event.clientX - bounds.left, 0, viewportWidth);
         virtualCursor.y = clamp(event.clientY - bounds.top, 0, viewportHeight);
@@ -9431,11 +9621,16 @@ export function MovementLab() {
         gamepadInput.backPressed ||
         gamepadInput.startPressed ||
         gamepadInput.leftBumperPressed ||
+        gamepadInput.leftTriggerPressed ||
         gamepadInput.rightBumperPressed ||
+        gamepadInput.rightTriggerPressed ||
         gamepadInput.acceleratePressed;
       if (gamepadInput.connected && hasGamepadActivity) {
         activeInputMode = "gamepad";
         activateQuestPromptInputMode("gamepad");
+      }
+      if (frequencyPuzzleOpenRef.current) {
+        virtualCursorVisible = activeInputMode === "keyboard-mouse";
       }
       if (!virtualCursorControlsEnabledRef.current && gamepadCursorActive) {
         deactivateGamepadCursor();
@@ -9463,7 +9658,9 @@ export function MovementLab() {
           wasGamepadHotbarUsePressed = false;
           wasGamepadStartPressed = false;
           wasGamepadLeftBumperPressed = false;
+          wasGamepadLeftTriggerPressed = false;
           wasGamepadRightBumperPressed = false;
+          wasGamepadRightTriggerPressed = false;
           heldGamepadDpadX = 0;
           heldGamepadDpadY = 0;
           gamepadDpadXRepeatSeconds = 0;
@@ -9488,6 +9685,7 @@ export function MovementLab() {
         powerPuzzleCursorShownForSession = false;
       } else if (
         gamepadInput.connected &&
+        !frequencyPuzzleOpenRef.current &&
         !powerPuzzleCursorShownForSession
       ) {
         virtualCursorVisible = true;
@@ -9525,7 +9723,7 @@ export function MovementLab() {
           (frequencyPuzzleOpenRef.current &&
             Math.abs(gamepadInput.cursorX) >= 0.18));
       if (powerPuzzleDirectionalInputActive) {
-        activatePowerPuzzleDpadMode();
+        activateCurrentPuzzleControlMode();
       }
       if (
         campPowerConfirmationOpenRef.current &&
@@ -9633,6 +9831,14 @@ export function MovementLab() {
         gamepadInput.connected &&
         gamepadInput.rightBumperPressed &&
         !wasGamepadRightBumperPressed;
+      const leftTriggerJustPressed =
+        gamepadInput.connected &&
+        gamepadInput.leftTriggerPressed &&
+        !wasGamepadLeftTriggerPressed;
+      const rightTriggerJustPressed =
+        gamepadInput.connected &&
+        gamepadInput.rightTriggerPressed &&
+        !wasGamepadRightTriggerPressed;
       let campPowerConfirmationMenuOpen = campPowerConfirmationOpenRef.current;
       let powerPuzzleMenuOpen = powerPuzzleOpenRef.current;
       let optionsMenuOpen = optionsOpenRef.current;
@@ -9641,7 +9847,10 @@ export function MovementLab() {
         closeCampPowerConfirmation();
         campPowerConfirmationMenuOpen = false;
       } else if (powerPuzzleMenuOpen && backJustPressed) {
-        if (frequencyPuzzleOpenRef.current) {
+        if (puzzleSelectionOpenRef.current) {
+          playOneShotAudio("uiInput");
+          closePowerRoutingPuzzle();
+        } else if (frequencyPuzzleOpenRef.current) {
           frequencyPuzzleControllerRef.current?.cancel();
         } else {
           powerPuzzleControllerRef.current?.cancel();
@@ -9714,6 +9923,12 @@ export function MovementLab() {
       } else if (powerPuzzleMenuOpen) {
         gameplayHotbarDpadX = 0;
         if (frequencyPuzzleOpenRef.current) {
+          if (leftTriggerJustPressed) {
+            frequencyPuzzleControllerRef.current?.resetFrequency();
+          }
+          if (rightTriggerJustPressed) {
+            frequencyPuzzleControllerRef.current?.lockFrequency();
+          }
           frequencyPuzzleControllerRef.current?.setGamepadAnalogInput({
             leftX: gamepadInput.stickX,
             leftY: gamepadInput.stickY,
@@ -9733,10 +9948,15 @@ export function MovementLab() {
           heldGamepadDpadY = 0;
           gamepadDpadYRepeatSeconds = 0;
         } else if (dpadVertical !== heldGamepadDpadY) {
-          activatePowerPuzzleDpadMode();
+          activateCurrentPuzzleControlMode();
           heldGamepadDpadY = dpadVertical;
           gamepadDpadYRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
-          if (frequencyPuzzleOpenRef.current) {
+          if (puzzleSelectionOpenRef.current) {
+            playOneShotAudio("uiInput");
+            setPuzzleSelectionChoiceValue(
+              dpadVertical > 0 ? "frequency" : "power",
+            );
+          } else if (frequencyPuzzleOpenRef.current) {
             frequencyPuzzleControllerRef.current?.moveSelection(dpadVertical);
           } else {
             powerPuzzleControllerRef.current?.moveSelection(dpadVertical);
@@ -9744,8 +9964,12 @@ export function MovementLab() {
         } else {
           gamepadDpadYRepeatSeconds -= deltaTime;
           if (gamepadDpadYRepeatSeconds <= 0) {
-            activatePowerPuzzleDpadMode();
-            if (frequencyPuzzleOpenRef.current) {
+            activateCurrentPuzzleControlMode();
+            if (puzzleSelectionOpenRef.current) {
+              setPuzzleSelectionChoiceValue(
+                dpadVertical > 0 ? "frequency" : "power",
+              );
+            } else if (frequencyPuzzleOpenRef.current) {
               frequencyPuzzleControllerRef.current?.moveSelection(dpadVertical);
             } else {
               powerPuzzleControllerRef.current?.moveSelection(dpadVertical);
@@ -9766,10 +9990,15 @@ export function MovementLab() {
           heldGamepadDpadX = 0;
           gamepadDpadXRepeatSeconds = 0;
         } else if (dpadHorizontal !== heldGamepadDpadX) {
-          activatePowerPuzzleDpadMode();
+          activateCurrentPuzzleControlMode();
           heldGamepadDpadX = dpadHorizontal;
           gamepadDpadXRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
-          if (frequencyPuzzleOpenRef.current) {
+          if (puzzleSelectionOpenRef.current) {
+            playOneShotAudio("uiInput");
+            setPuzzleSelectionChoiceValue(
+              dpadHorizontal > 0 ? "frequency" : "power",
+            );
+          } else if (frequencyPuzzleOpenRef.current) {
             frequencyPuzzleControllerRef.current?.setSelectedDeviceActive(
               dpadHorizontal > 0,
             );
@@ -9781,8 +10010,12 @@ export function MovementLab() {
         } else {
           gamepadDpadXRepeatSeconds -= deltaTime;
           if (gamepadDpadXRepeatSeconds <= 0) {
-            activatePowerPuzzleDpadMode();
-            if (frequencyPuzzleOpenRef.current) {
+            activateCurrentPuzzleControlMode();
+            if (puzzleSelectionOpenRef.current) {
+              setPuzzleSelectionChoiceValue(
+                dpadHorizontal > 0 ? "frequency" : "power",
+              );
+            } else if (frequencyPuzzleOpenRef.current) {
               frequencyPuzzleControllerRef.current?.setSelectedDeviceActive(
                 dpadHorizontal > 0,
               );
@@ -9801,6 +10034,9 @@ export function MovementLab() {
         ) {
           if (powerPuzzleGamepadModeRef.current === "cursor") {
             activateVirtualCursorUi();
+          } else if (puzzleSelectionOpenRef.current) {
+            playOneShotAudio("uiInput");
+            chooseInteractionPuzzle(puzzleSelectionChoiceRef.current);
           } else if (frequencyPuzzleOpenRef.current) {
             frequencyPuzzleControllerRef.current?.activateSelection();
           } else {
@@ -9998,7 +10234,9 @@ export function MovementLab() {
       wasGamepadConfirmPressed = gamepadInput.confirmPressed;
       wasGamepadBackPressed = gamepadInput.backPressed;
       wasGamepadLeftBumperPressed = gamepadInput.leftBumperPressed;
+      wasGamepadLeftTriggerPressed = gamepadInput.leftTriggerPressed;
       wasGamepadRightBumperPressed = gamepadInput.rightBumperPressed;
+      wasGamepadRightTriggerPressed = gamepadInput.rightTriggerPressed;
       wasGamepadSecondaryActionPressed = gamepadInput.secondaryActionPressed;
       wasGamepadHotbarUsePressed = gamepadInput.hotbarUsePressed;
       wasGamepadActionPressed = gamepadInput.actionPressed;
@@ -10658,6 +10896,7 @@ export function MovementLab() {
       }
       stopFootsteps();
       stopDialogueTyping();
+      stopFrequencyFineTuningAudio(true);
       if (interactionFeedbackTimer !== null) {
         window.clearTimeout(interactionFeedbackTimer);
       }
@@ -11776,7 +12015,62 @@ export function MovementLab() {
         </menu>
       ) : null}
 
-      {powerPuzzleOpen && !frequencyPuzzleOpen ? (
+      {puzzleSelectionOpen ? (
+        <div
+          className="interaction-puzzle-selection-overlay"
+          onMouseDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            playOneShotAudio("uiInput");
+            closePowerRoutingPuzzle();
+          }}
+        >
+          <section
+            className="interaction-puzzle-selection"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="interaction-puzzle-selection-title"
+          >
+            <header>
+              <small>TEMPORARY PUZZLE SELECT</small>
+              <h3 id="interaction-puzzle-selection-title">選擇要進行的小遊戲</h3>
+              <p>這是 interaction-012 測試用的暫代選項視窗。</p>
+            </header>
+            <div className="interaction-puzzle-selection-options">
+              <button
+                type="button"
+                data-selected={puzzleSelectionChoice === "power"}
+                onFocus={() => setPuzzleSelectionChoiceValue("power")}
+                onMouseEnter={() => setPuzzleSelectionChoiceValue("power")}
+                onClick={() => {
+                  playOneShotAudio("uiInput");
+                  chooseInteractionPuzzle("power");
+                }}
+              >
+                <span aria-hidden="true">⚡</span>
+                <strong>電力分配小遊戲</strong>
+                <small>EMERGENCY POWER MANAGEMENT</small>
+              </button>
+              <button
+                type="button"
+                data-selected={puzzleSelectionChoice === "frequency"}
+                onFocus={() => setPuzzleSelectionChoiceValue("frequency")}
+                onMouseEnter={() => setPuzzleSelectionChoiceValue("frequency")}
+                onClick={() => {
+                  playOneShotAudio("uiInput");
+                  chooseInteractionPuzzle("frequency");
+                }}
+              >
+                <span aria-hidden="true">⌁</span>
+                <strong>調頻小遊戲</strong>
+                <small>FREQUENCY CALIBRATION</small>
+              </button>
+            </div>
+            <footer>方向鍵／左搖桿選擇 · Enter／A 確認 · Esc／B 返回</footer>
+          </section>
+        </div>
+      ) : null}
+
+      {powerPuzzleOpen && !frequencyPuzzleOpen && !puzzleSelectionOpen ? (
         <PowerRoutingPuzzle
           ref={powerPuzzleControllerRef}
           availablePower={campPowerState.current}
@@ -11789,11 +12083,18 @@ export function MovementLab() {
       {frequencyPuzzleOpen ? (
         <FrequencyCalibrationPuzzle
           ref={frequencyPuzzleControllerRef}
+          gamepadMode={questPromptInputMode === "gamepad"}
           onCancel={closePowerRoutingPuzzle}
+          onCoarseStep={() => playOneShotAudio("frequencyCoarseTick")}
           onComplete={() => {
             setStoryFlag(FREQUENCY_CALIBRATION_COMPLETION_FLAG, true);
           }}
+          onFineTuning={continueFrequencyFineTuningAudio}
+          onFineTuningStop={() => stopFrequencyFineTuningAudio(false)}
           onInput={() => playOneShotAudio("uiInput")}
+          onLockAttempt={(success) => {
+            playOneShotAudio(success ? "frequencyLocked" : "uiInput");
+          }}
         />
       ) : null}
 

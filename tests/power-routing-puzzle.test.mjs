@@ -78,7 +78,7 @@ test("目前所有開關組合都無法解開謎題", () => {
   }
 });
 
-test("interaction-012 是可重複開啟備用電力子視窗的入口", async () => {
+test("interaction-012 會先開暫代選項視窗，再選擇電力分配或調頻", async () => {
   const [scene, movementLabSource, puzzleSource] = await Promise.all([
     readFile(new URL("../public/maps/map_test01.scene.json", import.meta.url), "utf8")
       .then(JSON.parse),
@@ -95,7 +95,12 @@ test("interaction-012 是可重複開啟備用電力子視窗的入口", async (
     movementLabSource,
     /interactable\.id === POWER_ROUTING_INTERACTION_ID/,
   );
-  assert.match(movementLabSource, /openPowerRoutingPuzzle\(interactable, source\)/);
+  assert.match(movementLabSource, /openInteractionPuzzleSelection\(interactable, source\)/);
+  assert.match(movementLabSource, /chooseInteractionPuzzle/);
+  assert.match(movementLabSource, />電力分配小遊戲</);
+  assert.match(movementLabSource, />調頻小遊戲</);
+  assert.match(movementLabSource, /openPowerRoutingPuzzle\(session\.interactable, session\.source\)/);
+  assert.match(movementLabSource, /openFrequencyCalibrationPuzzle\(\)/);
   assert.match(movementLabSource, /completePowerPuzzleInteractionRef\.current/);
   assert.match(puzzleSource, /useState\(createInitialPowerRoutingState\)/);
   assert.match(puzzleSource, /evaluatePowerRouting\(state, availablePower\)/);
