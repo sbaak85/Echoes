@@ -4101,6 +4101,8 @@ html.dialogue-cursor-active .dialogue-box * {
 .frequency-puzzle-footer > * { border-right: 1px solid rgba(139, 123, 81, 0.2); }
 .frequency-puzzle-footer p { display: flex; gap: 13px; align-items: center; margin: 0; padding: 14px 22px; color: #66d991; font-size: 14px; line-height: 1.4; }
 .frequency-puzzle-footer p span { color: #50e4c7; font-size: 30px; }
+.frequency-puzzle-footer p.is-error { color: #ff6868; text-shadow: 0 0 8px rgba(255, 70, 70, 0.28); }
+.frequency-puzzle-footer p.is-error span { color: #ff6868; }
 .frequency-puzzle-footer button { margin: 9px; border: 1px solid rgba(156, 139, 96, 0.48); border-radius: 3px; background: linear-gradient(#242722, #111513); color: #d7ccb2; cursor: pointer; font-size: 17px; }
 .frequency-puzzle-footer button:hover,
 .frequency-puzzle-footer button.is-selected { border-color: #ebc45f; box-shadow: 0 0 15px rgba(224, 174, 49, 0.18); color: #ffe8a5; }

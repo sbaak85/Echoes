@@ -9,11 +9,15 @@ const questDocument = JSON.parse(
 const scene = JSON.parse(
   readFileSync(new URL("../public/maps/map_test01.scene.json", import.meta.url), "utf8"),
 );
+const scene2 = JSON.parse(
+  readFileSync(new URL("../public/maps/map_test02.scene.json", import.meta.url), "utf8"),
+);
 
 const QUEST_ID = "QUEST_CH03_MAIN_001";
 const INVENTORY_QUEST_ID = "QUEST_CH03_MAIN_002";
 const REST_QUEST_ID = "QUEST_CH03_MAIN_003";
 const HOPE_QUEST_ID = "QUEST_CH03_MAIN_004";
+const FAR_LIGHT_QUEST_ID = "QUEST_CH03_MAIN_005";
 
 function dispatch(manager, eventId, type, targetId) {
   manager.handleEvent({ eventId, type, targetId, amount: 1 });
@@ -248,4 +252,91 @@ test("正式場景的互動區與 ItemPoint 使用正確任務階段條件", () 
       stageMode: "CurrentStageOnly",
     });
   }
+});
+
+test("MAIN_005 preserves the hidden tool chain and advances through the power puzzle", () => {
+  const quest = questDocument.quests.find((candidate) => candidate.id === FAR_LIGHT_QUEST_ID);
+  assert.ok(quest);
+  assert.equal(quest.grantMethod, "afterDialogue");
+  assert.equal(quest.grantSourceId, "chapter03-section-4");
+  assert.deepEqual(quest.prerequisiteQuestIds, [HOPE_QUEST_ID]);
+  assert.deepEqual(
+    quest.stages.map((stage) => {
+      const objective = stage.objectives[0];
+      return [objective.type, objective.targetId, objective.displayText];
+    }),
+    [
+      ["interactionSucceeded", "interaction-021", "檢查臨時電腦的藍圖資料"],
+      ["interactionSucceeded", "interaction-020", "檢查共振發電機"],
+      ["collectItem", "T0008", "前往 Scene 2 調查崖下區域"],
+      ["collectItem", "R0001", "開採並取得藍色晶體碎片"],
+      ["interactionSucceeded", "interaction-013", "將藍色晶體碎片裝入發電共振器"],
+      ["interactionSucceeded", "interaction-012", "啟動電力分配系統"],
+    ],
+  );
+
+  const scene1Interactions = new Map(scene.interactables.map((entry) => [entry.id, entry]));
+  const scene2Interactions = new Map(scene2.interactables.map((entry) => [entry.id, entry]));
+  const requirementSummary = (interactionId) =>
+    scene1Interactions.get(interactionId).useRequirements.map((requirement) => [
+      requirement.kind,
+      requirement.stageId || requirement.itemId || requirement.minimumPower,
+    ]);
+
+  assert.deepEqual(requirementSummary("interaction-020"), [
+    ["questStage", `${FAR_LIGHT_QUEST_ID}_STAGE_02`],
+  ]);
+  assert.deepEqual(requirementSummary("interaction-019"), [
+    ["questStage", `${FAR_LIGHT_QUEST_ID}_STAGE_03`],
+    ["item", "T0010"],
+  ]);
+  assert.equal(scene1Interactions.get("interaction-019").itemRewards[0].itemId, "T0001");
+  assert.deepEqual(requirementSummary("interaction-006"), [
+    ["questStage", `${FAR_LIGHT_QUEST_ID}_STAGE_04`],
+    ["item", "T0008"],
+  ]);
+  assert.deepEqual(requirementSummary("interaction-013"), [
+    ["questStage", `${FAR_LIGHT_QUEST_ID}_STAGE_05`],
+    ["item", "R0001"],
+  ]);
+  assert.deepEqual(requirementSummary("interaction-012"), [
+    ["questStage", `${FAR_LIGHT_QUEST_ID}_STAGE_06`],
+    ["campPower", 5],
+  ]);
+
+  for (const interactionId of ["interaction-001", "interaction-002"]) {
+    const requirements = scene2Interactions.get(interactionId).useRequirements;
+    assert.equal(requirements[0].stageId, `${FAR_LIGHT_QUEST_ID}_STAGE_03`);
+    assert.equal(requirements[0].stageMode, "UnlockFromStage");
+    assert.equal(requirements[1].kind, "item");
+    assert.equal(requirements[1].itemId, "T0001");
+  }
+  assert.deepEqual(scene2.itemPoints[0].spawnRequirement, {
+    questId: FAR_LIGHT_QUEST_ID,
+    stageId: `${FAR_LIGHT_QUEST_ID}_STAGE_03`,
+    stageMode: "UnlockFromStage",
+  });
+  assert.equal(scene2.itemPoints[0].itemId, "T0008");
+
+  const isolatedDocument = {
+    schemaVersion: questDocument.schemaVersion,
+    chapters: questDocument.chapters,
+    quests: [{ ...structuredClone(quest), prerequisiteQuestIds: [] }],
+  };
+  const manager = new QuestRuntimeManager(isolatedDocument);
+  assert.equal(manager.startQuest(FAR_LIGHT_QUEST_ID), true);
+  const expectedStages = quest.stages.map((stage) => stage.id);
+  const events = [
+    ["interactionSucceeded", "interaction-021"],
+    ["interactionSucceeded", "interaction-020"],
+    ["itemCollected", "T0008"],
+    ["itemCollected", "R0001"],
+    ["interactionSucceeded", "interaction-013"],
+    ["interactionSucceeded", "interaction-012"],
+  ];
+  for (const [index, [type, targetId]] of events.entries()) {
+    assert.equal(manager.getCurrentStage(FAR_LIGHT_QUEST_ID), expectedStages[index]);
+    dispatch(manager, `main005:${index}`, type, targetId);
+  }
+  assert.equal(manager.getQuestState(FAR_LIGHT_QUEST_ID), "completed");
 });

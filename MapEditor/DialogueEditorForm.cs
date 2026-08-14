@@ -3,6 +3,7 @@ namespace Echoes.MapEditor;
 public sealed class DialogueEditorForm : Form
 {
     private const string AddSpeakerOption = "＋ 新增發話者…";
+    private const string DefaultNewLineSpeaker = "Sbaak";
     private const int SpeakerColumnIndex = 0;
     private const int TextColumnIndex = 1;
     private const int GroupColumnIndex = 2;
@@ -369,7 +370,7 @@ public sealed class DialogueEditorForm : Form
     private void AddLine()
     {
         var grid = ActiveGrid;
-        var index = grid.Rows.Add(null, "...", null, null);
+        var index = grid.Rows.Add(DefaultNewLineSpeaker, "...", null, null);
         grid.Rows[index].Tag = null;
         ApplyGridSelection(grid, new[] { index });
         grid.CurrentCell = grid.Rows[index].Cells[TextColumnIndex];

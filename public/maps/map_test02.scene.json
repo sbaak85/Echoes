@@ -13,7 +13,7 @@
   },
   "grid": {
     "size": 5,
-    "visible": true,
+    "visible": false,
     "snap": true
   },
   "playerSpawn": {
@@ -474,8 +474,8 @@
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
-          "questId": "QUEST_CH03_MAIN_002",
-          "stageId": "QUEST_CH03_MAIN_002_STAGE_01",
+          "questId": "QUEST_CH03_MAIN_005",
+          "stageId": "QUEST_CH03_MAIN_005_STAGE_03",
           "stageMode": "UnlockFromStage",
           "disableQuestId": "",
           "disableStageId": "",
@@ -610,8 +610,8 @@
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
-          "questId": "QUEST_CH03_MAIN_002",
-          "stageId": "QUEST_CH03_MAIN_002_STAGE_01",
+          "questId": "QUEST_CH03_MAIN_005",
+          "stageId": "QUEST_CH03_MAIN_005_STAGE_03",
           "stageMode": "UnlockFromStage",
           "disableQuestId": "",
           "disableStageId": "",
@@ -695,6 +695,11 @@
       "quantity": 1,
       "spawnPolicy": "once",
       "showOnMinimap": true,
+      "spawnRequirement": {
+        "questId": "QUEST_CH03_MAIN_005",
+        "stageId": "QUEST_CH03_MAIN_005_STAGE_03",
+        "stageMode": "UnlockFromStage"
+      },
       "x": 435,
       "y": 1175
     }

@@ -7,6 +7,19 @@ export const FREQUENCY_COARSE_MIN = 1;
 export const FREQUENCY_COARSE_MAX = 8;
 export const FREQUENCY_FINE_MIN = 0;
 export const FREQUENCY_FINE_MAX = 100;
+export const FREQUENCY_FINE_DISPLAY_MIN = -3;
+export const FREQUENCY_FINE_DISPLAY_MAX = 3;
+
+export const FREQUENCY_COARSE_FINE_RESET_DISPLAY_VALUES = {
+  1: -1.3,
+  2: 0.7,
+  3: -0.9,
+  4: -2.5,
+  5: 1.2,
+  6: -0.5,
+  7: -2,
+  8: 0.75,
+} as const;
 
 export const FREQUENCY_GAMEPAD_DIAL_DEAD_ZONE = 0.24;
 export const FREQUENCY_GAMEPAD_FINE_DEAD_ZONE = 0.18;
@@ -39,10 +52,26 @@ export const DEFAULT_FREQUENCY_CALIBRATION_CONFIG: FrequencyCalibrationPuzzleCon
   id: "COMM_ARRAY_CALIBRATION_01",
   title: "通訊陣列－頻率調校",
   stageLabel: "階段 2 / 4・測試通訊調頻",
-  initial: { coarse: 4, fine: 50 },
+  initial: { coarse: 2, fine: frequencyFineDisplayToValue(0.7) },
   target: { coarse: 7, fine: 85 },
   fineTolerance: 1,
 };
+
+export function getFrequencyVisualSignalStrength(
+  state: FrequencyCalibrationState,
+  randomValue = Math.random(),
+): number {
+  const normalized = clampFrequencyState(state);
+  const fineError = Math.abs(normalized.fine - 85);
+
+  if (normalized.coarse === 7 && normalized.fine >= 80 && normalized.fine <= 90) {
+    if (fineError === 0) return 100;
+    const nearTargetStrength = 93 + (1 - fineError / 5) * 6;
+    return Math.min(99, Math.round(nearTargetStrength + randomValue * 0.8));
+  }
+
+  return Math.round(12 + Math.max(0, Math.min(1, randomValue)) * 68);
+}
 
 export function clampFrequencyState(
   state: FrequencyCalibrationState,
@@ -57,6 +86,36 @@ export function clampFrequencyState(
       Math.max(FREQUENCY_FINE_MIN, Math.round(state.fine)),
     ),
   };
+}
+
+export function frequencyFineDisplayToValue(displayValue: number): number {
+  const displayRange = FREQUENCY_FINE_DISPLAY_MAX - FREQUENCY_FINE_DISPLAY_MIN;
+  const normalized =
+    (displayValue - FREQUENCY_FINE_DISPLAY_MIN) / displayRange;
+  return Math.min(
+    FREQUENCY_FINE_MAX,
+    Math.max(FREQUENCY_FINE_MIN, normalized * FREQUENCY_FINE_MAX),
+  );
+}
+
+export function frequencyFineValueToDisplay(fineValue: number): number {
+  const normalized =
+    (fineValue - FREQUENCY_FINE_MIN) /
+    (FREQUENCY_FINE_MAX - FREQUENCY_FINE_MIN);
+  return (
+    FREQUENCY_FINE_DISPLAY_MIN +
+    normalized * (FREQUENCY_FINE_DISPLAY_MAX - FREQUENCY_FINE_DISPLAY_MIN)
+  );
+}
+
+export function getFrequencyFineResetValue(coarse: number): number {
+  const normalizedCoarse = Math.min(
+    FREQUENCY_COARSE_MAX,
+    Math.max(FREQUENCY_COARSE_MIN, Math.round(coarse)),
+  ) as keyof typeof FREQUENCY_COARSE_FINE_RESET_DISPLAY_VALUES;
+  return frequencyFineDisplayToValue(
+    FREQUENCY_COARSE_FINE_RESET_DISPLAY_VALUES[normalizedCoarse],
+  );
 }
 
 export function evaluateFrequencyCalibration(

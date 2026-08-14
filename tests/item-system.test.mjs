@@ -78,11 +78,11 @@ test("Item All 會將道具清單中的每種道具各加入背包一個", () =>
   });
 });
 
-test("中央道具資料庫固定保留 100 欄，現有 30 項道具都有分類流水號與英文名稱", () => {
+test("中央道具資料庫固定保留 100 欄，現有 31 項道具都有分類流水號與英文名稱", () => {
   assert.equal(validateItemDatabase(), true);
   assert.equal(ITEM_DATABASE.length, ITEM_DATABASE_CAPACITY);
   assert.equal(ITEM_DATABASE_CAPACITY, 100);
-  assert.equal(ITEM_DEFINITIONS.length, 30);
+  assert.equal(ITEM_DEFINITIONS.length, 31);
   ITEM_DEFINITIONS.forEach((item) => {
     assert.match(item.id, /^[RTQM]\d{4}$/);
     assert.ok(item.englishName.length > 0);
@@ -103,7 +103,7 @@ test("中央道具資料庫固定保留 100 欄，現有 30 項道具都有分�
     ],
   );
   assert.deepEqual(
-    ["T0003", "T0008", "T0009"].map((id) => {
+    ["T0003", "T0008", "T0009", "T0010"].map((id) => {
       const item = ITEM_DEFINITIONS.find((entry) => entry.id === id);
       return [item?.id, item?.englishName, item?.name, item?.category];
     }),
@@ -111,6 +111,7 @@ test("中央道具資料庫固定保留 100 欄，現有 30 項道具都有分�
       ["T0003", "repair-kit", "多功能工具箱", "tool"],
       ["T0008", "digging-shovel", "挖掘鏟", "tool"],
       ["T0009", "multifunction-folding-knife", "多功能折刀", "tool"],
+      ["T0010", "sharp-metal-fragment", "鋒利的金屬片", "tool"],
     ],
   );
 });

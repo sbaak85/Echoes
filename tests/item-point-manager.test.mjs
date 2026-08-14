@@ -20,8 +20,9 @@ test("ItemPoint keeps one item, quantity, policy and minimap flag", () => {
     quantity: 3,
     spawnPolicy: "daily",
     showOnMinimap: true,
-  }], resolveItemId);
+  }], resolveItemId, "Scene_Test");
   assert.deepEqual(point, {
+    sceneId: "Scene_Test",
     id: "item-point-001",
     label: "測試晶體",
     x: 120,
@@ -37,6 +38,7 @@ test("once ItemPoint stays collected while daily ItemPoint returns next 06:00 cy
   const session = new Set();
   let progress = createInitialItemPointProgress();
   const oncePoint = {
+    sceneId: "Scene_A",
     id: "once",
     label: "一次",
     x: 1,
@@ -58,6 +60,7 @@ test("once ItemPoint stays collected while daily ItemPoint returns next 06:00 cy
 
 test("scene-entry ItemPoint returns only after a new scene session", () => {
   const point = {
+    sceneId: "Scene_A",
     id: "scene",
     label: "進圖",
     x: 1,
@@ -106,7 +109,7 @@ test("ItemPoint stage requirements gate spawn before existing spawn policy", () 
         stageMode: "UnlockFromStage",
       },
     },
-  ], resolveItemId);
+  ], resolveItemId, "Scene_A");
   const progress = createInitialItemPointProgress();
   const session = new Set();
   const stage2 = {
@@ -122,4 +125,30 @@ test("ItemPoint stage requirements gate spawn before existing spawn policy", () 
   assert.equal(isItemPointAvailable(currentOnly, progress, 360, session, stage2), true);
   assert.equal(isItemPointAvailable(currentOnly, progress, 360, session, stage3), false);
   assert.equal(isItemPointAvailable(unlocked, progress, 360, session, stage3), true);
+});
+
+test("相同 ItemPoint ID 在不同 Scene 會使用獨立的生成與拾取進度", () => {
+  const sceneA = {
+    sceneId: "Scene_A",
+    id: "item-point-001",
+    label: "Scene A Item",
+    x: 1,
+    y: 1,
+    itemId: "R0001",
+    quantity: 1,
+    spawnPolicy: "once",
+    showOnMinimap: false,
+  };
+  const sceneB = { ...sceneA, sceneId: "Scene_B", label: "Scene B Item" };
+  const session = new Set();
+  const progress = recordItemPointCollected(
+    sceneA,
+    createInitialItemPointProgress(),
+    360,
+    session,
+  );
+
+  assert.equal(isItemPointAvailable(sceneA, progress, 360, session), false);
+  assert.equal(isItemPointAvailable(sceneB, progress, 360, session), true);
+  assert.deepEqual(progress.onceCollectedIds, ["Scene_A:item-point-001"]);
 });

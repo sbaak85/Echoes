@@ -943,6 +943,7 @@ let SCENE_STORY_TRIGGERS = SCENE_DATA.storyTriggers ?? [];
 let SCENE_ITEM_POINTS = normalizeSceneItemPoints(
   SCENE_DATA.itemPoints,
   resolveItemId,
+  SCENE_DATA.sceneId,
 );
 let ITEM_POINT_RUNTIME_POSITIONS = new Map(
   SCENE_ITEM_POINTS.map((itemPoint) => [
@@ -1031,7 +1032,11 @@ function activateSceneRuntime(scene: SceneFile) {
   ];
   SCENE_MOVEMENT_GUIDES = scene.movementGuides ?? [];
   SCENE_STORY_TRIGGERS = scene.storyTriggers ?? [];
-  SCENE_ITEM_POINTS = normalizeSceneItemPoints(scene.itemPoints, resolveItemId);
+  SCENE_ITEM_POINTS = normalizeSceneItemPoints(
+    scene.itemPoints,
+    resolveItemId,
+    scene.sceneId,
+  );
   ITEM_POINT_RUNTIME_POSITIONS = new Map(
     SCENE_ITEM_POINTS.map((itemPoint) => [
       itemPoint.id,
@@ -1045,7 +1050,7 @@ function getItemPointInteractable(itemPoint: SceneItemPoint): SceneInteractable 
   if (!item) return null;
   const position = ITEM_POINT_RUNTIME_POSITIONS.get(itemPoint.id) ?? itemPoint;
   return {
-    id: `item-point:${itemPoint.id}`,
+    id: `item-point:${itemPoint.sceneId}:${itemPoint.id}`,
     label: item.name,
     position: { x: position.x, y: position.y },
     interactionPoint: { x: position.x, y: position.y, facing: "S" },
@@ -1055,7 +1060,7 @@ function getItemPointInteractable(itemPoint: SceneItemPoint): SceneInteractable 
     verb: "拾取",
     itemId: item.id,
     quantity: itemPoint.quantity,
-    worldItemId: `item-point:${itemPoint.id}`,
+    worldItemId: `item-point:${itemPoint.sceneId}:${itemPoint.id}`,
     worldItemKind: "itemPoint",
     itemPointId: itemPoint.id,
   };

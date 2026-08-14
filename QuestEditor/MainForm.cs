@@ -26,8 +26,20 @@ internal sealed class MainForm : Form
 
     private QuestDefinition? SelectedQuest => _questTree.SelectedNode?.Tag as QuestDefinition;
     private QuestStageDefinition? SelectedStage => _stageList.SelectedItem as QuestStageDefinition;
-    private QuestObjectiveDefinition? SelectedObjective =>
-        _objectiveGrid.CurrentRow?.DataBoundItem as QuestObjectiveDefinition;
+    private QuestObjectiveDefinition? SelectedObjective
+    {
+        get
+        {
+            // CurrencyManager briefly has Position == -1 while switching stages.
+            // Resolve the selection through the stage list instead of requesting
+            // DataBoundItem during that incomplete binding state.
+            var rowIndex = _objectiveGrid.CurrentCell?.RowIndex ?? -1;
+            var stage = SelectedStage;
+            return stage is not null && rowIndex >= 0 && rowIndex < stage.Objectives.Count
+                ? stage.Objectives[rowIndex]
+                : null;
+        }
+    }
 
     public MainForm(string projectRoot, string dataPath)
     {
@@ -39,7 +51,7 @@ internal sealed class MainForm : Form
         InitializeWindow();
         BuildUi();
         RebuildTree();
-        ValidateDocument();
+        MarkValidationPending();
         UpdateTitle();
     }
 
@@ -433,7 +445,7 @@ internal sealed class MainForm : Form
             _objectiveGrid.Refresh();
             UpdateReferenceList();
         }
-        ValidateDocument();
+        MarkValidationPending();
     }
 
     private void UpdateReferenceList()
@@ -527,7 +539,7 @@ internal sealed class MainForm : Form
         _propertyGrid.Refresh();
         _objectiveGrid.Refresh();
         MarkDirty();
-        ValidateDocument();
+        MarkValidationPending();
     }
 
     private void OnObjectiveGridEditCommitted()
@@ -536,13 +548,15 @@ internal sealed class MainForm : Form
         MarkDirty();
         _propertyGrid.Refresh();
         UpdateReferenceList();
-        ValidateDocument();
+        MarkValidationPending();
     }
 
     private void CommitPendingObjectiveEdit()
     {
         _objectiveGrid.EndEdit();
-        if (_objectiveGrid.DataSource is not null && BindingContext[_objectiveGrid.DataSource] is CurrencyManager manager)
+        if (_objectiveGrid.DataSource is not null &&
+            BindingContext[_objectiveGrid.DataSource] is CurrencyManager manager &&
+            manager.Position >= 0 && manager.Position < manager.Count)
             manager.EndCurrentEdit();
     }
 
@@ -609,7 +623,7 @@ internal sealed class MainForm : Form
         else return;
         MarkDirty();
         RebuildTree();
-        ValidateDocument();
+        MarkValidationPending();
     }
 
     private void AddStage()
@@ -650,7 +664,7 @@ internal sealed class MainForm : Form
         _stageList.DataSource = quest.Stages;
         _stageList.SelectedItem = selection ?? quest.Stages.FirstOrDefault();
         MarkDirty();
-        ValidateDocument();
+        MarkValidationPending();
     }
 
     private void AddObjective()
@@ -720,14 +734,14 @@ internal sealed class MainForm : Form
             UpdateReferenceList();
         }
         MarkDirty();
-        ValidateDocument();
+        MarkValidationPending();
     }
 
     private void ReloadReferences()
     {
         _references = QuestReferenceProvider.Load(_projectRoot);
         UpdateReferenceList();
-        ValidateDocument();
+        MarkValidationPending();
         _statusText.Text = "已重新讀取 Item、場景、對話與事件流程 ID。";
     }
 
@@ -747,11 +761,24 @@ internal sealed class MainForm : Form
         MessageBox.Show(tutorial, "任務編輯器使用教學", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
+    private void MarkValidationPending()
+    {
+        _validationList.DataSource = null;
+        _validationList.Items.Clear();
+        _validationList.ForeColor = Theme.Muted;
+        _statusText.Text = "資料尚未驗證；可繼續編輯，儲存或按【驗證資料】時才會檢查。";
+    }
+
     private void ValidateDocument()
     {
         var issues = QuestValidator.Validate(_document, _references);
+        DisplayValidationIssues(issues);
+    }
+
+    private void DisplayValidationIssues(IReadOnlyCollection<QuestValidationIssue> issues)
+    {
         _validationList.DataSource = null;
-        _validationList.DataSource = issues;
+        _validationList.DataSource = issues.ToList();
         _validationList.ForeColor = issues.Any(issue => issue.Severity == ValidationSeverity.Error)
             ? Color.FromArgb(244, 153, 143)
             : Theme.Text;
@@ -786,6 +813,7 @@ internal sealed class MainForm : Form
         CommitPendingObjectiveEdit();
         _propertyGrid.Refresh();
         var issues = QuestValidator.Validate(_document, _references);
+        DisplayValidationIssues(issues);
         if (issues.Any(issue => issue.Severity == ValidationSeverity.Error) &&
             MessageBox.Show("資料仍有錯誤。要保留草稿並繼續儲存嗎？", "任務資料驗證", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
             return;
@@ -810,7 +838,7 @@ internal sealed class MainForm : Form
         _document = QuestDataStore.Load(_dataPath);
         _dirty = false;
         RebuildTree();
-        ValidateDocument();
+        MarkValidationPending();
         UpdateTitle();
     }
 

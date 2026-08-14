@@ -21,8 +21,11 @@ import {
   FREQUENCY_GAMEPAD_FINE_DEAD_ZONE,
   FREQUENCY_GAMEPAD_FINE_UNITS_PER_SECOND,
   evaluateFrequencyCalibration,
+  frequencyFineValueToDisplay,
   frequencyCoarseFromDialAngle,
   frequencyDialAngleFromStick,
+  getFrequencyVisualSignalStrength,
+  getFrequencyFineResetValue,
   stepFrequencyCoarse,
   stepFrequencyFine,
   type FrequencyCalibrationPuzzleConfig,
@@ -31,7 +34,6 @@ import {
 
 type FrequencyControlTarget = "coarse" | "fine" | "lock";
 
-const SIGNAL_METER_CELL_COUNT = 24;
 const FREQUENCY_COARSE_BAND_COUNT =
   FREQUENCY_COARSE_MAX - FREQUENCY_COARSE_MIN + 1;
 const FREQUENCY_COARSE_BAND_ANGLE = 360 / FREQUENCY_COARSE_BAND_COUNT;
@@ -52,6 +54,25 @@ const SUCCESS_FEEDBACK_MESSAGES = [
   "量子通訊頻道正在建立穩定連線。",
   "量子通訊頻道頻率接收成功。",
 ] as const;
+const FINE_TUNING_FEEDBACK_MESSAGES = [
+  "正在比對目標波形…",
+  "正在分析接收波形的相位差…",
+  "正在排除頻段中的背景雜訊…",
+  "正在校準訊號峰值與波谷…",
+  "接收頻率正在進行精密校對…",
+  "正在縮小與目標頻率的偏差…",
+] as const;
+const FAILED_LOCK_FEEDBACK_MESSAGES = [
+  "頻率鎖定失敗，接收波形尚未重疊。",
+  "訊號偏差過大，無法建立穩定通訊。",
+  "鎖定程序中斷，請重新調整頻率。",
+  "目標波形未同步，頻道連線失敗。",
+  "接收訊號仍有干擾，請再次校準。",
+] as const;
+
+type FrequencyFeedbackTone = "normal" | "error";
+
+const INVERTED_WAVEFORM_FINE_BANDS = new Set([1, 3, 4, 6]);
 
 type FrequencyCalibrationPuzzleProps = {
   config?: FrequencyCalibrationPuzzleConfig;
@@ -88,7 +109,11 @@ function surfaceValue(
   target: boolean,
 ) {
   const frequency = target ? 7 : coarse;
-  const tuning = target ? 85 : fine;
+  const tuning = target
+    ? 85
+    : INVERTED_WAVEFORM_FINE_BANDS.has(coarse)
+      ? 100 - fine
+      : fine;
   const shiftX = (frequency - 5) * 0.055;
   const shiftY = (tuning - 50) * 0.0028;
   const peakA = Math.exp(
@@ -224,6 +249,8 @@ export const FrequencyCalibrationPuzzle = forwardRef<
   const [selectionFrameVisible, setSelectionFrameVisible] = useState(true);
   const [locked, setLocked] = useState(false);
   const [feedback, setFeedback] = useState("調整預調與微調頻率，使兩組波形完全重疊。");
+  const [feedbackTone, setFeedbackTone] =
+    useState<FrequencyFeedbackTone>("normal");
   const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
   const dialRef = useRef<HTMLDivElement>(null);
   const fineInputRef = useRef<HTMLInputElement>(null);
@@ -231,6 +258,11 @@ export const FrequencyCalibrationPuzzle = forwardRef<
   const lockedRef = useRef(locked);
   const dialAngleRef = useRef(coarseBandToDialAngle(config.initial.coarse));
   const fineAnalogRemainderRef = useRef(0);
+  const fineFeedbackIndexRef = useRef(0);
+  const failedLockFeedbackIndexRef = useRef(0);
+  const visualSignalStrengthRef = useRef(
+    getFrequencyVisualSignalStrength(config.initial),
+  );
   const successSequenceTimersRef = useRef<number[]>([]);
   const evaluation = useMemo(
     () => evaluateFrequencyCalibration(state, config),
@@ -241,12 +273,10 @@ export const FrequencyCalibrationPuzzle = forwardRef<
       (FREQUENCY_FINE_MAX - FREQUENCY_FINE_MIN)) *
     100;
   const fineThumbProgress = 1.6 + fineProgress * 0.968;
-  const signalCellUnits =
-    (evaluation.strength / 100) * SIGNAL_METER_CELL_COUNT;
-  const fineScaleValue = -3 + (fineProgress / 100) * 6;
+  const fineScaleValue = frequencyFineValueToDisplay(state.fine);
   const fineScaleOutput = `${fineScaleValue >= 0 ? "+" : ""}${fineScaleValue
-    .toFixed(1)
-    .replace(/\.0$/, "")}`;
+    .toFixed(2)
+    .replace(/\.?0+$/, "")}`;
   stateRef.current = state;
   lockedRef.current = locked;
 
@@ -272,6 +302,7 @@ export const FrequencyCalibrationPuzzle = forwardRef<
 
   const playSuccessSequence = () => {
     clearSuccessSequenceTimers();
+    setFeedbackTone("normal");
     setFeedback(SUCCESS_FEEDBACK_MESSAGES[0]);
     SUCCESS_FEEDBACK_MESSAGES.slice(1).forEach((message, index) => {
       const timerId = window.setTimeout(() => {
@@ -297,10 +328,16 @@ export const FrequencyCalibrationPuzzle = forwardRef<
     setSelectedControl("coarse");
     if (currentState.coarse === nextValue) return;
     if (options.playInput !== false) onCoarseStep?.();
-    const nextState = { ...currentState, coarse: nextValue };
+    const nextState = {
+      ...currentState,
+      coarse: nextValue,
+      fine: getFrequencyFineResetValue(nextValue),
+    };
     stateRef.current = nextState;
     setState(nextState);
-    setFeedback("正在重新擷取頻段…");
+    visualSignalStrengthRef.current = getFrequencyVisualSignalStrength(nextState);
+    setFeedbackTone("normal");
+    setFeedback("已切換預調頻段，微調頻率已重新校準。 ");
   };
 
   const changeFine = (
@@ -315,9 +352,15 @@ export const FrequencyCalibrationPuzzle = forwardRef<
     stateRef.current = nextState;
     setState(nextState);
     if (options.playInput !== false) {
-      onFineTuning?.(evaluateFrequencyCalibration(nextState, config).strength);
+      visualSignalStrengthRef.current = getFrequencyVisualSignalStrength(nextState);
+      onFineTuning?.(visualSignalStrengthRef.current);
     }
-    setFeedback("正在比對目標波形…");
+    setFeedbackTone("normal");
+    setFeedback(
+      FINE_TUNING_FEEDBACK_MESSAGES[
+        fineFeedbackIndexRef.current++ % FINE_TUNING_FEEDBACK_MESSAGES.length
+      ],
+    );
   };
 
   const lockFrequency = () => {
@@ -326,7 +369,12 @@ export const FrequencyCalibrationPuzzle = forwardRef<
     const currentEvaluation = evaluateFrequencyCalibration(stateRef.current, config);
     onLockAttempt?.(currentEvaluation.canLock);
     if (!currentEvaluation.canLock) {
-      setFeedback("目前的頻率不正確，請繼續調整波形。");
+      setFeedbackTone("error");
+      setFeedback(
+        FAILED_LOCK_FEEDBACK_MESSAGES[
+          failedLockFeedbackIndexRef.current++ % FAILED_LOCK_FEEDBACK_MESSAGES.length
+        ],
+      );
       return;
     }
     lockedRef.current = true;
@@ -350,7 +398,9 @@ export const FrequencyCalibrationPuzzle = forwardRef<
     clearSuccessSequenceTimers();
     lockedRef.current = false;
     setLocked(false);
+    setFeedbackTone("normal");
     setState(config.initial);
+    visualSignalStrengthRef.current = getFrequencyVisualSignalStrength(config.initial);
     updateDialAngle(coarseBandToDialAngle(config.initial.coarse));
     fineAnalogRemainderRef.current = 0;
     setSelectionFrameVisible(true);
@@ -401,10 +451,16 @@ export const FrequencyCalibrationPuzzle = forwardRef<
       if (coarseChanged) {
         onCoarseStep?.();
         updateDialAngle(coarseBandToDialAngle(nextCoarse));
-        const nextState = { ...stateRef.current, coarse: nextCoarse };
+        const nextState = {
+          ...stateRef.current,
+          coarse: nextCoarse,
+          fine: getFrequencyFineResetValue(nextCoarse),
+        };
         stateRef.current = nextState;
         setState(nextState);
-        setFeedback("預調頻率已切換至指定頻段。");
+        visualSignalStrengthRef.current = getFrequencyVisualSignalStrength(nextState);
+        setFeedbackTone("normal");
+        setFeedback("預調頻率已切換，微調頻率已回到該頻段預設值。");
       }
     }
 
@@ -431,8 +487,14 @@ export const FrequencyCalibrationPuzzle = forwardRef<
       const nextState = { ...stateRef.current, fine: nextFine };
       stateRef.current = nextState;
       setState(nextState);
-      onFineTuning?.(evaluateFrequencyCalibration(nextState, config).strength);
-      setFeedback("接收頻率正在進行精密校對…");
+      visualSignalStrengthRef.current = getFrequencyVisualSignalStrength(nextState);
+      onFineTuning?.(visualSignalStrengthRef.current);
+      setFeedbackTone("normal");
+      setFeedback(
+        FINE_TUNING_FEEDBACK_MESSAGES[
+          fineFeedbackIndexRef.current++ % FINE_TUNING_FEEDBACK_MESSAGES.length
+        ],
+      );
     }
   };
 
@@ -621,31 +683,6 @@ export const FrequencyCalibrationPuzzle = forwardRef<
             <div className="frequency-wave-canvas-wrap">
               <canvas ref={waveformCanvasRef} aria-label="即時三維波形比較" />
             </div>
-            <div className="frequency-signal-row">
-              <span>訊號強度</span>
-              <span
-                className="frequency-signal-cells"
-                role="meter"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={evaluation.strength}
-              >
-                {Array.from({ length: SIGNAL_METER_CELL_COUNT }, (_, index) => {
-                  const fillAmount = Math.max(0, Math.min(1, signalCellUnits - index));
-                  return (
-                    <i className="frequency-signal-cell" key={index}>
-                      <b style={{ height: `${fillAmount * 78}%` }} />
-                      <img
-                        src="/ui/frequency-calibration/signal-meter-cell.png"
-                        alt=""
-                        draggable={false}
-                      />
-                    </i>
-                  );
-                })}
-              </span>
-              <strong>{evaluation.strength}%<small>{evaluation.statusLabel}</small></strong>
-            </div>
             <label className={`frequency-fine-control${selectedControl === "fine" && selectionFrameVisible ? " is-selected" : ""}`}>
               <span>微調頻率</span>
               <span className="frequency-fine-slider">
@@ -699,13 +736,13 @@ export const FrequencyCalibrationPuzzle = forwardRef<
         </div>
 
         <footer className="frequency-puzzle-footer">
-          <p aria-live="polite"><span aria-hidden="true">⌁</span>{feedback}</p>
+          <p className={feedbackTone === "error" ? "is-error" : undefined} aria-live="polite"><span aria-hidden="true">⌁</span>{feedback}</p>
           <button type="button" onClick={reset}>
             {gamepadMode ? <span className="frequency-trigger-key" aria-hidden="true">LT</span> : <span aria-hidden="true">↻</span>}
             重設頻率
           </button>
           <button
-            className={`${evaluation.canLock ? "is-ready" : ""}${selectedControl === "lock" && selectionFrameVisible ? " is-selected" : ""}`}
+            className={`is-ready${selectedControl === "lock" && selectionFrameVisible ? " is-selected" : ""}`}
             type="button"
             onFocus={() => {
               setSelectionFrameVisible(true);

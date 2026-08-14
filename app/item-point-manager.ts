@@ -15,6 +15,7 @@ export type ItemPointStageQuery = {
 };
 
 export type SceneItemPoint = {
+  sceneId: string;
   id: string;
   label: string;
   x: number;
@@ -40,6 +41,7 @@ export function createInitialItemPointProgress(): ItemPointProgress {
 export function normalizeSceneItemPoints(
   value: unknown,
   resolveItemId: (itemId: string) => string | null,
+  sceneId = "unknown-scene",
 ): SceneItemPoint[] {
   if (!Array.isArray(value)) return [];
   const seenIds = new Set<string>();
@@ -58,6 +60,7 @@ export function normalizeSceneItemPoints(
     seenIds.add(id);
     const spawnRequirement = normalizeSpawnRequirement(candidate.spawnRequirement);
     return [{
+      sceneId: sceneId.trim() || "unknown-scene",
       id,
       label:
         typeof candidate.label === "string" && candidate.label.trim()
@@ -75,6 +78,10 @@ export function normalizeSceneItemPoints(
       ...(spawnRequirement ? { spawnRequirement } : {}),
     }];
   });
+}
+
+export function getItemPointProgressId(itemPoint: SceneItemPoint) {
+  return `${itemPoint.sceneId}:${itemPoint.id}`;
 }
 
 function normalizeSpawnRequirement(value: unknown): ItemPointSpawnRequirement | undefined {
@@ -138,6 +145,7 @@ export function isItemPointAvailable(
   sceneEntryCollectedIds: ReadonlySet<string>,
   stageQuery?: ItemPointStageQuery | null,
 ) {
+  const progressId = getItemPointProgressId(itemPoint);
   const requirement = itemPoint.spawnRequirement;
   if (requirement) {
     if (!stageQuery) return false;
@@ -147,12 +155,12 @@ export function isItemPointAvailable(
     if (!stageEligible) return false;
   }
   if (itemPoint.spawnPolicy === "sceneEntry") {
-    return !sceneEntryCollectedIds.has(itemPoint.id);
+    return !sceneEntryCollectedIds.has(progressId);
   }
   if (itemPoint.spawnPolicy === "daily") {
-    return progress.dailyCollectedCycles[itemPoint.id] !== getInteractionCycle(gameMinutes);
+    return progress.dailyCollectedCycles[progressId] !== getInteractionCycle(gameMinutes);
   }
-  return !progress.onceCollectedIds.includes(itemPoint.id);
+  return !progress.onceCollectedIds.includes(progressId);
 }
 
 export function recordItemPointCollected(
@@ -161,8 +169,9 @@ export function recordItemPointCollected(
   gameMinutes: number,
   sceneEntryCollectedIds: Set<string>,
 ): ItemPointProgress {
+  const progressId = getItemPointProgressId(itemPoint);
   if (itemPoint.spawnPolicy === "sceneEntry") {
-    sceneEntryCollectedIds.add(itemPoint.id);
+    sceneEntryCollectedIds.add(progressId);
     return progress;
   }
   if (itemPoint.spawnPolicy === "daily") {
@@ -170,13 +179,13 @@ export function recordItemPointCollected(
       ...progress,
       dailyCollectedCycles: {
         ...progress.dailyCollectedCycles,
-        [itemPoint.id]: getInteractionCycle(gameMinutes),
+        [progressId]: getInteractionCycle(gameMinutes),
       },
     };
   }
-  if (progress.onceCollectedIds.includes(itemPoint.id)) return progress;
+  if (progress.onceCollectedIds.includes(progressId)) return progress;
   return {
     ...progress,
-    onceCollectedIds: [...progress.onceCollectedIds, itemPoint.id],
+    onceCollectedIds: [...progress.onceCollectedIds, progressId],
   };
 }

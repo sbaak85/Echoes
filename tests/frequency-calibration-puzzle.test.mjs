@@ -5,8 +5,11 @@ import test from "node:test";
 import {
   DEFAULT_FREQUENCY_CALIBRATION_CONFIG,
   evaluateFrequencyCalibration,
+  frequencyFineValueToDisplay,
   frequencyCoarseFromDialAngle,
   frequencyDialAngleFromStick,
+  getFrequencyVisualSignalStrength,
+  getFrequencyFineResetValue,
   stepFrequencyCoarse,
   stepFrequencyFine,
 } from "../app/frequency-calibration-puzzle.ts";
@@ -34,6 +37,32 @@ test("粗調與微調步進不會超出允許範圍", () => {
   assert.equal(stepFrequencyCoarse(8, 1), 8);
   assert.equal(stepFrequencyFine(0, -1), 0);
   assert.equal(stepFrequencyFine(100, 1), 100);
+});
+
+test("每個預調檔位會帶入指定的微調預設值", () => {
+  const expected = [-1.3, 0.7, -0.9, -2.5, 1.2, -0.5, -2, 0.75];
+  expected.forEach((displayValue, index) => {
+    assert.equal(
+      Number(frequencyFineValueToDisplay(getFrequencyFineResetValue(index + 1)).toFixed(2)),
+      displayValue,
+    );
+  });
+});
+
+test("遊戲預設從第二檔與該檔微調預設值開始", () => {
+  assert.equal(DEFAULT_FREQUENCY_CALIBRATION_CONFIG.initial.coarse, 2);
+  assert.equal(
+    Number(frequencyFineValueToDisplay(DEFAULT_FREQUENCY_CALIBRATION_CONFIG.initial.fine).toFixed(2)),
+    0.7,
+  );
+});
+
+test("視覺訊號只有第七檔接近 85 時快速升高且 85 為滿值", () => {
+  assert.equal(getFrequencyVisualSignalStrength({ coarse: 7, fine: 85 }, 0), 100);
+  assert.ok(getFrequencyVisualSignalStrength({ coarse: 7, fine: 80 }, 0) >= 93);
+  assert.ok(getFrequencyVisualSignalStrength({ coarse: 7, fine: 90 }, 1) < 100);
+  assert.equal(getFrequencyVisualSignalStrength({ coarse: 6, fine: 85 }, 0), 12);
+  assert.equal(getFrequencyVisualSignalStrength({ coarse: 6, fine: 85 }, 1), 80);
 });
 
 test("左搖桿以正上方為零度並可完整對應 360 度旋鈕", () => {
@@ -67,7 +96,10 @@ test("遊戲提供本機側邊面板試玩入口與完成事件", async () => {
   assert.match(component, /frequency-trigger-key[^>]*>RT</);
   assert.match(component, /resetFrequency: reset/);
   assert.match(component, /lockFrequency,/);
-  assert.match(component, /目前的頻率不正確/);
+  assert.match(component, /FAILED_LOCK_FEEDBACK_MESSAGES/);
+  assert.match(component, /FINE_TUNING_FEEDBACK_MESSAGES/);
+  assert.doesNotMatch(component, /className="frequency-signal-row"/);
+  assert.match(component, /className=\{`is-ready/);
   assert.match(movementLab, /leftTriggerJustPressed/);
   assert.match(movementLab, /rightTriggerJustPressed/);
   assert.match(movementLab, /resetFrequency\(\)/);
@@ -76,7 +108,7 @@ test("遊戲提供本機側邊面板試玩入口與完成事件", async () => {
   assert.match(movementLab, /continueFrequencyFineTuningAudio/);
   assert.match(movementLab, /success \? "frequencyLocked" : "uiInput"/);
   assert.match(component, /onCoarseStep\?\.\(\)/);
-  assert.match(component, /onFineTuning\?\.\(evaluateFrequencyCalibration/);
+  assert.match(component, /onFineTuning\?\.\(visualSignalStrengthRef\.current\)/);
   assert.match(component, /onLockAttempt\?\.\(currentEvaluation\.canLock\)/);
   const coarseAudioBlock = component.slice(
     component.indexOf("const changeCoarse"),

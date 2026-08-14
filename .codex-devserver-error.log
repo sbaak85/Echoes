@@ -1,0 +1,85 @@
+$ vinext dev "--" "--host" "127.0.0.1"
+[2mDefault inspector port 9229 not available, using 9234 instead
+[22m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test01.scene.json[33m instead of [36m/public/maps/map_test01.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test01.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test02.scene.json[33m instead of [36m/public/maps/map_test02.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test02.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/quests/quest-data.json[33m instead of [36m/public/quests/quest-data.json[33m.
+If you intend to use the URL of that asset, use [36m/quests/quest-data.json?url[33m.[39m
+Detected multiple renderers concurrently rendering the same context provider. This is currently unsupported.
+Detected multiple renderers concurrently rendering the same context provider. This is currently unsupported.
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test01.scene.json[33m instead of [36m/public/maps/map_test01.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test01.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test02.scene.json[33m instead of [36m/public/maps/map_test02.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test02.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/quests/quest-data.json[33m instead of [36m/public/quests/quest-data.json[33m.
+If you intend to use the URL of that asset, use [36m/quests/quest-data.json?url[33m.[39m
+Detected multiple renderers concurrently rendering the same context provider. This is currently unsupported.
+Detected multiple renderers concurrently rendering the same context provider. This is currently unsupported.
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test01.scene.json[33m instead of [36m/public/maps/map_test01.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test01.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test02.scene.json[33m instead of [36m/public/maps/map_test02.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test02.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/quests/quest-data.json[33m instead of [36m/public/quests/quest-data.json[33m.
+If you intend to use the URL of that asset, use [36m/quests/quest-data.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test01.scene.json[33m instead of [36m/public/maps/map_test01.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test01.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test02.scene.json[33m instead of [36m/public/maps/map_test02.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test02.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/quests/quest-data.json[33m instead of [36m/public/quests/quest-data.json[33m.
+If you intend to use the URL of that asset, use [36m/quests/quest-data.json?url[33m.[39m
+Detected multiple renderers concurrently rendering the same context provider. This is currently unsupported.
+Detected multiple renderers concurrently rendering the same context provider. This is currently unsupported.
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test01.scene.json[33m instead of [36m/public/maps/map_test01.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test01.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test02.scene.json[33m instead of [36m/public/maps/map_test02.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test02.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/quests/quest-data.json[33m instead of [36m/public/quests/quest-data.json[33m.
+If you intend to use the URL of that asset, use [36m/quests/quest-data.json?url[33m.[39m
+Detected multiple renderers concurrently rendering the same context provider. This is currently unsupported.
+Detected multiple renderers concurrently rendering the same context provider. This is currently unsupported.
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test02.scene.json[33m instead of [36m/public/maps/map_test02.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test02.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test01.scene.json[33m instead of [36m/public/maps/map_test01.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test01.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/quests/quest-data.json[33m instead of [36m/public/quests/quest-data.json[33m.
+If you intend to use the URL of that asset, use [36m/quests/quest-data.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test01.scene.json[33m instead of [36m/public/maps/map_test01.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test01.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test02.scene.json[33m instead of [36m/public/maps/map_test02.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test02.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/quests/quest-data.json[33m instead of [36m/public/quests/quest-data.json[33m.
+If you intend to use the URL of that asset, use [36m/quests/quest-data.json?url[33m.[39m
+Detected multiple renderers concurrently rendering the same context provider. This is currently unsupported.
+Detected multiple renderers concurrently rendering the same context provider. This is currently unsupported.
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test01.scene.json[33m instead of [36m/public/maps/map_test01.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test01.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/maps/map_test02.scene.json[33m instead of [36m/public/maps/map_test02.scene.json[33m.
+If you intend to use the URL of that asset, use [36m/maps/map_test02.scene.json?url[33m.[39m
+[33mAssets in public directory cannot be imported from JavaScript.
+If you intend to import that asset, put the file in the src directory, and use [36m/src/quests/quest-data.json[33m instead of [36m/public/quests/quest-data.json[33m.
+If you intend to use the URL of that asset, use [36m/quests/quest-data.json?url[33m.[39m

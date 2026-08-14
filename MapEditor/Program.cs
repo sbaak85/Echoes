@@ -336,11 +336,12 @@ internal static class EditorSelfTest
         var scene = SceneJson.Load(scenePath);
         SceneJson.Validate(scene);
         if (
-            ItemCatalog.All.Count != 30 ||
+            ItemCatalog.All.Count != 31 ||
             ItemCatalog.Find("crystal-shard")?.Id != "R0001" ||
             ItemCatalog.Find("R0012")?.Name != "外星果實" ||
             ItemCatalog.Find("R0015")?.Name != "校正元件" ||
             ItemCatalog.Find("T0009")?.Name != "多功能折刀" ||
+            ItemCatalog.Find("T0010")?.Name != "鋒利的金屬片" ||
             ItemCatalog.Find("R0100")?.Name != "全回復道具（測試用）"
         )
         {
