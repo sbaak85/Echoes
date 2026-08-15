@@ -147,7 +147,7 @@ public sealed class MainForm : Form
         Increment = 0.1m,
         TextAlign = HorizontalAlignment.Right,
     };
-    private readonly GroupBox _sceneConnectionGroup = CreateGroup("地圖出入口設定", 318);
+    private readonly GroupBox _sceneConnectionGroup = CreateGroup("地圖出入口設定", 358);
     private readonly TextBox _sceneConnectionIdText = new();
     private readonly ComboBox _targetSceneCombo = new() { DropDownStyle = ComboBoxStyle.DropDown };
     private readonly ComboBox _targetEntryPointCombo = new() { DropDownStyle = ComboBoxStyle.DropDown };
@@ -623,7 +623,10 @@ public sealed class MainForm : Form
         AddConnectionField(_sceneConnectionGroup, "轉場方式", _connectionTransitionModeCombo, 172);
         AddConnectionField(_sceneConnectionGroup, "角色移動", _connectionTransferModeCombo, 208);
         AddConnectionField(_sceneConnectionGroup, "鏡頭定位", _connectionCameraFocusCombo, 244);
-        var applyConnectionButton = CreateButton("套用出入口設定", 10, 280, 255, 30);
+        var connectionRequirementsButton = CreateButton("需求條件...", 10, 280, 255, 30);
+        connectionRequirementsButton.Click += (_, _) => OpenSceneConnectionRequirementEditor();
+        _sceneConnectionGroup.Controls.Add(connectionRequirementsButton);
+        var applyConnectionButton = CreateButton("套用出入口設定", 10, 318, 255, 30);
         applyConnectionButton.Click += (_, _) => ApplySceneConnectionSettings();
         _sceneConnectionGroup.Controls.Add(applyConnectionButton);
         _sceneConnectionGroup.Visible = false;
@@ -1526,7 +1529,7 @@ public sealed class MainForm : Form
                         .FirstOrDefault(item => item.Id.Equals(interactable.Type, StringComparison.OrdinalIgnoreCase))
                         ?.Index ?? 0);
                 _dialogueSummaryLabel.Text =
-                    $"可互動 {(interactable.SkipSuccessDialogue ? "直接結算" : $"{interactable.Dialogue.Lines.Count} 句")} · 不可互動 {interactable.FailureDialogue.Lines.Count} · 完成後 {interactable.CompletionDialogue?.Lines.Count ?? 0} 句";
+                    $"可互動 {(interactable.SkipSuccessDialogue ? "直接結算" : $"{interactable.Dialogue.Lines.Count} 句")} · 不可互動 {interactable.FailureDialogue.Lines.Count} · 生存不足 {interactable.SurvivalFailureDialogue?.Lines.Count ?? 0} · 完成後 {interactable.CompletionDialogue?.Lines.Count ?? 0} 句";
                 var effects = interactable.SurvivalEffects;
                 var limit = interactable.InteractionLimitMode == "once"
                     ? "唯一一次"
@@ -1707,6 +1710,47 @@ public sealed class MainForm : Form
             SelectedConnectionOption(_connectionTransferModeCombo, "teleport"),
             SelectedConnectionOption(_connectionCameraFocusCombo, "player"));
         RefreshLayers();
+        RefreshSelectionUi();
+    }
+
+    private void OpenSceneConnectionRequirementEditor()
+    {
+        var connection = _canvas.SelectedSceneConnection;
+        if (connection is null)
+        {
+            _statusLabel.Text = "請先選取地圖出入口多邊形。";
+            return;
+        }
+
+        var requirements = connection.SurvivalRequirements?.Clone()
+            ?? new SurvivalRequirements();
+        var useRequirements = connection.UseRequirements?
+            .Select(requirement => requirement.Clone())
+            .ToArray() ?? Array.Empty<InteractionUseRequirement>();
+        var quests = QuestCatalog.Load(_projectRoot);
+        SetCanvasRedraw(false);
+        try
+        {
+            using var editor = new SurvivalEffectEditorForm(
+                "interaction",
+                requirements,
+                new SurvivalEffects(),
+                null,
+                "unlimited",
+                useRequirements,
+                Array.Empty<InteractionItemReward>(),
+                quests,
+                showAllowAttemptOption: false,
+                showEffectsPage: false);
+            if (editor.ShowDialog(this) != DialogResult.OK) return;
+            _canvas.UpdateSelectedSceneConnectionRequirements(
+                editor.Requirements,
+                editor.UseRequirements);
+        }
+        finally
+        {
+            SetCanvasRedraw(true);
+        }
         RefreshSelectionUi();
     }
 
@@ -1986,12 +2030,14 @@ public sealed class MainForm : Form
         using var editor = new DialogueEditorForm(
             interactable.Dialogue,
             interactable.FailureDialogue,
+            interactable.SurvivalFailureDialogue,
             interactable.CompletionDialogue,
             interactable.SkipSuccessDialogue);
         if (editor.ShowDialog(this) != DialogResult.OK) return;
         _canvas.UpdateSelectedDialogues(
             editor.SuccessDialogue,
             editor.FailureDialogue,
+            editor.SurvivalFailureDialogue,
             editor.CompletionDialogue,
             editor.SkipSuccessDialogue);
         RefreshSelectionUi();

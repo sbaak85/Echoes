@@ -11,12 +11,15 @@ public sealed class DialogueEditorForm : Form
     private readonly TabControl _tabs = new();
     private readonly DataGridView _successGrid = new();
     private readonly DataGridView _failureGrid = new();
+    private readonly DataGridView _survivalFailureGrid = new();
     private readonly DataGridView _completionGrid = new();
     private readonly DataGridViewComboBoxColumn _successSpeakerColumn = new();
     private readonly DataGridViewComboBoxColumn _failureSpeakerColumn = new();
+    private readonly DataGridViewComboBoxColumn _survivalFailureSpeakerColumn = new();
     private readonly DataGridViewComboBoxColumn _completionSpeakerColumn = new();
     private readonly NumericUpDown _successDelayInput = CreateDelayInput();
     private readonly NumericUpDown _failureDelayInput = CreateDelayInput();
+    private readonly NumericUpDown _survivalFailureDelayInput = CreateDelayInput();
     private readonly NumericUpDown _completionDelayInput = CreateDelayInput();
     private readonly CheckBox _skipSuccessDialogue = new()
     {
@@ -30,19 +33,22 @@ public sealed class DialogueEditorForm : Form
 
     public DialogueScript SuccessDialogue { get; private set; }
     public DialogueScript FailureDialogue { get; private set; }
+    public DialogueScript? SurvivalFailureDialogue { get; private set; }
     public DialogueScript? CompletionDialogue { get; private set; }
     public bool SkipSuccessDialogue { get; private set; }
 
     private DataGridView ActiveGrid => _tabs.SelectedIndex switch
     {
         1 => _failureGrid,
-        2 => _completionGrid,
+        2 => _survivalFailureGrid,
+        3 => _completionGrid,
         _ => _successGrid,
     };
 
     public DialogueEditorForm(
         DialogueScript successDialogue,
         DialogueScript failureDialogue,
+        DialogueScript? survivalFailureDialogue,
         DialogueScript? completionDialogue,
         bool skipSuccessDialogue = false)
     {
@@ -55,15 +61,19 @@ public sealed class DialogueEditorForm : Form
 
         SuccessDialogue = successDialogue.Clone();
         FailureDialogue = failureDialogue.Clone();
+        SurvivalFailureDialogue = survivalFailureDialogue?.Clone();
         CompletionDialogue = completionDialogue?.Clone();
         SkipSuccessDialogue = skipSuccessDialogue;
         _skipSuccessDialogue.Checked = skipSuccessDialogue;
+        var editableSurvivalFailureDialogue = SurvivalFailureDialogue ?? new DialogueScript();
         var editableCompletionDialogue = CompletionDialogue ?? new DialogueScript();
         _speakers = SuccessDialogue.Speakers
             .Concat(FailureDialogue.Speakers)
+            .Concat(editableSurvivalFailureDialogue.Speakers)
             .Concat(editableCompletionDialogue.Speakers)
             .Concat(SuccessDialogue.Lines.Select(line => line.Speaker))
             .Concat(FailureDialogue.Lines.Select(line => line.Speaker))
+            .Concat(editableSurvivalFailureDialogue.Lines.Select(line => line.Speaker))
             .Concat(editableCompletionDialogue.Lines.Select(line => line.Speaker))
             .Where(speaker => !string.IsNullOrWhiteSpace(speaker))
             .Select(speaker => speaker.Trim())
@@ -88,6 +98,10 @@ public sealed class DialogueEditorForm : Form
             FailureDialogue.CharacterDelaySeconds,
             0,
             2);
+        _survivalFailureDelayInput.Value = (decimal)Math.Clamp(
+            editableSurvivalFailureDialogue.CharacterDelaySeconds,
+            0,
+            2);
         _completionDelayInput.Value = (decimal)Math.Clamp(
             editableCompletionDialogue.CharacterDelaySeconds,
             0,
@@ -95,6 +109,10 @@ public sealed class DialogueEditorForm : Form
 
         ConfigureGrid(_successGrid, _successSpeakerColumn, SuccessDialogue.Lines);
         ConfigureGrid(_failureGrid, _failureSpeakerColumn, FailureDialogue.Lines);
+        ConfigureGrid(
+            _survivalFailureGrid,
+            _survivalFailureSpeakerColumn,
+            editableSurvivalFailureDialogue.Lines);
         ConfigureGrid(
             _completionGrid,
             _completionSpeakerColumn,
@@ -110,9 +128,14 @@ public sealed class DialogueEditorForm : Form
             _skipSuccessDialogue);
         var failurePage = CreateDialoguePage(
             "不可互動時的對話",
-            "門檻不足、每日次數用完或缺少必要道具時播放；不會結算互動。",
+            "缺少道具、任務／章節條件未達或每日次數用完時播放；不會結算互動。",
             _failureGrid,
             _failureDelayInput);
+        var survivalFailurePage = CreateDialoguePage(
+            "生存條件不足時的對話",
+            "體力、飢餓、口渴或精神門檻不足時播放；留空則沿用不可互動時的對話。",
+            _survivalFailureGrid,
+            _survivalFailureDelayInput);
         var completionPage = CreateDialoguePage(
             "互動成功完成後的對話",
             "互動效果、次數與獎勵結算完成後播放；可留空以直接結束。",
@@ -120,6 +143,7 @@ public sealed class DialogueEditorForm : Form
             _completionDelayInput);
         _tabs.TabPages.Add(successPage);
         _tabs.TabPages.Add(failurePage);
+        _tabs.TabPages.Add(survivalFailurePage);
         _tabs.TabPages.Add(completionPage);
         _tabs.SelectedIndex = 0;
 
@@ -154,7 +178,7 @@ public sealed class DialogueEditorForm : Form
         DialogueScript dialogue,
         string sectionName,
         string hintText)
-        : this(dialogue, DialogueScript.CreateFailureDefault(), null)
+        : this(dialogue, DialogueScript.CreateFailureDefault(), null, null)
     {
         Text = $"章節對話腳本編輯器 · {sectionName}";
         _skipSuccessDialogue.Visible = false;
@@ -750,6 +774,7 @@ public sealed class DialogueEditorForm : Form
             !_speakers.Contains(menuSpeaker) ||
             !_successSpeakerColumn.Items.Contains(menuSpeaker) ||
             !_failureSpeakerColumn.Items.Contains(menuSpeaker) ||
+            !_survivalFailureSpeakerColumn.Items.Contains(menuSpeaker) ||
             !_completionSpeakerColumn.Items.Contains(menuSpeaker)
         )
         {
@@ -808,6 +833,7 @@ public sealed class DialogueEditorForm : Form
         if (successLines is null) return;
         var failureLines = ReadLines(_failureGrid);
         if (failureLines is null) return;
+        var survivalFailureLines = ReadLines(_survivalFailureGrid, allowEmpty: true)!;
         var completionLines = ReadLines(_completionGrid, allowEmpty: true)!;
 
         var speakers = _speakers.ToList();
@@ -823,6 +849,14 @@ public sealed class DialogueEditorForm : Form
             Speakers = speakers.ToList(),
             Lines = failureLines,
         };
+        SurvivalFailureDialogue = survivalFailureLines.Count == 0
+            ? null
+            : new DialogueScript
+            {
+                CharacterDelaySeconds = (float)_survivalFailureDelayInput.Value,
+                Speakers = speakers.ToList(),
+                Lines = survivalFailureLines,
+            };
         CompletionDialogue = completionLines.Count == 0
             ? null
             : new DialogueScript
@@ -878,6 +912,7 @@ public sealed class DialogueEditorForm : Form
         {
             _successSpeakerColumn,
             _failureSpeakerColumn,
+            _survivalFailureSpeakerColumn,
             _completionSpeakerColumn,
         })
         {
@@ -903,6 +938,7 @@ public sealed class DialogueEditorForm : Form
         {
             _successSpeakerColumn,
             _failureSpeakerColumn,
+            _survivalFailureSpeakerColumn,
             _completionSpeakerColumn,
         })
         {

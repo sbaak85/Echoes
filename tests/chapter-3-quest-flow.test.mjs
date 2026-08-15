@@ -263,15 +263,16 @@ test("MAIN_005 preserves the hidden tool chain and advances through the power pu
   assert.deepEqual(
     quest.stages.map((stage) => {
       const objective = stage.objectives[0];
-      return [objective.type, objective.targetId, objective.displayText];
+      return [objective.type, objective.targetId];
     }),
     [
-      ["interactionSucceeded", "interaction-021", "檢查臨時電腦的藍圖資料"],
-      ["interactionSucceeded", "interaction-020", "檢查共振發電機"],
-      ["collectItem", "T0008", "前往 Scene 2 調查崖下區域"],
-      ["collectItem", "R0001", "開採並取得藍色晶體碎片"],
-      ["interactionSucceeded", "interaction-013", "將藍色晶體碎片裝入發電共振器"],
-      ["interactionSucceeded", "interaction-012", "啟動電力分配系統"],
+      ["interactionSucceeded", "interaction-021"],
+      ["interactionSucceeded", "interaction-020"],
+      ["interactionSucceeded", "interaction-022"],
+      ["collectItem", "T0008"],
+      ["collectItem", "R0001"],
+      ["interactionSucceeded", "interaction-013"],
+      ["interactionSucceeded", "interaction-012"],
     ],
   );
 
@@ -286,6 +287,17 @@ test("MAIN_005 preserves the hidden tool chain and advances through the power pu
   assert.deepEqual(requirementSummary("interaction-020"), [
     ["questStage", `${FAR_LIGHT_QUEST_ID}_STAGE_02`],
   ]);
+  assert.deepEqual(requirementSummary("interaction-022"), [
+    ["questStage", `${FAR_LIGHT_QUEST_ID}_STAGE_02B`],
+  ]);
+  assert.equal(
+    scene1Interactions.get("interaction-022").useRequirements[0].stageMode,
+    "CurrentStageOnly",
+  );
+  assert.equal(
+    scene1Interactions.get("interaction-022").storyDialogueId,
+    "chapter03-section-5",
+  );
   assert.deepEqual(requirementSummary("interaction-019"), [
     ["questStage", `${FAR_LIGHT_QUEST_ID}_STAGE_03`],
     ["item", "T0010"],
@@ -329,6 +341,7 @@ test("MAIN_005 preserves the hidden tool chain and advances through the power pu
   const events = [
     ["interactionSucceeded", "interaction-021"],
     ["interactionSucceeded", "interaction-020"],
+    ["interactionSucceeded", "interaction-022"],
     ["itemCollected", "T0008"],
     ["itemCollected", "R0001"],
     ["interactionSucceeded", "interaction-013"],

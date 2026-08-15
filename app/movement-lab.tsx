@@ -150,6 +150,7 @@ import {
   type SurvivalEffects,
   type SurvivalGameState,
   type SurvivalRequirements,
+  type UnmetSurvivalRequirement,
 } from "./survival-manager";
 import {
   createWorldItemSpawnMotion,
@@ -173,11 +174,18 @@ import { StoryEventManager } from "./story-event-manager";
 import { MainObjectiveMarker } from "./main-objective-marker";
 import {
   enqueuePlayerInfoFloat as appendPlayerInfoFloat,
+  getPlayerInfoFloatTotalMs,
+  getPlayerInfoFloatToneColor,
   getPlayerInfoFloatVisuals,
   prunePlayerInfoFloats,
   type PlayerInfoFloatEntry,
   type PlayerInfoFloatSegment,
 } from "./player-info-float";
+import {
+  buildSurvivalRequirementFloatSegments,
+  INTERACTION_REQUIREMENT_FLOAT_MOTION,
+  shouldShowSurvivalRequirementFloats,
+} from "./interaction-survival-feedback";
 import {
   PLAYER_VISUAL_PROJECT_CONFIG,
   type PlayerShadowTuning,
@@ -365,8 +373,10 @@ type SceneInteractable = {
   worldItemKind?: "placed" | "dropped" | "itemPoint";
   itemPointId?: string;
   skipSuccessDialogue?: boolean;
+  storyDialogueId?: string;
   dialogue?: InteractionDialogueScript;
   failureDialogue?: InteractionDialogueScript;
+  survivalFailureDialogue?: InteractionDialogueScript;
   completionDialogue?: InteractionDialogueScript;
 };
 type PendingInteraction = {
@@ -486,8 +496,12 @@ type SceneFile = {
     transitionMode?: "seamless" | "blackout";
     transferMode?: "teleport" | "pathfind";
     cameraFocus?: "player" | "sceneRoot";
+    survivalRequirements?: SurvivalRequirements;
+    useRequirements?: InteractionUseRequirement[];
   }>;
 };
+
+type SceneConnection = NonNullable<SceneFile["connections"]>[number];
 
 const SCENE_REGISTRY = new Map<string, SceneFile>(
   [mapTest01Scene, mapTest02Scene].map((scene) => {
@@ -2968,6 +2982,14 @@ export function MovementLab() {
   const survivalFlowPausedRef = useRef(false);
   const restartConfirmationOpenRef = useRef(false);
   const restartConfirmationChoiceRef = useRef<"cancel" | "confirm">("cancel");
+  const sceneConnectionConfirmationOpenRef = useRef(false);
+  const sceneConnectionConfirmationChoiceRef = useRef<"cancel" | "confirm">("cancel");
+  const sceneConnectionConfirmationGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
+  const sceneConnectionConfirmationCursorRearmRequiredRef = useRef(false);
+  const pendingSceneConnectionIdRef = useRef<string | null>(null);
+  const sceneConnectionTransferRequestRef = useRef<(connectionId: string) => boolean>(
+    () => false,
+  );
   const inventoryOpenRef = useRef(false);
   const powerPuzzleOpenRef = useRef(false);
   const frequencyPuzzleOpenRef = useRef(false);
@@ -3037,6 +3059,8 @@ export function MovementLab() {
   const survivalValueTweenExpiryTimerRef = useRef<number | null>(null);
   const playerInfoFloatsRef = useRef<PlayerInfoFloatEntry[]>([]);
   const playerInfoFloatSequenceRef = useRef(0);
+  const interactionRequirementFloatsRef = useRef<PlayerInfoFloatEntry[]>([]);
+  const interactionRequirementFloatAnchorRef = useRef<Point | null>(null);
   const timeElapsedNoticeTimerRef = useRef<number | null>(null);
   const timeElapsedNoticeSequenceRef = useRef(0);
   const timeElapsedNoticeActiveRef = useRef(false);
@@ -3106,6 +3130,13 @@ export function MovementLab() {
   const [restartConfirmationOpen, setRestartConfirmationOpen] = useState(false);
   const [restartConfirmationChoice, setRestartConfirmationChoice] =
     useState<"cancel" | "confirm">("cancel");
+  const [sceneConnectionConfirmation, setSceneConnectionConfirmation] = useState<{
+    id: string;
+    label: string;
+    targetSceneId: string;
+  } | null>(null);
+  const [sceneConnectionConfirmationChoice, setSceneConnectionConfirmationChoice] =
+    useState<"cancel" | "confirm">("cancel");
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [powerPuzzleOpen, setPowerPuzzleOpen] = useState(false);
   const [frequencyPuzzleOpen, setFrequencyPuzzleOpen] = useState(false);
@@ -3160,6 +3191,10 @@ export function MovementLab() {
   const [activeKeyboardKeys, setActiveKeyboardKeys] = useState<string[]>([]);
   const [interactionJustTriggered, setInteractionJustTriggered] = useState(false);
   const [mobileInteractionTarget, setMobileInteractionTarget] = useState<{
+    id: string;
+    label: string;
+  } | null>(null);
+  const [mobileSceneConnectionTarget, setMobileSceneConnectionTarget] = useState<{
     id: string;
     label: string;
   } | null>(null);
@@ -5473,6 +5508,43 @@ export function MovementLab() {
     setRestartConfirmationChoiceValue("cancel");
   };
 
+  const setSceneConnectionConfirmationChoiceValue = (
+    choice: "cancel" | "confirm",
+  ) => {
+    sceneConnectionConfirmationChoiceRef.current = choice;
+    setSceneConnectionConfirmationChoice(choice);
+  };
+
+  const closeSceneConnectionConfirmation = () => {
+    sceneConnectionConfirmationOpenRef.current = false;
+    sceneConnectionConfirmationGamepadModeRef.current = "dpad";
+    sceneConnectionConfirmationCursorRearmRequiredRef.current = false;
+    pendingSceneConnectionIdRef.current = null;
+    setSceneConnectionConfirmation(null);
+    setSceneConnectionConfirmationChoiceValue("cancel");
+  };
+
+  const openSceneConnectionConfirmation = (connection: SceneConnection) => {
+    if (sceneConnectionConfirmationOpenRef.current) return;
+    sceneConnectionConfirmationOpenRef.current = true;
+    sceneConnectionConfirmationGamepadModeRef.current = "dpad";
+    sceneConnectionConfirmationCursorRearmRequiredRef.current = false;
+    pendingSceneConnectionIdRef.current = connection.id;
+    setSceneConnectionConfirmation({
+      id: connection.id,
+      label: connection.label,
+      targetSceneId: connection.targetSceneId,
+    });
+    setSceneConnectionConfirmationChoiceValue("cancel");
+  };
+
+  const confirmSceneConnectionTransfer = () => {
+    const connectionId = pendingSceneConnectionIdRef.current;
+    if (!connectionId) return;
+    const transferred = sceneConnectionTransferRequestRef.current(connectionId);
+    if (transferred) closeSceneConnectionConfirmation();
+  };
+
   const moveOptionsMenuSelection = (direction: number) => {
     if (restartConfirmationOpenRef.current) return;
     const items = OPTIONS_TAB_ITEMS[optionsTabRef.current];
@@ -5869,6 +5941,7 @@ export function MovementLab() {
     let gameplayHotbarDpadX = 0;
     const activeStoryTriggerZoneIds = new Set<string>();
     const eligibleStoryTriggerZoneIds = new Set<string>();
+    const activeChoiceSceneConnectionIds = new Set<string>();
     let storyTriggerContactCheckRequested = false;
     requestStoryTriggerContactCheckRef.current = () => {
       storyTriggerContactCheckRequested = true;
@@ -5918,6 +5991,7 @@ export function MovementLab() {
       );
       activeStoryTriggerZoneIds.clear();
       eligibleStoryTriggerZoneIds.clear();
+      activeChoiceSceneConnectionIds.clear();
       storyTriggerContactCheckRequested = true;
       lastMinimapPlayerX = Number.NaN;
       lastMinimapPlayerY = Number.NaN;
@@ -6005,7 +6079,14 @@ export function MovementLab() {
       wasMoving = false;
       setMoving(false);
       setMobileInteractionTarget(null);
+      setMobileSceneConnectionTarget(null);
       return true;
+    };
+    sceneConnectionTransferRequestRef.current = (connectionId) => {
+      const connection = (SCENE_DATA.connections ?? []).find(
+        (candidate) => candidate.id === connectionId,
+      );
+      return connection ? transferToConnectedScene(connection) : false;
     };
     const virtualCursor = { x: 0, y: 0 };
     let virtualCursorPositioned = false;
@@ -6049,6 +6130,7 @@ export function MovementLab() {
     let previousPlayerPromptTargetId: string | null = null;
     let previousCursorPromptTargetId: string | null = null;
     let mobileInteractionTargetId: string | null = null;
+    let mobileSceneConnectionTargetId: string | null = null;
     const interactionHintAnimation = new Map<
       string,
       { opacity: number; emphasis: number; lastTime: number }
@@ -6100,12 +6182,17 @@ export function MovementLab() {
         interactable.interactionLimitMode,
       );
 
+    const getInteractionRequirementFailures = (
+      interactable: SceneInteractable,
+    ) =>
+      getUnmetSurvivalRequirements(
+        survivalStateRef.current.values,
+        interactable.survivalRequirements,
+      );
+
     const getInteractionRequirementFailure = (
       interactable: SceneInteractable,
-    ) => getUnmetSurvivalRequirements(
-      survivalStateRef.current.values,
-      interactable.survivalRequirements,
-    )[0];
+    ) => getInteractionRequirementFailures(interactable)[0];
 
     const getInteractionUseRequirementFailure = (
       interactable: SceneInteractable,
@@ -6141,6 +6228,38 @@ export function MovementLab() {
       campPowerStateRef.current.current,
     )[0];
 
+    const getSceneConnectionRequirementFailure = (
+      connection: SceneConnection,
+    ) => getUnmetSurvivalRequirements(
+      survivalStateRef.current.values,
+      connection.survivalRequirements,
+    )[0] ?? getUnmetInteractionUseRequirements(
+      filterInteractionRequirementsByPurpose(
+        normalizeInteractionUseRequirements(
+          connection.useRequirements,
+          resolveItemId,
+        ),
+        "interaction",
+      ),
+      playerInventoryRef.current,
+      currentStoryChapterRef.current,
+      (questId) =>
+        questRuntimeManagerRef.current?.isQuestActive(questId) ?? false,
+      (requirement) => evaluateInteractionStageRequirement(
+        requirement,
+        (questId, stageId) =>
+          questRuntimeManagerRef.current?.isQuestAtStage(questId, stageId) ?? false,
+        (questId, stageId) =>
+          questRuntimeManagerRef.current?.hasQuestReachedStage(questId, stageId) ?? false,
+      ),
+      (questId, questState) =>
+        questRuntimeManagerRef.current?.isQuestInState(questId, questState) ?? false,
+      campPowerStateRef.current.current,
+    )[0];
+
+    const canActivateSceneConnection = (connection: SceneConnection) =>
+      !getSceneConnectionRequirementFailure(connection);
+
     canActivateStoryTriggerRef.current = (zone) => {
       const trigger = toStoryTriggerInteractable(zone);
       return !isInteractableLocked(trigger) &&
@@ -6159,12 +6278,58 @@ export function MovementLab() {
       isInteractableConditionActive(interactable) &&
       !isInteractableLocked(interactable);
 
+    const showSurvivalRequirementFloats = (
+      interactable: SceneInteractable,
+      failures: UnmetSurvivalRequirement[],
+    ) => {
+      const now = window.performance.now();
+      let entries: PlayerInfoFloatEntry[] = [];
+      for (const failure of failures) {
+        playerInfoFloatSequenceRef.current += 1;
+        entries = appendPlayerInfoFloat(
+          entries,
+          buildSurvivalRequirementFloatSegments(failure),
+          playerInfoFloatSequenceRef.current,
+          now,
+        );
+      }
+      interactionRequirementFloatsRef.current = entries;
+      interactionRequirementFloatAnchorRef.current =
+        getInteractionTweenPoint(interactable);
+      touchEffect = {
+        point: getInteractionTweenPoint(interactable),
+        reachable: false,
+        startedAt: now,
+      };
+    };
+
     const openInteractionFailureDialogue = (
       interactable: SceneInteractable,
       source: PendingInteraction["source"],
+      reason: "general" | "survival" = "general",
     ) => {
       if (source === "pointer") pointerGestureConsumed = true;
-      const failureDialogue = selectInteractionDialogue(interactable, "failure");
+      const survivalFailures = reason === "survival"
+        ? getInteractionRequirementFailures(interactable)
+        : [];
+      const hasNonSurvivalFailure = reason === "survival" && (
+        isInteractableLocked(interactable) ||
+        Boolean(getInteractionUseRequirementFailure(interactable, "all"))
+      );
+      const isSurvivalOnlyFailure = shouldShowSurvivalRequirementFloats(
+        survivalFailures,
+        hasNonSurvivalFailure,
+      );
+      if (isSurvivalOnlyFailure) {
+        showSurvivalRequirementFloats(interactable, survivalFailures);
+      } else {
+        interactionRequirementFloatsRef.current = [];
+        interactionRequirementFloatAnchorRef.current = null;
+      }
+      const failureDialogue = selectInteractionDialogue(
+        interactable,
+        isSurvivalOnlyFailure ? "survivalFailure" : "failure",
+      );
       openDialogue(interactable, undefined, failureDialogue);
       if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
       return false;
@@ -6252,6 +6417,20 @@ export function MovementLab() {
       if (
         focusedElement instanceof HTMLElement &&
         focusedElement.closest(".camp-power-confirmation")
+      ) {
+        focusedElement.blur();
+      }
+    };
+
+    const activateSceneConnectionConfirmationDpadMode = () => {
+      sceneConnectionConfirmationGamepadModeRef.current = "dpad";
+      sceneConnectionConfirmationCursorRearmRequiredRef.current = true;
+      virtualCursorVisible = true;
+      activateGamepadCursor();
+      const focusedElement = document.activeElement;
+      if (
+        focusedElement instanceof HTMLElement &&
+        focusedElement.closest(".scene-connection-confirmation")
       ) {
         focusedElement.blur();
       }
@@ -6655,6 +6834,37 @@ export function MovementLab() {
       activateQuestPromptInputMode("keyboard-mouse");
       if (timePassInputLockedRef.current) {
         event.preventDefault();
+        return;
+      }
+      if (sceneConnectionConfirmationOpenRef.current) {
+        event.preventDefault();
+        if (key === "escape" && !event.repeat) {
+          playOneShotAudio("uiInput");
+          closeSceneConnectionConfirmation();
+        } else if (
+          (key === "arrowleft" ||
+            key === "arrowup" ||
+            key === "arrowright" ||
+            key === "arrowdown") &&
+          !event.repeat
+        ) {
+          playOneShotAudio("uiInput");
+          setSceneConnectionConfirmationChoiceValue(
+            key === "arrowright" || key === "arrowdown"
+              ? "confirm"
+              : "cancel",
+          );
+        } else if (
+          (key === "enter" || key === " " || key === keyboardInteractionKey) &&
+          !event.repeat
+        ) {
+          playOneShotAudio("uiInput");
+          if (sceneConnectionConfirmationChoiceRef.current === "confirm") {
+            confirmSceneConnectionTransfer();
+          } else {
+            closeSceneConnectionConfirmation();
+          }
+        }
         return;
       }
       if (campPowerConfirmationOpenRef.current) {
@@ -7627,7 +7837,7 @@ export function MovementLab() {
         return openInteractionFailureDialogue(interactable, source);
       }
       if (getInteractionRequirementFailure(interactable)) {
-        return openInteractionFailureDialogue(interactable, source);
+        return openInteractionFailureDialogue(interactable, source, "survival");
       }
       if (interactable.id === CAMP_POWER_RESONATOR_INTERACTION_ID) {
         return openCampPowerRefillConfirmation(interactable, source);
@@ -7638,6 +7848,24 @@ export function MovementLab() {
           pointerInteractionTriggeredId = interactable.id;
         }
         return true;
+      }
+
+      if (interactable.storyDialogueId) {
+        const storyDialogue = dialogueManager.get(interactable.storyDialogueId);
+        if (storyDialogue) {
+          void dialogueManager.playRegistered(
+            interactable.storyDialogueId,
+            interactable,
+            () => completeInteraction(interactable, source),
+          );
+          if (source === "pointer") {
+            pointerInteractionTriggeredId = interactable.id;
+          }
+          return true;
+        }
+        console.warn(
+          `找不到互動區 ${interactable.id} 指定的劇情對話：${interactable.storyDialogueId}`,
+        );
       }
 
       const hasDialogueSequence = shouldCompleteAfterDialogue(interactable);
@@ -7778,11 +8006,25 @@ export function MovementLab() {
         }
         return;
       }
-      if (interactable && getInteractionRequirementFailure(interactable)) {
+      if (interactable && getInteractionUseRequirementFailure(interactable)) {
         autoPath = [];
         autoDestination = null;
         pendingInteraction = null;
         openInteractionFailureDialogue(interactable, source);
+        if (showTouchEffect) {
+          touchEffect = {
+            point: getInteractionTweenPoint(interactable),
+            reachable: false,
+            startedAt: performance.now(),
+          };
+        }
+        return;
+      }
+      if (interactable && getInteractionRequirementFailure(interactable)) {
+        autoPath = [];
+        autoDestination = null;
+        pendingInteraction = null;
+        openInteractionFailureDialogue(interactable, source, "survival");
         if (showTouchEffect) {
           touchEffect = {
             point: getInteractionTweenPoint(interactable),
@@ -7966,6 +8208,19 @@ export function MovementLab() {
             ? "player"
             : null;
       if (!target) {
+        const manualConnection = !sceneArrivalLockedRef.current
+          ? (SCENE_DATA.connections ?? []).find(
+              (connection) =>
+                (connection.triggerMode ?? "auto") === "manual" &&
+                connection.area.length >= 3 &&
+                pointInPolygon(player, connection.area) &&
+                canActivateSceneConnection(connection),
+            )
+          : null;
+        if (manualConnection) {
+          transferToConnectedScene(manualConnection);
+          return;
+        }
         if (
           source !== "keyboard" &&
           canUseCursorForSource &&
@@ -8012,7 +8267,19 @@ export function MovementLab() {
         collectedWorldItemIdsRef.current,
         isInteractableSelectable,
       );
-      if (!target) return;
+      if (!target) {
+        const manualConnection = !sceneArrivalLockedRef.current
+          ? (SCENE_DATA.connections ?? []).find(
+              (connection) =>
+                (connection.triggerMode ?? "auto") === "manual" &&
+                connection.area.length >= 3 &&
+                pointInPolygon(player, connection.area) &&
+                canActivateSceneConnection(connection),
+            )
+          : null;
+        if (manualConnection) transferToConnectedScene(manualConnection);
+        return;
+      }
 
       if (
         target.type === "pickup" ||
@@ -8062,7 +8329,7 @@ export function MovementLab() {
       }
 
       return element.closest(
-        ".inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .dialogue-box, .quest-hud",
+        ".inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .dialogue-box, .quest-hud",
       )
         ? "blocked"
         : "none";
@@ -8555,6 +8822,24 @@ export function MovementLab() {
             : null,
         );
       }
+      const manualSceneConnection = !playerTarget && !sceneArrivalLockedRef.current
+        ? (SCENE_DATA.connections ?? []).find(
+            (connection) =>
+              (connection.triggerMode ?? "auto") === "manual" &&
+              connection.area.length >= 3 &&
+              pointInPolygon(player, connection.area) &&
+              canActivateSceneConnection(connection),
+          )
+        : null;
+      const nextMobileSceneConnectionTargetId = manualSceneConnection?.id ?? null;
+      if (mobileSceneConnectionTargetId !== nextMobileSceneConnectionTargetId) {
+        mobileSceneConnectionTargetId = nextMobileSceneConnectionTargetId;
+        setMobileSceneConnectionTarget(
+          manualSceneConnection
+            ? { id: manualSceneConnection.id, label: manualSceneConnection.label }
+            : null,
+        );
+      }
       const activeDialogueTargetId =
         dialoguePlaybackRef.current?.interactable.id ?? null;
       const zoom = getSceneZoom(viewportWidth, viewportHeight);
@@ -8605,7 +8890,9 @@ export function MovementLab() {
         const targetOpacity =
           activeDialogueTargetId === interactable.id ? 0 : 1;
         const targetEmphasis =
-          activePromptTargetId === interactable.id && targetOpacity > 0 ? 1 : 0;
+          activePromptTargetId === interactable.id && targetOpacity > 0
+            ? 1
+            : 0;
         if (animation.opacity < targetOpacity) {
           animation.opacity = Math.min(
             targetOpacity,
@@ -8666,7 +8953,10 @@ export function MovementLab() {
         if (interactionName && emphasis > 0.001) {
           const labelOffset = 50 / zoom;
           context.globalAlpha = animation.opacity * emphasis;
-          if (interactable.id === CAMP_POWER_RESONATOR_INTERACTION_ID) {
+          if (
+            interactable.id === CAMP_POWER_RESONATOR_INTERACTION_ID ||
+            interactable.id === "interaction-022"
+          ) {
             const powerValue = campPowerStateRef.current.current;
             const columns = 10;
             const rows = 5;
@@ -9409,8 +9699,64 @@ export function MovementLab() {
           const segment = visual.entry.segments[index];
           context.strokeStyle = "rgba(3, 10, 14, 0.94)";
           context.strokeText(segment.text, x, 0);
-          context.fillStyle =
-            segment.tone === "positive" ? "#76f09a" : "#f4fbff";
+          context.fillStyle = getPlayerInfoFloatToneColor(segment.tone);
+          context.fillText(segment.text, x, 0);
+          x += widths[index];
+        }
+        context.restore();
+      }
+      context.restore();
+    };
+
+    const drawInteractionRequirementFloats = (time: number) => {
+      interactionRequirementFloatsRef.current = prunePlayerInfoFloats(
+        interactionRequirementFloatsRef.current,
+        time,
+        getPlayerInfoFloatTotalMs(INTERACTION_REQUIREMENT_FLOAT_MOTION),
+      );
+      const anchor = interactionRequirementFloatAnchorRef.current;
+      if (!anchor || interactionRequirementFloatsRef.current.length === 0) {
+        if (interactionRequirementFloatsRef.current.length === 0) {
+          interactionRequirementFloatAnchorRef.current = null;
+        }
+        return;
+      }
+
+      const zoom = getSceneZoom(viewportWidth, viewportHeight);
+      const fontSize = 16 / zoom;
+      const rowHeight = 24;
+      const anchorY = anchor.y - 44 / zoom;
+      const visuals = getPlayerInfoFloatVisuals(
+        interactionRequirementFloatsRef.current,
+        time,
+        rowHeight,
+        INTERACTION_REQUIREMENT_FLOAT_MOTION,
+      );
+
+      context.save();
+      context.font = `800 ${fontSize}px "Segoe UI", "Noto Sans TC", sans-serif`;
+      context.textBaseline = "bottom";
+      context.textAlign = "left";
+      context.lineJoin = "round";
+      context.lineWidth = 3 / zoom;
+
+      for (const visual of visuals) {
+        if (visual.opacity <= 0) continue;
+        const widths = visual.entry.segments.map((segment) =>
+          context.measureText(segment.text).width,
+        );
+        const totalWidth = widths.reduce((sum, width) => sum + width, 0);
+
+        context.save();
+        context.globalAlpha = visual.opacity;
+        context.translate(anchor.x, anchorY + visual.yOffset / zoom);
+        context.scale(visual.scale, visual.scale);
+        let x = -totalWidth / 2;
+        for (let index = 0; index < visual.entry.segments.length; index += 1) {
+          const segment = visual.entry.segments[index];
+          context.strokeStyle = "rgba(3, 10, 14, 0.94)";
+          context.strokeText(segment.text, x, 0);
+          context.fillStyle = getPlayerInfoFloatToneColor(segment.tone);
           context.fillText(segment.text, x, 0);
           x += widths[index];
         }
@@ -9744,6 +10090,20 @@ export function MovementLab() {
       if (campPowerConfirmationDirectionalInputActive) {
         activateCampPowerConfirmationDpadMode();
       }
+      if (
+        sceneConnectionConfirmationOpenRef.current &&
+        sceneConnectionConfirmationCursorRearmRequiredRef.current &&
+        cursorInputLength <= 0.1
+      ) {
+        sceneConnectionConfirmationCursorRearmRequiredRef.current = false;
+      }
+      const sceneConnectionConfirmationDirectionalInputActive =
+        sceneConnectionConfirmationOpenRef.current &&
+        (Math.abs(gamepadInput.dpadX) > 0 ||
+          Math.abs(gamepadInput.stickX) >= 0.65);
+      if (sceneConnectionConfirmationDirectionalInputActive) {
+        activateSceneConnectionConfirmationDpadMode();
+      }
       const menuCursorCanTakeControl =
         (!optionsOpenRef.current ||
           shouldOptionsCursorTakeControl(
@@ -9760,6 +10120,11 @@ export function MovementLab() {
           (!campPowerConfirmationDirectionalInputActive &&
             !campPowerConfirmationCursorRearmRequiredRef.current &&
             (campPowerConfirmationGamepadModeRef.current === "cursor" ||
+              cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD))) &&
+        (!sceneConnectionConfirmationOpenRef.current ||
+          (!sceneConnectionConfirmationDirectionalInputActive &&
+            !sceneConnectionConfirmationCursorRearmRequiredRef.current &&
+            (sceneConnectionConfirmationGamepadModeRef.current === "cursor" ||
               cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD)));
       if (
         virtualCursorControlsEnabledRef.current &&
@@ -9775,6 +10140,8 @@ export function MovementLab() {
           powerPuzzleGamepadModeRef.current = "cursor";
         } else if (campPowerConfirmationOpenRef.current) {
           campPowerConfirmationGamepadModeRef.current = "cursor";
+        } else if (sceneConnectionConfirmationOpenRef.current) {
+          sceneConnectionConfirmationGamepadModeRef.current = "cursor";
         }
         activateGamepadCursor();
         const marginX = Math.min(16, viewportWidth / 2);
@@ -9801,7 +10168,8 @@ export function MovementLab() {
         startJustPressed &&
         !timePassInputLockedRef.current &&
         !powerPuzzleOpenRef.current &&
-        !campPowerConfirmationOpenRef.current
+        !campPowerConfirmationOpenRef.current &&
+        !sceneConnectionConfirmationOpenRef.current
       ) {
         toggleOptionsPanel();
       }
@@ -9817,7 +10185,8 @@ export function MovementLab() {
         !timePassInputLockedRef.current &&
         !optionsOpenRef.current &&
         !powerPuzzleOpenRef.current &&
-        !campPowerConfirmationOpenRef.current
+        !campPowerConfirmationOpenRef.current &&
+        !sceneConnectionConfirmationOpenRef.current
       ) {
         beginStorySkipHold("gamepad");
       }
@@ -9844,10 +10213,16 @@ export function MovementLab() {
         gamepadInput.connected &&
         gamepadInput.rightTriggerPressed &&
         !wasGamepadRightTriggerPressed;
+      let sceneConnectionConfirmationMenuOpen =
+        sceneConnectionConfirmationOpenRef.current;
       let campPowerConfirmationMenuOpen = campPowerConfirmationOpenRef.current;
       let powerPuzzleMenuOpen = powerPuzzleOpenRef.current;
       let optionsMenuOpen = optionsOpenRef.current;
-      if (campPowerConfirmationMenuOpen && backJustPressed) {
+      if (sceneConnectionConfirmationMenuOpen && backJustPressed) {
+        playOneShotAudio("uiInput");
+        closeSceneConnectionConfirmation();
+        sceneConnectionConfirmationMenuOpen = false;
+      } else if (campPowerConfirmationMenuOpen && backJustPressed) {
         playOneShotAudio("uiInput");
         closeCampPowerConfirmation();
         campPowerConfirmationMenuOpen = false;
@@ -9879,6 +10254,7 @@ export function MovementLab() {
       const inventoryMenuOpen = inventoryOpenRef.current;
 
       if (
+        !sceneConnectionConfirmationMenuOpen &&
         !campPowerConfirmationMenuOpen &&
         !powerPuzzleMenuOpen &&
         !optionsMenuOpen &&
@@ -9889,7 +10265,41 @@ export function MovementLab() {
         gamepadDpadXRepeatSeconds = 0;
         gamepadDpadYRepeatSeconds = 0;
       }
-      if (campPowerConfirmationMenuOpen) {
+      if (sceneConnectionConfirmationMenuOpen) {
+        gameplayHotbarDpadX = 0;
+        const horizontalInput =
+          Math.abs(gamepadInput.dpadX) > 0
+            ? gamepadInput.dpadX
+            : Math.abs(gamepadInput.stickX) >= 0.65
+              ? gamepadInput.stickX
+              : 0;
+        const menuHorizontal = Math.sign(horizontalInput);
+        if (menuHorizontal === 0) {
+          heldGamepadDpadX = 0;
+          gamepadDpadXRepeatSeconds = 0;
+        } else if (menuHorizontal !== heldGamepadDpadX) {
+          activateSceneConnectionConfirmationDpadMode();
+          heldGamepadDpadX = menuHorizontal;
+          gamepadDpadXRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
+          playOneShotAudio("uiInput");
+          setSceneConnectionConfirmationChoiceValue(
+            menuHorizontal > 0 ? "confirm" : "cancel",
+          );
+        }
+
+        if (gamepadInput.confirmPressed && !wasGamepadConfirmPressed) {
+          if (sceneConnectionConfirmationGamepadModeRef.current === "cursor") {
+            activateVirtualCursorUi();
+          } else {
+            playOneShotAudio("uiInput");
+            if (sceneConnectionConfirmationChoiceRef.current === "confirm") {
+              confirmSceneConnectionTransfer();
+            } else {
+              closeSceneConnectionConfirmation();
+            }
+          }
+        }
+      } else if (campPowerConfirmationMenuOpen) {
         gameplayHotbarDpadX = 0;
         const horizontalInput =
           Math.abs(gamepadInput.dpadX) > 0
@@ -10278,6 +10688,7 @@ export function MovementLab() {
         inventoryOpenRef.current ||
         powerPuzzleOpenRef.current ||
         campPowerConfirmationOpenRef.current ||
+        sceneConnectionConfirmationOpenRef.current ||
         debugItemSpawnerOpenRef.current ||
         survivalStateRef.current.gameOverReason
       ) {
@@ -10632,6 +11043,7 @@ export function MovementLab() {
         inventoryOpenRef.current ||
         powerPuzzleOpenRef.current ||
         campPowerConfirmationOpenRef.current ||
+        sceneConnectionConfirmationOpenRef.current ||
         debugItemSpawnerOpenRef.current ||
         Boolean(dialoguePlaybackRef.current);
       if (!survivalPaused && !survivalStateRef.current.gameOverReason) {
@@ -10695,6 +11107,14 @@ export function MovementLab() {
         (connection) =>
           connection.area.length >= 3 && pointInPolygon(player, connection.area),
       );
+      const touchingSceneConnectionIds = new Set(
+        touchingSceneConnections.map((connection) => connection.id),
+      );
+      for (const connectionId of activeChoiceSceneConnectionIds) {
+        if (!touchingSceneConnectionIds.has(connectionId)) {
+          activeChoiceSceneConnectionIds.delete(connectionId);
+        }
+      }
       if (sceneArrivalLockedRef.current) {
         const distanceFromArrival = sceneArrivalLockOrigin
           ? Math.hypot(
@@ -10715,13 +11135,26 @@ export function MovementLab() {
         !inventoryOpenRef.current &&
         !powerPuzzleOpenRef.current &&
         !dialoguePlaybackRef.current &&
+        !sceneConnectionConfirmationOpenRef.current &&
         !sceneTransitioningRef.current
       ) {
         const automaticConnection = touchingSceneConnections.find(
-          (connection) => (connection.triggerMode ?? "auto") === "auto",
+          (connection) =>
+            (connection.triggerMode ?? "auto") === "auto" &&
+            canActivateSceneConnection(connection),
         );
         if (automaticConnection && transferToConnectedScene(automaticConnection)) {
           return;
+        }
+        const choiceConnection = touchingSceneConnections.find(
+          (connection) =>
+            (connection.triggerMode ?? "auto") === "choice" &&
+            !activeChoiceSceneConnectionIds.has(connection.id) &&
+            canActivateSceneConnection(connection),
+        );
+        if (choiceConnection) {
+          activeChoiceSceneConnectionIds.add(choiceConnection.id);
+          openSceneConnectionConfirmation(choiceConnection);
         }
       }
       if (!storyInputLockedRef.current && !powerPuzzleOpenRef.current) {
@@ -10850,6 +11283,7 @@ export function MovementLab() {
         drawPlayerStatuses(time);
         drawPlayerInfoFloats(time);
         drawTouchEffect(time);
+        drawInteractionRequirementFloats(time);
       }
       context.restore();
       drawHeldPointerIndicator(time);
@@ -10893,6 +11327,7 @@ export function MovementLab() {
       requestBgmPlaybackRef.current = () => {};
       debugItemSpawnHandlerRef.current = () => false;
       mobileInteractionActionRef.current = () => {};
+      sceneConnectionTransferRequestRef.current = () => false;
       canActivateStoryTriggerRef.current = () => false;
       completeStoryTriggerRef.current = () => false;
       requestStoryTriggerContactCheckRef.current = () => {};
@@ -11227,6 +11662,8 @@ export function MovementLab() {
   const activeQuestObjectiveTween = questObjectiveTween?.questId === activeQuestHud?.id
     ? questObjectiveTween
     : null;
+  const mobileInteractionButtonTarget =
+    mobileInteractionTarget ?? mobileSceneConnectionTarget;
   const dayNightStyle = getDayNightCssVariables(
     survivalState.gameMinutes,
   ) as CSSProperties;
@@ -12103,6 +12540,59 @@ export function MovementLab() {
         />
       ) : null}
 
+      {sceneConnectionConfirmation ? (
+        <div
+          className="scene-connection-confirmation-overlay"
+          onMouseDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            playOneShotAudio("uiInput");
+            closeSceneConnectionConfirmation();
+          }}
+        >
+          <section
+            className="scene-connection-confirmation"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="scene-connection-confirmation-title"
+          >
+            <small>SCENE TRANSFER</small>
+            <h3 id="scene-connection-confirmation-title">前往其他區域？</h3>
+            <p>
+              確定要前往「{sceneConnectionConfirmation.label.replace(/^前往\s*/, "")}」嗎？
+            </p>
+            <div className="scene-connection-confirmation-actions">
+              <button
+                className={sceneConnectionConfirmationChoice === "cancel" ? "is-selected" : undefined}
+                type="button"
+                data-gamepad-selected={sceneConnectionConfirmationChoice === "cancel" || undefined}
+                onFocus={() => setSceneConnectionConfirmationChoiceValue("cancel")}
+                onMouseEnter={() => setSceneConnectionConfirmationChoiceValue("cancel")}
+                onClick={() => {
+                  playOneShotAudio("uiInput");
+                  closeSceneConnectionConfirmation();
+                }}
+              >
+                取消
+              </button>
+              <button
+                className={`is-confirm${sceneConnectionConfirmationChoice === "confirm" ? " is-selected" : ""}`}
+                type="button"
+                data-gamepad-selected={sceneConnectionConfirmationChoice === "confirm" || undefined}
+                onFocus={() => setSceneConnectionConfirmationChoiceValue("confirm")}
+                onMouseEnter={() => setSceneConnectionConfirmationChoiceValue("confirm")}
+                onClick={() => {
+                  playOneShotAudio("uiInput");
+                  confirmSceneConnectionTransfer();
+                }}
+              >
+                確定前往
+              </button>
+            </div>
+            <footer>方向鍵／左搖桿：選擇　Enter／A：確認　Esc／B：取消</footer>
+          </section>
+        </div>
+      ) : null}
+
       {campPowerConfirmationOpen ? (
         <div
           className="camp-power-confirmation-overlay"
@@ -12593,25 +13083,27 @@ export function MovementLab() {
 
       <button
         className={`mobile-interaction-trigger${
-          mobileInteractionTarget &&
+          mobileInteractionButtonTarget &&
           !optionsOpen &&
           !inventoryOpen &&
           !powerPuzzleOpen &&
+          !sceneConnectionConfirmation &&
           !dialogueView
             ? " is-visible"
             : ""
         }`}
         type="button"
         aria-label={
-          mobileInteractionTarget
-            ? `與${mobileInteractionTarget.label}互動`
+          mobileInteractionButtonTarget
+            ? `與${mobileInteractionButtonTarget.label}互動`
             : "目前沒有可互動物件"
         }
         disabled={
-          !mobileInteractionTarget ||
+          !mobileInteractionButtonTarget ||
           optionsOpen ||
           inventoryOpen ||
           powerPuzzleOpen ||
+          Boolean(sceneConnectionConfirmation) ||
           Boolean(dialogueView)
         }
         onClick={(event) => {
@@ -12657,7 +13149,7 @@ export function MovementLab() {
 
       <canvas
         ref={cursorCanvasRef}
-        className={`cursor-layer${powerPuzzleOpen || campPowerConfirmationOpen ? " is-over-modal" : ""}`}
+        className={`cursor-layer${powerPuzzleOpen || campPowerConfirmationOpen || sceneConnectionConfirmation ? " is-over-modal" : ""}`}
         aria-hidden="true"
       />
       </main>

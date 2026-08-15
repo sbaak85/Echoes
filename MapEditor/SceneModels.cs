@@ -206,8 +206,14 @@ public sealed class SceneInteractable : ITriggerConfiguration
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool SkipSuccessDialogue { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StoryDialogueId { get; set; }
+
     public DialogueScript Dialogue { get; set; } = DialogueScript.CreateDefault();
     public DialogueScript FailureDialogue { get; set; } = DialogueScript.CreateFailureDefault();
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DialogueScript? SurvivalFailureDialogue { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DialogueScript? CompletionDialogue { get; set; }
@@ -699,6 +705,10 @@ public sealed class SceneConnection
     public string TransitionMode { get; set; } = "seamless";
     public string TransferMode { get; set; } = "teleport";
     public string CameraFocus { get; set; } = "player";
+    public SurvivalRequirements SurvivalRequirements { get; set; } = new();
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<InteractionUseRequirement>? UseRequirements { get; set; }
 
     // Legacy placeholders retained for reading older drafts. New editor data
     // targets a named Entry Point instead of duplicating the landing position.
@@ -995,8 +1005,19 @@ public static class SceneJson
             }
             interactable.Dialogue ??= DialogueScript.CreateDefault();
             interactable.FailureDialogue ??= DialogueScript.CreateFailureDefault();
+            interactable.StoryDialogueId = string.IsNullOrWhiteSpace(interactable.StoryDialogueId)
+                ? null
+                : interactable.StoryDialogueId.Trim();
             NormalizeDialogue(interactable.Dialogue, "...");
             NormalizeDialogue(interactable.FailureDialogue, "目前無法使用。");
+            if (interactable.SurvivalFailureDialogue is not null)
+            {
+                NormalizeOptionalDialogue(interactable.SurvivalFailureDialogue);
+                if (interactable.SurvivalFailureDialogue.Lines.Count == 0)
+                {
+                    interactable.SurvivalFailureDialogue = null;
+                }
+            }
             if (interactable.CompletionDialogue is not null)
             {
                 NormalizeOptionalDialogue(interactable.CompletionDialogue);
@@ -1209,6 +1230,15 @@ public static class SceneJson
             connection.CameraFocus = connection.CameraFocus == "sceneRoot"
                 ? "sceneRoot"
                 : "player";
+            connection.SurvivalRequirements ??= new SurvivalRequirements();
+            connection.UseRequirements = connection.UseRequirements?
+                .Where(requirement => requirement is not null)
+                .Select(requirement => requirement.Clone())
+                .ToList();
+            if (connection.UseRequirements is { Count: 0 })
+            {
+                connection.UseRequirements = null;
+            }
         }
     }
 

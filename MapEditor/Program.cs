@@ -169,6 +169,7 @@ internal static class Program
                     },
                 },
                 DialogueScript.CreateFailureDefault(),
+                null,
                 new DialogueScript
                 {
                     Lines = new List<DialogueLine>
@@ -410,10 +411,18 @@ internal static class EditorSelfTest
             {
                 TargetSceneId: "Scene_2",
                 TargetEntryPointId: "entry-scene2-from-scene3",
-                TriggerMode: "auto",
+                TriggerMode: "choice",
                 TransitionMode: "seamless",
                 TransferMode: "teleport",
                 CameraFocus: "player",
+                UseRequirements: not null,
+            } configuredScene3Exit ||
+            configuredScene3Exit.UseRequirements.SingleOrDefault() is not
+            {
+                Kind: "questStage",
+                QuestId: "QUEST_CH03_MAIN_005",
+                StageId: "QUEST_CH03_MAIN_005_STAGE_03",
+                StageMode: "CurrentStageOnly",
             })
         {
             throw new InvalidDataException("Scene_3 出入口設定未能正確通過場景 JSON round-trip。");

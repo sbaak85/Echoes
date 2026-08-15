@@ -391,6 +391,28 @@ test("互動失敗會使用獨立失敗腳本，舊場景則取得安全預設�
   );
 });
 
+test("生存門檻不足優先使用獨立腳本，未設定時沿用一般失敗腳本", () => {
+  const failure = { lines: [{ speaker: "Sbaak", text: "還缺少必要道具。" }] };
+  const survivalFailure = {
+    lines: [{ speaker: "Sbaak", text: "我現在沒有足夠的體力。" }],
+  };
+
+  assert.equal(
+    selectInteractionDialogue(
+      { failureDialogue: failure, survivalFailureDialogue: survivalFailure },
+      "survivalFailure",
+    ),
+    survivalFailure,
+  );
+  assert.equal(
+    selectInteractionDialogue(
+      { failureDialogue: failure, survivalFailureDialogue: { lines: [] } },
+      "survivalFailure",
+    ),
+    failure,
+  );
+});
+
 test("互動完成後只播放明確設定且含有效句子的第三套腳本", () => {
   const completion = {
     characterDelaySeconds: 0.02,

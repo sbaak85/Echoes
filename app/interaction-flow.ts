@@ -3,6 +3,7 @@ export type InteractionFlowDescriptor = {
   skipSuccessDialogue?: boolean;
   dialogue?: InteractionDialogueScript;
   failureDialogue?: InteractionDialogueScript;
+  survivalFailureDialogue?: InteractionDialogueScript;
   completionDialogue?: InteractionDialogueScript;
   useRequirements?: InteractionUseRequirement[];
 };
@@ -116,7 +117,7 @@ export function shouldCompleteAfterDialogue(
 
 export function selectInteractionDialogue(
   interactable: InteractionFlowDescriptor,
-  outcome: "success" | "failure" | "completion",
+  outcome: "success" | "failure" | "survivalFailure" | "completion",
 ) {
   if (outcome === "success") {
     return interactable.skipSuccessDialogue === true
@@ -128,6 +129,12 @@ export function selectInteractionDialogue(
     return dialogue?.lines?.some((line) => line.text.trim())
       ? dialogue
       : null;
+  }
+  if (outcome === "survivalFailure") {
+    const dialogue = interactable.survivalFailureDialogue;
+    return dialogue?.lines?.some((line) => line.text.trim())
+      ? dialogue
+      : interactable.failureDialogue ?? DEFAULT_INTERACTION_FAILURE_DIALOGUE;
   }
   return interactable.failureDialogue ?? DEFAULT_INTERACTION_FAILURE_DIALOGUE;
 }

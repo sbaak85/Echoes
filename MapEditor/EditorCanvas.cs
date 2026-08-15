@@ -422,6 +422,27 @@ public sealed class EditorCanvas : Control
             $"出入口已連接至 {targetSceneId} / {targetEntryPointId}。");
     }
 
+    public void UpdateSelectedSceneConnectionRequirements(
+        SurvivalRequirements requirements,
+        IEnumerable<InteractionUseRequirement> useRequirements)
+    {
+        var connection = SelectedSceneConnection;
+        if (connection is null) return;
+        var normalizedRequirements = requirements?.Clone() ?? new SurvivalRequirements();
+        var normalizedUseRequirements = useRequirements
+            .Select(requirement => requirement.Clone())
+            .ToList();
+        PerformMutation(() =>
+        {
+            connection.SurvivalRequirements = normalizedRequirements;
+            connection.UseRequirements = normalizedUseRequirements.Count > 0
+                ? normalizedUseRequirements
+                : null;
+        });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        StatusChanged?.Invoke(this, "已更新出入口的生存、任務進度與道具需求。");
+    }
+
     public void UpdateSceneIdentity(string sceneId, string displayName)
     {
         sceneId = sceneId.Trim();
@@ -886,6 +907,7 @@ public sealed class EditorCanvas : Control
     public void UpdateSelectedDialogues(
         DialogueScript successDialogue,
         DialogueScript failureDialogue,
+        DialogueScript? survivalFailureDialogue,
         DialogueScript? completionDialogue,
         bool skipSuccessDialogue)
     {
@@ -895,6 +917,7 @@ public sealed class EditorCanvas : Control
         {
             interactable.Dialogue = successDialogue.Clone();
             interactable.FailureDialogue = failureDialogue.Clone();
+            interactable.SurvivalFailureDialogue = survivalFailureDialogue?.Clone();
             interactable.CompletionDialogue = completionDialogue?.Clone();
             interactable.SkipSuccessDialogue = skipSuccessDialogue;
         });

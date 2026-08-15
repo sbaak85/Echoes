@@ -58,13 +58,10 @@ public sealed class SurvivalEffectEditorForm : Form
     private readonly object[] _useRequirementComboItems;
     private readonly UseRequirementChoice[] _questChoiceItems;
     private readonly QuestCatalogEntry[] _quests;
-    private readonly int _campPowerRequirementIndex;
-
     private readonly RequirementControls _staminaRequirement = new();
     private readonly RequirementControls _hungerRequirement = new();
     private readonly RequirementControls _thirstRequirement = new();
     private readonly RequirementControls _spiritRequirement = new();
-    private readonly RequirementControls _campPowerRequirement = new();
     private readonly ComboBox _requirementMatchMode = new()
     {
         DropDownStyle = ComboBoxStyle.DropDownList,
@@ -85,8 +82,8 @@ public sealed class SurvivalEffectEditorForm : Form
     {
         DropDownStyle = ComboBoxStyle.DropDownList,
     };
-    private readonly Button _useRequirementToggle = CreateButton("", 18, 366, 350, 32);
-    private readonly Button _addUseRequirementButton = CreateButton("＋", 378, 366, 46, 32);
+    private readonly Button _useRequirementToggle = CreateButton("", 18, 320, 350, 32);
+    private readonly Button _addUseRequirementButton = CreateButton("＋", 378, 320, 46, 32);
     private readonly CheckBox _allowAttemptWhenRequirementsUnmet = new()
     {
         Text = "無視提示條件，仍顯示並可嘗試",
@@ -158,25 +155,9 @@ public sealed class SurvivalEffectEditorForm : Form
         ? null
         : _dailyLimit.SelectedIndex - 1;
 
-    public List<InteractionUseRequirement> UseRequirements
-    {
-        get
-        {
-            var requirements = _useRequirementRows
-                .Select(ReadUseRequirement)
-                .ToList();
-            var campPowerRequirement = ReadCampPowerRequirement();
-            if (campPowerRequirement is not null)
-            {
-                requirements.Insert(
-                    _campPowerRequirementIndex < 0
-                        ? requirements.Count
-                        : Math.Min(_campPowerRequirementIndex, requirements.Count),
-                    campPowerRequirement);
-            }
-            return requirements;
-        }
-    }
+    public List<InteractionUseRequirement> UseRequirements => _useRequirementRows
+        .Select(ReadUseRequirement)
+        .ToList();
 
     public bool AllowAttemptWhenRequirementsUnmet =>
         _allowAttemptWhenRequirementsUnmet.Checked;
@@ -214,7 +195,8 @@ public sealed class SurvivalEffectEditorForm : Form
         IEnumerable<SceneTeleportPoint>? teleportPoints = null,
         string? completionTeleportPointId = null,
         float completionTeleportDelaySeconds = 0,
-        bool showCompletionTeleportOption = false)
+        bool showCompletionTeleportOption = false,
+        bool showEffectsPage = true)
     {
         SuspendLayout();
         SetStyle(
@@ -226,18 +208,6 @@ public sealed class SurvivalEffectEditorForm : Form
         var useRequirementList = useRequirements?
             .Select(requirement => requirement.Clone())
             .ToList() ?? new List<InteractionUseRequirement>();
-        _campPowerRequirementIndex = useRequirementList.FindIndex(requirement =>
-            requirement.Kind.Equals("campPower", StringComparison.OrdinalIgnoreCase));
-        var campPowerMinimum = useRequirementList
-            .Where(requirement => requirement.Kind.Equals(
-                "campPower",
-                StringComparison.OrdinalIgnoreCase))
-            .Select(requirement => requirement.MinimumPower)
-            .DefaultIfEmpty(0)
-            .Max();
-        useRequirementList.RemoveAll(requirement => requirement.Kind.Equals(
-            "campPower",
-            StringComparison.OrdinalIgnoreCase));
         var configuredStartQuestIds = (startQuestIds ?? Array.Empty<string>())
             .Select(questId => questId.Trim())
             .Where(questId => questId.Length > 0)
@@ -271,9 +241,10 @@ public sealed class SurvivalEffectEditorForm : Form
             .Append(new UseRequirementChoice("quest", "quest", "進度｜需求任務"))
             .Append(new UseRequirementChoice("questState", "questState", "進度｜任務狀態"))
             .Append(new UseRequirementChoice("questStage", "questStage", "進度｜任務階段"))
+            .Append(new UseRequirementChoice("campPower", "campPower", "資源｜營地電力"))
             .ToArray();
         _useRequirementComboItems = _useRequirementChoiceItems.Cast<object>().ToArray();
-        Text = "互動需求與完成效果";
+        Text = showEffectsPage ? "互動需求與完成效果" : "出入口需求條件";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -300,7 +271,7 @@ public sealed class SurvivalEffectEditorForm : Form
         requirementPage.SuspendLayout();
         effectPage.SuspendLayout();
         tabs.TabPages.Add(requirementPage);
-        tabs.TabPages.Add(effectPage);
+        if (showEffectsPage) tabs.TabPages.Add(effectPage);
         if (questStartPage is not null) tabs.TabPages.Add(questStartPage);
         Controls.Add(tabs);
 
@@ -308,19 +279,21 @@ public sealed class SurvivalEffectEditorForm : Form
             requirementPage,
             requirements ?? new SurvivalRequirements(),
             useRequirementList,
-            campPowerMinimum,
             allowAttemptWhenRequirementsUnmet,
             showAllowAttemptOption);
-        BuildEffectsPage(
-            effectPage,
-            effects ?? new SurvivalEffects(),
-            dailyLimit,
-            interactionLimitMode,
-            itemRewards?.Select(reward => reward.Clone()).ToList() ?? new(),
-            teleportPoints?.ToArray() ?? Array.Empty<SceneTeleportPoint>(),
-            completionTeleportPointId,
-            completionTeleportDelaySeconds,
-            showCompletionTeleportOption);
+        if (showEffectsPage)
+        {
+            BuildEffectsPage(
+                effectPage,
+                effects ?? new SurvivalEffects(),
+                dailyLimit,
+                interactionLimitMode,
+                itemRewards?.Select(reward => reward.Clone()).ToList() ?? new(),
+                teleportPoints?.ToArray() ?? Array.Empty<SceneTeleportPoint>(),
+                completionTeleportPointId,
+                completionTeleportDelaySeconds,
+                showCompletionTeleportOption);
+        }
         if (questStartPage is not null)
         {
             BuildQuestStartPage(questStartPage, configuredStartQuestIds);
@@ -345,7 +318,6 @@ public sealed class SurvivalEffectEditorForm : Form
         Control page,
         SurvivalRequirements requirements,
         IReadOnlyCollection<InteractionUseRequirement> useRequirements,
-        int campPowerMinimum,
         bool allowAttemptWhenRequirementsUnmet,
         bool showAllowAttemptOption)
     {
@@ -377,7 +349,6 @@ public sealed class SurvivalEffectEditorForm : Form
         AddRequirementRow(page, "飢餓", _hungerRequirement, 154, requirements.Hunger);
         AddRequirementRow(page, "口渴", _thirstRequirement, 200, requirements.Thirst);
         AddRequirementRow(page, "精神", _spiritRequirement, 246, requirements.Spirit);
-        AddCampPowerRequirementRow(page, 292, campPowerMinimum);
 
         var example = new Label
         {
@@ -385,7 +356,7 @@ public sealed class SurvivalEffectEditorForm : Form
             AutoSize = false,
             ForeColor = Color.FromArgb(129, 222, 211),
         };
-        example.SetBounds(18, 328, 410, 34);
+        example.SetBounds(18, 282, 410, 34);
         page.Controls.Add(example);
 
         _useRequirementToggle.Click += (_, _) =>
@@ -406,7 +377,7 @@ public sealed class SurvivalEffectEditorForm : Form
             RefreshUseRequirementLayout();
         };
         page.Controls.Add(_addUseRequirementButton);
-        _useRequirementList.SetBounds(18, 406, 406, 100);
+        _useRequirementList.SetBounds(18, 360, 406, 100);
         if (_showRequirementScope)
         {
             var scopeHeader = new Label
@@ -445,12 +416,11 @@ public sealed class SurvivalEffectEditorForm : Form
         _useRequirementsExpanded = useRequirements.Count is > 0 and <= 2;
         RefreshUseRequirementLayout();
 
-        var clearButton = CreateButton("清除所有需求", 18, 512, 150, 34);
+        var clearButton = CreateButton("清除所有需求", 18, 466, 150, 34);
         clearButton.Click += (_, _) =>
         {
             _requirementMatchMode.SelectedIndex = 0;
             foreach (var controls in RequirementRows()) controls.Mode.SelectedIndex = 0;
-            _campPowerRequirement.Mode.SelectedIndex = 0;
             foreach (var row in _useRequirementRows.ToList()) RemoveUseRequirementRow(row);
         };
         page.Controls.Add(clearButton);
@@ -459,7 +429,7 @@ public sealed class SurvivalEffectEditorForm : Form
         {
             _allowAttemptWhenRequirementsUnmet.Checked =
                 allowAttemptWhenRequirementsUnmet;
-            _allowAttemptWhenRequirementsUnmet.SetBounds(18, 562, 390, 28);
+            _allowAttemptWhenRequirementsUnmet.SetBounds(18, 516, 390, 28);
             page.Controls.Add(_allowAttemptWhenRequirementsUnmet);
 
             var attemptExplanation = new Label
@@ -468,7 +438,7 @@ public sealed class SurvivalEffectEditorForm : Form
                 AutoSize = false,
                 ForeColor = Color.FromArgb(154, 166, 177),
             };
-            attemptExplanation.SetBounds(38, 594, 386, 54);
+            attemptExplanation.SetBounds(38, 548, 386, 54);
             page.Controls.Add(attemptExplanation);
         }
     }
@@ -504,7 +474,7 @@ public sealed class SurvivalEffectEditorForm : Form
             .Select((choice, index) => new { choice, index })
             .FirstOrDefault(entry =>
                 entry.choice.Kind.Equals(requirement.Kind, StringComparison.OrdinalIgnoreCase) &&
-                (entry.choice.Kind is "chapter" or "quest" or "questState" or "questStage" ||
+                (entry.choice.Kind is "chapter" or "quest" or "questState" or "questStage" or "campPower" ||
                  entry.choice.Kind == "item" &&
                  entry.choice.Id.Equals(requirement.ItemId, StringComparison.OrdinalIgnoreCase)))
             ?.index ?? 0;
@@ -620,9 +590,13 @@ public sealed class SurvivalEffectEditorForm : Form
             controls.Amount.Visible = true;
             controls.StageSettings.Visible = false;
             controls.Amount.DropDownStyle = ComboBoxStyle.DropDownList;
-            var amountItems = RequirementAmountItems;
+            var amountItems = choice.Kind == "campPower"
+                ? Enumerable.Range(1, 50).Cast<object>().ToArray()
+                : RequirementAmountItems;
             controls.Amount.Items.AddRange(amountItems);
-            var amount = choice.Kind == "chapter"
+            var amount = choice.Kind == "campPower"
+                ? existing?.MinimumPower ?? 1
+                : choice.Kind == "chapter"
                 ? existing?.Chapter ?? 1
                 : existing?.Quantity ?? 1;
             controls.Amount.SelectedIndex = Math.Clamp(amount - 1, 0, amountItems.Length - 1);
@@ -653,6 +627,12 @@ public sealed class SurvivalEffectEditorForm : Form
             {
                 Kind = "chapter",
                 Chapter = amount,
+            }
+            : choice.Kind == "campPower"
+            ? new InteractionUseRequirement
+            {
+                Kind = "campPower",
+                MinimumPower = amount,
             }
             : new InteractionUseRequirement
             {
@@ -1088,54 +1068,6 @@ public sealed class SurvivalEffectEditorForm : Form
                 _ => "atLeast",
             },
             Value = (float)controls.Value.Value,
-        };
-    }
-
-    private void AddCampPowerRequirementRow(
-        Control page,
-        int top,
-        int minimumPower)
-    {
-        var fieldLabel = new Label
-        {
-            Text = "營地電力",
-            AutoSize = false,
-            ForeColor = Color.FromArgb(185, 193, 201),
-        };
-        fieldLabel.SetBounds(18, top + 3, 64, 26);
-        page.Controls.Add(fieldLabel);
-
-        _campPowerRequirement.Mode.Items.AddRange(new object[]
-        {
-            "無限制",
-            "至少（≥）",
-        });
-        _campPowerRequirement.Mode.SetBounds(88, top, 144, 28);
-        _campPowerRequirement.Mode.SelectedIndex = minimumPower > 0 ? 1 : 0;
-        page.Controls.Add(_campPowerRequirement.Mode);
-
-        _campPowerRequirement.Value.Minimum = 1;
-        _campPowerRequirement.Value.Maximum = 50;
-        _campPowerRequirement.Value.DecimalPlaces = 0;
-        _campPowerRequirement.Value.SetBounds(244, top, 178, 28);
-        _campPowerRequirement.Value.Value = Math.Clamp(
-            minimumPower > 0 ? minimumPower : 1,
-            (int)_campPowerRequirement.Value.Minimum,
-            (int)_campPowerRequirement.Value.Maximum);
-        _campPowerRequirement.Value.Enabled = minimumPower > 0;
-        _campPowerRequirement.Mode.SelectedIndexChanged += (_, _) =>
-            _campPowerRequirement.Value.Enabled =
-                _campPowerRequirement.Mode.SelectedIndex > 0;
-        page.Controls.Add(_campPowerRequirement.Value);
-    }
-
-    private InteractionUseRequirement? ReadCampPowerRequirement()
-    {
-        if (_campPowerRequirement.Mode.SelectedIndex <= 0) return null;
-        return new InteractionUseRequirement
-        {
-            Kind = "campPower",
-            MinimumPower = (int)_campPowerRequirement.Value.Value,
         };
     }
 

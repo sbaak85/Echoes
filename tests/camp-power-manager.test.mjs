@@ -107,6 +107,7 @@ test("遊戲場景包含 10 x 5 的營地電力格與灌入確認視窗", () => 
   assert.match(source, /const powerUiScale = 1\.2;/);
   assert.match(source, /index < CAMP_POWER_CAPACITY/);
   assert.match(source, /activePromptTargetId === interactable\.id/);
+  assert.doesNotMatch(source, /isPowerInspectionObjectiveActive/);
   assert.match(source, /camp-power-confirmation-overlay/);
   assert.match(source, /灌入藍色晶體碎片？/);
 });

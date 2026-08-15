@@ -215,7 +215,7 @@
       "completionFlagId": "QUEST_CH03_MAIN_002_COMPLETED",
       "completionTriggerType": "dialogue",
       "completionTriggerId": "chapter03-section-2",
-      "completionTriggerDelaySeconds": 3,
+      "completionTriggerDelaySeconds": 2,
       "completionEventFlowId": "",
       "rewardItemId": "",
       "rewardItemAmount": 0,
@@ -291,7 +291,7 @@
       "completionFlagId": "QUEST_CH03_MAIN_003_COMPLETED",
       "completionTriggerType": "dialogue",
       "completionTriggerId": "chapter03-section-3",
-      "completionTriggerDelaySeconds": 1,
+      "completionTriggerDelaySeconds": 0.5,
       "completionEventFlowId": "",
       "rewardItemId": "",
       "rewardItemAmount": 0,
@@ -499,7 +499,7 @@
           "completionMode": "all",
           "startEventFlowId": "",
           "completionEventFlowId": "",
-          "nextStageId": "QUEST_CH03_MAIN_005_STAGE_03",
+          "nextStageId": "QUEST_CH03_MAIN_005_STAGE_02B",
           "objectives": [
             {
               "id": "QUEST_CH03_MAIN_005_OBJ_02",
@@ -520,8 +520,36 @@
           ]
         },
         {
+          "id": "QUEST_CH03_MAIN_005_STAGE_02B",
+          "name": "\u78BA\u8A8D\u767C\u96FB\u6A5F\u554F\u984C",
+          "startDelaySeconds": 0,
+          "completionDelaySeconds": 0,
+          "completionMode": "all",
+          "startEventFlowId": "",
+          "completionEventFlowId": "",
+          "nextStageId": "QUEST_CH03_MAIN_005_STAGE_03",
+          "objectives": [
+            {
+              "id": "QUEST_CH03_MAIN_005_OBJ_07",
+              "displayText": "\u6AA2\u67E5\u767C\u96FB\u6A5F\u554F\u984C",
+              "startDelaySeconds": 0,
+              "completionDelaySeconds": 0,
+              "type": "interactionSucceeded",
+              "targetId": "interaction-022",
+              "itemRequirements": [],
+              "targetState": "",
+              "requiredAmount": 1,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": false,
+              "showHintIcon": false,
+              "completionEventFlowId": ""
+            }
+          ]
+        },
+        {
           "id": "QUEST_CH03_MAIN_005_STAGE_03",
-          "name": "\u8ABF\u67E5 Scene 2 \u7684\u5D16\u4E0B\u5340\u57DF",
+          "name": "\u8ABF\u67E5\u897F\u908A\u5D16\u4E0B\u5340\u57DF",
           "startDelaySeconds": 0,
           "completionDelaySeconds": 0,
           "completionMode": "all",
@@ -531,7 +559,7 @@
           "objectives": [
             {
               "id": "QUEST_CH03_MAIN_005_OBJ_03",
-              "displayText": "\u524D\u5F80\u641C\u7D22W\u897F\u908A\u5340\u57DF",
+              "displayText": "\u64F4\u5927\u641C\u7D22\u897F\u908A\u5340\u57DF",
               "startDelaySeconds": 0,
               "completionDelaySeconds": 0,
               "type": "collectItem",
@@ -549,7 +577,7 @@
         },
         {
           "id": "QUEST_CH03_MAIN_005_STAGE_04",
-          "name": "\u958B\u63A1\u85CD\u8272\u6676\u9AD4",
+          "name": "\u958B\u63A1\u85CD\u8272\u6676\u9AD4\u7926\u77F3",
           "startDelaySeconds": 0,
           "completionDelaySeconds": 0,
           "completionMode": "all",

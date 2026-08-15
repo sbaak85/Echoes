@@ -3600,6 +3600,95 @@ html.dialogue-cursor-active .dialogue-box * {
   font-size: 12px;
 }
 
+/* Scene-exit confirmation shown by choice-mode connection polygons. */
+.scene-connection-confirmation-overlay {
+  position: absolute;
+  z-index: 180;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 7, 10, 0.68);
+  backdrop-filter: blur(4px) brightness(0.78);
+}
+
+.scene-connection-confirmation {
+  width: min(470px, calc(100% - 24px));
+  overflow: hidden;
+  border: 1px solid rgba(213, 177, 92, 0.62);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(205, 157, 69, 0.15), transparent 50%),
+    linear-gradient(145deg, rgba(16, 28, 30, 0.99), rgba(4, 13, 17, 0.99));
+  box-shadow:
+    0 28px 85px rgba(0, 0, 0, 0.72),
+    0 0 0 5px rgba(8, 18, 21, 0.92),
+    0 0 28px rgba(206, 163, 77, 0.12);
+  color: #ecf5f2;
+  text-align: center;
+}
+
+.scene-connection-confirmation > small {
+  display: block;
+  padding: 16px 20px 8px;
+  color: #d8b55f;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 12px;
+  letter-spacing: 0.17em;
+}
+
+.scene-connection-confirmation h3 {
+  margin: 0;
+  color: #fff4d5;
+  font-size: 25px;
+  font-weight: 620;
+}
+
+.scene-connection-confirmation > p {
+  margin: 16px 28px 19px;
+  color: #cbd8d5;
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.scene-connection-confirmation-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 8px 22px 20px;
+}
+
+.scene-connection-confirmation-actions button {
+  min-height: 48px;
+  border: 1px solid rgba(151, 161, 157, 0.44);
+  border-radius: 4px;
+  background: rgba(14, 27, 30, 0.94);
+  color: #b9c6c2;
+  cursor: pointer;
+  font-size: 17px;
+  outline: none;
+}
+
+.scene-connection-confirmation-actions button.is-confirm {
+  color: #f1ca67;
+}
+
+.scene-connection-confirmation-actions button.is-selected,
+.scene-connection-confirmation-actions button[data-gamepad-selected="true"],
+.scene-connection-confirmation-actions button:hover {
+  border-color: #f2cc6b;
+  background: rgba(133, 96, 34, 0.25);
+  box-shadow: 0 0 0 2px rgba(224, 180, 82, 0.2), 0 0 17px rgba(222, 174, 73, 0.15);
+  color: #fff7df;
+}
+
+.scene-connection-confirmation footer {
+  padding: 9px 16px;
+  border-top: 1px solid rgba(196, 159, 76, 0.18);
+  color: #7e918d;
+  font-size: 12px;
+}
+
 /* Emergency power-routing puzzle. */
 .frequency-puzzle-overlay {
   position: absolute;
