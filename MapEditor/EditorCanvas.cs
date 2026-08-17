@@ -762,7 +762,8 @@ public sealed class EditorCanvas : Control
         string? interactionLimitMode,
         IEnumerable<InteractionUseRequirement> useRequirements,
         IEnumerable<InteractionItemReward> itemRewards,
-        IEnumerable<string> startQuestIds)
+        IEnumerable<string> startQuestIds,
+        IEnumerable<string> activateObjectiveIds)
     {
         var trigger = SelectedStoryTrigger;
         if (trigger is null) return;
@@ -785,6 +786,11 @@ public sealed class EditorCanvas : Control
             .Where(questId => questId.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        var objectiveIdList = activateObjectiveIds
+            .Select(objectiveId => objectiveId.Trim())
+            .Where(objectiveId => objectiveId.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         PerformMutation(() =>
         {
             trigger.SurvivalRequirements = requirements.Clone();
@@ -802,6 +808,9 @@ public sealed class EditorCanvas : Control
             trigger.StartQuestIds = questIdList.Count == 0
                 ? null
                 : questIdList;
+            trigger.ActivateObjectiveIds = objectiveIdList.Count == 0
+                ? null
+                : objectiveIdList;
         });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -2513,7 +2522,7 @@ public sealed class EditorCanvas : Control
                 var defaults = InteractionTypeDefaults.Get("dialogue");
                 _document.Interactables.Add(new SceneInteractable
                 {
-                    Id = NextId("interaction", _document.Interactables.Select(item => item.Id)),
+                    Id = NextSceneScopedId("interaction", _document.Interactables.Select(item => item.Id)),
                     Label = $"互動區域 {index + 1}",
                     Shape = "polygon",
                     Points = points,
@@ -3536,6 +3545,35 @@ public sealed class EditorCanvas : Control
         }
 
         return $"{prefix}-{Guid.NewGuid():N}";
+    }
+
+    private string NextSceneScopedId(string entityPrefix, IEnumerable<string> existingIds)
+    {
+        var sceneToken = string.Concat(
+            _document.SceneId
+                .Trim()
+                .ToLowerInvariant()
+                .Where(char.IsLetterOrDigit));
+        if (sceneToken.Length == 0)
+        {
+            sceneToken = "scene";
+        }
+
+        var used = existingIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var highestSuffix = used
+            .Select(id => id.Split('-').LastOrDefault())
+            .Select(value => int.TryParse(value, out var number) ? number : 0)
+            .DefaultIfEmpty(0)
+            .Max();
+        var scopedPrefix = $"{sceneToken}-{entityPrefix}";
+
+        for (var number = highestSuffix + 1; number < int.MaxValue; number++)
+        {
+            var candidate = $"{scopedPrefix}-{number:000}";
+            if (!used.Contains(candidate)) return candidate;
+        }
+
+        return $"{scopedPrefix}-{Guid.NewGuid():N}";
     }
 
     private static PointF[] ToPointFArray(IEnumerable<ScenePoint>? points)

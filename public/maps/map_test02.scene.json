@@ -416,7 +416,7 @@
   ],
   "interactables": [
     {
-      "id": "interaction-001",
+      "id": "scene2-interaction-001",
       "label": "\u5E73\u6ED1\u77F3\u58C1",
       "shape": "polygon",
       "points": [
@@ -564,7 +564,7 @@
       }
     },
     {
-      "id": "interaction-002",
+      "id": "scene2-interaction-002",
       "label": "\u77F3\u58C1\u4E0B\u5C64",
       "shape": "polygon",
       "points": [
@@ -686,7 +686,61 @@
     }
   ],
   "movementGuides": [],
-  "storyTriggers": [],
+  "storyTriggers": [
+    {
+      "id": "story-trigger-001",
+      "label": "\u767C\u73FE\u6316\u6398\u93DF",
+      "points": [
+        {
+          "x": 900,
+          "y": 1130
+        },
+        {
+          "x": 1115,
+          "y": 965
+        },
+        {
+          "x": 1095,
+          "y": 920
+        },
+        {
+          "x": 1055,
+          "y": 885
+        },
+        {
+          "x": 800,
+          "y": 1065
+        }
+      ],
+      "once": true,
+      "dialogueId": "chapter03-scene2-start",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionLimitMode": "once",
+      "useRequirements": [
+        {
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_005",
+          "stageId": "QUEST_CH03_MAIN_005_STAGE_03",
+          "stageMode": "UnlockFromStage",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ]
+    }
+  ],
   "itemPoints": [
     {
       "id": "item-point-001",
@@ -741,7 +795,10 @@
       "triggerMode": "auto",
       "transitionMode": "seamless",
       "transferMode": "teleport",
-      "cameraFocus": "player"
+      "cameraFocus": "player",
+      "survivalRequirements": {
+        "mode": "all"
+      }
     }
   ]
 }

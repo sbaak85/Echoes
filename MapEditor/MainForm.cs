@@ -1399,7 +1399,7 @@ public sealed class MainForm : Form
                 var interactable = _canvas.Document.Interactables[index];
                 _layersList.Items.Add(new LayerListItem(
                     new LayerSelection(SceneLayerKind.Interactable, index),
-                    $"[互動/{interactable.Verb}] {interactable.Label}  ({interactable.Points.Count}點)",
+                    $"[互動/{interactable.Verb}] {interactable.Label} · ID {interactable.Id}  ({interactable.Points.Count}點)",
                     interactable.Label));
             }
 
@@ -1519,7 +1519,7 @@ public sealed class MainForm : Form
                 var node = _canvas.SelectedVertexIndex >= 0
                     ? $" · Node {_canvas.SelectedVertexIndex + 1}"
                     : "";
-                _selectionInfoLabel.Text = $"已選取互動區域 · {interactable.Id}{node}";
+                _selectionInfoLabel.Text = $"互動 ID：{interactable.Id}{node}";
                 _selectionNameText.Text = interactable.Label;
                 _interactionVerbText.Text = interactable.Verb;
                 _interactionTypeCombo.SelectedIndex = Math.Max(
@@ -1659,6 +1659,7 @@ public sealed class MainForm : Form
                 _selectionInfoLabel.Text = "尚未選取圖形";
                 _selectionNameText.Text = "";
             }
+            _mapPageToolTip.SetToolTip(_selectionInfoLabel, _selectionInfoLabel.Text);
             _interactionGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.Interactable;
             _movementGuideGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.MovementGuide;
             _storyTriggerGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.StoryTrigger;
@@ -2115,6 +2116,7 @@ public sealed class MainForm : Form
                 ? Array.Empty<InteractionItemReward>()
                 : new[] { trigger.ItemReward.Clone() });
         var quests = QuestCatalog.Load(_projectRoot);
+        var objectives = QuestCatalog.LoadObjectives(_projectRoot);
         SetCanvasRedraw(false);
         try
         {
@@ -2129,7 +2131,9 @@ public sealed class MainForm : Form
                 quests,
                 trigger.StartQuestIds,
                 showQuestStartOptions: true,
-                showAllowAttemptOption: false);
+                showAllowAttemptOption: false,
+                objectives: objectives,
+                activateObjectiveIds: trigger.ActivateObjectiveIds);
             editor.Text = "劇情觸發需求與完成效果";
             if (editor.ShowDialog(this) != DialogResult.OK) return;
             _canvas.UpdateSelectedStoryTriggerConfiguration(
@@ -2139,7 +2143,8 @@ public sealed class MainForm : Form
                 editor.InteractionLimitMode,
                 editor.UseRequirements,
                 editor.ItemRewards,
-                editor.StartQuestIds);
+                editor.StartQuestIds,
+                editor.ActivateObjectiveIds);
         }
         finally
         {

@@ -269,11 +269,26 @@ test("MAIN_005 preserves the hidden tool chain and advances through the power pu
       ["interactionSucceeded", "interaction-021"],
       ["interactionSucceeded", "interaction-020"],
       ["interactionSucceeded", "interaction-022"],
-      ["collectItem", "T0008"],
+      ["interactionSucceeded", "scene2-interaction-002"],
       ["collectItem", "R0001"],
       ["interactionSucceeded", "interaction-013"],
       ["interactionSucceeded", "interaction-012"],
     ],
+  );
+
+  const scene2Stage = quest.stages.find(
+    (stage) => stage.id === `${FAR_LIGHT_QUEST_ID}_STAGE_03`,
+  );
+  assert.deepEqual(
+    scene2Stage.objectives.map((objective) => objective.id),
+    [
+      `${FAR_LIGHT_QUEST_ID}_OBJ_03`,
+      `${FAR_LIGHT_QUEST_ID}_OBJ_08`,
+    ],
+  );
+  assert.equal(
+    scene2Stage.objectives[1].unlockDialogueId,
+    "chapter03-scene2-start",
   );
 
   const scene1Interactions = new Map(scene.interactables.map((entry) => [entry.id, entry]));
@@ -316,7 +331,7 @@ test("MAIN_005 preserves the hidden tool chain and advances through the power pu
     ["campPower", 5],
   ]);
 
-  for (const interactionId of ["interaction-001", "interaction-002"]) {
+  for (const interactionId of ["scene2-interaction-001", "scene2-interaction-002"]) {
     const requirements = scene2Interactions.get(interactionId).useRequirements;
     assert.equal(requirements[0].stageId, `${FAR_LIGHT_QUEST_ID}_STAGE_03`);
     assert.equal(requirements[0].stageMode, "UnlockFromStage");
@@ -352,4 +367,32 @@ test("MAIN_005 preserves the hidden tool chain and advances through the power pu
     dispatch(manager, `main005:${index}`, type, targetId);
   }
   assert.equal(manager.getQuestState(FAR_LIGHT_QUEST_ID), "completed");
+});
+
+test("Scene_2 shovel objective unlocks after its story dialogue and uses a scene-specific interaction ID", () => {
+  const quest = questDocument.quests.find((candidate) => candidate.id === FAR_LIGHT_QUEST_ID);
+  const stage = quest.stages.find(
+    (candidate) => candidate.id === `${FAR_LIGHT_QUEST_ID}_STAGE_03`,
+  );
+  const searchObjective = stage.objectives.find(
+    (objective) => objective.id === `${FAR_LIGHT_QUEST_ID}_OBJ_03`,
+  );
+  const shovelObjective = stage.objectives.find(
+    (objective) => objective.id === `${FAR_LIGHT_QUEST_ID}_OBJ_08`,
+  );
+  const storyTrigger = scene2.storyTriggers.find(
+    (trigger) => trigger.label === "發現挖掘鏟",
+  );
+
+  assert.equal(searchObjective.type, "interactionSucceeded");
+  assert.equal(searchObjective.targetId, "scene2-interaction-002");
+  assert.ok(
+    scene2.interactables.some(
+      (interaction) => interaction.id === "scene2-interaction-002",
+    ),
+  );
+  assert.equal(shovelObjective.type, "collectItem");
+  assert.equal(shovelObjective.targetId, "T0008");
+  assert.equal(shovelObjective.unlockDialogueId, "chapter03-scene2-start");
+  assert.equal(storyTrigger.dialogueId, "chapter03-scene2-start");
 });

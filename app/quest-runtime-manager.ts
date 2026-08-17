@@ -48,6 +48,11 @@ export type QuestObjectiveDefinition = {
   completionEventFlowId?: string;
   completionInterfaceAction?: "none" | "open" | "close";
   completionInterfaceId?: string;
+  activationMode?: "immediate" | "event";
+  activationEventId?: string;
+  blocksStageCompletion?: boolean;
+  /** Keep this objective hidden and inactive until this dialogue finishes. */
+  unlockDialogueId?: string;
 };
 
 export type QuestStageDefinition = {
@@ -126,6 +131,7 @@ export type QuestGameEvent = {
     | "areaEntered"
     | "puzzleCompleted"
     | "dialogueCompleted"
+    | "storyTriggerCompleted"
     | "objectStateChanged"
     | "dayChanged"
     | "timeChanged"
@@ -143,6 +149,12 @@ export type QuestGameEvent = {
 export type QuestObjectiveRuntime = {
   currentAmount: number;
   completed: boolean;
+  state?: "locked" | "active" | "completed";
+  unlocked?: boolean;
+  /** Snapshot of the activation rule used when this progress was last normalized. */
+  activationDefinitionKey?: string;
+  /** Event target that actually unlocked this objective. */
+  activatedByEventId?: string;
   itemAmounts?: Record<string, number>;
   availableAtEpochMs?: number;
   completionAvailableAtEpochMs?: number;
@@ -226,6 +238,13 @@ export type QuestRuntimeHost = {
   scheduleQuestStart?: (delayMilliseconds: number, start: () => void) => void;
   now?: () => number;
   onObjectiveCompleted?: (
+    questId: string,
+    objectiveId: string,
+    stageId: string,
+    entry: QuestRuntimeEntry,
+    objective: QuestObjectiveDefinition,
+  ) => void;
+  onObjectiveActivated?: (
     questId: string,
     objectiveId: string,
     stageId: string,
@@ -321,6 +340,37 @@ export class QuestRuntimeManager {
     const progress = this.requireEntry(questId).objectives[objectiveId];
     if (!progress) throw new Error(`Unknown objective: ${questId}/${objectiveId}`);
     return structuredClone(progress);
+  }
+
+  activateObjective(objectiveId: string, activatedByEventId?: string): boolean {
+    const normalizedId = objectiveId.trim();
+    if (!normalizedId) return false;
+    for (const definition of this.definitions.values()) {
+      const entry = this.requireEntry(definition.id);
+      if (entry.state !== "active") continue;
+      const objectiveStage = definition.stages.find(stage =>
+        stage.objectives.some(candidate => candidate.id === normalizedId)
+      );
+      const objective = objectiveStage?.objectives.find(candidate => candidate.id === normalizedId);
+      if (!objective) continue;
+      const progress = entry.objectives[objective.id];
+      if (!progress || progress.completed || this.isObjectiveUnlocked(progress)) return false;
+      progress.unlocked = true;
+      progress.state = "active";
+      progress.activationDefinitionKey = this.objectiveActivationDefinitionKey(objective);
+      progress.activatedByEventId = activatedByEventId?.trim() || undefined;
+      this.host.onObjectiveActivated?.(
+        definition.id,
+        objective.id,
+        objectiveStage.id,
+        structuredClone(entry),
+        structuredClone(objective),
+      );
+      this.notify(definition.id);
+      this.advanceIfComplete(definition, entry);
+      return true;
+    }
+    return false;
   }
 
   startQuest(questId: string, day: number | null = null, time: number | null = null): boolean {
@@ -582,7 +632,28 @@ export class QuestRuntimeManager {
       if (!stage || !this.isStageActive(entry)) continue;
       for (const objective of stage.objectives) {
         const progress = entry.objectives[objective.id];
-        if (!progress || !this.isObjectiveActive(entry, progress)) continue;
+        if (!progress) continue;
+        const activationEventId = this.objectiveActivationEventId(objective);
+        const legacyDialogueMatch = event.type === "dialogueCompleted" &&
+          objective.unlockDialogueId === event.targetId;
+        if (!this.isObjectiveUnlocked(progress) &&
+            ((activationEventId.length > 0 && activationEventId === event.targetId) ||
+             legacyDialogueMatch)) {
+          progress.unlocked = true;
+          progress.state = "active";
+          progress.activationDefinitionKey = this.objectiveActivationDefinitionKey(objective);
+          progress.activatedByEventId = event.targetId;
+          matchedObjective = true;
+          this.host.onObjectiveActivated?.(
+            definition.id,
+            objective.id,
+            stage.id,
+            structuredClone(entry),
+            structuredClone(objective),
+          );
+          this.notify(definition.id);
+        }
+        if (!this.isObjectiveActive(entry, progress)) continue;
         if (objective.type === "compoundCollectItem") {
           if (event.type !== "itemCollected") continue;
           const requirement = normalizeItemRequirements(objective).find(
@@ -658,6 +729,8 @@ export class QuestRuntimeManager {
     const progress = entry.objectives[objective.id];
     if (!progress) return;
     progress.completed = true;
+    progress.unlocked = true;
+    progress.state = "completed";
     progress.completionPresented = false;
     progress.completionAvailableAtEpochMs = this.now() +
       this.delayMilliseconds(objective.completionDelaySeconds);
@@ -701,7 +774,14 @@ export class QuestRuntimeManager {
   private advanceIfComplete(definition: QuestDefinition, entry: QuestRuntimeEntry) {
     const stage = definition.stages.find(candidate => candidate.id === entry.currentStageId);
     if (!stage || stage.objectives.length === 0) return;
-    const states = stage.objectives.map(objective => entry.objectives[objective.id]?.completed === true);
+    const completionObjectives = stage.objectives.filter((objective) => {
+      const progress = entry.objectives[objective.id];
+      return this.isObjectiveUnlocked(progress) || objective.blocksStageCompletion !== false;
+    });
+    if (completionObjectives.length === 0) return;
+    const states = completionObjectives.map(
+      objective => entry.objectives[objective.id]?.completed === true,
+    );
     const completed = stage.completionMode === "any" ? states.some(Boolean) : states.every(Boolean);
     if (!completed) return;
     const next = definition.stages.find(candidate => candidate.id === stage.nextStageId)
@@ -715,7 +795,7 @@ export class QuestRuntimeManager {
       this.recordQuestCompletion(definition, entry);
     }
 
-    const presentationStates = stage.objectives.map((objective) => {
+    const presentationStates = completionObjectives.map((objective) => {
       const progress = entry.objectives[objective.id];
       return progress?.completed === true && progress.completionPresented !== false;
     });
@@ -811,8 +891,43 @@ export class QuestRuntimeManager {
     for (const stage of definition.stages) {
       for (const objective of stage.objectives) {
         entry.objectives[objective.id] ??= this.createObjectiveEntry(objective);
+        const progress = entry.objectives[objective.id];
+        const activationDefinitionKey = this.objectiveActivationDefinitionKey(objective);
+        const previousActivationDefinitionKey = progress.activationDefinitionKey;
+        const eventActivated = this.isEventActivatedObjective(objective);
+        const activationEventId = this.objectiveActivationEventId(objective);
+        const hasObjectiveProgress = progress.completed || progress.currentAmount > 0;
+        const hasConfirmedActivation =
+          progress.activatedByEventId === activationEventId ||
+          this.hasProcessedActivationEvent(activationEventId);
+
+        if (!eventActivated) {
+          // Changing an objective back to immediate activation must not leave an old event lock behind.
+          progress.unlocked = true;
+          progress.activatedByEventId = undefined;
+        } else if (!hasObjectiveProgress && (
+          (previousActivationDefinitionKey != null &&
+            previousActivationDefinitionKey !== activationDefinitionKey) ||
+          (previousActivationDefinitionKey == null &&
+            progress.unlocked === true &&
+            !hasConfirmedActivation)
+        )) {
+          // An objective edited from immediate to event activation may still be marked active in
+          // an existing browser save. Re-lock only untouched objectives unless the activating event
+          // is known to have run, so genuine unlocked/completed progress remains intact.
+          progress.unlocked = false;
+          progress.activatedByEventId = undefined;
+        } else if (progress.unlocked === undefined) {
+          progress.unlocked = hasObjectiveProgress || hasConfirmedActivation;
+        }
+        progress.activationDefinitionKey = activationDefinitionKey;
+        progress.state = progress.completed
+          ? "completed"
+          : progress.unlocked === false
+            ? "locked"
+            : "active";
         if (objective.type === "compoundCollectItem") {
-          entry.objectives[objective.id].itemAmounts ??= {};
+          progress.itemAmounts ??= {};
         }
       }
     }
@@ -920,7 +1035,39 @@ export class QuestRuntimeManager {
     entry: QuestRuntimeEntry,
     progress: QuestObjectiveRuntime,
   ): boolean {
-    return this.isStageActive(entry) && (progress.availableAtEpochMs ?? 0) <= this.now();
+    return this.isObjectiveUnlocked(progress) &&
+      this.isStageActive(entry) &&
+      (progress.availableAtEpochMs ?? 0) <= this.now();
+  }
+
+  private isObjectiveUnlocked(progress?: QuestObjectiveRuntime): boolean {
+    return progress?.state === "completed" ||
+      progress?.state === "active" ||
+      (progress?.state == null && progress?.unlocked !== false);
+  }
+
+  private isEventActivatedObjective(objective: QuestObjectiveDefinition): boolean {
+    return objective.activationMode === "event" ||
+      this.objectiveActivationEventId(objective).length > 0;
+  }
+
+  private objectiveActivationEventId(objective: QuestObjectiveDefinition): string {
+    return (objective.activationEventId ?? objective.unlockDialogueId ?? "").trim();
+  }
+
+  private objectiveActivationDefinitionKey(objective: QuestObjectiveDefinition): string {
+    return this.isEventActivatedObjective(objective)
+      ? `event:${this.objectiveActivationEventId(objective)}`
+      : "immediate";
+  }
+
+  private hasProcessedActivationEvent(activationEventId: string): boolean {
+    if (!activationEventId) return false;
+    return (this.saveData.processedEventIds ?? []).some((eventId) =>
+      eventId === activationEventId ||
+      eventId.includes(`:${activationEventId}:`) ||
+      eventId.endsWith(`:${activationEventId}`)
+    );
   }
 
   private scheduleAfter(delayMilliseconds: number, callback: () => void) {
@@ -1043,7 +1190,11 @@ export class QuestRuntimeManager {
 
     const stage = definition.stages.find(candidate => candidate.id === entry.currentStageId);
     if (!stage) return;
-    const rawStates = stage.objectives.map(
+    const completionObjectives = stage.objectives.filter((objective) => {
+      const progress = entry.objectives[objective.id];
+      return this.isObjectiveUnlocked(progress) || objective.blocksStageCompletion !== false;
+    });
+    const rawStates = completionObjectives.map(
       objective => entry.objectives[objective.id]?.completed === true,
     );
     const rawCompleted = stage.completionMode === "any"
@@ -1124,6 +1275,9 @@ export class QuestRuntimeManager {
     return {
       currentAmount: 0,
       completed: false,
+      state: this.isEventActivatedObjective(objective) ? "locked" : "active",
+      unlocked: !this.isEventActivatedObjective(objective),
+      activationDefinitionKey: this.objectiveActivationDefinitionKey(objective),
       ...(objective.type === "compoundCollectItem" ? { itemAmounts: {} } : {}),
     };
   }

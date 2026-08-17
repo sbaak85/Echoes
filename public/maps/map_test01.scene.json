@@ -1646,19 +1646,19 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u795E\u79D8\u7684\u7926\u77F3\uFF0C\u53EF\u4EE5\u63D0\u4F9B\u6211\u767C\u96FB\u3002",
+            "text": "\u5947\u7279\u7684\u7926\u77F3\uFF0C\u53EF\u4EE5\u653E\u9032\u767C\u96FB\u6A5F\u63D0\u4F9B\u767C\u96FB\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
             "speaker": "Sbaak",
-            "text": "\u795E\u79D8\u7684\u7926\u77F3\uFF0C\u96B1\u96B1\u767C\u51FA\u85CD\u8272\u7684\u5E7D\u5149...",
+            "text": "\u5947\u7279\u7684\u5916\u661F\u7926\u77F3\uFF0C\u96B1\u96B1\u767C\u51FA\u85CD\u8272\u7684\u5E7D\u5149...",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
             "speaker": "Sbaak",
-            "text": "\u9752\u85CD\u7684\u795E\u7955\u7926\u77F3\uFF0C\u653E\u5165\u5171\u632F\u6A5F\u53EF\u4EE5\u7522\u751F\u96FB\u80FD\u3002",
+            "text": "\u9752\u85CD\u7684\u5947\u7279\u7926\u77F3\uFF0C\u653E\u5165\u5171\u632F\u6A5F\u53EF\u4EE5\u7522\u751F\u96FB\u80FD\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           }
@@ -1725,11 +1725,11 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u6316\u51FA\u4F86\u4E86! \u8D95\u5FEB! \u628A\u9019\u500B..."
+            "text": "\u6316\u51FA\u4F86\u4E86!"
           },
           {
             "speaker": "Sbaak",
-            "text": "\u5176\u5BE6\u4E0D\u7528\u90A3\u9EBC\u6025! \u4F46\u662F...\u8D95\u5FEB! \u62FF\u5230\u5171\u632F\u6A5F\u88E1\u8A66\u8A66!"
+            "text": "\u53EF\u4EE5\u628A\u7926\u77F3\u788E\u7247\u653E\u9032\u5171\u632F\u6A5F\u88E1\u3002"
           }
         ]
       }
@@ -2612,7 +2612,7 @@
           "stageMode": "CurrentStageOnly",
           "disableQuestId": "",
           "disableStageId": "",
-          "quantity": 1,
+          "quantity": 2,
           "chapter": 1
         }
       ],
@@ -3676,6 +3676,7 @@
         "spirit": -5,
         "timeMinutes": 0
       },
+      "interactionLimitMode": "once",
       "useRequirements": [
         {
           "kind": "questStage",
@@ -3736,7 +3737,11 @@
           },
           {
             "speaker": "\u98DB\u8239\u5DE5\u7A0B\u96FB\u8166AI",
-            "text": "\u8B66\u544A! \u641C\u5C0B\u689D\u4EF6\u7121\u6CD5\u5BEB\u5165\uFF0C\u7CFB\u7D71\u8F09\u5165TimeOut\u3002\r\nIndexing local engineering database...\r\nERROR 408 \u2014 REQUEST TIMEOUT\r\nERR_DB_INDEX_UNAVAILABLE"
+            "text": "\u8B66\u544A! \u641C\u5C0B\u689D\u4EF6\u7121\u6CD5\u5BEB\u5165\uFF0C\u7CFB\u7D71\u8F09\u5165\u903E\u6642\u3002\r\nIndexing local engineering database..."
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "ERROR 408 \u2014 REQUEST TIMEOUT\r\nERR_DB_INDEX_UNAVAILABLE"
           },
           {
             "speaker": "Sbaak",
@@ -3744,7 +3749,11 @@
           },
           {
             "speaker": "",
-            "text": "(\u91CD\u65B0\u57F7\u884C\u8CC7\u6599\u5EAB\u8A3A\u65B7)\r\nENGINEERING_DB : ONLINE\r\n/ INDEX SERVICE : FAILED\r\nSTORAGE BUS : UNSTABLE\r\n/ VOLTAGE DROP DETECTED"
+            "text": "(\u91CD\u65B0\u57F7\u884C\u8CC7\u6599\u5EAB\u8A3A\u65B7)\r\nENGINEERING_DB : ONLINE\r\n/ INDEX SERVICE : FAILED"
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "STORAGE BUS : UNSTABLE\r\n/ VOLTAGE DROP DETECTED"
           },
           {
             "speaker": "Sbaak",
@@ -4059,7 +4068,7 @@
     {
       "id": "item-point-001",
       "label": "ItemPoint 1",
-      "itemId": "T0007",
+      "itemId": "R0015",
       "quantity": 1,
       "spawnPolicy": "once",
       "showOnMinimap": true,
@@ -4089,7 +4098,7 @@
     {
       "id": "item-point-003",
       "label": "ItemPoint 3",
-      "itemId": "Q0001",
+      "itemId": "R0010",
       "quantity": 1,
       "spawnPolicy": "once",
       "showOnMinimap": true,

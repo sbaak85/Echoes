@@ -433,6 +433,16 @@ internal static class EditorSelfTest
             "maps",
             "map_test02.scene.json"));
         SceneJson.Validate(scene2);
+        var duplicateInteractionId = scene.Interactables
+            .Concat(scene2.Interactables)
+            .GroupBy(interactable => interactable.Id, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1)
+            ?.Key;
+        if (duplicateInteractionId is not null)
+        {
+            throw new InvalidDataException(
+                $"跨場景互動多邊形 ID 重複：{duplicateInteractionId}");
+        }
         var scene2Entry = scene2.EntryPoints.SingleOrDefault(
             point => point.Id == "entry-scene2-from-scene3");
         var scene2Exit = scene2.Connections.SingleOrDefault(
@@ -452,9 +462,9 @@ internal static class EditorSelfTest
         var cliffLowerPoint = scene2.TeleportPoints.SingleOrDefault(
             point => point.Id == "teleport-point-scene2-cliff-lower");
         var cliffUpperInteraction = scene2.Interactables.SingleOrDefault(
-            interactable => interactable.Id == "interaction-001");
+            interactable => interactable.Id == "scene2-interaction-001");
         var cliffLowerInteraction = scene2.Interactables.SingleOrDefault(
-            interactable => interactable.Id == "interaction-002");
+            interactable => interactable.Id == "scene2-interaction-002");
         if (
             cliffUpperPoint is not { Facing: "NE", BlackoutEnabled: true } ||
             cliffLowerPoint is not { Facing: "SW", BlackoutEnabled: true } ||
@@ -546,6 +556,11 @@ internal static class EditorSelfTest
         {
             "QUEST_STORY_NEXT",
         };
+        configuredStoryTrigger.ActivateObjectiveIds = new List<string>
+        {
+            "QUEST_STORY_ACTIVE_OBJ_02",
+            "QUEST_STORY_ACTIVE_OBJ_03",
+        };
         configuredStoryTrigger.UseRequirements = new List<InteractionUseRequirement>
         {
             new() { Kind = "item", ItemId = "R0011", Quantity = 3 },
@@ -589,6 +604,9 @@ internal static class EditorSelfTest
                 } storyRoundTripTrigger ||
             storyRoundTripTrigger.StartQuestIds is not { Count: 1 } ||
             storyRoundTripTrigger.StartQuestIds[0] != "QUEST_STORY_NEXT" ||
+            storyRoundTripTrigger.ActivateObjectiveIds is not { Count: 2 } ||
+            storyRoundTripTrigger.ActivateObjectiveIds[0] != "QUEST_STORY_ACTIVE_OBJ_02" ||
+            storyRoundTripTrigger.ActivateObjectiveIds[1] != "QUEST_STORY_ACTIVE_OBJ_03" ||
             storyRoundTripTrigger.UseRequirements?.Count != 5 ||
             storyRoundTripTrigger.UseRequirements?[0] is not
                 { Kind: "item", ItemId: "R0011", Quantity: 3 } ||

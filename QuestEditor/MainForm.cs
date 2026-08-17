@@ -457,10 +457,14 @@ internal sealed class MainForm : Form
             var objective = _propertyGrid.SelectedObject as QuestObjectiveDefinition;
             var quest = _propertyGrid.SelectedObject as QuestDefinition;
             var property = _propertyGrid.SelectedGridItem?.PropertyDescriptor;
+            var isActivationEventProperty = property?.Name ==
+                nameof(QuestObjectiveDefinition.ActivationEventId);
             var isTeleportProperty = property?.Name is
                 nameof(QuestDefinition.StartTeleportPointId) or
                 nameof(QuestDefinition.CompletionTeleportPointId);
-            var kind = isTeleportProperty
+            var kind = isActivationEventProperty
+                ? "StoryTrigger"
+                : isTeleportProperty
                 ? "TeleportPoint"
                 : objective is not null
                     ? QuestValidator.ReferenceKind(objective.Type)
@@ -470,7 +474,8 @@ internal sealed class MainForm : Form
                         QuestCompletionTriggerType.EventFlow => "EventFlow",
                         _ => null,
                     };
-            var currentId = isTeleportProperty && _propertyGrid.SelectedObject is { } selectedObject
+            var currentId = (isActivationEventProperty || isTeleportProperty) &&
+                _propertyGrid.SelectedObject is { } selectedObject
                 ? property?.GetValue(selectedObject)?.ToString() ?? ""
                 : objective?.TargetId ?? quest?.CompletionTriggerId ?? "";
             _referenceLabel.Text = kind is null
@@ -500,6 +505,7 @@ internal sealed class MainForm : Form
 
     private static string ReferenceKindDisplayName(string kind) => kind switch
     {
+        "StoryTrigger" => "劇情觸發區",
         "Item" => "道具",
         "Interface" => "介面",
         "Interaction" => "互動區",
@@ -518,7 +524,14 @@ internal sealed class MainForm : Form
         if (_rebuilding || _updatingReferenceList ||
             _referenceCombo.SelectedItem is not QuestReference reference) return;
         var property = _propertyGrid.SelectedGridItem?.PropertyDescriptor;
-        if (property?.Name is nameof(QuestDefinition.StartTeleportPointId) or
+        if (property?.Name == nameof(QuestObjectiveDefinition.ActivationEventId))
+        {
+            if (_propertyGrid.SelectedObject is not QuestObjectiveDefinition objective ||
+                Equals(property.GetValue(objective), reference.Id)) return;
+            property.SetValue(objective, reference.Id);
+            objective.ActivationMode = ObjectiveActivationMode.Event;
+        }
+        else if (property?.Name is nameof(QuestDefinition.StartTeleportPointId) or
             nameof(QuestDefinition.CompletionTeleportPointId))
         {
             if (_propertyGrid.SelectedObject is not { } selectedObject ||

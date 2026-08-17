@@ -1457,6 +1457,12 @@ html.dialogue-cursor-active .dialogue-box * {
   align-items: center;
 }
 
+.quest-objective.is-unlock-enter {
+  overflow: hidden;
+  transform-origin: top center;
+  animation: quest-objective-unlock-enter 0.7s cubic-bezier(0.2, 0.82, 0.24, 1) both;
+}
+
 .quest-objective-label {
   color: #d7e1de;
   font-size: 18px;
@@ -3598,6 +3604,27 @@ html.dialogue-cursor-active .dialogue-box * {
   border-top: 1px solid rgba(76, 203, 204, 0.16);
   color: #669897;
   font-size: 12px;
+}
+
+@keyframes quest-objective-unlock-enter {
+  0% {
+    max-height: 0;
+    opacity: 0;
+    filter: blur(3px);
+    transform: translateY(-8px) scaleY(0.72);
+  }
+  55% {
+    max-height: 96px;
+    opacity: 0.78;
+    filter: blur(0);
+    transform: translateY(1px) scaleY(1.02);
+  }
+  100% {
+    max-height: 96px;
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scaleY(1);
+  }
 }
 
 /* Scene-exit confirmation shown by choice-mode connection polygons. */

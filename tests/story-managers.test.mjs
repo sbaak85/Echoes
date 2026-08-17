@@ -76,6 +76,10 @@ test("story trigger zones reuse interaction requirements and completion effects"
     storyActivationSource,
     /getInteractionUseRequirementFailure\(trigger, "all"\)/,
   );
+  assert.match(
+    movementLabSource,
+    /id: `story-trigger:\$\{SCENE_DATA\.sceneId\}:\$\{zone\.id\}`/,
+  );
 
   const storyContactSource = movementLabSource.slice(
     movementLabSource.indexOf("const shouldRecheckTouchingStoryTriggers"),

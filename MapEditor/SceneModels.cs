@@ -496,6 +496,17 @@ public sealed record QuestStageCatalogEntry(string Id, string Name)
         : $"{Id}｜{Name}";
 }
 
+public sealed record QuestObjectiveCatalogEntry(
+    string Id,
+    string Name,
+    string QuestId,
+    string StageId)
+{
+    public override string ToString() => string.IsNullOrWhiteSpace(Name)
+        ? Id
+        : $"{Id}｜{Name}";
+}
+
 public sealed record QuestCatalogEntry(
     string Id,
     string Name,
@@ -554,6 +565,60 @@ public static class QuestCatalog
         catch
         {
             return Array.Empty<QuestCatalogEntry>();
+        }
+    }
+
+    public static IReadOnlyList<QuestObjectiveCatalogEntry> LoadObjectives(string? projectRoot)
+    {
+        if (string.IsNullOrWhiteSpace(projectRoot)) return Array.Empty<QuestObjectiveCatalogEntry>();
+        var path = Path.Combine(projectRoot, "public", "quests", "quest-data.json");
+        if (!File.Exists(path)) return Array.Empty<QuestObjectiveCatalogEntry>();
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            if (!document.RootElement.TryGetProperty("quests", out var quests) ||
+                quests.ValueKind != JsonValueKind.Array)
+            {
+                return Array.Empty<QuestObjectiveCatalogEntry>();
+            }
+
+            var result = new List<QuestObjectiveCatalogEntry>();
+            foreach (var quest in quests.EnumerateArray())
+            {
+                var questId = quest.TryGetProperty("id", out var questIdElement)
+                    ? questIdElement.GetString()?.Trim() ?? ""
+                    : "";
+                if (!quest.TryGetProperty("stages", out var stages) || stages.ValueKind != JsonValueKind.Array)
+                    continue;
+                foreach (var stage in stages.EnumerateArray())
+                {
+                    var stageId = stage.TryGetProperty("id", out var stageIdElement)
+                        ? stageIdElement.GetString()?.Trim() ?? ""
+                        : "";
+                    if (!stage.TryGetProperty("objectives", out var objectives) || objectives.ValueKind != JsonValueKind.Array)
+                        continue;
+                    foreach (var objective in objectives.EnumerateArray())
+                    {
+                        var id = objective.TryGetProperty("id", out var idElement)
+                            ? idElement.GetString()?.Trim() ?? ""
+                            : "";
+                        if (id.Length == 0) continue;
+                        var name = objective.TryGetProperty("displayText", out var nameElement)
+                            ? nameElement.GetString()?.Trim() ?? ""
+                            : "";
+                        result.Add(new QuestObjectiveCatalogEntry(id, name, questId, stageId));
+                    }
+                }
+            }
+            return result
+                .GroupBy(objective => objective.Id, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .OrderBy(objective => objective.Id, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch
+        {
+            return Array.Empty<QuestObjectiveCatalogEntry>();
         }
     }
 }
@@ -656,6 +721,9 @@ public sealed class StoryTriggerZone : ITriggerConfiguration
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? StartQuestIds { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? ActivateObjectiveIds { get; set; }
 
     public SurvivalRequirements SurvivalRequirements { get; set; } = new();
     public SurvivalEffects SurvivalEffects { get; set; } = new();
@@ -796,8 +864,23 @@ public static class SceneJson
             }
         }
 
+        var duplicateInteractionId = document.Interactables
+            .Where(interactable => !string.IsNullOrWhiteSpace(interactable.Id))
+            .GroupBy(interactable => interactable.Id.Trim(), StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1)
+            ?.Key;
+        if (duplicateInteractionId is not null)
+        {
+            throw new InvalidDataException($"互動多邊形 ID 重複：{duplicateInteractionId}");
+        }
+
         foreach (var interactable in document.Interactables)
         {
+            if (string.IsNullOrWhiteSpace(interactable.Id))
+            {
+                throw new InvalidDataException("互動多邊形 ID 不可空白。");
+            }
+            interactable.Id = interactable.Id.Trim();
             if (interactable.Points.Count < 3)
             {
                 throw new InvalidDataException($"互動多邊形 {interactable.Id} 至少需要 3 個 Node。");
@@ -1057,6 +1140,12 @@ public static class SceneJson
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             if (trigger.StartQuestIds is { Count: 0 }) trigger.StartQuestIds = null;
+            trigger.ActivateObjectiveIds = trigger.ActivateObjectiveIds?
+                .Select(objectiveId => objectiveId.Trim())
+                .Where(objectiveId => objectiveId.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (trigger.ActivateObjectiveIds is { Count: 0 }) trigger.ActivateObjectiveIds = null;
             if (trigger.Once)
             {
                 trigger.InteractionLimitMode = "once";

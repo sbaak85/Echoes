@@ -129,6 +129,9 @@ internal static class Program
             Type = ObjectiveType.CollectItem,
             TargetId = "R0001",
             RequiredAmount = 3,
+            ActivationMode = ObjectiveActivationMode.Event,
+            ActivationEventId = "story-trigger-001",
+            BlocksStageCompletion = false,
             StartDelaySeconds = 0.75,
             CompletionDelaySeconds = 1.25,
             StartTeleportPointId = "teleport-point-center",
@@ -147,6 +150,9 @@ internal static class Program
             loaded.Quests[0].Stages[0].Objectives[0].RequiredAmount != 3 ||
             loaded.Quests[0].Stages[0].Objectives[0].CompletionInterfaceAction != CompletionInterfaceAction.Close ||
             loaded.Quests[0].Stages[0].Objectives[0].CompletionInterfaceId != "Inventory" ||
+            loaded.Quests[0].Stages[0].Objectives[0].ActivationMode != ObjectiveActivationMode.Event ||
+            loaded.Quests[0].Stages[0].Objectives[0].ActivationEventId != "story-trigger-001" ||
+            loaded.Quests[0].Stages[0].Objectives[0].BlocksStageCompletion ||
             Math.Abs(loaded.Quests[0].StartDelaySeconds - 1.5) > 0.001 ||
             loaded.Quests[0].CompletionTriggerType != QuestCompletionTriggerType.Dialogue ||
             loaded.Quests[0].CompletionTriggerId != "chapter03-section-2" ||

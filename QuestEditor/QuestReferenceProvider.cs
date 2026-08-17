@@ -74,6 +74,7 @@ internal static class QuestReferenceProvider
                 var rootElement = document.RootElement;
                 AddArray(rootElement, "interactables", "Interaction", catalog);
                 AddArray(rootElement, "storyTriggers", "Area", catalog);
+                AddArray(rootElement, "storyTriggers", "StoryTrigger", catalog);
                 AddArray(rootElement, "itemPoints", "WorldObject", catalog);
                 AddArray(rootElement, "teleportPoints", "TeleportPoint", catalog);
                 AddArray(rootElement, "collisions", "WorldObject", catalog);

@@ -186,6 +186,14 @@ internal static class QuestValidator
     {
         Required(objective.Id, "Objective ID 不可空白", objective, issues);
         ValidateCompletionInterfaceAction(objective, references, issues);
+        if (objective.ActivationMode == ObjectiveActivationMode.Event &&
+            string.IsNullOrWhiteSpace(objective.ActivationEventId))
+        {
+            issues.Add(new(
+                ValidationSeverity.Error,
+                $"{objective.Id} 設為事件啟用，但尚未填入啟用事件 ID。",
+                objective));
+        }
         if (objective.RequiredAmount < 1)
             issues.Add(new(ValidationSeverity.Error, $"{objective.Id} 的需求數量必須大於 0", objective));
         if (objective.Type == ObjectiveType.CompoundCollectItem)

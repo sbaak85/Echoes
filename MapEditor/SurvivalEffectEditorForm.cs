@@ -58,6 +58,7 @@ public sealed class SurvivalEffectEditorForm : Form
     private readonly object[] _useRequirementComboItems;
     private readonly UseRequirementChoice[] _questChoiceItems;
     private readonly QuestCatalogEntry[] _quests;
+    private readonly QuestObjectiveCatalogEntry[] _objectives;
     private readonly RequirementControls _staminaRequirement = new();
     private readonly RequirementControls _hungerRequirement = new();
     private readonly RequirementControls _thirstRequirement = new();
@@ -127,6 +128,13 @@ public sealed class SurvivalEffectEditorForm : Form
         ForeColor = Color.FromArgb(226, 230, 234),
         BorderStyle = BorderStyle.FixedSingle,
     };
+    private readonly CheckedListBox _activateObjectiveList = new()
+    {
+        CheckOnClick = true,
+        BackColor = Color.FromArgb(19, 22, 27),
+        ForeColor = Color.FromArgb(226, 230, 234),
+        BorderStyle = BorderStyle.FixedSingle,
+    };
     private readonly InteractionTypeDefaults _defaults;
 
     public SurvivalRequirements Requirements => new()
@@ -179,6 +187,12 @@ public sealed class SurvivalEffectEditorForm : Form
             .Select(quest => quest.Id)
             .ToList();
 
+    public List<string> ActivateObjectiveIds =>
+        _activateObjectiveList.CheckedItems
+            .Cast<QuestObjectiveCatalogEntry>()
+            .Select(objective => objective.Id)
+            .ToList();
+
     public SurvivalEffectEditorForm(
         string interactionType,
         SurvivalRequirements requirements,
@@ -196,7 +210,9 @@ public sealed class SurvivalEffectEditorForm : Form
         string? completionTeleportPointId = null,
         float completionTeleportDelaySeconds = 0,
         bool showCompletionTeleportOption = false,
-        bool showEffectsPage = true)
+        bool showEffectsPage = true,
+        IEnumerable<QuestObjectiveCatalogEntry>? objectives = null,
+        IEnumerable<string>? activateObjectiveIds = null)
     {
         SuspendLayout();
         SetStyle(
@@ -211,6 +227,11 @@ public sealed class SurvivalEffectEditorForm : Form
         var configuredStartQuestIds = (startQuestIds ?? Array.Empty<string>())
             .Select(questId => questId.Trim())
             .Where(questId => questId.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var configuredActivateObjectiveIds = (activateObjectiveIds ?? Array.Empty<string>())
+            .Select(objectiveId => objectiveId.Trim())
+            .Where(objectiveId => objectiveId.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         var questList = (quests ?? Array.Empty<QuestCatalogEntry>())
@@ -235,6 +256,13 @@ public sealed class SurvivalEffectEditorForm : Form
                 $"{quest.Id}｜{quest.Name}"))
             .ToArray();
         _quests = questList;
+        _objectives = (objectives ?? Array.Empty<QuestObjectiveCatalogEntry>())
+            .Concat(configuredActivateObjectiveIds.Select(objectiveId =>
+                new QuestObjectiveCatalogEntry(objectiveId, "（資料中未找到）", "", "")))
+            .GroupBy(objective => objective.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderBy(objective => objective.Id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         _useRequirementChoiceItems = ItemCatalog.All
             .Select(item => new UseRequirementChoice("item", item.Id, $"道具｜{item.Name}"))
             .Append(new UseRequirementChoice("chapter", "chapter", "進度｜當前章節"))
@@ -296,7 +324,10 @@ public sealed class SurvivalEffectEditorForm : Form
         }
         if (questStartPage is not null)
         {
-            BuildQuestStartPage(questStartPage, configuredStartQuestIds);
+            BuildQuestStartPage(
+                questStartPage,
+                configuredStartQuestIds,
+                configuredActivateObjectiveIds);
         }
 
         var cancelButton = CreateButton("取消", 326, 710, 82, 34);
@@ -908,7 +939,8 @@ public sealed class SurvivalEffectEditorForm : Form
 
     private void BuildQuestStartPage(
         Control page,
-        IReadOnlyCollection<string> configuredQuestIds)
+        IReadOnlyCollection<string> configuredQuestIds,
+        IReadOnlyCollection<string> configuredObjectiveIds)
     {
         var explanation = new Label
         {
@@ -925,10 +957,10 @@ public sealed class SurvivalEffectEditorForm : Form
             AutoSize = false,
             ForeColor = Color.FromArgb(196, 209, 221),
         };
-        heading.SetBounds(18, 84, 410, 26);
+        heading.SetBounds(18, 80, 410, 26);
         page.Controls.Add(heading);
 
-        _startQuestList.SetBounds(18, 114, 410, 470);
+        _startQuestList.SetBounds(18, 108, 410, 170);
         _startQuestList.Items.AddRange(_quests.Cast<object>().ToArray());
         for (var index = 0; index < _startQuestList.Items.Count; index++)
         {
@@ -940,13 +972,35 @@ public sealed class SurvivalEffectEditorForm : Form
         }
         page.Controls.Add(_startQuestList);
 
+        var objectiveHeading = new Label
+        {
+            Text = "完成後啟用／顯示任務目標（可複選）",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(196, 209, 221),
+        };
+        objectiveHeading.SetBounds(18, 292, 410, 26);
+        page.Controls.Add(objectiveHeading);
+
+        _activateObjectiveList.SetBounds(18, 320, 410, 260);
+        _activateObjectiveList.Items.AddRange(_objectives.Cast<object>().ToArray());
+        for (var index = 0; index < _activateObjectiveList.Items.Count; index++)
+        {
+            if (_activateObjectiveList.Items[index] is QuestObjectiveCatalogEntry objective &&
+                configuredObjectiveIds.Contains(objective.Id, StringComparer.OrdinalIgnoreCase))
+            {
+                _activateObjectiveList.SetItemChecked(index, true);
+            }
+        }
+        page.Controls.Add(_activateObjectiveList);
+
         var hint = new Label
         {
             Text = "未勾選任何任務時，劇情區只播放腳本並結算其他完成效果。",
             AutoSize = false,
             ForeColor = Color.FromArgb(129, 222, 211),
         };
-        hint.SetBounds(18, 596, 410, 42);
+        hint.Text = "劇情對話確實播放完畢後，才會派發任務並啟用勾選的 OBJ。";
+        hint.SetBounds(18, 590, 410, 42);
         page.Controls.Add(hint);
     }
 

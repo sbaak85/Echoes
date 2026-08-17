@@ -91,6 +91,216 @@ test("quest save restores progress without copying definitions", () => {
   assert.equal(restored.getQuestState("QUEST_TEST"), "active");
 });
 
+test("dialogue-gated objective stays hidden and inactive until the dialogue completes", () => {
+  const gatedDocument = structuredClone(document);
+  const quest = gatedDocument.quests[0];
+  quest.stages = [
+    {
+      id: "QUEST_TEST_STAGE_01",
+      name: "對話解鎖測試",
+      completionMode: "all",
+      objectives: [
+        {
+          id: "QUEST_TEST_OBJ_DIALOGUE_GATE",
+          displayText: "取得挖掘鏟",
+          type: "collectItem",
+          targetId: "T0008",
+          unlockDialogueId: "chapter03-scene2-start",
+          requiredAmount: 1,
+          countMode: "accumulated",
+          interactionMode: "succeeded",
+          showProgress: false,
+          showHintIcon: false,
+        },
+      ],
+    },
+  ];
+  quest.rewardItemId = "";
+  quest.rewardItemAmount = 0;
+
+  const manager = new QuestRuntimeManager(gatedDocument);
+  manager.startQuest("QUEST_TEST");
+  let progress = manager.getObjectiveProgress(
+    "QUEST_TEST",
+    "QUEST_TEST_OBJ_DIALOGUE_GATE",
+  );
+  assert.equal(progress.unlocked, false);
+
+  manager.handleEvent({ type: "itemCollected", targetId: "T0008", amount: 1 });
+  progress = manager.getObjectiveProgress(
+    "QUEST_TEST",
+    "QUEST_TEST_OBJ_DIALOGUE_GATE",
+  );
+  assert.equal(progress.currentAmount, 0);
+  assert.equal(progress.completed, false);
+
+  manager.handleEvent({
+    type: "dialogueCompleted",
+    targetId: "chapter03-scene2-start",
+  });
+  progress = manager.getObjectiveProgress(
+    "QUEST_TEST",
+    "QUEST_TEST_OBJ_DIALOGUE_GATE",
+  );
+  assert.equal(progress.unlocked, true);
+
+  const restored = new QuestRuntimeManager(
+    gatedDocument,
+    {},
+    manager.exportSave(),
+  );
+  assert.equal(
+    restored.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_DIALOGUE_GATE").unlocked,
+    true,
+  );
+  restored.handleEvent({ type: "itemCollected", targetId: "T0008", amount: 1 });
+  assert.equal(restored.getQuestState("QUEST_TEST"), "completed");
+});
+
+test("story trigger activates an event objective and persists its runtime state", () => {
+  const eventDocument = structuredClone(document);
+  const quest = eventDocument.quests[0];
+  quest.rewardItemId = "";
+  quest.rewardItemAmount = 0;
+  quest.stages = [{
+    id: "QUEST_TEST_STAGE_EVENT",
+    name: "事件啟用測試",
+    completionMode: "all",
+    objectives: [
+      {
+        id: "QUEST_TEST_OBJ_READY",
+        displayText: "先完成既有目標",
+        type: "interactionSucceeded",
+        targetId: "interaction-ready",
+        requiredAmount: 1,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+        showProgress: false,
+        showHintIcon: false,
+      },
+      {
+        id: "QUEST_TEST_OBJ_EVENT",
+        displayText: "由劇情區顯示的新目標",
+        type: "collectItem",
+        targetId: "T0008",
+        requiredAmount: 1,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+        activationMode: "event",
+        activationEventId: "story-zone-a",
+        blocksStageCompletion: true,
+        showProgress: false,
+        showHintIcon: false,
+      },
+    ],
+  }];
+
+  const activated = [];
+  const manager = new QuestRuntimeManager(eventDocument, {
+    onObjectiveActivated: (_questId, objectiveId) => activated.push(objectiveId),
+  });
+  manager.startQuest("QUEST_TEST");
+  assert.equal(manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_EVENT").state, "locked");
+  manager.handleEvent({ type: "interactionSucceeded", targetId: "interaction-ready" });
+  assert.equal(manager.getQuestState("QUEST_TEST"), "active");
+
+  manager.handleEvent({ type: "storyTriggerCompleted", targetId: "story-zone-a" });
+  assert.deepEqual(activated, ["QUEST_TEST_OBJ_EVENT"]);
+  assert.equal(manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_EVENT").state, "active");
+
+  const restored = new QuestRuntimeManager(eventDocument, {}, manager.exportSave());
+  assert.equal(restored.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_EVENT").state, "active");
+  restored.handleEvent({ type: "itemCollected", targetId: "T0008", amount: 1 });
+  assert.equal(restored.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_EVENT").state, "completed");
+  assert.equal(restored.getQuestState("QUEST_TEST"), "completed");
+});
+
+test("an untouched objective is re-locked when its definition changes from immediate to event activation", () => {
+  const immediateDocument = structuredClone(document);
+  const quest = immediateDocument.quests[0];
+  quest.rewardItemId = "";
+  quest.rewardItemAmount = 0;
+  quest.stages = [{
+    id: "QUEST_TEST_STAGE_MIGRATION",
+    name: "啟用規則遷移測試",
+    completionMode: "all",
+    objectives: [{
+      id: "QUEST_TEST_OBJ_MIGRATION",
+      displayText: "等待劇情後顯示",
+      type: "collectItem",
+      targetId: "T0008",
+      requiredAmount: 1,
+      countMode: "accumulated",
+      interactionMode: "succeeded",
+      activationMode: "immediate",
+      activationEventId: "",
+      blocksStageCompletion: true,
+      showProgress: false,
+      showHintIcon: false,
+    }],
+  }];
+
+  const original = new QuestRuntimeManager(immediateDocument);
+  original.startQuest("QUEST_TEST");
+  assert.equal(
+    original.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_MIGRATION").state,
+    "active",
+  );
+
+  const eventDocument = structuredClone(immediateDocument);
+  const objective = eventDocument.quests[0].stages[0].objectives[0];
+  objective.activationMode = "event";
+  objective.activationEventId = "chapter03-scene2-start";
+  const migrated = new QuestRuntimeManager(eventDocument, {}, original.exportSave());
+  const progress = migrated.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_MIGRATION");
+  assert.equal(progress.unlocked, false);
+  assert.equal(progress.state, "locked");
+});
+
+test("locked event objective can be excluded from stage completion", () => {
+  const optionalDocument = structuredClone(document);
+  const quest = optionalDocument.quests[0];
+  quest.rewardItemId = "";
+  quest.rewardItemAmount = 0;
+  quest.stages = [{
+    id: "QUEST_TEST_STAGE_OPTIONAL",
+    name: "可選事件目標測試",
+    completionMode: "all",
+    objectives: [
+      {
+        id: "QUEST_TEST_OBJ_REQUIRED",
+        displayText: "必要目標",
+        type: "interactionSucceeded",
+        targetId: "interaction-required",
+        requiredAmount: 1,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+        showProgress: false,
+        showHintIcon: false,
+      },
+      {
+        id: "QUEST_TEST_OBJ_OPTIONAL",
+        displayText: "尚未出現的可選目標",
+        type: "collectItem",
+        targetId: "R0001",
+        requiredAmount: 1,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+        activationMode: "event",
+        activationEventId: "story-zone-optional",
+        blocksStageCompletion: false,
+        showProgress: false,
+        showHintIcon: false,
+      },
+    ],
+  }];
+
+  const manager = new QuestRuntimeManager(optionalDocument);
+  manager.startQuest("QUEST_TEST");
+  manager.handleEvent({ type: "interactionSucceeded", targetId: "interaction-required" });
+  assert.equal(manager.getQuestState("QUEST_TEST"), "completed");
+});
+
 test("completed quest history keeps the latest three completion order", () => {
   const historyDocument = structuredClone(document);
   historyDocument.quests = ["A", "B", "C", "D"].map((suffix) => {

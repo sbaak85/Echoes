@@ -55,6 +55,13 @@ public enum StageCompletionMode
 }
 
 [TypeConverter(typeof(LocalizedEnumConverter))]
+public enum ObjectiveActivationMode
+{
+    [Description("立即啟用")] Immediate,
+    [Description("事件啟用")] Event,
+}
+
+[TypeConverter(typeof(LocalizedEnumConverter))]
 public enum ObjectiveType
 {
     [Description("收集道具")] CollectItem,
@@ -375,6 +382,18 @@ public sealed class QuestObjectiveDefinition
     [Description("目標條件成立後，等待指定的現實秒數才顯示核取與完成演出。完成紀錄會立即保存。0 代表立即顯示。")]
     public double CompletionDelaySeconds { get; set; }
 
+    [Category("流程"), DisplayName("啟用方式")]
+    [Description("立即啟用會隨所屬 Stage 顯示；事件啟用則保持鎖定，直到指定事件或劇情觸發區完成。")]
+    public ObjectiveActivationMode ActivationMode { get; set; } = ObjectiveActivationMode.Immediate;
+
+    [Category("流程"), DisplayName("啟用事件 ID／劇情觸發區")]
+    [Description("事件啟用時填入事件 ID；也可在 MapEditor 的劇情觸發區直接勾選要啟用的 OBJ。")]
+    public string ActivationEventId { get; set; } = "";
+
+    [Category("流程"), DisplayName("未解鎖時阻擋階段完成")]
+    [Description("True：鎖定中的 OBJ 仍會阻止 Stage 完成。False：解鎖前不列入 Stage 完成判定。")]
+    public bool BlocksStageCompletion { get; set; } = true;
+
     [Category("傳送"), DisplayName("啟動傳送 Point ID")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? StartTeleportPointId { get; set; }
@@ -432,6 +451,9 @@ public sealed class QuestObjectiveDefinition
     [TypeConverter(typeof(RegisteredInterfaceIdConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CompletionInterfaceId { get; set; }
+
+    [Browsable(false)]
+    public string UnlockDialogueId { get; set; } = "";
 
     [JsonIgnore]
     [Browsable(false)]

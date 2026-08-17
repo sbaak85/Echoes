@@ -53,15 +53,15 @@ test("Scene_2 石壁上下層各有一個位於不同 NavMesh 的傳送 Point", 
   );
 });
 
-test("interaction-001 與 interaction-002 依任務階段開放並以繩索為不消耗條件互傳", async () => {
+test("Scene_2 兩個唯一 interaction ID 依任務階段開放並以繩索為不消耗條件互傳", async () => {
   const scene = JSON.parse(
     await readFile(new URL("../public/maps/map_test02.scene.json", import.meta.url), "utf8"),
   );
   const interactions = new Map(
     scene.interactables.map((interactable) => [interactable.id, interactable]),
   );
-  const upper = interactions.get("interaction-001");
-  const lower = interactions.get("interaction-002");
+  const upper = interactions.get("scene2-interaction-001");
+  const lower = interactions.get("scene2-interaction-002");
   assert.equal(
     upper.completionTeleportPointId,
     "teleport-point-scene2-cliff-lower",
@@ -84,15 +84,15 @@ test("interaction-001 與 interaction-002 依任務階段開放並以繩索為�
     );
     assert.deepEqual(stageRequirement, {
       kind: "questStage",
-      questId: "QUEST_CH03_MAIN_002",
-      stageId: "QUEST_CH03_MAIN_002_STAGE_01",
+      questId: "QUEST_CH03_MAIN_004",
+      stageId: "QUEST_CH03_MAIN_004_STAGE_01",
       stageMode: "UnlockFromStage",
     });
     assert.deepEqual(itemRequirement, {
       kind: "item",
       itemId: "T0001",
       quantity: 1,
-      ...(interactable.id === "interaction-001"
+      ...(interactable.id === "scene2-interaction-001"
         ? { scope: "interaction" }
         : {}),
     });

@@ -292,7 +292,14 @@ function buildQuestHudView(
   const stageActive = (entry.stageAvailableAtEpochMs ?? 0) <= now;
   const activeObjectives = stageActive
     ? (stage?.objectives ?? []).filter(
-        objective => (entry.objectives[objective.id]?.availableAtEpochMs ?? 0) <= now,
+        objective => {
+          const progress = entry.objectives[objective.id];
+          const unlocked = progress?.state === "active" ||
+            progress?.state === "completed" ||
+            (progress?.state == null && progress?.unlocked !== false);
+          return unlocked &&
+            (progress?.availableAtEpochMs ?? 0) <= now;
+        },
       )
     : [];
   return {
@@ -437,6 +444,7 @@ type StoryTriggerZone = {
   dialogueId: string;
   triggerDelaySeconds?: number;
   startQuestIds?: string[];
+  activateObjectiveIds?: string[];
   survivalRequirements?: SurvivalRequirements;
   survivalEffects?: SurvivalEffects & { timeMinutes?: number };
   dailyInteractionLimit?: number | null;
@@ -3070,6 +3078,7 @@ export function MovementLab() {
   const questHudEventTimerRef = useRef<number | null>(null);
   const questHudEventFinishedRef = useRef<(() => void) | null>(null);
   const questObjectiveTweenTimerRef = useRef<number | null>(null);
+  const questObjectiveUnlockTweenTimerRef = useRef<number | null>(null);
   const questStageTransitionTimerRef = useRef<number | null>(null);
   const questStageEnteringTimerRef = useRef<number | null>(null);
   const questEventNoticeTimerRef = useRef<number | null>(null);
@@ -3228,6 +3237,11 @@ export function MovementLab() {
   const [completedQuestHistory, setCompletedQuestHistory] = useState<QuestHistoryView[]>([]);
   const [questHudEvent, setQuestHudEvent] = useState<QuestHudEvent | null>(null);
   const [questObjectiveTween, setQuestObjectiveTween] = useState<{
+    questId: string;
+    objectiveId: string;
+    sequence: number;
+  } | null>(null);
+  const [questObjectiveUnlockTween, setQuestObjectiveUnlockTween] = useState<{
     questId: string;
     objectiveId: string;
     sequence: number;
@@ -3666,6 +3680,9 @@ export function MovementLab() {
     if (questObjectiveTweenTimerRef.current !== null) {
       window.clearTimeout(questObjectiveTweenTimerRef.current);
     }
+    if (questObjectiveUnlockTweenTimerRef.current !== null) {
+      window.clearTimeout(questObjectiveUnlockTweenTimerRef.current);
+    }
     questHudEventSequenceRef.current += 1;
     setActiveQuestHud(view);
     setQuestCollapsed(false);
@@ -3679,6 +3696,25 @@ export function MovementLab() {
       questObjectiveTweenTimerRef.current = null;
       setQuestObjectiveTween(null);
     }, 1000);
+  };
+
+  const triggerQuestObjectiveUnlockTween = (
+    view: QuestHudView,
+    objectiveId: string,
+  ) => {
+    questHudEventSequenceRef.current += 1;
+    setActiveQuestHud(view);
+    setQuestCollapsed(false);
+    setQuestMobileMode("expanded");
+    setQuestObjectiveUnlockTween({
+      questId: view.id,
+      objectiveId,
+      sequence: questHudEventSequenceRef.current,
+    });
+    questObjectiveUnlockTweenTimerRef.current = window.setTimeout(() => {
+      questObjectiveUnlockTweenTimerRef.current = null;
+      setQuestObjectiveUnlockTween(null);
+    }, 700);
   };
 
   const triggerQuestStageTransition = (
@@ -3897,6 +3933,10 @@ export function MovementLab() {
               });
             }
           },
+          onObjectiveActivated: (questId, objectiveId, _stageId, entry) => {
+            const view = buildQuestHudView(questId, entry);
+            if (view) triggerQuestObjectiveUnlockTween(view, objectiveId);
+          },
           onStageTransitionStarted: (
             questId,
             _currentStageId,
@@ -4113,6 +4153,9 @@ export function MovementLab() {
     questHudEventFinishedRef.current = null;
     if (questObjectiveTweenTimerRef.current !== null) {
       window.clearTimeout(questObjectiveTweenTimerRef.current);
+    }
+    if (questObjectiveUnlockTweenTimerRef.current !== null) {
+      window.clearTimeout(questObjectiveUnlockTweenTimerRef.current);
     }
     if (questStageTransitionTimerRef.current !== null) {
       window.clearTimeout(questStageTransitionTimerRef.current);
@@ -5120,7 +5163,7 @@ export function MovementLab() {
     events.on("storyZoneEntered", async ({ zoneId }) => {
       const zone = SCENE_STORY_TRIGGERS.find((item) => item.id === zoneId);
       if (!zone || storyFlowActiveRef.current) return;
-      const completionId = `story-zone:${zone.id}`;
+      const completionId = `story-zone:${SCENE_DATA.sceneId}:${zone.id}`;
       if (
         zone.once &&
         storyProgressRef.current.completedEventIds.includes(completionId)
@@ -5136,6 +5179,29 @@ export function MovementLab() {
         },
       );
       if (!result.completed || !completeStoryTriggerRef.current(zone)) return;
+      const questManager = questRuntimeManagerRef.current;
+      if (questManager) {
+        questGameEventSequenceRef.current += 1;
+        questManager.handleEvent({
+          type: "dialogueCompleted",
+          targetId: zone.dialogueId,
+          eventId:
+            `dialogueCompleted:${SCENE_DATA.sceneId}:${zone.dialogueId}:` +
+            `${questGameEventSequenceRef.current}`,
+        });
+        questGameEventSequenceRef.current += 1;
+        questManager.handleEvent({
+          type: "storyTriggerCompleted",
+          targetId: zone.id,
+          eventId:
+            `storyTriggerCompleted:${SCENE_DATA.sceneId}:${zone.id}:` +
+            `${questGameEventSequenceRef.current}`,
+        });
+        for (const objectiveId of zone.activateObjectiveIds ?? []) {
+          questManager.activateObjective(objectiveId);
+        }
+        saveQuestSaveData(questManager.exportSave());
+      }
       if (zone.once) markStoryEventCompleted(completionId);
     });
     storyEventManagerRef.current = events;
@@ -6160,7 +6226,10 @@ export function MovementLab() {
     const toStoryTriggerInteractable = (
       zone: StoryTriggerZone,
     ): SceneInteractable => ({
-      id: `story-trigger:${zone.id}`,
+      // Story-trigger IDs are only unique inside a scene. Include the active
+      // scene so a one-shot trigger in Scene_3 cannot lock an identically
+      // named trigger in Scene_2 through the shared interaction-usage save.
+      id: `story-trigger:${SCENE_DATA.sceneId}:${zone.id}`,
       label: zone.label,
       shape: "polygon",
       points: zone.points,
@@ -12033,10 +12102,12 @@ export function MovementLab() {
             {activeQuestHud!.objectives.map((objective) => {
               const progress = Math.min(1, objective.current / objective.required);
               const isCompletionPop = activeQuestObjectiveTween?.objectiveId === objective.id;
+              const isUnlockEnter = questObjectiveUnlockTween?.questId === activeQuestHud!.id &&
+                questObjectiveUnlockTween.objectiveId === objective.id;
               return (
                 <div
-                  className={`quest-objective${isCompletionPop ? " is-completion-pop" : ""}`}
-                  key={`${objective.id}-${isCompletionPop ? activeQuestObjectiveTween.sequence : 0}`}
+                  className={`quest-objective${isCompletionPop ? " is-completion-pop" : ""}${isUnlockEnter ? " is-unlock-enter" : ""}`}
+                  key={`${objective.id}-${isCompletionPop ? activeQuestObjectiveTween.sequence : 0}-${isUnlockEnter ? questObjectiveUnlockTween.sequence : 0}`}
                 >
                   <span
                     className={`quest-objective-check${objective.completed ? " is-complete" : ""}`}
