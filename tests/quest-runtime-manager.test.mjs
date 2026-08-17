@@ -554,11 +554,12 @@ test("quest lifecycle host receives distinct accepted, completed, failed and aba
   ]);
 });
 
-test("stage transition waits for the UI handoff and objective completion signals only once", () => {
+test("stage transition advances immediately while objective completion signals only once", () => {
   const completedObjectives = [];
   const transitions = [];
-  let finishTransition = null;
   const completionDocument = structuredClone(document);
+  completionDocument.quests[0].stages[0].completionPresentationDelaySeconds = 9;
+  completionDocument.quests[0].stages[1].startPresentationDelaySeconds = 9;
   completionDocument.quests[0].stages[0].objectives[0].completionInterfaceAction = "close";
   completionDocument.quests[0].stages[0].objectives[0].completionInterfaceId = "Inventory";
   const manager = new QuestRuntimeManager(completionDocument, {
@@ -571,9 +572,8 @@ test("stage transition waits for the UI handoff and objective completion signals
         objective.completionInterfaceId,
       ]);
     },
-    onStageTransitionStarted: (questId, currentStageId, nextStageId, _entry, complete) => {
+    onStageTransitionStarted: (questId, currentStageId, nextStageId) => {
       transitions.push([questId, currentStageId, nextStageId]);
-      finishTransition = complete;
     },
   });
 
@@ -586,14 +586,12 @@ test("stage transition waits for the UI handoff and objective completion signals
   assert.deepEqual(transitions, [
     ["QUEST_TEST", "QUEST_TEST_STAGE_01", "QUEST_TEST_STAGE_02"],
   ]);
-  assert.equal(manager.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_01");
+  assert.equal(manager.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_02");
 
   manager.handleEvent({ type: "itemCollected", targetId: "R0001", amount: 1 });
   assert.equal(completedObjectives.length, 1);
   assert.equal(transitions.length, 1);
 
-  finishTransition?.();
-  assert.equal(manager.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_02");
 });
 
 test("stage completion delay waits before requesting the existing NEXT UI transition", () => {
@@ -602,15 +600,13 @@ test("stage completion delay waits before requesting the existing NEXT UI transi
   let now = 1000;
   const scheduled = [];
   const transitions = [];
-  let finishTransition = null;
   const manager = new QuestRuntimeManager(completionDocument, {
     now: () => now,
     scheduleQuestStart: (delayMilliseconds, callback) => {
       scheduled.push({ at: now + delayMilliseconds, callback });
     },
-    onStageTransitionStarted: (questId, currentStageId, nextStageId, _entry, complete) => {
+    onStageTransitionStarted: (questId, currentStageId, nextStageId) => {
       transitions.push([questId, currentStageId, nextStageId]);
-      finishTransition = complete;
     },
   });
 
@@ -625,8 +621,6 @@ test("stage completion delay waits before requesting the existing NEXT UI transi
   assert.deepEqual(transitions, [
     ["QUEST_TEST", "QUEST_TEST_STAGE_01", "QUEST_TEST_STAGE_02"],
   ]);
-  assert.equal(manager.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_01");
-  finishTransition?.();
   assert.equal(manager.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_02");
 });
 

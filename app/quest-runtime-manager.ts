@@ -32,6 +32,8 @@ export type QuestObjectiveDefinition = {
   displayText: string;
   startDelaySeconds?: number;
   completionDelaySeconds?: number;
+  startPresentationDelaySeconds?: number;
+  completionPresentationDelaySeconds?: number;
   startTeleportPointId?: string;
   startTeleportDelaySeconds?: number;
   completionTeleportPointId?: string;
@@ -60,6 +62,8 @@ export type QuestStageDefinition = {
   name: string;
   startDelaySeconds?: number;
   completionDelaySeconds?: number;
+  startPresentationDelaySeconds?: number;
+  completionPresentationDelaySeconds?: number;
   startTeleportPointId?: string;
   startTeleportDelaySeconds?: number;
   completionTeleportPointId?: string;
@@ -79,6 +83,8 @@ export type QuestDefinition = {
   type: "main" | "side" | "longTermMain";
   prerequisiteQuestIds: string[];
   startDelaySeconds?: number;
+  startPresentationDelaySeconds?: number;
+  completionPresentationDelaySeconds?: number;
   startTeleportPointId?: string;
   startTeleportDelaySeconds?: number;
   completionTeleportPointId?: string;
@@ -256,7 +262,6 @@ export type QuestRuntimeHost = {
     currentStageId: string,
     nextStageId: string,
     entry: QuestRuntimeEntry,
-    completeTransition: () => void,
   ) => void;
 };
 
@@ -269,7 +274,6 @@ const emptySave = (): QuestSaveData => ({
 export class QuestRuntimeManager {
   private readonly definitions = new Map<string, QuestDefinition>();
   private readonly host: QuestRuntimeHost;
-  private readonly pendingStageTransitions = new Set<string>();
   private readonly pendingStageCompletionDelays = new Set<string>();
   private readonly pendingQuestStarts = new Set<string>();
   private readonly pendingCompletionTriggers = new Set<string>();
@@ -819,7 +823,6 @@ export class QuestRuntimeManager {
       return;
     }
 
-    if (this.pendingStageTransitions.has(definition.id)) return;
     if (entry.stageCompletionEventExecutedForId !== stage.id) {
       entry.stageCompletionEventExecutedForId = stage.id;
       this.requestTeleport(stage.completionTeleportPointId,
@@ -834,31 +837,22 @@ export class QuestRuntimeManager {
       this.presentQuestCompletion(definition, entry);
       return;
     }
-    const completeTransition = () => {
-      if (!this.pendingStageTransitions.delete(definition.id)) return;
-      if (entry.state !== "active" || entry.currentStageId !== stage.id) return;
-      entry.currentStageId = next.id;
-      this.configureStageActivation(definition, entry);
-      this.notify(definition.id);
-    };
-    if (!this.host.onStageTransitionStarted) {
-      entry.currentStageId = next.id;
-      this.configureStageActivation(definition, entry);
-      this.notify(definition.id);
-      return;
-    }
-    this.pendingStageTransitions.add(definition.id);
+    // Visual presentation must never hold the real quest state at the old Stage.
+    // Once all completion conditions and configured real delays are satisfied,
+    // advance immediately so stage-gated interactions cannot be triggered again.
     try {
-      this.host.onStageTransitionStarted(
+      this.host.onStageTransitionStarted?.(
         definition.id,
         stage.id,
         next.id,
         structuredClone(entry),
-        completeTransition,
       );
     } catch {
-      completeTransition();
+      // UI callbacks are optional presentation; a failure must not block progression.
     }
+    entry.currentStageId = next.id;
+    this.configureStageActivation(definition, entry);
+    this.notify(definition.id);
   }
 
   private notifyObjectiveCompleted(

@@ -103,9 +103,11 @@ internal static class Program
             Name = "測試任務",
             ChapterId = "CH03",
             StartDelaySeconds = 1.5,
+            StartPresentationDelaySeconds = 0.25,
             CompletionTriggerType = QuestCompletionTriggerType.Dialogue,
             CompletionTriggerId = "chapter03-section-2",
             CompletionTriggerDelaySeconds = 3,
+            CompletionPresentationDelaySeconds = 0.5,
             StartTeleportPointId = "teleport-point-center",
             StartTeleportDelaySeconds = 0.5,
             CompletionTeleportPointId = "teleport-point-center",
@@ -117,6 +119,8 @@ internal static class Program
             Name = "測試階段",
             StartDelaySeconds = 2.5,
             CompletionDelaySeconds = 3.25,
+            StartPresentationDelaySeconds = 0.4,
+            CompletionPresentationDelaySeconds = 0.6,
             StartTeleportPointId = "teleport-point-center",
             StartTeleportDelaySeconds = 0.6,
             CompletionTeleportPointId = "teleport-point-center",
@@ -134,6 +138,8 @@ internal static class Program
             BlocksStageCompletion = false,
             StartDelaySeconds = 0.75,
             CompletionDelaySeconds = 1.25,
+            StartPresentationDelaySeconds = 0.8,
+            CompletionPresentationDelaySeconds = 0.9,
             StartTeleportPointId = "teleport-point-center",
             StartTeleportDelaySeconds = 0.7,
             CompletionTeleportPointId = "teleport-point-center",
@@ -154,19 +160,25 @@ internal static class Program
             loaded.Quests[0].Stages[0].Objectives[0].ActivationEventId != "story-trigger-001" ||
             loaded.Quests[0].Stages[0].Objectives[0].BlocksStageCompletion ||
             Math.Abs(loaded.Quests[0].StartDelaySeconds - 1.5) > 0.001 ||
+            Math.Abs(loaded.Quests[0].StartPresentationDelaySeconds - 0.25) > 0.001 ||
             loaded.Quests[0].CompletionTriggerType != QuestCompletionTriggerType.Dialogue ||
             loaded.Quests[0].CompletionTriggerId != "chapter03-section-2" ||
             Math.Abs(loaded.Quests[0].CompletionTriggerDelaySeconds - 3) > 0.001 ||
+            Math.Abs(loaded.Quests[0].CompletionPresentationDelaySeconds - 0.5) > 0.001 ||
             loaded.Quests[0].StartTeleportPointId != "teleport-point-center" ||
             Math.Abs(loaded.Quests[0].StartTeleportDelaySeconds - 0.5) > 0.001 ||
             loaded.Quests[0].CompletionTeleportPointId != "teleport-point-center" ||
             Math.Abs(loaded.Quests[0].CompletionTeleportDelaySeconds - 1) > 0.001 ||
             Math.Abs(loaded.Quests[0].Stages[0].StartDelaySeconds - 2.5) > 0.001 ||
             Math.Abs(loaded.Quests[0].Stages[0].CompletionDelaySeconds - 3.25) > 0.001 ||
+            Math.Abs(loaded.Quests[0].Stages[0].StartPresentationDelaySeconds - 0.4) > 0.001 ||
+            Math.Abs(loaded.Quests[0].Stages[0].CompletionPresentationDelaySeconds - 0.6) > 0.001 ||
             loaded.Quests[0].Stages[0].StartTeleportPointId != "teleport-point-center" ||
             loaded.Quests[0].Stages[0].CompletionTeleportPointId != "teleport-point-center" ||
             Math.Abs(loaded.Quests[0].Stages[0].Objectives[0].StartDelaySeconds - 0.75) > 0.001 ||
             Math.Abs(loaded.Quests[0].Stages[0].Objectives[0].CompletionDelaySeconds - 1.25) > 0.001 ||
+            Math.Abs(loaded.Quests[0].Stages[0].Objectives[0].StartPresentationDelaySeconds - 0.8) > 0.001 ||
+            Math.Abs(loaded.Quests[0].Stages[0].Objectives[0].CompletionPresentationDelaySeconds - 0.9) > 0.001 ||
             loaded.Quests[0].Stages[0].Objectives[0].StartTeleportPointId != "teleport-point-center" ||
             loaded.Quests[0].Stages[0].Objectives[0].CompletionTeleportPointId != "teleport-point-center")
             throw new InvalidDataException("任務資料往返測試失敗。");

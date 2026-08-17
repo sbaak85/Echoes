@@ -58,9 +58,19 @@ internal static class QuestValidator
                     $"{quest.Id} 的啟動延遲必須介於 0 至 3600 秒。",
                     quest));
             }
+            ValidatePresentationDelay(
+                quest.StartPresentationDelaySeconds,
+                $"{quest.Id} 的啟動延遲_效果",
+                quest,
+                issues);
             ValidateCompletionDelay(
                 quest.CompletionTriggerDelaySeconds,
                 $"{quest.Id} 完成後觸發",
+                quest,
+                issues);
+            ValidatePresentationDelay(
+                quest.CompletionPresentationDelaySeconds,
+                $"{quest.Id} 的完成延遲_效果",
                 quest,
                 issues);
             ValidateTeleport(quest.StartTeleportPointId, quest.StartTeleportDelaySeconds,
@@ -97,6 +107,8 @@ internal static class QuestValidator
                 Required(stage.Id, $"{quest.Id} 的 Stage ID 不可空白", stage, issues);
                 ValidateStartDelay(stage.StartDelaySeconds, stage.Id, stage, issues);
                 ValidateCompletionDelay(stage.CompletionDelaySeconds, stage.Id, stage, issues);
+                ValidatePresentationDelay(stage.StartPresentationDelaySeconds, $"{stage.Id} 的啟動延遲_效果", stage, issues);
+                ValidatePresentationDelay(stage.CompletionPresentationDelaySeconds, $"{stage.Id} 的完成延遲_效果", stage, issues);
                 ValidateTeleport(stage.StartTeleportPointId, stage.StartTeleportDelaySeconds,
                     $"{stage.Id} 啟動", stage, references, issues);
                 ValidateTeleport(stage.CompletionTeleportPointId, stage.CompletionTeleportDelaySeconds,
@@ -116,6 +128,8 @@ internal static class QuestValidator
                 {
                     ValidateStartDelay(objective.StartDelaySeconds, objective.Id, objective, issues);
                     ValidateCompletionDelay(objective.CompletionDelaySeconds, objective.Id, objective, issues);
+                    ValidatePresentationDelay(objective.StartPresentationDelaySeconds, $"{objective.Id} 的啟動延遲_效果", objective, issues);
+                    ValidatePresentationDelay(objective.CompletionPresentationDelaySeconds, $"{objective.Id} 的完成延遲_效果", objective, issues);
                     ValidateTeleport(objective.StartTeleportPointId, objective.StartTeleportDelaySeconds,
                         $"{objective.Id} 啟動", objective, references, issues);
                     ValidateTeleport(objective.CompletionTeleportPointId, objective.CompletionTeleportDelaySeconds,
@@ -157,6 +171,19 @@ internal static class QuestValidator
         issues.Add(new(
             ValidationSeverity.Error,
             $"{id} 的完成延遲必須介於 0 至 3600 秒。",
+            target));
+    }
+
+    private static void ValidatePresentationDelay(
+        double value,
+        string label,
+        object target,
+        List<QuestValidationIssue> issues)
+    {
+        if (double.IsFinite(value) && value >= 0 && value <= 3600) return;
+        issues.Add(new(
+            ValidationSeverity.Error,
+            $"{label}必須介於 0 至 3600 秒。",
             target));
     }
 

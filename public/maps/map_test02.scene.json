@@ -670,7 +670,7 @@
           }
         ]
       },
-      "completionDialogue": {
+      "survivalFailureDialogue": {
         "characterDelaySeconds": 0.02,
         "speakers": [
           "Sbaak",
@@ -679,7 +679,15 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u4E0A\u4F86\u4E86!"
+            "text": "\u8981\u722C\u7E69\u5B50\u5F88\u7D2F\u7684! \u8981\u5148\u56DE\u5FA9\u4E00\u4E0B\u9AD4\u529B\u624D\u884C\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u6211\u5FC5\u9808\u8981\u6062\u5FA9\u4E00\u4E0B\u9AD4\u529B\u624D\u80FD\u722C\u7E69\u5B50\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           }
         ]
       }

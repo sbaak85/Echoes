@@ -127,6 +127,8 @@ test("editors store task and story-trigger delays without assigning a polygon", 
     ]);
 
   assert.match(questModelsSource, /StartDelaySeconds/);
+  assert.match(questModelsSource, /StartPresentationDelaySeconds/);
+  assert.match(questModelsSource, /CompletionPresentationDelaySeconds/);
   assert.match(questModelsSource, /啟動延遲（秒）/);
   assert.match(mapModelsSource, /TriggerDelaySeconds/);
   assert.match(mapModelsSource, /StartQuestIds/);

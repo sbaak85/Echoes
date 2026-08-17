@@ -189,6 +189,20 @@ test("quest HUD result animations start their managed audio once", () => {
   assert.match(stageTransition, /playOneShotAudio\("questStarted"\)/);
 });
 
+test("stage completion presentation keeps the completed Stage HUD until NEXT finishes", () => {
+  const stageTransition = source.slice(
+    source.indexOf("const triggerQuestStageTransition"),
+    source.indexOf("const scheduleQuestTeleport"),
+  );
+  assert.match(stageTransition, /questHudStageTransitionPresentationRef\.current = \{[\s\S]*?questId: view\.id,[\s\S]*?stageId: view\.stageId/);
+  assert.match(stageTransition, /setActiveQuestHud\(view\)/);
+  assert.match(stageTransition, /setActiveQuestHud\(getFirstActiveQuestHud\(\)\)/);
+  assert.match(
+    source,
+    /const isHoldingCompletedStage = presentation\?\.questId === questId[\s\S]*?presentation\.stageId !== view\?\.stageId[\s\S]*?if \(view && !isHoldingCompletedStage\) setActiveQuestHud\(view\)/,
+  );
+});
+
 test("quest TAB prompt follows the latest keyboard, gamepad, or mobile input", () => {
   const promptRenderer = source.slice(
     source.indexOf("function renderQuestObjectiveLabel"),

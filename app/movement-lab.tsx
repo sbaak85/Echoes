@@ -3081,6 +3081,14 @@ export function MovementLab() {
   const questObjectiveUnlockTweenTimerRef = useRef<number | null>(null);
   const questStageTransitionTimerRef = useRef<number | null>(null);
   const questStageEnteringTimerRef = useRef<number | null>(null);
+  const questPresentationTimerRefs = useRef<number[]>([]);
+  // The runtime must advance immediately to prevent old Stage-gated interactions
+  // from being used again.  The HUD, however, keeps a completed Stage snapshot
+  // through its checkmark and NEXT presentation before it redraws the new Stage.
+  const questHudStageTransitionPresentationRef = useRef<{
+    questId: string;
+    stageId: string;
+  } | null>(null);
   const questEventNoticeTimerRef = useRef<number | null>(null);
   const timePassInputLockedRef = useRef(false);
   const timePassTransitionTimersRef = useRef<number[]>([]);
@@ -3677,6 +3685,12 @@ export function MovementLab() {
     view: QuestHudView,
     objectiveId: string,
   ) => {
+    const currentView = getFirstActiveQuestHud();
+    if (currentView?.id === view.id && currentView.stageId !== view.stageId) {
+      // The quest has already advanced. Do not restore an old Stage merely to
+      // play its delayed visual; the NEXT presentation owns that transition.
+      return;
+    }
     if (questObjectiveTweenTimerRef.current !== null) {
       window.clearTimeout(questObjectiveTweenTimerRef.current);
     }
@@ -3702,6 +3716,8 @@ export function MovementLab() {
     view: QuestHudView,
     objectiveId: string,
   ) => {
+    const currentView = getFirstActiveQuestHud();
+    if (currentView?.id === view.id && currentView.stageId !== view.stageId) return;
     questHudEventSequenceRef.current += 1;
     setActiveQuestHud(view);
     setQuestCollapsed(false);
@@ -3719,8 +3735,16 @@ export function MovementLab() {
 
   const triggerQuestStageTransition = (
     view: QuestHudView,
-    completeTransition: () => void,
+    completionPresentationDelaySeconds = 0,
+    startPresentationDelaySeconds = 0,
   ) => {
+    questHudStageTransitionPresentationRef.current = {
+      questId: view.id,
+      stageId: view.stageId,
+    };
+    // Keep the completed Stage on screen immediately.  This lets its final OBJ
+    // render as checked while the actual quest state has already moved on.
+    setActiveQuestHud(view);
     if (questHudEventTimerRef.current !== null) {
       window.clearTimeout(questHudEventTimerRef.current);
       questHudEventTimerRef.current = null;
@@ -3731,34 +3755,89 @@ export function MovementLab() {
     if (questStageTransitionTimerRef.current !== null) {
       window.clearTimeout(questStageTransitionTimerRef.current);
     }
-    questHudEventSequenceRef.current += 1;
-    setActiveQuestHud(view);
-    setQuestCollapsed(false);
-    setQuestMobileMode("expanded");
-    setQuestHudEvent({
-      kind: "next",
-      questId: view.id,
-      sequence: questHudEventSequenceRef.current,
-    });
-    playOneShotAudio("questStarted");
-    questHudEventTimerRef.current = window.setTimeout(() => {
-      questHudEventTimerRef.current = null;
-      setQuestHudEvent((current) =>
-        current?.kind === "next" && current.questId === view.id ? null : current,
+    const presentTransition = () => {
+      questHudEventSequenceRef.current += 1;
+      setQuestCollapsed(false);
+      setQuestMobileMode("expanded");
+      setQuestHudEvent({
+        kind: "next",
+        questId: view.id,
+        sequence: questHudEventSequenceRef.current,
+      });
+      playOneShotAudio("questStarted");
+      questHudEventTimerRef.current = window.setTimeout(() => {
+        questHudEventTimerRef.current = null;
+        setQuestHudEvent((current) =>
+          current?.kind === "next" && current.questId === view.id ? null : current,
+        );
+        const presentation = questHudStageTransitionPresentationRef.current;
+        if (presentation?.questId === view.id && presentation.stageId === view.stageId) {
+          questHudStageTransitionPresentationRef.current = null;
+          // Only after the old Stage's completion wait and NEXT presentation have
+          // finished may the HUD redraw from the already-advanced runtime state.
+          setActiveQuestHud(getFirstActiveQuestHud());
+        }
+      }, 3000);
+      questStageTransitionTimerRef.current = window.setTimeout(() => {
+        questStageTransitionTimerRef.current = null;
+        const startEffectDelay = Number.isFinite(startPresentationDelaySeconds)
+          ? Math.max(0, startPresentationDelaySeconds * 1000)
+          : 0;
+        const showStageEntering = () => {
+          setQuestStageEntering(true);
+          if (questStageEnteringTimerRef.current !== null) {
+            window.clearTimeout(questStageEnteringTimerRef.current);
+          }
+          questStageEnteringTimerRef.current = window.setTimeout(() => {
+            questStageEnteringTimerRef.current = null;
+            setQuestStageEntering(false);
+          }, 340);
+        };
+        if (startEffectDelay <= 0) showStageEntering();
+        else {
+          const timer = window.setTimeout(() => {
+            questPresentationTimerRefs.current = questPresentationTimerRefs.current.filter(
+              (candidate) => candidate !== timer,
+            );
+            showStageEntering();
+          }, startEffectDelay);
+          questPresentationTimerRefs.current.push(timer);
+        }
+      }, 3000);
+    };
+    const completionEffectDelay = Number.isFinite(completionPresentationDelaySeconds)
+      ? Math.max(0, completionPresentationDelaySeconds * 1000)
+      : 0;
+    if (completionEffectDelay <= 0) presentTransition();
+    else {
+      const timer = window.setTimeout(() => {
+        questPresentationTimerRefs.current = questPresentationTimerRefs.current.filter(
+          (candidate) => candidate !== timer,
+        );
+        presentTransition();
+      }, completionEffectDelay);
+      questPresentationTimerRefs.current.push(timer);
+    }
+  };
+
+  const scheduleQuestPresentation = (
+    delaySeconds: number | undefined,
+    callback: () => void,
+  ) => {
+    const delayMilliseconds = Number.isFinite(delaySeconds)
+      ? Math.max(0, Number(delaySeconds) * 1000)
+      : 0;
+    if (delayMilliseconds <= 0) {
+      callback();
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      questPresentationTimerRefs.current = questPresentationTimerRefs.current.filter(
+        (candidate) => candidate !== timer,
       );
-    }, 3000);
-    questStageTransitionTimerRef.current = window.setTimeout(() => {
-      questStageTransitionTimerRef.current = null;
-      completeTransition();
-      setQuestStageEntering(true);
-      if (questStageEnteringTimerRef.current !== null) {
-        window.clearTimeout(questStageEnteringTimerRef.current);
-      }
-      questStageEnteringTimerRef.current = window.setTimeout(() => {
-        questStageEnteringTimerRef.current = null;
-        setQuestStageEntering(false);
-      }, 340);
-    }, 3000);
+      callback();
+    }, delayMilliseconds);
+    questPresentationTimerRefs.current.push(timer);
   };
 
   const scheduleQuestTeleport = (pointId: string, delayMilliseconds: number) => {
@@ -3904,17 +3983,33 @@ export function MovementLab() {
             }
             if (entry.state === "active") {
               const view = buildQuestHudView(questId, entry);
-              if (view) setActiveQuestHud(view);
+              const presentation = questHudStageTransitionPresentationRef.current;
+              const isHoldingCompletedStage = presentation?.questId === questId &&
+                presentation.stageId !== view?.stageId;
+              // Do not let the real Stage switch overwrite the completed Stage
+              // snapshot while its checkmark / delayed NEXT visual is still shown.
+              if (view && !isHoldingCompletedStage) setActiveQuestHud(view);
             }
             setCompletedQuestHistory(getCompletedQuestHistory());
           },
           onQuestStarted: (questId, entry) => {
             const view = buildQuestHudView(questId, entry);
-            if (view) triggerQuestHudVisual("accepted", view);
+            const presentationDelay = QUEST_DOCUMENT.quests.find(
+              (quest) => quest.id === questId,
+            )?.startPresentationDelaySeconds;
+            if (view) {
+              scheduleQuestPresentation(presentationDelay, () =>
+                triggerQuestHudVisual("accepted", view),
+              );
+            }
           },
           onObjectiveCompleted: (questId, objectiveId, _stageId, entry, objective) => {
             const view = buildQuestHudView(questId, entry);
-            if (view) triggerQuestObjectiveTween(view, objectiveId);
+            if (view) {
+              scheduleQuestPresentation(objective.completionPresentationDelaySeconds, () =>
+                triggerQuestObjectiveTween(view, objectiveId),
+              );
+            }
             if (
               objective.completionInterfaceAction &&
               objective.completionInterfaceAction !== "none" &&
@@ -3935,28 +4030,45 @@ export function MovementLab() {
           },
           onObjectiveActivated: (questId, objectiveId, _stageId, entry) => {
             const view = buildQuestHudView(questId, entry);
-            if (view) triggerQuestObjectiveUnlockTween(view, objectiveId);
+            const objective = QUEST_DOCUMENT.quests
+              .find((quest) => quest.id === questId)
+              ?.stages.flatMap((stage) => stage.objectives)
+              .find((candidate) => candidate.id === objectiveId);
+            if (view) {
+              scheduleQuestPresentation(objective?.startPresentationDelaySeconds, () =>
+                triggerQuestObjectiveUnlockTween(view, objectiveId),
+              );
+            }
           },
           onStageTransitionStarted: (
             questId,
-            _currentStageId,
-            _nextStageId,
+            currentStageId,
+            nextStageId,
             entry,
-            completeTransition,
           ) => {
             const view = buildQuestHudView(questId, entry);
+            const quest = QUEST_DOCUMENT.quests.find((candidate) => candidate.id === questId);
+            const currentStage = quest?.stages.find((stage) => stage.id === currentStageId);
+            const nextStage = quest?.stages.find((stage) => stage.id === nextStageId);
             if (view) {
-              triggerQuestStageTransition(view, completeTransition);
-            } else {
-              completeTransition();
+              triggerQuestStageTransition(
+                view,
+                currentStage?.completionPresentationDelaySeconds,
+                nextStage?.startPresentationDelaySeconds,
+              );
             }
           },
           onQuestCompleted: (questId, _entry, completePresentation) => {
             const manager = questRuntimeManagerRef.current;
             const entry = manager?.exportSave().quests[questId];
             const view = entry ? buildQuestHudView(questId, entry) : null;
+            const presentationDelay = QUEST_DOCUMENT.quests.find(
+              (quest) => quest.id === questId,
+            )?.completionPresentationDelaySeconds;
             if (view) {
-              triggerQuestHudVisual("completed", view, completePresentation);
+              scheduleQuestPresentation(presentationDelay, () =>
+                triggerQuestHudVisual("completed", view, completePresentation),
+              );
             } else {
               completePresentation();
             }
@@ -4163,6 +4275,10 @@ export function MovementLab() {
     if (questStageEnteringTimerRef.current !== null) {
       window.clearTimeout(questStageEnteringTimerRef.current);
     }
+    for (const timer of questPresentationTimerRefs.current) {
+      window.clearTimeout(timer);
+    }
+    questPresentationTimerRefs.current = [];
     if (questEventNoticeTimerRef.current !== null) {
       window.clearTimeout(questEventNoticeTimerRef.current);
     }

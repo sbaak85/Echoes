@@ -249,6 +249,10 @@ public sealed class QuestDefinition
     [Description("派發條件成立後，等待指定的現實秒數才讓任務正式啟動。0 代表立即啟動。")]
     public double StartDelaySeconds { get; set; }
 
+    [Category("派發"), DisplayName("啟動延遲_效果（秒）")]
+    [Description("只延後任務啟動通知與 UI 演出，不影響任務正式啟動、條件判定或存檔。0 代表立即播放效果。")]
+    public double StartPresentationDelaySeconds { get; set; }
+
     [Category("傳送"), DisplayName("啟動傳送 Point ID")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? StartTeleportPointId { get; set; }
@@ -289,6 +293,10 @@ public sealed class QuestDefinition
     [Description("COMPLETE 任務完成 UI 播放結束後，等待指定現實秒數才觸發對話或事件流程。0 代表 UI 結束後立即觸發。")]
     public double CompletionTriggerDelaySeconds { get; set; }
 
+    [Category("完成"), DisplayName("完成延遲_效果（秒）")]
+    [Description("只延後 COMPLETE 等任務完成 UI 演出，不影響任務真實完成、完成旗標、後續條件或存檔。0 代表立即播放效果。")]
+    public double CompletionPresentationDelaySeconds { get; set; }
+
     [Browsable(false)]
     public string CompletionEventFlowId { get; set; } = "";
 
@@ -328,9 +336,17 @@ public sealed class QuestStageDefinition
     [Description("進入此階段後，等待指定的現實秒數才顯示階段目標並開始接受判定。0 代表立即啟動。")]
     public double StartDelaySeconds { get; set; }
 
+    [Category("流程"), DisplayName("啟動延遲_效果（秒）")]
+    [Description("只延後此 Stage 的 UI 進場效果，不影響 Stage 正式啟動、互動條件、事件判定或存檔。0 代表立即播放效果。")]
+    public double StartPresentationDelaySeconds { get; set; }
+
     [Category("流程"), DisplayName("完成延遲（秒）")]
     [Description("此階段完成條件成立後，等待指定的現實秒數才播放完成演出並切換下一階段。完成紀錄會立即保存。0 代表立即處理。")]
     public double CompletionDelaySeconds { get; set; }
+
+    [Category("流程"), DisplayName("完成延遲_效果（秒）")]
+    [Description("只延後 NEXT／完成通知等 UI 演出，不影響此 Stage 的真實完成、下一 Stage 切換、互動條件或存檔。0 代表立即播放效果。")]
+    public double CompletionPresentationDelaySeconds { get; set; }
 
     [Category("傳送"), DisplayName("啟動傳送 Point ID")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -378,9 +394,17 @@ public sealed class QuestObjectiveDefinition
     [Description("所屬階段正式啟動後，再等待指定的現實秒數才顯示並接受此目標判定。0 代表立即啟動。")]
     public double StartDelaySeconds { get; set; }
 
+    [Category("流程"), DisplayName("啟動延遲_效果（秒）")]
+    [Description("只延後此 OBJ 的啟動提示與 UI 效果，不影響 OBJ 正式啟用、事件判定或存檔。0 代表立即播放效果。")]
+    public double StartPresentationDelaySeconds { get; set; }
+
     [Category("流程"), DisplayName("完成延遲（秒）")]
     [Description("目標條件成立後，等待指定的現實秒數才顯示核取與完成演出。完成紀錄會立即保存。0 代表立即顯示。")]
     public double CompletionDelaySeconds { get; set; }
+
+    [Category("流程"), DisplayName("完成延遲_效果（秒）")]
+    [Description("只延後 OBJ 核取與完成通知的 UI 演出，不影響真實完成、後續 Stage 切換、互動條件或存檔。0 代表立即播放效果。")]
+    public double CompletionPresentationDelaySeconds { get; set; }
 
     [Category("流程"), DisplayName("啟用方式")]
     [Description("立即啟用會隨所屬 Stage 顯示；事件啟用則保持鎖定，直到指定事件或劇情觸發區完成。")]
