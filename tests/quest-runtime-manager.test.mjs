@@ -481,6 +481,68 @@ test("completion delays save logical completion immediately and postpone only UI
   assert.equal(restored.exportSave().quests.QUEST_TEST.questCompletionPresented, true);
 });
 
+test("objective completion flow runs after its own delay without waiting for stage completion", () => {
+  const delayedDocument = structuredClone(document);
+  const quest = delayedDocument.quests[0];
+  quest.rewardItemId = "";
+  quest.rewardItemAmount = 0;
+  quest.stages = [{
+    id: "QUEST_TEST_STAGE_OBJECTIVE_FLOW",
+    name: "Objective completion flow",
+    completionMode: "all",
+    objectives: [
+      {
+        id: "QUEST_TEST_OBJ_WITH_FLOW",
+        displayText: "完成後播放腳本",
+        type: "interactionSucceeded",
+        targetId: "interaction-flow",
+        requiredAmount: 1,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+        completionDelaySeconds: 1,
+        completionEventFlowId: "chapter03-section-6",
+      },
+      {
+        id: "QUEST_TEST_OBJ_STILL_PENDING",
+        displayText: "保持未完成",
+        type: "interactionSucceeded",
+        targetId: "interaction-pending",
+        requiredAmount: 1,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+      },
+    ],
+  }];
+
+  let now = 1000;
+  const scheduled = [];
+  const flows = [];
+  const manager = new QuestRuntimeManager(delayedDocument, {
+    now: () => now,
+    runEventFlow: (eventFlowId) => flows.push(eventFlowId),
+    scheduleQuestStart: (delayMilliseconds, callback) => {
+      scheduled.push({ at: now + delayMilliseconds, callback });
+    },
+  });
+
+  manager.startQuest("QUEST_TEST");
+  manager.handleEvent({
+    type: "interactionSucceeded",
+    targetId: "interaction-flow",
+  });
+
+  assert.deepEqual(flows, []);
+  assert.equal(manager.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_OBJECTIVE_FLOW");
+  assert.equal(manager.getQuestState("QUEST_TEST"), "active");
+
+  now = 2000;
+  for (const task of scheduled.splice(0)) task.callback();
+
+  assert.deepEqual(flows, ["chapter03-section-6"]);
+  assert.equal(manager.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_OBJECTIVE_FLOW");
+  assert.equal(manager.getQuestState("QUEST_TEST"), "active");
+});
+
 test("compound item objective requires every configured item and ignores duplicate events", () => {
   const compoundDocument = structuredClone(document);
   const objective = compoundDocument.quests[0].stages[0].objectives[0];

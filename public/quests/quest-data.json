@@ -704,7 +704,7 @@
               "displayText": "\u53D6\u5F97\u5CA9\u58C1\u4E0B\u5C64\u7684\u6316\u6398\u93DF",
               "startDelaySeconds": 0,
               "startPresentationDelaySeconds": 0,
-              "completionDelaySeconds": 0,
+              "completionDelaySeconds": 1.5,
               "completionPresentationDelaySeconds": 0,
               "activationMode": "event",
               "activationEventId": "chapter03-scene2-start",
@@ -718,7 +718,7 @@
               "interactionMode": "succeeded",
               "showProgress": false,
               "showHintIcon": false,
-              "completionEventFlowId": "",
+              "completionEventFlowId": "chapter03-section-6",
               "unlockDialogueId": "chapter03-scene2-start"
             }
           ]
@@ -812,7 +812,7 @@
               "displayText": "\u91CD\u65B0\u5206\u914D\u96FB\u529B\u7CFB\u7D71",
               "startDelaySeconds": 0,
               "startPresentationDelaySeconds": 0,
-              "completionDelaySeconds": 0,
+              "completionDelaySeconds": 2.5,
               "completionPresentationDelaySeconds": 0,
               "activationMode": "immediate",
               "activationEventId": "",

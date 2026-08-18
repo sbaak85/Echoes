@@ -3957,6 +3957,40 @@ export function MovementLab() {
             if (!flow) return false;
             return await chapterFlowManagerRef.current?.run(flow) === true;
           },
+          // Objective / Stage completion fields historically accept either a
+          // registered story flow ID or a registered dialogue ID. Resolve both
+          // here so an Objective completion script is not silently discarded.
+          runEventFlow: (eventFlowId) => {
+            const flow = STORY_EVENT_FLOWS[eventFlowId];
+            if (flow) {
+              void chapterFlowManagerRef.current?.run(flow);
+              return;
+            }
+
+            if (!dialogueManager.get(eventFlowId)) {
+              console.warn(`[QuestRuntime] Unknown completion event: ${eventFlowId}`);
+              return;
+            }
+
+            void dialogueManager.playRegistered(
+              eventFlowId,
+              {
+                id: `quest-objective-completion:${eventFlowId}`,
+                label: eventFlowId,
+                type: "dialogue",
+              },
+            ).then((result) => {
+              if (!result.completed) return;
+              const manager = questRuntimeManagerRef.current;
+              if (!manager) return;
+              manager.handleEvent({
+                type: "dialogueCompleted",
+                targetId: eventFlowId,
+                eventId: `quest-objective-completion-dialogue:${eventFlowId}:${Date.now()}`,
+              });
+              saveQuestSaveData(manager.exportSave());
+            });
+          },
           requestTeleport: (pointId, delayMilliseconds) => {
             scheduleQuestTeleport(pointId, delayMilliseconds);
           },

@@ -756,8 +756,10 @@ export class QuestRuntimeManager {
       const current = this.saveData.quests[definition.id];
       const progress = current?.objectives[objective.id];
       if (!current || !progress || !progress.completed || progress.completionPresented) return;
-      if (current.currentStageId !== stageId) return;
       if (current.state !== "active" && current.state !== "completed") return;
+      // This is an Objective completion presentation, not a Stage completion
+      // presentation. It must still run if another Objective already advanced
+      // the Stage while this Objective's own delay was counting down.
       progress.completionPresented = true;
       this.requestTeleport(objective.completionTeleportPointId,
         objective.completionTeleportDelaySeconds, {
