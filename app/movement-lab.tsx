@@ -211,6 +211,7 @@ import {
   loadQuestSaveData,
   saveQuestSaveData,
   type QuestDocument,
+  type QuestObjectiveDefinition,
   type QuestRuntimeEntry,
 } from "./quest-runtime-manager";
 
@@ -393,6 +394,18 @@ type PendingInteraction = {
   repathAttempts?: number;
 };
 type PowerPuzzleSession = Pick<PendingInteraction, "interactable" | "source">;
+type QuestItemSubmissionPrompt = {
+  interactable: SceneInteractable;
+  source: PendingInteraction["source"];
+  questId: string;
+  stageId: string;
+  objective: QuestObjectiveDefinition;
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  order: number;
+  total: number;
+};
 type DialoguePlayback = {
   interactable: SceneInteractable;
   lineIndex: number;
@@ -3166,6 +3179,8 @@ export function MovementLab() {
   const [campPowerConfirmationOpen, setCampPowerConfirmationOpen] = useState(false);
   const [campPowerConfirmationChoice, setCampPowerConfirmationChoice] =
     useState<"cancel" | "confirm">("cancel");
+  const [questItemSubmissionPrompt, setQuestItemSubmissionPrompt] =
+    useState<QuestItemSubmissionPrompt | null>(null);
   const [stageFullscreen, setStageFullscreen] = useState(false);
   const [optionsTab, setOptionsTab] = useState<OptionsTab>("display");
   const [optionsMenuSelection, setOptionsMenuSelection] =
@@ -3343,6 +3358,7 @@ export function MovementLab() {
     campPowerConfirmationGamepadModeRef.current = "dpad";
     campPowerConfirmationCursorRearmRequiredRef.current = false;
     setCampPowerConfirmationOpen(false);
+    setQuestItemSubmissionPrompt(null);
     setCampPowerConfirmationChoiceValue("cancel");
   };
 
@@ -3988,6 +4004,12 @@ export function MovementLab() {
                 targetId: eventFlowId,
                 eventId: `quest-objective-completion-dialogue:${eventFlowId}:${Date.now()}`,
               });
+              const clock = getGameClock(survivalStateRef.current.gameMinutes);
+              manager.startAvailableAfterDialogueQuests(
+                eventFlowId,
+                clock.day,
+                clock.hour * 60 + clock.minute,
+              );
               saveQuestSaveData(manager.exportSave());
             });
           },
@@ -8042,6 +8064,139 @@ export function MovementLab() {
       return true;
     };
 
+    const getQuestItemSubmissionPrompt = (
+      interactable: SceneInteractable,
+      source: PendingInteraction["source"],
+      requireOwnedItem: boolean,
+    ): QuestItemSubmissionPrompt | null => {
+      const questManager = questRuntimeManagerRef.current;
+      if (!questManager) return null;
+      const objectives = questManager.getActiveItemSubmissionObjectives(interactable.id);
+      for (let index = 0; index < objectives.length; index += 1) {
+        const entry = objectives[index];
+        const requirement = entry.objective.itemRequirements?.[0];
+        if (!requirement?.itemId || requirement.requiredAmount <= 0) continue;
+        if (
+          requireOwnedItem &&
+          (playerInventoryRef.current[requirement.itemId] ?? 0) < requirement.requiredAmount
+        ) continue;
+        const item = ITEM_BY_ID.get(requirement.itemId);
+        return {
+          interactable,
+          source,
+          questId: entry.questId,
+          stageId: entry.stageId,
+          objective: entry.objective,
+          itemId: requirement.itemId,
+          itemName: item?.name ?? requirement.itemId,
+          quantity: requirement.requiredAmount,
+          order: index + 1,
+          total: objectives.length,
+        };
+      }
+      return null;
+    };
+
+    const showQuestItemSubmissionPrompt = (
+      prompt: QuestItemSubmissionPrompt,
+    ): void => {
+      setQuestItemSubmissionPrompt(prompt);
+      campPowerConfirmationOpenRef.current = true;
+      campPowerConfirmationGamepadModeRef.current = "dpad";
+      campPowerConfirmationCursorRearmRequiredRef.current = false;
+      setCampPowerConfirmationChoiceValue("cancel");
+      setCampPowerConfirmationOpen(true);
+
+      confirmCampPowerRefillRef.current = () => {
+        const questManager = questRuntimeManagerRef.current;
+        const activeObjective = questManager
+          ?.getActiveItemSubmissionObjectives(prompt.interactable.id)
+          .find((entry) => entry.objective.id === prompt.objective.id);
+        const currentInventory = playerInventoryRef.current;
+        if (
+          !questManager ||
+          !activeObjective ||
+          (currentInventory[prompt.itemId] ?? 0) < prompt.quantity
+        ) {
+          closeCampPowerConfirmation();
+          showInteractionItemFeedback(
+            (currentInventory[prompt.itemId] ?? 0) < prompt.quantity
+              ? `「${prompt.itemName}」數量不足。`
+              : "這項安裝目標目前已無法投入。",
+          );
+          return;
+        }
+
+        const nextInventory = removeInventoryItem(
+          currentInventory,
+          prompt.itemId,
+          prompt.quantity,
+        );
+        playerInventoryRef.current = nextInventory;
+        setPlayerInventory(nextInventory);
+        try {
+          savePlayerInventory(nextInventory);
+        } catch {
+          // 儲存空間不可用時，仍保留本次工作階段的消耗結果。
+        }
+
+        questGameEventSequenceRef.current += 1;
+        questManager.handleEvent({
+          type: "itemSubmitted",
+          targetId: prompt.interactable.id,
+          itemId: prompt.itemId,
+          amount: prompt.quantity,
+          eventId:
+            `itemSubmitted:${SCENE_DATA.sceneId}:${prompt.interactable.id}:` +
+            `${prompt.itemId}:${Date.now()}:${questGameEventSequenceRef.current}`,
+        });
+        saveQuestSaveData(questManager.exportSave());
+        showInteractionItemFeedback(`已投入「${prompt.itemName}」×${prompt.quantity}`);
+
+        const nextPrompt = getQuestItemSubmissionPrompt(
+          prompt.interactable,
+          prompt.source,
+          true,
+        );
+        if (nextPrompt) {
+          showQuestItemSubmissionPrompt(nextPrompt);
+          return;
+        }
+
+        const remaining = questManager.getActiveItemSubmissionObjectives(
+          prompt.interactable.id,
+        );
+        closeCampPowerConfirmation();
+        if (remaining.length === 0) {
+          completeInteraction(prompt.interactable, prompt.source);
+        }
+      };
+    };
+
+    const openQuestItemSubmissionConfirmation = (
+      interactable: SceneInteractable,
+      source: PendingInteraction["source"],
+    ) => {
+      const questManager = questRuntimeManagerRef.current;
+      const objectives = questManager?.getActiveItemSubmissionObjectives(interactable.id) ?? [];
+      if (objectives.length === 0) return false;
+      const prompt = getQuestItemSubmissionPrompt(interactable, source, true);
+      if (!prompt) {
+        const missingNames = objectives
+          .map((entry) => entry.objective.itemRequirements?.[0]?.itemId)
+          .filter((itemId): itemId is string => Boolean(itemId))
+          .map((itemId) => ITEM_BY_ID.get(itemId)?.name ?? itemId);
+        showInteractionItemFeedback(
+          missingNames.length > 0
+            ? `目前沒有可投入的任務零件：${missingNames.join("、")}`
+            : "目前沒有可投入的任務零件。",
+        );
+        return true;
+      }
+      showQuestItemSubmissionPrompt(prompt);
+      return true;
+    };
+
     const triggerInteraction = (
       interactable: SceneInteractable,
       source: PendingInteraction["source"],
@@ -8058,6 +8213,7 @@ export function MovementLab() {
       if (getInteractionRequirementFailure(interactable)) {
         return openInteractionFailureDialogue(interactable, source, "survival");
       }
+      if (openQuestItemSubmissionConfirmation(interactable, source)) return true;
       if (interactable.id === CAMP_POWER_RESONATOR_INTERACTION_ID) {
         return openCampPowerRefillConfirmation(interactable, source);
       }
@@ -12740,6 +12896,11 @@ export function MovementLab() {
           onCancel={closePowerRoutingPuzzle}
           onComplete={() => completePowerPuzzleInteractionRef.current()}
           onInput={() => playOneShotAudio("uiInput")}
+          onSuccessStart={() => {
+            playOneShotAudio("generatorStartup1");
+            playOneShotAudio("generatorStartup2");
+            playOneShotAudio("generatorRunning");
+          }}
         />
       ) : null}
 
@@ -12829,25 +12990,57 @@ export function MovementLab() {
             aria-modal="true"
             aria-labelledby="camp-power-confirmation-title"
           >
-            <small>CAMP POWER RESONATOR</small>
-            <h3 id="camp-power-confirmation-title">灌入藍色晶體碎片？</h3>
+            <small>
+              {questItemSubmissionPrompt
+                ? "COMMUNICATION ARRAY ASSEMBLY"
+                : "CAMP POWER RESONATOR"}
+            </small>
+            <h3 id="camp-power-confirmation-title">
+              {questItemSubmissionPrompt
+                ? `安裝${questItemSubmissionPrompt.itemName}？`
+                : "灌入藍色晶體碎片？"}
+            </h3>
             <p>
-              是否消耗「藍色晶體碎片」×{CAMP_POWER_REFILL_ITEM_QUANTITY}，
-              為營地補充 {CAMP_POWER_REFILL_AMOUNT} 點電力？
+              {questItemSubmissionPrompt ? (
+                <>
+                  是否消耗「{questItemSubmissionPrompt.itemName}」×
+                  {questItemSubmissionPrompt.quantity}，安裝至通訊陣列？
+                </>
+              ) : (
+                <>
+                  是否消耗「藍色晶體碎片」×{CAMP_POWER_REFILL_ITEM_QUANTITY}，
+                  為營地補充 {CAMP_POWER_REFILL_AMOUNT} 點電力？
+                </>
+              )}
             </p>
             <div className="camp-power-confirmation-preview" aria-live="polite">
-              <span>目前電力</span>
-              <strong>{campPowerState.current}/{CAMP_POWER_CAPACITY}</strong>
-              <i aria-hidden="true">→</i>
-              <strong className="is-next">
-                {Math.min(
-                  CAMP_POWER_CAPACITY,
-                  campPowerState.current + CAMP_POWER_REFILL_AMOUNT,
-                )}/{CAMP_POWER_CAPACITY}
-              </strong>
+              {questItemSubmissionPrompt ? (
+                <>
+                  <span>本次安裝</span>
+                  <strong>{questItemSubmissionPrompt.itemName}</strong>
+                  <i aria-hidden="true">·</i>
+                  <strong className="is-next">
+                    尚有 {questItemSubmissionPrompt.total} 項
+                  </strong>
+                </>
+              ) : (
+                <>
+                  <span>目前電力</span>
+                  <strong>{campPowerState.current}/{CAMP_POWER_CAPACITY}</strong>
+                  <i aria-hidden="true">→</i>
+                  <strong className="is-next">
+                    {Math.min(
+                      CAMP_POWER_CAPACITY,
+                      campPowerState.current + CAMP_POWER_REFILL_AMOUNT,
+                    )}/{CAMP_POWER_CAPACITY}
+                  </strong>
+                </>
+              )}
             </div>
             <p className="camp-power-confirmation-owned">
-              目前持有：藍色晶體碎片 ×{playerInventory[CAMP_POWER_REFILL_ITEM_ID] ?? 0}
+              {questItemSubmissionPrompt
+                ? `目前持有：${questItemSubmissionPrompt.itemName} ×${playerInventory[questItemSubmissionPrompt.itemId] ?? 0}`
+                : `目前持有：藍色晶體碎片 ×${playerInventory[CAMP_POWER_REFILL_ITEM_ID] ?? 0}`}
             </p>
             <div className="camp-power-confirmation-actions">
               <button
@@ -12872,7 +13065,7 @@ export function MovementLab() {
                   confirmCampPowerRefill();
                 }}
               >
-                確認灌入
+                {questItemSubmissionPrompt ? "確認投入" : "確認灌入"}
               </button>
             </div>
             <footer>十字鍵／左搖桿：選擇　A：確認　B：取消</footer>

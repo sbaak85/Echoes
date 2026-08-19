@@ -66,6 +66,7 @@ public enum ObjectiveType
 {
     [Description("收集道具")] CollectItem,
     [Description("複合道具收集")] CompoundCollectItem,
+    [Description("向互動區投入道具")] SubmitItemAtInteraction,
     [Description("持有道具")] HaveItem,
     [Description("開啟介面")] InterfaceOpened,
     [Description("使用道具")] ItemUsed,
@@ -440,8 +441,8 @@ public sealed class QuestObjectiveDefinition
     [Category("判定"), DisplayName("判定目標 ID")]
     public string TargetId { get; set; } = "";
 
-    [Category("判定"), DisplayName("複合道具需求")]
-    [Description("目標類型選擇「複合道具收集」時，在此加入多個道具 ID 與各自需求數量。")]
+    [Category("判定"), DisplayName("道具需求")]
+    [Description("「複合道具收集」可加入多個道具；「向互動區投入道具」第一版請設定一個道具 ID 與數量。")]
     public List<QuestItemRequirement> ItemRequirements { get; set; } = new();
 
     [Category("判定"), DisplayName("目標狀態／條件")]

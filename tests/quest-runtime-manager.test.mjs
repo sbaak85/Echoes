@@ -855,3 +855,105 @@ test("quest, stage and objective lifecycle teleports fire once with their own de
     ["quest-complete", 200, { questId: quest.id, phase: "completion" }],
   ]);
 });
+
+test("interaction item submissions keep objective order while allowing out-of-order completion", () => {
+  const submissionDocument = structuredClone(document);
+  const quest = submissionDocument.quests[0];
+  quest.rewardItemId = "";
+  quest.rewardItemAmount = 0;
+  quest.stages = [
+    {
+      id: "QUEST_TEST_STAGE_SUBMISSION",
+      name: "安裝通訊陣列零件",
+      completionMode: "all",
+      objectives: [
+        {
+          id: "QUEST_TEST_OBJ_R0013",
+          displayText: "安裝通訊陣列面板",
+          type: "submitItemAtInteraction",
+          targetId: "scene3-interaction-023",
+          itemRequirements: [{ itemId: "R0013", requiredAmount: 1 }],
+          requiredAmount: 1,
+          countMode: "accumulated",
+          interactionMode: "succeeded",
+          showProgress: false,
+          showHintIcon: false,
+        },
+        {
+          id: "QUEST_TEST_OBJ_R0014",
+          displayText: "安裝量子傳輸器",
+          type: "submitItemAtInteraction",
+          targetId: "scene3-interaction-023",
+          itemRequirements: [{ itemId: "R0014", requiredAmount: 1 }],
+          requiredAmount: 1,
+          countMode: "accumulated",
+          interactionMode: "succeeded",
+          showProgress: false,
+          showHintIcon: false,
+        },
+        {
+          id: "QUEST_TEST_OBJ_R0015",
+          displayText: "安裝校正元件",
+          type: "submitItemAtInteraction",
+          targetId: "scene3-interaction-023",
+          itemRequirements: [{ itemId: "R0015", requiredAmount: 1 }],
+          requiredAmount: 1,
+          countMode: "accumulated",
+          interactionMode: "succeeded",
+          showProgress: false,
+          showHintIcon: false,
+        },
+      ],
+    },
+  ];
+
+  const manager = new QuestRuntimeManager(submissionDocument);
+  manager.startQuest(quest.id);
+
+  assert.deepEqual(
+    manager
+      .getActiveItemSubmissionObjectives("scene3-interaction-023")
+      .map((entry) => entry.objective.itemRequirements[0].itemId),
+    ["R0013", "R0014", "R0015"],
+  );
+
+  manager.handleEvent({
+    type: "itemSubmitted",
+    targetId: "scene3-interaction-023",
+    itemId: "R0014",
+    amount: 1,
+    eventId: "submit-r0014",
+  });
+
+  assert.equal(
+    manager.getObjectiveProgress(quest.id, "QUEST_TEST_OBJ_R0014").completed,
+    true,
+  );
+  assert.equal(
+    manager.getObjectiveProgress(quest.id, "QUEST_TEST_OBJ_R0013").completed,
+    false,
+  );
+  assert.deepEqual(
+    manager
+      .getActiveItemSubmissionObjectives("scene3-interaction-023")
+      .map((entry) => entry.objective.itemRequirements[0].itemId),
+    ["R0013", "R0015"],
+  );
+
+  manager.handleEvent({
+    type: "itemSubmitted",
+    targetId: "scene3-interaction-023",
+    itemId: "R0013",
+    amount: 1,
+    eventId: "submit-r0013",
+  });
+  manager.handleEvent({
+    type: "itemSubmitted",
+    targetId: "scene3-interaction-023",
+    itemId: "R0015",
+    amount: 1,
+    eventId: "submit-r0015",
+  });
+
+  assert.equal(manager.getQuestState(quest.id), "completed");
+});

@@ -223,23 +223,30 @@ internal static class QuestValidator
         }
         if (objective.RequiredAmount < 1)
             issues.Add(new(ValidationSeverity.Error, $"{objective.Id} 的需求數量必須大於 0", objective));
-        if (objective.Type == ObjectiveType.CompoundCollectItem)
+        if (objective.Type == ObjectiveType.CompoundCollectItem ||
+            objective.Type == ObjectiveType.SubmitItemAtInteraction)
         {
             if (objective.ItemRequirements.Count == 0)
             {
-                issues.Add(new(ValidationSeverity.Error, $"{objective.Id} 必須至少設定一項複合道具需求", objective));
+                issues.Add(new(ValidationSeverity.Error, $"{objective.Id} 必須至少設定一項道具需求", objective));
                 return;
+            }
+            if (objective.Type == ObjectiveType.SubmitItemAtInteraction &&
+                objective.ItemRequirements.Count != 1)
+            {
+                issues.Add(new(ValidationSeverity.Error,
+                    $"{objective.Id} 的投入道具目標第一版必須設定一項道具需求", objective));
             }
             foreach (var requirement in objective.ItemRequirements)
             {
                 if (string.IsNullOrWhiteSpace(requirement.ItemId))
-                    issues.Add(new(ValidationSeverity.Error, $"{objective.Id} 的複合道具 Item ID 不可空白", objective));
+                    issues.Add(new(ValidationSeverity.Error, $"{objective.Id} 的道具 Item ID 不可空白", objective));
                 else if (references.Get("Item").Count > 0 && !references.Contains("Item", requirement.ItemId))
                     issues.Add(new(ValidationSeverity.Error, $"找不到 Item ID：{requirement.ItemId}", objective));
                 if (requirement.RequiredAmount < 1)
                     issues.Add(new(ValidationSeverity.Error, $"{objective.Id}/{requirement.ItemId} 的需求數量必須大於 0", objective));
             }
-            return;
+            if (objective.Type == ObjectiveType.CompoundCollectItem) return;
         }
         var kind = ReferenceKind(objective.Type);
         if (kind is null) return;
@@ -284,7 +291,8 @@ internal static class QuestValidator
     {
         ObjectiveType.CollectItem or ObjectiveType.HaveItem or ObjectiveType.ItemUsed => "Item",
         ObjectiveType.InterfaceOpened => "Interface",
-        ObjectiveType.InteractionStarted or ObjectiveType.InteractionSucceeded => "Interaction",
+        ObjectiveType.InteractionStarted or ObjectiveType.InteractionSucceeded or
+            ObjectiveType.SubmitItemAtInteraction => "Interaction",
         ObjectiveType.EnterArea => "Area",
         ObjectiveType.PuzzleCompleted => "Puzzle",
         ObjectiveType.DialogueCompleted => "Dialogue",

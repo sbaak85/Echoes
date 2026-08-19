@@ -35,6 +35,7 @@ type PowerRoutingPuzzleProps = {
   onCancel: () => void;
   onComplete: () => void;
   onInput?: () => void;
+  onSuccessStart?: () => void;
 };
 
 export type PowerRoutingPuzzleController = {
@@ -53,6 +54,7 @@ export const PowerRoutingPuzzle = forwardRef<
     onCancel,
     onComplete,
     onInput,
+    onSuccessStart,
   },
   controllerRef,
 ) {
@@ -113,6 +115,7 @@ export const PowerRoutingPuzzle = forwardRef<
     }
     if (completionStartedRef.current) return;
     completionStartedRef.current = true;
+    onSuccessStart?.();
     setFeedback(null);
     setStartupStep(0);
     STARTUP_MESSAGES.forEach((_, index) => {

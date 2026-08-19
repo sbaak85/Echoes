@@ -9,6 +9,7 @@ export type QuestState =
 export type QuestObjectiveType =
   | "collectItem"
   | "compoundCollectItem"
+  | "submitItemAtInteraction"
   | "haveItem"
   | "interfaceOpened"
   | "itemUsed"
@@ -132,6 +133,7 @@ export type QuestGameEvent = {
     | "inventoryChanged"
     | "interfaceOpened"
     | "itemUsed"
+    | "itemSubmitted"
     | "interactionStarted"
     | "interactionSucceeded"
     | "areaEntered"
@@ -145,6 +147,7 @@ export type QuestGameEvent = {
     | "customQuestProgressAdded"
     | "questCompleted";
   targetId: string;
+  itemId?: string;
   amount?: number;
   result?: string | number | boolean;
   questId?: string;
@@ -344,6 +347,44 @@ export class QuestRuntimeManager {
     const progress = this.requireEntry(questId).objectives[objectiveId];
     if (!progress) throw new Error(`Unknown objective: ${questId}/${objectiveId}`);
     return structuredClone(progress);
+  }
+
+  getActiveItemSubmissionObjectives(interactionId: string): Array<{
+    questId: string;
+    stageId: string;
+    objective: QuestObjectiveDefinition;
+    progress: QuestObjectiveRuntime;
+  }> {
+    const normalizedInteractionId = interactionId.trim();
+    if (!normalizedInteractionId) return [];
+    const matches: Array<{
+      questId: string;
+      stageId: string;
+      objective: QuestObjectiveDefinition;
+      progress: QuestObjectiveRuntime;
+    }> = [];
+    for (const definition of this.definitions.values()) {
+      const entry = this.saveData.quests[definition.id];
+      if (!entry || entry.state !== "active" || !this.isStageActive(entry)) continue;
+      const stage = definition.stages.find(candidate => candidate.id === entry.currentStageId);
+      if (!stage) continue;
+      for (const objective of stage.objectives) {
+        const progress = entry.objectives[objective.id];
+        if (
+          objective.type !== "submitItemAtInteraction" ||
+          objective.targetId !== normalizedInteractionId ||
+          !progress || progress.completed ||
+          !this.isObjectiveActive(entry, progress)
+        ) continue;
+        matches.push({
+          questId: definition.id,
+          stageId: stage.id,
+          objective: structuredClone(objective),
+          progress: structuredClone(progress),
+        });
+      }
+    }
+    return matches;
   }
 
   activateObjective(objectiveId: string, activatedByEventId?: string): boolean {
@@ -1332,6 +1373,12 @@ export function evaluateQuestObjective(
       return event.type === "itemCollected" ? { mode: "add", amount: event.amount ?? 1 } : null;
     case "compoundCollectItem":
       return null;
+    case "submitItemAtInteraction": {
+      if (event.type !== "itemSubmitted") return null;
+      const requirement = normalizeItemRequirements(objective)[0];
+      if (!requirement || requirement.itemId !== event.itemId) return null;
+      return { mode: "add", amount: event.amount ?? 1 };
+    }
     case "haveItem":
       return event.type === "inventoryChanged" ? { mode: "set", amount: event.amount ?? 0 } : null;
     case "interfaceOpened":

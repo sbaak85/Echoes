@@ -11,6 +11,10 @@ export type AudioEventDefinition = {
   volume: number;
   /** 每次事件成立後延遲幾秒才開始播放。 */
   delaySeconds: number;
+  /** 大於 0 時，聲音開始播放後由靜音平滑淡入至設定音量。 */
+  fadeInSeconds?: number;
+  /** 大於 0 時，聲音結束前由設定音量平滑淡出至靜音。 */
+  fadeOutSeconds?: number;
   /** 省略時預設單次；BGM、腳步、打字音等持續聲音設為 true。 */
   loop?: boolean;
 };
@@ -199,6 +203,48 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 1,
       "delaySeconds": 0
+    },
+    "generatorStartup1": {
+      "label": "發電機成功啟動－第一段",
+      "trigger": "電力分配小遊戲的供電組合正確，玩家按下「確認供電」並正式進入成功啟動流程的當下播放；失敗組合、切換設備或重複輸入不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/發電機啟動1.mp3"
+      ],
+      "sources": [
+        "./audio/generator-startup-1.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInSeconds": 0.3,
+      "fadeOutSeconds": 0.3
+    },
+    "generatorStartup2": {
+      "label": "發電機成功啟動－第二段",
+      "trigger": "電力分配小遊戲成功啟動流程成立後 1 秒播放；與第一段共用同一次成功事件，失敗時不排程。",
+      "sourceAssetPaths": [
+        "Assets/Audio/發電機啟動2.mp3"
+      ],
+      "sources": [
+        "./audio/generator-startup-2.mp3"
+      ],
+      "volume": 0.8,
+      "delaySeconds": 1,
+      "fadeInSeconds": 0.3,
+      "fadeOutSeconds": 0.3
+    },
+    "generatorRunning": {
+      "label": "發電機成功啟動－運作聲",
+      "trigger": "電力分配小遊戲成功啟動流程成立後 1.5 秒播放；與前兩段共用同一次成功事件，失敗時不排程。",
+      "sourceAssetPaths": [
+        "Assets/Audio/發電機運作.mp3"
+      ],
+      "sources": [
+        "./audio/generator-running.mp3"
+      ],
+      "volume": 0.7,
+      "delaySeconds": 1.5,
+      "fadeInSeconds": 0.3,
+      "fadeOutSeconds": 0.3
     }
   }
   /* AUDIO_EVENT_CONFIG_END */
@@ -247,6 +293,7 @@ type AudioEventRuntime = {
   definition: AudioEventDefinition;
   delayResolve: (() => void) | null;
   delayTimerId: number | null;
+  fadeFrameId: number | null;
   endedHandler: () => void;
   pendingPlay: Promise<void> | null;
   requestId: number;
@@ -287,6 +334,7 @@ export class AudioEventManager {
         definition,
         delayResolve: null,
         delayTimerId: null,
+        fadeFrameId: null,
         endedHandler: () => {},
         pendingPlay: null,
         requestId: 0,
@@ -294,6 +342,11 @@ export class AudioEventManager {
       };
 
       runtime.endedHandler = () => {
+        if (runtime.fadeFrameId !== null) {
+          window.cancelAnimationFrame(runtime.fadeFrameId);
+          runtime.fadeFrameId = null;
+        }
+        runtime.audio.volume = clampVolume(runtime.definition.volume);
         if (
           this.disposed ||
           !runtime.definition.loop ||
@@ -394,11 +447,71 @@ export class AudioEventManager {
     }
 
     if (this.disposed || runtime.requestId !== requestId) return;
+    const fadeInMilliseconds = Math.max(
+      0,
+      (runtime.definition.fadeInSeconds ?? 0) * 1000,
+    );
+    const fadeOutMilliseconds = Math.max(
+      0,
+      (runtime.definition.fadeOutSeconds ?? 0) * 1000,
+    );
+    const targetVolume = clampVolume(runtime.definition.volume);
+    if (fadeInMilliseconds > 0) runtime.audio.volume = 0;
     await runtime.audio.play();
+    if (
+      (fadeInMilliseconds > 0 || fadeOutMilliseconds > 0) &&
+      !this.disposed &&
+      runtime.requestId === requestId
+    ) {
+      this.startVolumeEnvelope(
+        runtime,
+        requestId,
+        targetVolume,
+        fadeInMilliseconds,
+        fadeOutMilliseconds,
+      );
+    }
+  }
+
+  private startVolumeEnvelope(
+    runtime: AudioEventRuntime,
+    requestId: number,
+    targetVolume: number,
+    fadeInMilliseconds: number,
+    fadeOutMilliseconds: number,
+  ) {
+    const smoothstep = (progress: number) =>
+      progress * progress * (3 - 2 * progress);
+    const updateVolume = () => {
+      if (this.disposed || runtime.requestId !== requestId) return;
+      const playbackMilliseconds = runtime.audio.currentTime * 1000;
+      const fadeInProgress = fadeInMilliseconds > 0
+        ? Math.min(1, Math.max(0, playbackMilliseconds / fadeInMilliseconds))
+        : 1;
+      const remainingMilliseconds = Number.isFinite(runtime.audio.duration)
+        ? Math.max(0, runtime.audio.duration * 1000 - playbackMilliseconds)
+        : Number.POSITIVE_INFINITY;
+      const fadeOutProgress = fadeOutMilliseconds > 0
+        ? Math.min(1, Math.max(0, remainingMilliseconds / fadeOutMilliseconds))
+        : 1;
+      runtime.audio.volume = clampVolume(
+        targetVolume * smoothstep(fadeInProgress) * smoothstep(fadeOutProgress),
+      );
+      if (!runtime.audio.ended && !runtime.audio.paused) {
+        runtime.fadeFrameId = window.requestAnimationFrame(updateVolume);
+      } else {
+        runtime.fadeFrameId = null;
+      }
+    };
+    runtime.fadeFrameId = window.requestAnimationFrame(updateVolume);
   }
 
   private cancelPendingPlay(runtime: AudioEventRuntime) {
     runtime.requestId += 1;
+    if (runtime.fadeFrameId !== null) {
+      window.cancelAnimationFrame(runtime.fadeFrameId);
+      runtime.fadeFrameId = null;
+    }
     if (runtime.delayTimerId !== null) {
       window.clearTimeout(runtime.delayTimerId);
       runtime.delayTimerId = null;

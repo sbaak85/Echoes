@@ -66,6 +66,39 @@ test("任務提示音效的遊戲載入檔案已存在", async () => {
   assert.ok(startAudio.size > 0);
 });
 
+test("電力分配成功後三段發電機音效依序淡入淡出播放", async () => {
+  const first = AUDIO_EVENT_CONFIG.generatorStartup1;
+  const second = AUDIO_EVENT_CONFIG.generatorStartup2;
+  const running = AUDIO_EVENT_CONFIG.generatorRunning;
+
+  assert.deepEqual(first.sourceAssetPaths, ["Assets/Audio/發電機啟動1.mp3"]);
+  assert.deepEqual(second.sourceAssetPaths, ["Assets/Audio/發電機啟動2.mp3"]);
+  assert.deepEqual(running.sourceAssetPaths, ["Assets/Audio/發電機運作.mp3"]);
+  assert.deepEqual(
+    [first.delaySeconds, second.delaySeconds, running.delaySeconds],
+    [0, 1, 1.5],
+  );
+  assert.deepEqual(
+    [first.fadeInSeconds, second.fadeInSeconds, running.fadeInSeconds],
+    [0.3, 0.3, 0.3],
+  );
+  assert.deepEqual(
+    [first.fadeOutSeconds, second.fadeOutSeconds, running.fadeOutSeconds],
+    [0.3, 0.3, 0.3],
+  );
+  [first, second, running].forEach((event) => {
+    assert.match(event.trigger, /成功/);
+    assert.match(event.trigger, /失敗/);
+  });
+
+  const files = await Promise.all(
+    [first, second, running].map((event) =>
+      stat(new URL(`../public/${event.sources[0].replace(/^\.\//, "")}`, import.meta.url)),
+    ),
+  );
+  files.forEach((file) => assert.ok(file.size > 0));
+});
+
 test("調頻四種聲音事件集中登記並使用正確素材", async () => {
   const tick = AUDIO_EVENT_CONFIG.frequencyCoarseTick;
   assert.deepEqual(tick.sourceAssetPaths, ["Assets/Audio/刻度.mp3"]);

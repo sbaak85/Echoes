@@ -2447,7 +2447,7 @@
         "hunger": 0,
         "thirst": 0,
         "spirit": -10,
-        "timeMinutes": 60
+        "timeMinutes": 0
       },
       "useRequirements": [
         {
@@ -2522,20 +2522,7 @@
             "speaker": "Sbaak",
             "text": "\u71DF\u5730\u81F3\u5C11\u9084\u8981\u67096\u683C\u96FB\u529B\u624D\u884C...\u3002",
             "randomGroupId": "random-group-1",
-            "weight": 1
-          }
-        ]
-      },
-      "completionDialogue": {
-        "characterDelaySeconds": 0.02,
-        "speakers": [
-          "Sbaak",
-          "Echo"
-        ],
-        "lines": [
-          {
-            "speaker": "Sbaak",
-            "text": "\u6210\u529F\u4E86!"
+            "weight": 2
           }
         ]
       }
@@ -3914,6 +3901,130 @@
           {
             "speaker": "Sbaak",
             "text": "\u770B\u4F86\u8981\u66FF\u63DB\u6210\u80FD\u5920\u7522\u751F\u5171\u632F\u6548\u679C\u7684\u65B0\u96F6\u4EF6..."
+          }
+        ]
+      }
+    },
+    {
+      "id": "scene3-interaction-023",
+      "label": "\u901A\u8A0A\u9663\u5217\u5929\u7DDA",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1165,
+          "y": 430
+        },
+        {
+          "x": 1195,
+          "y": 430
+        },
+        {
+          "x": 1245,
+          "y": 460
+        },
+        {
+          "x": 1245,
+          "y": 510
+        },
+        {
+          "x": 1165,
+          "y": 565
+        },
+        {
+          "x": 1115,
+          "y": 535
+        },
+        {
+          "x": 1115,
+          "y": 500
+        },
+        {
+          "x": 1090,
+          "y": 485
+        }
+      ],
+      "type": "operation",
+      "verb": "\u64CD\u4F5C",
+      "survivalRequirements": {
+        "mode": "all",
+        "stamina": {
+          "comparison": "atLeast",
+          "value": 60
+        },
+        "hunger": {
+          "comparison": "atLeast",
+          "value": 50
+        },
+        "thirst": {
+          "comparison": "atLeast",
+          "value": 50
+        },
+        "spirit": {
+          "comparison": "atLeast",
+          "value": 60
+        }
+      },
+      "survivalEffects": {
+        "stamina": -10,
+        "hunger": -5,
+        "thirst": -5,
+        "spirit": -10,
+        "timeMinutes": 60
+      },
+      "useRequirements": [
+        {
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_006",
+          "stageId": "QUEST_CH03_MAIN_006_STAGE_01",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
+      "interactionPoints": [
+        {
+          "facing": "SE",
+          "x": 1137.7202,
+          "y": 480.10785
+        },
+        {
+          "facing": "NE",
+          "x": 1157.7726,
+          "y": 543.3163
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 1176.0813,
+        "y": 459.6196
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "..."
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }

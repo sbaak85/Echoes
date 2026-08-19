@@ -78,6 +78,17 @@ test("目前所有開關組合都無法解開謎題", () => {
   }
 });
 
+test("供電成功入口只排程一次三段發電機音效", async () => {
+  const [movementLabSource, puzzleSource] = await Promise.all([
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/power-routing-puzzle.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(puzzleSource, /onSuccessStart\?\.\(\)/);
+  assert.match(movementLabSource, /playOneShotAudio\("generatorStartup1"\)/);
+  assert.match(movementLabSource, /playOneShotAudio\("generatorStartup2"\)/);
+  assert.match(movementLabSource, /playOneShotAudio\("generatorRunning"\)/);
+});
+
 test("interaction-012 會先開暫代選項視窗，再選擇電力分配或調頻", async () => {
   const [scene, movementLabSource, puzzleSource] = await Promise.all([
     readFile(new URL("../public/maps/map_test01.scene.json", import.meta.url), "utf8")
