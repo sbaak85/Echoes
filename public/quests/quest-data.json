@@ -960,7 +960,7 @@
           "id": "QUEST_CH03_MAIN_006_STAGE_02",
           "name": "\u7D44\u88DD\u5404\u90E8\u4F4D\u96F6\u4EF6",
           "startDelaySeconds": 0,
-          "startPresentationDelaySeconds": 0,
+          "startPresentationDelaySeconds": 2,
           "completionDelaySeconds": 0,
           "completionPresentationDelaySeconds": 0,
           "completionMode": "all",

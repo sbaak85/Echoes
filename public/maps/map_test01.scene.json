@@ -4028,6 +4028,139 @@
           }
         ]
       }
+    },
+    {
+      "id": "scene3-interaction-024",
+      "label": "\u901A\u8A0A\u9663\u5217\u5929\u7DDA",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1095,
+          "y": 480
+        },
+        {
+          "x": 1165,
+          "y": 430
+        },
+        {
+          "x": 1195,
+          "y": 430
+        },
+        {
+          "x": 1245,
+          "y": 460
+        },
+        {
+          "x": 1245,
+          "y": 510
+        },
+        {
+          "x": 1165,
+          "y": 565
+        },
+        {
+          "x": 1115,
+          "y": 535
+        },
+        {
+          "x": 1115,
+          "y": 500
+        },
+        {
+          "x": 1095,
+          "y": 490
+        }
+      ],
+      "type": "operation",
+      "verb": "\u64CD\u4F5C",
+      "survivalRequirements": {
+        "mode": "all",
+        "stamina": {
+          "comparison": "atLeast",
+          "value": 60
+        },
+        "spirit": {
+          "comparison": "atLeast",
+          "value": 60
+        }
+      },
+      "survivalEffects": {
+        "stamina": -10,
+        "hunger": -10,
+        "thirst": -10,
+        "spirit": -10,
+        "timeMinutes": 60
+      },
+      "interactionLimitMode": "once",
+      "useRequirements": [
+        {
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH03_MAIN_006",
+          "stageId": "QUEST_CH03_MAIN_006_STAGE_02",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        },
+        {
+          "kind": "item",
+          "scope": "interaction",
+          "itemId": "T0007",
+          "questId": "",
+          "stageId": "",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
+      "interactionPoints": [
+        {
+          "facing": "SE",
+          "x": 1137.4911,
+          "y": 479.99725
+        },
+        {
+          "facing": "NE",
+          "x": 1156.6633,
+          "y": 544.41583
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 1175.8354,
+        "y": 459.67474
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "..."
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
+      }
     }
   ],
   "movementGuides": [

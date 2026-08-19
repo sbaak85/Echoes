@@ -168,6 +168,43 @@ test("quest completion trigger starts only after the COMPLETE UI finishes", () =
   assert.match(completionHandler, /else\s*{\s*completePresentation\(\);/);
 });
 
+test("all registered dialogue paths share one quest handoff after completion", () => {
+  const completionListener = source.slice(
+    source.indexOf("dialogueManager.setCompletionListener"),
+    source.indexOf("Object.entries(STORY_DIALOGUES)"),
+  );
+  assert.match(completionListener, /type: "dialogueCompleted"/);
+  assert.match(completionListener, /targetId: request\.id/);
+  assert.match(
+    completionListener,
+    /startAvailableAfterDialogueQuests\(\s*request\.id,/,
+  );
+
+  const chapterFlowHost = source.slice(
+    source.indexOf("playDialogue: (dialogueId)"),
+    source.indexOf("startQuest: (questId)"),
+  );
+  assert.match(chapterFlowHost, /dialogueManager\.playRegistered\(/);
+
+  const storyInteraction = source.slice(
+    source.indexOf("if (interactable.storyDialogueId)"),
+    source.indexOf("const dialogue = getInteractionDialogue"),
+  );
+  assert.match(
+    storyInteraction,
+    /dialogueManager\.playRegistered\(\s*interactable\.storyDialogueId,/,
+  );
+
+  const storyZone = source.slice(
+    source.indexOf('events.on("storyZoneEntered"'),
+    source.indexOf("storyEventManagerRef.current = events"),
+  );
+  assert.match(
+    storyZone,
+    /dialogueManager\.playRegistered\(\s*zone\.dialogueId,/,
+  );
+});
+
 test("quest HUD result animations start their managed audio once", () => {
   const hudVisual = source.slice(
     source.indexOf("const triggerQuestHudVisual"),

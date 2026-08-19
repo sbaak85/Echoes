@@ -1,0 +1,99 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="441"
+  height="445"
+  viewBox="0 0 441 445"
+  role="img"
+  aria-labelledby="title description"
+>
+  <title id="title">焊接路線記憶小遊戲正式線圖預覽</title>
+  <desc id="description">
+    依照分色參考圖，以五條獨立 SVG 路徑重畫並統一為青藍色虛線。
+  </desc>
+
+  <image
+    href="welding-brushed-metal-background.png"
+    x="0"
+    y="0"
+    width="441"
+    height="445"
+    preserveAspectRatio="xMidYMid slice"
+  />
+  <rect width="441" height="445" fill="#061319" opacity="0.18" />
+
+  <g
+    fill="none"
+    stroke="#36dfd0"
+    stroke-width="2.25"
+    stroke-dasharray="7 6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <!-- Route 1：參考圖紅線。 -->
+    <path d="
+      M 20 251
+      L 84 251
+      L 118 142
+      L 161 142
+      L 180 90
+      L 225 90
+      L 255 187
+      L 328 187
+      L 335 208
+      L 376 208
+      L 400 135
+      L 421 135
+    " />
+
+    <!-- Route 2：參考圖藍線。 -->
+    <path d="
+      M 20 169
+      L 52 169
+      L 64 207
+      L 167 207
+      L 190 136
+      L 266 136
+      L 276 115
+      L 340 115
+      L 362 187
+      L 421 187
+    " />
+
+    <!-- Route 3：參考圖紫線。 -->
+    <path d="
+      M 20 199
+      L 49 282
+      L 112 282
+      L 131 239
+      L 195 239
+      L 225 166
+      L 308 166
+      L 322 143
+      L 368 143
+      L 381 108
+      L 421 108
+    " />
+
+    <!-- Route 4：參考圖粉線。 -->
+    <path d="
+      M 20 113
+      L 65 113
+      L 84 174
+      L 133 174
+      L 168 277
+      L 226 277
+      L 243 229
+      L 367 229
+      L 382 269
+      L 421 269
+    " />
+
+    <!-- Route 5：參考圖綠線，連接 Route 1 的兩個位置。 -->
+    <path d="
+      M 255 187
+      L 280 251
+      L 322 251
+      L 335 208
+    " />
+  </g>
+</svg>

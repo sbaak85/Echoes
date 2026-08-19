@@ -1,0 +1,155 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="441"
+  height="445"
+  viewBox="0 0 441 445"
+  role="img"
+  aria-labelledby="title description"
+>
+  <title id="title">隨機分岔組合路線高熱焊接效果預覽</title>
+  <desc id="description">
+    從 R1 入口開始，在交錯分岔逐次抽選後，依序跨越 R1、R2、R1、連接段與 R4 的混合路徑。
+  </desc>
+
+  <defs>
+    <path
+      id="route-3"
+      d="M 20 199 L 49 282 L 112 282 L 131 239 L 195 239 L 225 166 L 308 166 L 322 143 L 368 143 L 381 108 L 421 108"
+    />
+    <path
+      id="active-route"
+      pathLength="1"
+      d="M 20 251 L 84 251 L 97.72 207 L 167 207 L 190 136 L 239.23 136 L 255 187 L 271.41 229 L 367 229 L 382 269 L 421 269"
+    />
+
+    <filter id="wide-hot-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="7" />
+    </filter>
+    <filter id="tight-hot-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.8" />
+    </filter>
+    <filter id="weld-head-glow" x="-250%" y="-250%" width="500%" height="500%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <image
+    href="welding-brushed-metal-background.png"
+    x="0"
+    y="0"
+    width="441"
+    height="445"
+    preserveAspectRatio="xMidYMid slice"
+  />
+  <rect width="441" height="445" fill="#061319" opacity="0.24" />
+
+  <!-- 常駐候選路網。 -->
+  <g
+    fill="none"
+    stroke="#36dfd0"
+    stroke-width="2.25"
+    stroke-dasharray="7 6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.72"
+  >
+    <path d="M 20 251 L 84 251 L 118 142 L 161 142 L 180 90 L 225 90 L 255 187 L 328 187 L 335 208 L 376 208 L 400 135 L 421 135" />
+    <path d="M 20 169 L 52 169 L 64 207 L 167 207 L 190 136 L 266 136 L 276 115 L 340 115 L 362 187 L 421 187" />
+    <use href="#route-3" />
+    <path d="M 20 113 L 65 113 L 84 174 L 133 174 L 168 277 L 226 277 L 243 229 L 367 229 L 382 269 L 421 269" />
+    <path d="M 255 187 L 280 251 L 322 251 L 335 208" />
+  </g>
+
+  <!-- 已冷卻但仍保留的穩定焊縫底痕。 -->
+  <use
+    href="#active-route"
+    fill="none"
+    stroke="#7f3145"
+    stroke-width="7"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.82"
+  />
+
+  <!-- 粉紅到珊瑚紅的高熱外暈。 -->
+  <use
+    href="#active-route"
+    fill="none"
+    stroke="#ff2f76"
+    stroke-width="18"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.34"
+    filter="url(#wide-hot-glow)"
+  >
+    <animate attributeName="opacity" values="0.24;0.42;0.28" dur="1.15s" repeatCount="indefinite" />
+  </use>
+  <use
+    href="#active-route"
+    fill="none"
+    stroke="#ff575d"
+    stroke-width="9"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.78"
+    filter="url(#tight-hot-glow)"
+  />
+
+  <!-- 熔融表層與白熱核心。 -->
+  <use
+    href="#active-route"
+    fill="none"
+    stroke="#ff7658"
+    stroke-width="5.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <use
+    href="#active-route"
+    fill="none"
+    stroke="#fff1cc"
+    stroke-width="2.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.96"
+  />
+
+  <!-- 焊槍作用點：位於本局混合路徑接近右側出口的位置。 -->
+  <g transform="translate(382 269)">
+    <circle r="17" fill="#ff3e67" opacity="0.22" filter="url(#wide-hot-glow)" />
+    <circle r="7" fill="#ff7658" opacity="0.92" filter="url(#weld-head-glow)" />
+    <circle r="3.2" fill="#fff8df" />
+
+    <g
+      fill="none"
+      stroke="#ffb23e"
+      stroke-width="2"
+      stroke-linecap="round"
+      filter="url(#weld-head-glow)"
+    >
+      <path d="M -5 -7 L -13 -18" />
+      <path d="M 2 -8 L 5 -23" />
+      <path d="M 7 -4 L 18 -13" />
+      <path d="M 8 3 L 22 6" />
+      <path d="M 3 8 L 9 20" />
+      <path d="M -6 6 L -17 15" />
+      <path d="M -8 0 L -22 -3" />
+      <animate attributeName="opacity" values="0.45;1;0.58;0.9" dur="0.42s" repeatCount="indefinite" />
+    </g>
+
+    <g fill="#ffd262" filter="url(#weld-head-glow)">
+      <circle cx="-16" cy="-21" r="1.7" />
+      <circle cx="7" cy="-25" r="1.35" />
+      <circle cx="21" cy="-14" r="1.55" />
+      <circle cx="24" cy="8" r="1.25" />
+      <circle cx="10" cy="22" r="1.65" />
+      <circle cx="-20" cy="17" r="1.35" />
+      <circle cx="-24" cy="-5" r="1.5" />
+      <animate attributeName="opacity" values="1;0.36;0.9;0.48" dur="0.36s" repeatCount="indefinite" />
+    </g>
+  </g>
+</svg>

@@ -277,6 +277,34 @@ test("DialogueManager 不會排入相同互動的重複播放", async () => {
   assert.deepEqual(presented, ["interaction:campfire"]);
 });
 
+test("DialogueManager only emits the common completion event after a real finish", async () => {
+  const manager = new DialogueManager();
+  const completions = [];
+  let finishCurrent;
+  manager.setPresenter((_request, complete) => {
+    finishCurrent = complete;
+  });
+  manager.setCompletionListener((request) => completions.push(request.id));
+
+  const chapterFlowDialogue = manager.play(
+    "chapter03-section-test",
+    CHAPTER_3_START_DIALOGUE,
+    { type: "chapter-flow" },
+  );
+  finishCurrent();
+  assert.deepEqual(await chapterFlowDialogue, { completed: true });
+  assert.deepEqual(completions, ["chapter03-section-test"]);
+
+  const cancelledInteractionDialogue = manager.play(
+    "interaction:interaction-test",
+    CHAPTER_3_START_DIALOGUE,
+    { type: "interaction" },
+  );
+  manager.cancelCurrent();
+  assert.deepEqual(await cancelledInteractionDialogue, { completed: false });
+  assert.deepEqual(completions, ["chapter03-section-test"]);
+});
+
 test("StoryEventManager 依登錄順序派送事件", async () => {
   const manager = new StoryEventManager();
   const received = [];

@@ -1,0 +1,328 @@
+export type WeldingPoint = {
+  x: number;
+  y: number;
+};
+
+export type WeldingRouteNode = WeldingPoint & {
+  id: string;
+};
+
+export type WeldingRouteEdge = {
+  id: string;
+  from: string;
+  to: string;
+  start: WeldingPoint;
+  end: WeldingPoint;
+  sourceRouteIds: string[];
+};
+
+export type WeldingRouteGraph = {
+  nodes: WeldingRouteNode[];
+  edges: WeldingRouteEdge[];
+  startNodeIds: string[];
+  endNodeIds: string[];
+};
+
+export type WeldingRouteSession = {
+  graph: WeldingRouteGraph;
+  edgeIds: string[];
+  edges: WeldingRouteEdge[];
+  start: WeldingPoint;
+  end: WeldingPoint;
+};
+
+type SourceRoute = {
+  id: string;
+  points: WeldingPoint[];
+};
+
+const EPSILON = 0.001;
+const NODE_PRECISION = 1000;
+
+export const WELDING_ROUTE_VIEWBOX = {
+  width: 441,
+  height: 320,
+};
+
+// 由設計稿的五條彩色辨識線還原；遊戲中會統一顯示為青藍色。
+export const WELDING_SOURCE_ROUTES: SourceRoute[] = [
+  {
+    id: "route-a",
+    points: [
+      { x: 20, y: 251 }, { x: 84, y: 251 }, { x: 118, y: 142 },
+      { x: 161, y: 142 }, { x: 180, y: 90 }, { x: 225, y: 90 },
+      { x: 255, y: 187 }, { x: 328, y: 187 }, { x: 335, y: 208 },
+      { x: 376, y: 208 }, { x: 400, y: 135 }, { x: 421, y: 135 },
+    ],
+  },
+  {
+    id: "route-b",
+    points: [
+      { x: 20, y: 169 }, { x: 52, y: 169 }, { x: 64, y: 207 },
+      { x: 167, y: 207 }, { x: 190, y: 136 }, { x: 266, y: 136 },
+      { x: 276, y: 115 }, { x: 340, y: 115 }, { x: 362, y: 187 },
+      { x: 421, y: 187 },
+    ],
+  },
+  {
+    id: "route-c",
+    points: [
+      { x: 20, y: 199 }, { x: 49, y: 282 }, { x: 112, y: 282 },
+      { x: 131, y: 239 }, { x: 195, y: 239 }, { x: 225, y: 166 },
+      { x: 308, y: 166 }, { x: 322, y: 143 }, { x: 368, y: 143 },
+      { x: 381, y: 108 }, { x: 421, y: 108 },
+    ],
+  },
+  {
+    id: "route-d",
+    points: [
+      { x: 20, y: 113 }, { x: 65, y: 113 }, { x: 84, y: 174 },
+      { x: 133, y: 174 }, { x: 168, y: 277 }, { x: 226, y: 277 },
+      { x: 243, y: 229 }, { x: 367, y: 229 }, { x: 382, y: 269 },
+      { x: 421, y: 269 },
+    ],
+  },
+  {
+    id: "route-e",
+    points: [
+      { x: 255, y: 187 }, { x: 280, y: 251 }, { x: 322, y: 251 },
+      { x: 335, y: 208 },
+    ],
+  },
+];
+
+const pointKey = (point: WeldingPoint) =>
+  `${Math.round(point.x * NODE_PRECISION)}:${Math.round(point.y * NODE_PRECISION)}`;
+
+const distanceSquared = (a: WeldingPoint, b: WeldingPoint) =>
+  (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+
+const cross = (a: WeldingPoint, b: WeldingPoint) => a.x * b.y - a.y * b.x;
+
+const subtract = (a: WeldingPoint, b: WeldingPoint): WeldingPoint => ({
+  x: a.x - b.x,
+  y: a.y - b.y,
+});
+
+const addScaled = (
+  point: WeldingPoint,
+  vector: WeldingPoint,
+  amount: number,
+): WeldingPoint => ({
+  x: point.x + vector.x * amount,
+  y: point.y + vector.y * amount,
+});
+
+const segmentIntersection = (
+  a: WeldingPoint,
+  b: WeldingPoint,
+  c: WeldingPoint,
+  d: WeldingPoint,
+): { point: WeldingPoint; firstT: number; secondT: number } | null => {
+  const r = subtract(b, a);
+  const s = subtract(d, c);
+  const denominator = cross(r, s);
+  if (Math.abs(denominator) <= EPSILON) return null;
+  const offset = subtract(c, a);
+  const firstT = cross(offset, s) / denominator;
+  const secondT = cross(offset, r) / denominator;
+  if (
+    firstT < -EPSILON || firstT > 1 + EPSILON ||
+    secondT < -EPSILON || secondT > 1 + EPSILON
+  ) {
+    return null;
+  }
+  return {
+    point: addScaled(a, r, Math.max(0, Math.min(1, firstT))),
+    firstT: Math.max(0, Math.min(1, firstT)),
+    secondT: Math.max(0, Math.min(1, secondT)),
+  };
+};
+
+type RouteSegment = {
+  routeId: string;
+  segmentIndex: number;
+  start: WeldingPoint;
+  end: WeldingPoint;
+  cuts: Array<{ t: number; point: WeldingPoint }>;
+};
+
+const createSegments = (): RouteSegment[] =>
+  WELDING_SOURCE_ROUTES.flatMap((route) =>
+    route.points.slice(0, -1).map((start, segmentIndex) => ({
+      routeId: route.id,
+      segmentIndex,
+      start,
+      end: route.points[segmentIndex + 1],
+      cuts: [
+        { t: 0, point: start },
+        { t: 1, point: route.points[segmentIndex + 1] },
+      ],
+    })),
+  );
+
+export const createWeldingRouteGraph = (): WeldingRouteGraph => {
+  const segments = createSegments();
+  for (let firstIndex = 0; firstIndex < segments.length; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 1; secondIndex < segments.length; secondIndex += 1) {
+      const first = segments[firstIndex];
+      const second = segments[secondIndex];
+      if (
+        first.routeId === second.routeId &&
+        Math.abs(first.segmentIndex - second.segmentIndex) <= 1
+      ) {
+        continue;
+      }
+      const intersection = segmentIntersection(
+        first.start,
+        first.end,
+        second.start,
+        second.end,
+      );
+      if (!intersection) continue;
+      first.cuts.push({ t: intersection.firstT, point: intersection.point });
+      second.cuts.push({ t: intersection.secondT, point: intersection.point });
+    }
+  }
+
+  const nodesByKey = new Map<string, WeldingRouteNode>();
+  const edgeSources = new Map<string, Set<string>>();
+  const rawEdges = new Map<string, { start: WeldingPoint; end: WeldingPoint }>();
+  const getNode = (point: WeldingPoint) => {
+    const key = pointKey(point);
+    const existing = nodesByKey.get(key);
+    if (existing) return existing;
+    const node = { id: `node-${key}`, x: point.x, y: point.y };
+    nodesByKey.set(key, node);
+    return node;
+  };
+
+  for (const segment of segments) {
+    const sortedCuts = [...segment.cuts]
+      .sort((a, b) => a.t - b.t)
+      .filter((cut, index, cuts) => index === 0 || Math.abs(cut.t - cuts[index - 1].t) > EPSILON);
+    for (let cutIndex = 0; cutIndex < sortedCuts.length - 1; cutIndex += 1) {
+      let start = sortedCuts[cutIndex].point;
+      let end = sortedCuts[cutIndex + 1].point;
+      if (distanceSquared(start, end) <= EPSILON) continue;
+      if (start.x > end.x || (Math.abs(start.x - end.x) <= EPSILON && start.y > end.y)) {
+        [start, end] = [end, start];
+      }
+      const from = getNode(start);
+      const to = getNode(end);
+      const edgeKey = `${from.id}>${to.id}`;
+      rawEdges.set(edgeKey, { start, end });
+      const sources = edgeSources.get(edgeKey) ?? new Set<string>();
+      sources.add(segment.routeId);
+      edgeSources.set(edgeKey, sources);
+    }
+  }
+
+  const edges = [...rawEdges.entries()].map(([edgeKey, points], index) => {
+    const [from, to] = edgeKey.split(">");
+    return {
+      id: `edge-${index}`,
+      from,
+      to,
+      start: points.start,
+      end: points.end,
+      sourceRouteIds: [...(edgeSources.get(edgeKey) ?? [])],
+    };
+  });
+  const nodes = [...nodesByKey.values()];
+  const minimumX = Math.min(...nodes.map((node) => node.x));
+  const maximumX = Math.max(...nodes.map((node) => node.x));
+  return {
+    nodes,
+    edges,
+    startNodeIds: nodes.filter((node) => Math.abs(node.x - minimumX) <= EPSILON).map((node) => node.id),
+    endNodeIds: nodes.filter((node) => Math.abs(node.x - maximumX) <= EPSILON).map((node) => node.id),
+  };
+};
+
+const canReachEnd = (graph: WeldingRouteGraph) => {
+  const reachable = new Set(graph.endNodeIds);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const edge of graph.edges) {
+      if (reachable.has(edge.to) && !reachable.has(edge.from)) {
+        reachable.add(edge.from);
+        changed = true;
+      }
+    }
+  }
+  return reachable;
+};
+
+const pickRandom = <T,>(values: T[], random: () => number): T =>
+  values[Math.min(values.length - 1, Math.floor(Math.max(0, random()) * values.length))];
+
+export const createRandomWeldingRoute = (
+  random: () => number = Math.random,
+): WeldingRouteSession => {
+  const graph = createWeldingRouteGraph();
+  const reachable = canReachEnd(graph);
+  const starts = graph.startNodeIds.filter((nodeId) => reachable.has(nodeId));
+  if (starts.length === 0) throw new Error("焊接路線沒有可抵達終點的起點。");
+  let currentNodeId = pickRandom(starts, random);
+  const routeEdges: WeldingRouteEdge[] = [];
+  const safetyLimit = graph.edges.length + 1;
+  while (!graph.endNodeIds.includes(currentNodeId)) {
+    const outgoing = graph.edges.filter(
+      (edge) => edge.from === currentNodeId && reachable.has(edge.to),
+    );
+    if (outgoing.length === 0) throw new Error("焊接路線在抵達終點前中斷。");
+    const nextEdge = pickRandom(outgoing, random);
+    routeEdges.push(nextEdge);
+    currentNodeId = nextEdge.to;
+    if (routeEdges.length > safetyLimit) throw new Error("焊接路線圖包含循環。");
+  }
+  return {
+    graph,
+    edgeIds: routeEdges.map((edge) => edge.id),
+    edges: routeEdges,
+    start: routeEdges[0].start,
+    end: routeEdges[routeEdges.length - 1].end,
+  };
+};
+
+export const projectPointToWeldingEdge = (
+  point: WeldingPoint,
+  edge: Pick<WeldingRouteEdge, "start" | "end">,
+) => {
+  const vector = subtract(edge.end, edge.start);
+  const lengthSquared = vector.x ** 2 + vector.y ** 2;
+  const rawT = lengthSquared <= EPSILON
+    ? 0
+    : ((point.x - edge.start.x) * vector.x + (point.y - edge.start.y) * vector.y) / lengthSquared;
+  const t = Math.max(0, Math.min(1, rawT));
+  const projected = addScaled(edge.start, vector, t);
+  return {
+    point: projected,
+    t,
+    distance: Math.sqrt(distanceSquared(point, projected)),
+  };
+};
+
+export const getWeldingEdgeLength = (
+  edge: Pick<WeldingRouteEdge, "start" | "end">,
+) => Math.sqrt(distanceSquared(edge.start, edge.end));
+
+export const selectWeldingBranchByDirection = (
+  outgoing: WeldingRouteEdge[],
+  direction: WeldingPoint,
+): WeldingRouteEdge | null => {
+  const directionLength = Math.hypot(direction.x, direction.y);
+  if (outgoing.length === 0 || directionLength < 0.15) return null;
+  let best: { edge: WeldingRouteEdge; score: number } | null = null;
+  for (const edge of outgoing) {
+    const edgeVector = subtract(edge.end, edge.start);
+    const edgeLength = Math.hypot(edgeVector.x, edgeVector.y) || 1;
+    const score =
+      (edgeVector.x / edgeLength) * (direction.x / directionLength) +
+      (edgeVector.y / edgeLength) * (direction.y / directionLength);
+    if (!best || score > best.score) best = { edge, score };
+  }
+  return best && best.score >= 0.15 ? best.edge : null;
+};

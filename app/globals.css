@@ -6381,3 +6381,375 @@ html.dialogue-cursor-active .dialogue-box * {
     display: inline;
   }
 }
+
+/* Stage 01 welding route puzzle. */
+.welding-puzzle-overlay {
+  position: absolute;
+  z-index: 182;
+  inset: 0;
+  display: grid;
+  padding: clamp(8px, 1.5vw, 22px);
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(46, 134, 143, 0.2), transparent 55%),
+    rgba(0, 5, 7, 0.88);
+  backdrop-filter: blur(6px) brightness(0.62);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.welding-puzzle-dialog :focus,
+.welding-puzzle-dialog :focus-visible {
+  outline: none !important;
+  box-shadow: none;
+}
+
+.welding-puzzle-dialog {
+  position: relative;
+  display: grid;
+  width: min(1080px, 96%);
+  max-height: 95%;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 2px solid rgba(106, 223, 220, 0.38);
+  border-radius: 9px;
+  background:
+    linear-gradient(rgba(83, 224, 220, 0.025) 1px, transparent 1px) 0 0 / 100% 4px,
+    linear-gradient(145deg, rgba(7, 20, 23, 0.99), rgba(2, 9, 12, 0.995));
+  box-shadow:
+    0 38px 120px rgba(0, 0, 0, 0.82),
+    0 0 0 5px rgba(17, 28, 30, 0.98),
+    0 0 0 7px rgba(93, 197, 197, 0.2),
+    inset 0 0 65px rgba(39, 138, 143, 0.08);
+  color: #d9fffb;
+  animation: welding-puzzle-enter 220ms cubic-bezier(0.2, 0.78, 0.28, 1) both;
+}
+
+.welding-puzzle-dialog::before,
+.welding-puzzle-dialog::after {
+  position: absolute;
+  z-index: 8;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(111, 240, 230, 0.65);
+  content: "";
+  pointer-events: none;
+}
+
+.welding-puzzle-dialog::before {
+  top: 9px;
+  left: 9px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.welding-puzzle-dialog::after {
+  right: 9px;
+  bottom: 9px;
+  border-top: 0;
+  border-left: 0;
+}
+
+@keyframes welding-puzzle-enter {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.welding-puzzle-header {
+  display: grid;
+  min-height: 78px;
+  grid-template-columns: minmax(300px, 1fr) minmax(300px, 1.25fr) auto;
+  align-items: center;
+  border-bottom: 1px solid rgba(86, 221, 217, 0.28);
+  background:
+    linear-gradient(90deg, rgba(19, 48, 52, 0.95), rgba(6, 16, 19, 0.96)),
+    repeating-linear-gradient(90deg, transparent 0 18px, rgba(100, 228, 224, 0.025) 18px 19px);
+}
+
+.welding-puzzle-header > div {
+  padding: 12px 24px 12px 34px;
+}
+
+.welding-puzzle-header small {
+  color: #59d6d2;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.welding-puzzle-header h2 {
+  margin: 3px 0 0;
+  color: #f0fffd;
+  font-size: clamp(22px, 2.2vw, 31px);
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 16px rgba(95, 231, 224, 0.22);
+}
+
+.welding-puzzle-header > p {
+  margin: 0;
+  padding: 12px 20px;
+  color: rgba(211, 241, 238, 0.78);
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.welding-puzzle-header > button {
+  min-width: 68px;
+  min-height: 38px;
+  margin-right: 18px;
+  border: 1px solid rgba(124, 222, 216, 0.34);
+  border-radius: 4px;
+  background: rgba(4, 16, 18, 0.78);
+  color: rgba(206, 236, 233, 0.72);
+  cursor: pointer;
+}
+
+.welding-puzzle-header > button:hover,
+.welding-puzzle-header > button.is-gamepad-selected,
+.welding-puzzle-header > button[data-gamepad-selected="true"] {
+  border-color: #f2ca68;
+  background: rgba(117, 83, 24, 0.28);
+  box-shadow: 0 0 0 2px rgba(226, 182, 75, 0.16), 0 0 18px rgba(228, 177, 59, 0.14);
+  color: #fff4ca;
+}
+
+.welding-puzzle-header > button:active {
+  transform: translateY(2px) scale(0.98);
+}
+
+.welding-puzzle-board {
+  position: relative;
+  width: calc(100% - 36px);
+  max-height: min(68vh, 610px);
+  aspect-ratio: 441 / 320;
+  margin: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(137, 226, 219, 0.4);
+  border-radius: 5px;
+  background:
+    linear-gradient(rgba(0, 31, 34, 0.18), rgba(0, 14, 17, 0.3)),
+    url("/ui/welding/brushed-metal-background.webp") center / cover;
+  box-shadow:
+    inset 0 0 0 5px rgba(5, 14, 15, 0.34),
+    inset 0 0 70px rgba(0, 0, 0, 0.54),
+    0 12px 40px rgba(0, 0, 0, 0.42);
+  cursor: none;
+  touch-action: none;
+  user-select: none;
+}
+
+.welding-puzzle-board::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 5px, rgba(2, 21, 22, 0.035) 5px 6px),
+    radial-gradient(circle at 50% 50%, transparent 45%, rgba(0, 7, 8, 0.44) 100%);
+  content: "";
+  pointer-events: none;
+}
+
+.welding-route-svg {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.welding-route-network polyline {
+  fill: none;
+  stroke: rgba(54, 222, 214, 0.7);
+  stroke-width: 2;
+  stroke-dasharray: 8 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.welding-route-preview line {
+  stroke: #ff7c4e;
+  stroke-width: 6;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  animation: welding-route-preview-pulse 720ms ease-in-out infinite alternate;
+}
+
+@keyframes welding-route-preview-pulse {
+  from { opacity: 0.72; stroke: #ff6845; }
+  to { opacity: 1; stroke: #fff0b2; }
+}
+
+.welding-route-scorch line {
+  stroke: rgba(27, 13, 9, 0.94);
+  stroke-width: 13;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.welding-route-seam line {
+  stroke: #f46f50;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.welding-route-terminals circle {
+  fill: rgba(4, 24, 26, 0.92);
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.welding-route-terminals .is-start {
+  stroke: #78fff1;
+  filter: drop-shadow(0 0 5px rgba(89, 247, 233, 0.85));
+}
+
+.welding-route-terminals .is-end {
+  stroke: #f2ca65;
+  filter: drop-shadow(0 0 5px rgba(244, 194, 73, 0.8));
+}
+
+.welding-hotspot circle:first-child {
+  fill: #ff6a3d;
+  opacity: 0.82;
+}
+
+.welding-hotspot circle:last-child {
+  fill: #fffbe8;
+  opacity: 1;
+}
+
+.welding-sparks line {
+  stroke: #ffd46c;
+  stroke-width: 2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  animation: welding-spark-flight 430ms ease-out infinite;
+  animation-delay: calc(var(--spark-index) * -37ms);
+  transform-origin: 0 0;
+}
+
+@keyframes welding-spark-flight {
+  0% { opacity: 1; transform: scale(0.15); }
+  70% { opacity: 0.82; }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+
+.welding-gun-cursor {
+  position: absolute;
+  z-index: 5;
+  width: clamp(72px, 9.5vw, 112px);
+  height: auto;
+  transform: translate(-50%, -100%) rotate(-4deg);
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 8px 9px rgba(0, 0, 0, 0.66));
+  pointer-events: none;
+  user-select: none;
+}
+
+.welding-gun-cursor.is-active {
+  filter:
+    drop-shadow(0 8px 9px rgba(0, 0, 0, 0.7))
+    drop-shadow(0 0 7px rgba(255, 105, 53, 0.72));
+}
+
+.welding-puzzle-success {
+  position: absolute;
+  z-index: 9;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  background:
+    linear-gradient(90deg, transparent, rgba(15, 94, 85, 0.82) 35%, rgba(21, 116, 99, 0.86) 65%, transparent),
+    rgba(0, 14, 15, 0.38);
+  color: #dbfff4;
+  animation: welding-success-reveal 420ms ease-out both;
+  pointer-events: none;
+}
+
+.welding-puzzle-success small {
+  color: #72e9ca;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+}
+
+.welding-puzzle-success strong {
+  margin: 7px 0 4px;
+  font-size: clamp(36px, 6vw, 68px);
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 24px rgba(84, 255, 205, 0.54);
+}
+
+.welding-puzzle-success span {
+  color: rgba(218, 255, 244, 0.7);
+  font-size: 14px;
+}
+
+@keyframes welding-success-reveal {
+  from { opacity: 0; transform: scaleX(0.22); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+.welding-puzzle-footer {
+  display: grid;
+  min-height: 48px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  border-top: 1px solid rgba(86, 221, 217, 0.2);
+  background: rgba(3, 13, 16, 0.94);
+  color: rgba(190, 221, 219, 0.62);
+  font-size: 12px;
+  text-align: center;
+}
+
+.welding-puzzle-footer > span {
+  padding: 9px 13px;
+  border-right: 1px solid rgba(86, 221, 217, 0.13);
+}
+
+.welding-puzzle-footer > span:last-child { border-right: 0; }
+.welding-puzzle-footer b { color: #70ddd7; }
+.welding-route-legend i {
+  display: inline-block;
+  width: 22px;
+  margin-right: 7px;
+  border-top: 2px solid #ff8158;
+  box-shadow: 0 0 5px #ff8158;
+  vertical-align: middle;
+}
+
+.cursor-layer.is-hidden-for-welding {
+  visibility: hidden;
+}
+
+@media (max-width: 760px) {
+  .welding-puzzle-overlay { padding: 5px; }
+  .welding-puzzle-dialog { width: 100%; max-height: 100%; }
+  .welding-puzzle-header {
+    min-height: 62px;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .welding-puzzle-header > div { padding: 8px 14px 8px 24px; }
+  .welding-puzzle-header h2 { font-size: 20px; }
+  .welding-puzzle-header > p { display: none; }
+  .welding-puzzle-header > button { margin-right: 10px; }
+  .welding-puzzle-board {
+    width: calc(100% - 12px);
+    margin: 6px;
+  }
+  .welding-puzzle-footer {
+    min-height: 42px;
+    grid-template-columns: 1fr;
+    font-size: 10px;
+  }
+  .welding-puzzle-footer > span { display: none; }
+  .welding-puzzle-footer > span:first-child { display: block; border: 0; }
+  .welding-gun-cursor { width: clamp(58px, 16vw, 86px); }
+}

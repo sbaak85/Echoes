@@ -15,6 +15,10 @@ export type DialoguePresenter<TContext = unknown> = (
   complete: () => void,
 ) => (() => void) | void;
 
+export type DialogueCompletionListener<TContext = unknown> = (
+  request: DialogueManagerRequest<TContext>,
+) => void;
+
 type DialogueQueueItem<TContext> = DialogueManagerRequest<TContext> & {
   resolve: (result: DialogueManagerResult) => void;
   onComplete?: () => void;
@@ -29,12 +33,17 @@ export class DialogueManager<TContext = unknown> {
   private readonly scripts = new Map<string, InteractionDialogueScript>();
   private readonly queue: DialogueQueueItem<TContext>[] = [];
   private presenter: DialoguePresenter<TContext> | null = null;
+  private completionListener: DialogueCompletionListener<TContext> | null = null;
   private active: DialogueQueueItem<TContext> | null = null;
   private cancelPresentation: (() => void) | null = null;
 
   setPresenter(presenter: DialoguePresenter<TContext>) {
     this.presenter = presenter;
     this.pump();
+  }
+
+  setCompletionListener(listener: DialogueCompletionListener<TContext> | null) {
+    this.completionListener = listener;
   }
 
   register(id: string, script: InteractionDialogueScript) {
@@ -90,6 +99,17 @@ export class DialogueManager<TContext = unknown> {
     this.active = null;
     this.cancelPresentation = null;
     active.onComplete?.();
+    try {
+      this.completionListener?.({
+        id: active.id,
+        script: active.script,
+        context: active.context,
+      });
+    } catch (error) {
+      // A quest handoff listener must not strand the dialogue queue. The
+      // caller still receives a completed result and the next dialogue pumps.
+      console.error("[DialogueManager] Completion listener failed.", error);
+    }
     active.resolve({ completed: true });
     this.pump();
   }

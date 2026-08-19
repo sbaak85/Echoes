@@ -101,6 +101,8 @@ import {
   type FrequencyCalibrationPuzzleController,
 } from "./frequency-calibration-puzzle.tsx";
 import { FREQUENCY_CALIBRATION_COMPLETION_FLAG } from "./frequency-calibration-puzzle";
+import { WeldingRoutePuzzle } from "./welding-route-puzzle.tsx";
+import { isDebugGameCommand, parseDebugGameCommand } from "./debug-game-command";
 import {
   CAMP_POWER_CAPACITY,
   CAMP_POWER_DAILY_CONSUMPTION_QUEST_ID,
@@ -3014,6 +3016,7 @@ export function MovementLab() {
   const inventoryOpenRef = useRef(false);
   const powerPuzzleOpenRef = useRef(false);
   const frequencyPuzzleOpenRef = useRef(false);
+  const weldingPuzzleOpenRef = useRef(false);
   const puzzleSelectionOpenRef = useRef(false);
   const puzzleSelectionChoiceRef = useRef<"power" | "frequency">("power");
   const powerPuzzleSessionRef = useRef<PowerPuzzleSession | null>(null);
@@ -3170,6 +3173,8 @@ export function MovementLab() {
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [powerPuzzleOpen, setPowerPuzzleOpen] = useState(false);
   const [frequencyPuzzleOpen, setFrequencyPuzzleOpen] = useState(false);
+  const [weldingPuzzleOpen, setWeldingPuzzleOpen] = useState(false);
+  const [weldingPuzzleSessionKey, setWeldingPuzzleSessionKey] = useState(0);
   const [puzzleSelectionOpen, setPuzzleSelectionOpen] = useState(false);
   const [puzzleSelectionChoice, setPuzzleSelectionChoice] =
     useState<"power" | "frequency">("power");
@@ -3370,13 +3375,48 @@ export function MovementLab() {
     stopFrequencyFineTuningAudio(true);
     powerPuzzleOpenRef.current = false;
     frequencyPuzzleOpenRef.current = false;
+    weldingPuzzleOpenRef.current = false;
     puzzleSelectionOpenRef.current = false;
     powerPuzzleSessionRef.current = null;
     powerPuzzleGamepadModeRef.current = "dpad";
     powerPuzzleCursorRearmRequiredRef.current = false;
     setPowerPuzzleOpen(false);
     setFrequencyPuzzleOpen(false);
+    setWeldingPuzzleOpen(false);
     setPuzzleSelectionOpen(false);
+  };
+
+  const openWeldingPuzzle = () => {
+    optionsOpenRef.current = false;
+    inventoryOpenRef.current = false;
+    frequencyPuzzleOpenRef.current = false;
+    puzzleSelectionOpenRef.current = false;
+    weldingPuzzleOpenRef.current = true;
+    powerPuzzleOpenRef.current = true;
+    powerPuzzleSessionRef.current = null;
+    setOptionsOpen(false);
+    setInventoryOpen(false);
+    setFrequencyPuzzleOpen(false);
+    setPuzzleSelectionOpen(false);
+    setWeldingPuzzleSessionKey((current) => current + 1);
+    setWeldingPuzzleOpen(true);
+    setPowerPuzzleOpen(true);
+  };
+
+  const showWeldingResultFeedback = (message: string) => {
+    hotbarUseSequenceRef.current += 1;
+    setHotbarFeedback({
+      message,
+      sequence: hotbarUseSequenceRef.current,
+      slotIndex: -1,
+    });
+    if (hotbarFeedbackTimerRef.current !== null) {
+      window.clearTimeout(hotbarFeedbackTimerRef.current);
+    }
+    hotbarFeedbackTimerRef.current = window.setTimeout(() => {
+      setHotbarFeedback(null);
+      hotbarFeedbackTimerRef.current = null;
+    }, 1800);
   };
 
   const setPuzzleSelectionChoiceValue = (choice: "power" | "frequency") => {
@@ -3391,11 +3431,13 @@ export function MovementLab() {
     setOptionsOpen(false);
     setInventoryOpen(false);
     powerPuzzleSessionRef.current = null;
+    weldingPuzzleOpenRef.current = false;
     powerPuzzleOpenRef.current = true;
     frequencyPuzzleOpenRef.current = true;
     powerPuzzleGamepadModeRef.current = "dpad";
     powerPuzzleCursorRearmRequiredRef.current = false;
     setFrequencyPuzzleOpen(true);
+    setWeldingPuzzleOpen(false);
     setPowerPuzzleOpen(true);
   };
 
@@ -3409,7 +3451,9 @@ export function MovementLab() {
     setOptionsOpen(false);
     setInventoryOpen(false);
     frequencyPuzzleOpenRef.current = false;
+    weldingPuzzleOpenRef.current = false;
     setFrequencyPuzzleOpen(false);
+    setWeldingPuzzleOpen(false);
     powerPuzzleSessionRef.current = { interactable, source };
     powerPuzzleOpenRef.current = true;
     powerPuzzleGamepadModeRef.current = "dpad";
@@ -3428,12 +3472,14 @@ export function MovementLab() {
     setInventoryOpen(false);
     powerPuzzleSessionRef.current = { interactable, source };
     frequencyPuzzleOpenRef.current = false;
+    weldingPuzzleOpenRef.current = false;
     puzzleSelectionOpenRef.current = true;
     powerPuzzleOpenRef.current = true;
     powerPuzzleGamepadModeRef.current = "dpad";
     powerPuzzleCursorRearmRequiredRef.current = false;
     setPuzzleSelectionChoiceValue("power");
     setFrequencyPuzzleOpen(false);
+    setWeldingPuzzleOpen(false);
     setPuzzleSelectionOpen(true);
     setPowerPuzzleOpen(true);
   };
@@ -3956,17 +4002,7 @@ export function MovementLab() {
                   type: "dialogue",
                 },
               );
-              if (!result.completed) return false;
-              const manager = questRuntimeManagerRef.current;
-              if (!manager) return false;
-              const clock = getGameClock(survivalStateRef.current.gameMinutes);
-              manager.startAvailableAfterDialogueQuests(
-                triggerId,
-                clock.day,
-                clock.hour * 60 + clock.minute,
-              );
-              saveQuestSaveData(manager.exportSave());
-              return true;
+              return result.completed;
             }
 
             const flow = STORY_EVENT_FLOWS[triggerId];
@@ -3976,42 +4012,26 @@ export function MovementLab() {
           // Objective / Stage completion fields historically accept either a
           // registered story flow ID or a registered dialogue ID. Resolve both
           // here so an Objective completion script is not silently discarded.
-          runEventFlow: (eventFlowId) => {
+          runEventFlow: async (eventFlowId) => {
             const flow = STORY_EVENT_FLOWS[eventFlowId];
             if (flow) {
-              void chapterFlowManagerRef.current?.run(flow);
-              return;
+              return await chapterFlowManagerRef.current?.run(flow) === true;
             }
 
             if (!dialogueManager.get(eventFlowId)) {
               console.warn(`[QuestRuntime] Unknown completion event: ${eventFlowId}`);
-              return;
+              return false;
             }
 
-            void dialogueManager.playRegistered(
+            const result = await dialogueManager.playRegistered(
               eventFlowId,
               {
                 id: `quest-objective-completion:${eventFlowId}`,
                 label: eventFlowId,
                 type: "dialogue",
               },
-            ).then((result) => {
-              if (!result.completed) return;
-              const manager = questRuntimeManagerRef.current;
-              if (!manager) return;
-              manager.handleEvent({
-                type: "dialogueCompleted",
-                targetId: eventFlowId,
-                eventId: `quest-objective-completion-dialogue:${eventFlowId}:${Date.now()}`,
-              });
-              const clock = getGameClock(survivalStateRef.current.gameMinutes);
-              manager.startAvailableAfterDialogueQuests(
-                eventFlowId,
-                clock.day,
-                clock.hour * 60 + clock.minute,
-              );
-              saveQuestSaveData(manager.exportSave());
-            });
+            );
+            return result.completed;
           },
           requestTeleport: (pointId, delayMilliseconds) => {
             scheduleQuestTeleport(pointId, delayMilliseconds);
@@ -5165,6 +5185,25 @@ export function MovementLab() {
     presentDialogue(request.context, complete, request.script);
     return closeDialogue;
   });
+  dialogueManager.setCompletionListener((request) => {
+    const manager = questRuntimeManagerRef.current;
+    if (!manager) return;
+    questGameEventSequenceRef.current += 1;
+    manager.handleEvent({
+      type: "dialogueCompleted",
+      targetId: request.id,
+      eventId:
+        `dialogueCompleted:${SCENE_DATA.sceneId}:${request.id}:` +
+        `${questGameEventSequenceRef.current}`,
+    });
+    const clock = getGameClock(survivalStateRef.current.gameMinutes);
+    manager.startAvailableAfterDialogueQuests(
+      request.id,
+      clock.day,
+      clock.hour * 60 + clock.minute,
+    );
+    saveQuestSaveData(manager.exportSave());
+  });
   Object.entries(STORY_DIALOGUES).forEach(([dialogueId, script]) => {
     dialogueManager.register(dialogueId, script);
   });
@@ -5353,14 +5392,6 @@ export function MovementLab() {
       if (!result.completed || !completeStoryTriggerRef.current(zone)) return;
       const questManager = questRuntimeManagerRef.current;
       if (questManager) {
-        questGameEventSequenceRef.current += 1;
-        questManager.handleEvent({
-          type: "dialogueCompleted",
-          targetId: zone.dialogueId,
-          eventId:
-            `dialogueCompleted:${SCENE_DATA.sceneId}:${zone.dialogueId}:` +
-            `${questGameEventSequenceRef.current}`,
-        });
         questGameEventSequenceRef.current += 1;
         questManager.handleEvent({
           type: "storyTriggerCompleted",
@@ -7348,6 +7379,36 @@ export function MovementLab() {
     };
 
     debugItemSpawnHandlerRef.current = (command: string) => {
+      const gameCommand = parseDebugGameCommand(command);
+      if (gameCommand) {
+        if (gameCommand.gameNumber === 1) {
+          const interactable = [...SCENE_REGISTRY.values()]
+            .flatMap((scene) => scene.interactables ?? [])
+            .find((candidate) => candidate?.id === POWER_ROUTING_INTERACTION_ID);
+          if (!interactable) {
+            showInteractionItemFeedback("Debug：找不到電力分配小遊戲互動資料");
+            return false;
+          }
+          openPowerRoutingPuzzle(interactable, "keyboard");
+          return true;
+        }
+        if (gameCommand.gameNumber === 2) {
+          openFrequencyCalibrationPuzzle();
+          return true;
+        }
+        if (gameCommand.gameNumber === 3) {
+          openWeldingPuzzle();
+          return true;
+        }
+        showInteractionItemFeedback("Debug：目前可用的小遊戲指令為 Game 1～3");
+        return false;
+      }
+
+      if (isDebugGameCommand(command)) {
+        showInteractionItemFeedback("格式錯誤 · 請輸入：Game 1、Game 2 或 Game 3");
+        return false;
+      }
+
       const timeCommand = parseDebugTimeCommand(command);
       if (timeCommand) {
         const nextSurvival = setSurvivalTimeOfDay(
@@ -10605,6 +10666,8 @@ export function MovementLab() {
         if (puzzleSelectionOpenRef.current) {
           playOneShotAudio("uiInput");
           closePowerRoutingPuzzle();
+        } else if (weldingPuzzleOpenRef.current) {
+          closePowerRoutingPuzzle();
         } else if (frequencyPuzzleOpenRef.current) {
           frequencyPuzzleControllerRef.current?.cancel();
         } else {
@@ -12177,7 +12240,7 @@ export function MovementLab() {
                 event.currentTarget.form?.requestSubmit();
               }
             }}
-            placeholder="Time 2000／Item All／道具ID 數量"
+            placeholder="Game 3／Time 2000／Item All／道具ID 數量"
             aria-label="輸入 Debug 指令"
             autoComplete="off"
             spellCheck={false}
@@ -12889,7 +12952,7 @@ export function MovementLab() {
         </div>
       ) : null}
 
-      {powerPuzzleOpen && !frequencyPuzzleOpen && !puzzleSelectionOpen ? (
+      {powerPuzzleOpen && !frequencyPuzzleOpen && !puzzleSelectionOpen && !weldingPuzzleOpen ? (
         <PowerRoutingPuzzle
           ref={powerPuzzleControllerRef}
           availablePower={campPowerState.current}
@@ -12919,6 +12982,19 @@ export function MovementLab() {
           onLockAttempt={(success) => {
             playOneShotAudio(success ? "frequencyLocked" : "uiInput");
           }}
+        />
+      ) : null}
+
+      {weldingPuzzleOpen ? (
+        <WeldingRoutePuzzle
+          key={weldingPuzzleSessionKey}
+          onCancel={closePowerRoutingPuzzle}
+          onComplete={closePowerRoutingPuzzle}
+          onFail={() => {
+            closePowerRoutingPuzzle();
+            showWeldingResultFeedback("金屬碎片 -1");
+          }}
+          onRequestNextStage={() => false}
         />
       ) : null}
 
@@ -13563,7 +13639,7 @@ export function MovementLab() {
 
       <canvas
         ref={cursorCanvasRef}
-        className={`cursor-layer${powerPuzzleOpen || campPowerConfirmationOpen || sceneConnectionConfirmation ? " is-over-modal" : ""}`}
+        className={`cursor-layer${powerPuzzleOpen || campPowerConfirmationOpen || sceneConnectionConfirmation ? " is-over-modal" : ""}${weldingPuzzleOpen ? " is-hidden-for-welding" : ""}`}
         aria-hidden="true"
       />
       </main>

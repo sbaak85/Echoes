@@ -543,6 +543,99 @@ test("objective completion flow runs after its own delay without waiting for sta
   assert.equal(manager.getQuestState("QUEST_TEST"), "active");
 });
 
+test("unfinished Objective dialogue retries after reload and repairs legacy saves", async () => {
+  const recoveryDocument = structuredClone(document);
+  const sourceQuest = recoveryDocument.quests[0];
+  sourceQuest.rewardItemId = "";
+  sourceQuest.rewardItemAmount = 0;
+  sourceQuest.stages = [{
+    id: "QUEST_TEST_STAGE_RECOVERY",
+    name: "Completion dialogue recovery",
+    completionMode: "all",
+    objectives: [{
+      id: "QUEST_TEST_OBJ_RECOVERY",
+      displayText: "播放完成對話",
+      type: "interactionSucceeded",
+      targetId: "interaction-recovery",
+      requiredAmount: 1,
+      countMode: "accumulated",
+      interactionMode: "succeeded",
+      completionDelaySeconds: 0,
+      completionEventFlowId: "chapter03-section-recovery",
+    }],
+  }];
+  recoveryDocument.quests.push({
+    id: "QUEST_TEST_NEXT",
+    name: "對話後任務",
+    description: "",
+    chapterId: "CH03",
+    type: "main",
+    prerequisiteQuestIds: [],
+    grantMethod: "afterDialogue",
+    grantSourceId: "chapter03-section-recovery",
+    canAbandon: false,
+    canReaccept: false,
+    displayMode: "standard",
+    rewardItemId: "",
+    rewardItemAmount: 0,
+    stages: [],
+  });
+
+  const firstRuns = [];
+  const neverFinishes = new Promise(() => {});
+  const firstManager = new QuestRuntimeManager(recoveryDocument, {
+    runEventFlow: (eventFlowId) => {
+      firstRuns.push(eventFlowId);
+      return neverFinishes;
+    },
+  });
+  firstManager.startQuest("QUEST_TEST");
+  firstManager.handleEvent({
+    type: "interactionSucceeded",
+    targetId: "interaction-recovery",
+  });
+  const interruptedSave = firstManager.exportSave();
+  assert.deepEqual(firstRuns, ["chapter03-section-recovery"]);
+  assert.equal(
+    interruptedSave.quests.QUEST_TEST.objectives.QUEST_TEST_OBJ_RECOVERY
+      .completionEventCompleted,
+    false,
+  );
+
+  const retryRuns = [];
+  const restored = new QuestRuntimeManager(recoveryDocument, {
+    runEventFlow: (eventFlowId) => {
+      retryRuns.push(eventFlowId);
+      return true;
+    },
+  }, interruptedSave);
+  await Promise.resolve();
+  assert.deepEqual(retryRuns, ["chapter03-section-recovery"]);
+  assert.equal(
+    restored.exportSave().quests.QUEST_TEST.objectives.QUEST_TEST_OBJ_RECOVERY
+      .completionEventCompleted,
+    true,
+  );
+
+  const legacySave = structuredClone(interruptedSave);
+  delete legacySave.quests.QUEST_TEST.objectives.QUEST_TEST_OBJ_RECOVERY
+    .completionEventCompleted;
+  const legacyRuns = [];
+  const migrated = new QuestRuntimeManager(recoveryDocument, {
+    runEventFlow: (eventFlowId) => {
+      legacyRuns.push(eventFlowId);
+      return true;
+    },
+  }, legacySave);
+  await Promise.resolve();
+  assert.deepEqual(legacyRuns, ["chapter03-section-recovery"]);
+  assert.equal(
+    migrated.exportSave().quests.QUEST_TEST.objectives.QUEST_TEST_OBJ_RECOVERY
+      .completionEventCompleted,
+    true,
+  );
+});
+
 test("compound item objective requires every configured item and ignores duplicate events", () => {
   const compoundDocument = structuredClone(document);
   const objective = compoundDocument.quests[0].stages[0].objectives[0];

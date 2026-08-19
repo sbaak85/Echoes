@@ -168,6 +168,8 @@ export type QuestObjectiveRuntime = {
   availableAtEpochMs?: number;
   completionAvailableAtEpochMs?: number;
   completionPresented?: boolean;
+  /** True only after the Objective completion dialogue/event has really finished. */
+  completionEventCompleted?: boolean;
   startActionsPresented?: boolean;
 };
 
@@ -227,7 +229,7 @@ export type QuestRuntimeHost = {
       phase: "start" | "completion";
     },
   ) => void;
-  runEventFlow?: (eventFlowId: string) => void;
+  runEventFlow?: (eventFlowId: string) => boolean | void | Promise<boolean | void>;
   runCompletionTrigger?: (
     type: "dialogue" | "eventFlow",
     triggerId: string,
@@ -280,6 +282,7 @@ export class QuestRuntimeManager {
   private readonly pendingStageCompletionDelays = new Set<string>();
   private readonly pendingQuestStarts = new Set<string>();
   private readonly pendingCompletionTriggers = new Set<string>();
+  private readonly pendingObjectiveCompletionEvents = new Set<string>();
   private saveData: QuestSaveData;
 
   constructor(
@@ -777,6 +780,7 @@ export class QuestRuntimeManager {
     progress.unlocked = true;
     progress.state = "completed";
     progress.completionPresented = false;
+    progress.completionEventCompleted = !(objective.completionEventFlowId ?? "").trim();
     progress.completionAvailableAtEpochMs = this.now() +
       this.delayMilliseconds(objective.completionDelaySeconds);
 
@@ -809,8 +813,8 @@ export class QuestRuntimeManager {
           objectiveId: objective.id,
           phase: "completion",
         });
-      if (objective.completionEventFlowId) {
-        this.host.runEventFlow?.(objective.completionEventFlowId);
+      if ((objective.completionEventFlowId ?? "").trim()) {
+        this.scheduleObjectiveCompletionEvent(definition, objective);
       }
       this.notifyObjectiveCompleted(definition, current, objective.id);
       this.advanceIfComplete(definition, current);
@@ -1010,6 +1014,45 @@ export class QuestRuntimeManager {
     return legacyEventFlowId ? { type: "eventFlow", id: legacyEventFlowId } : null;
   }
 
+  private scheduleObjectiveCompletionEvent(
+    definition: QuestDefinition,
+    objective: QuestObjectiveDefinition,
+  ) {
+    const eventFlowId = (objective.completionEventFlowId ?? "").trim();
+    const progress = this.saveData.quests[definition.id]?.objectives[objective.id];
+    if (!eventFlowId || !progress || progress.completionEventCompleted !== false) return;
+    const key = `${definition.id}:${objective.id}`;
+    if (this.pendingObjectiveCompletionEvents.has(key)) return;
+    const runner = this.host.runEventFlow;
+    if (!runner) return;
+
+    this.pendingObjectiveCompletionEvents.add(key);
+    void Promise.resolve(runner(eventFlowId))
+      .then((completed) => {
+        this.pendingObjectiveCompletionEvents.delete(key);
+        if (completed === false) return;
+        const latest = this.saveData.quests[definition.id]?.objectives[objective.id];
+        if (!latest?.completed) return;
+        latest.completionEventCompleted = true;
+        this.notify(definition.id);
+      })
+      .catch(() => {
+        // Keep the incomplete flag. Restoring this save will safely retry the event.
+        this.pendingObjectiveCompletionEvents.delete(key);
+      });
+  }
+
+  private hasAvailableAfterDialogueQuest(dialogueId: string): boolean {
+    const normalizedId = dialogueId.trim().toLocaleLowerCase();
+    if (!normalizedId) return false;
+    for (const definition of this.definitions.values()) {
+      if (definition.grantMethod !== "afterDialogue") continue;
+      if ((definition.grantSourceId ?? "").trim().toLocaleLowerCase() !== normalizedId) continue;
+      if (this.saveData.quests[definition.id]?.state === "available") return true;
+    }
+    return false;
+  }
+
   private scheduleQuestCompletionTrigger(
     definition: QuestDefinition,
     entry: QuestRuntimeEntry,
@@ -1193,13 +1236,28 @@ export class QuestRuntimeManager {
       for (const objective of stage.objectives) {
         const progress = entry.objectives[objective.id];
         if (!progress?.completed) continue;
+        const completionEventId = (objective.completionEventFlowId ?? "").trim();
+        if (!completionEventId) {
+          progress.completionEventCompleted = true;
+        } else if (progress.completionEventCompleted == null) {
+          // Old saves did not distinguish "dialogue opened" from "dialogue really
+          // finished". Replay only when a matching after-dialogue quest is still
+          // waiting, which repairs the broken handoff without replaying every old event.
+          progress.completionEventCompleted =
+            !this.hasAvailableAfterDialogueQuest(completionEventId);
+        }
         if (progress.completionAvailableAtEpochMs == null) {
           // 舊版存檔的完成項目已經播過，不重新播放完成演出。
           progress.completionPresented = true;
+          if (progress.completionEventCompleted === false) {
+            this.scheduleObjectiveCompletionEvent(definition, objective);
+          }
           continue;
         }
         if (progress.completionPresented !== true) {
           this.scheduleObjectiveCompletion(definition, entry, objective);
+        } else if (progress.completionEventCompleted === false) {
+          this.scheduleObjectiveCompletionEvent(definition, objective);
         }
       }
     }
