@@ -58,6 +58,11 @@ export type WeldingLeadershipResolution = {
   fadeTrailId: number | null;
 };
 
+export type WeldingBackwardHysteresisResolution = {
+  backwardConfirmed: boolean;
+  shouldCommit: boolean;
+};
+
 type SourceRoute = {
   id: string;
   points: WeldingPoint[];
@@ -69,6 +74,35 @@ const NODE_PRECISION = 1000;
 export const WELDING_ROUTE_VIEWBOX = {
   width: 441,
   height: 320,
+};
+
+export const resolveWeldingBackwardHysteresis = ({
+  committedPoint,
+  candidatePoint,
+  backwardConfirmed,
+  confirmationDistance,
+  epsilon = 0.5,
+}: {
+  committedPoint: WeldingPoint;
+  candidatePoint: WeldingPoint;
+  backwardConfirmed: boolean;
+  confirmationDistance: number;
+  epsilon?: number;
+}): WeldingBackwardHysteresisResolution => {
+  const deltaX = candidatePoint.x - committedPoint.x;
+
+  if (deltaX > epsilon) {
+    return { backwardConfirmed: false, shouldCommit: true };
+  }
+  if (backwardConfirmed || deltaX >= -epsilon) {
+    return { backwardConfirmed, shouldCommit: true };
+  }
+
+  const confirmed = -deltaX >= confirmationDistance;
+  return {
+    backwardConfirmed: confirmed,
+    shouldCommit: confirmed,
+  };
 };
 
 // 由設計稿的五條彩色辨識線還原；遊戲中會統一顯示為青藍色。
@@ -164,10 +198,41 @@ export const resolveWeldingCandidateLeadership = ({
       fadeTrailId: null,
     };
   }
-  if (
-    leaderTrail.trailId === activeTrail.trailId ||
-    activeTrail.progress <= leaderTrail.progress + progressEpsilon
-  ) {
+  if (leaderTrail.trailId === activeTrail.trailId) {
+    // The retained route may already be the leader when the player starts a
+    // shorter alternate weld, releases it, and then resumes the retained
+    // route. In that case there is no second "lead change" to trigger the old
+    // abandonment path. Once the resumed leader advances again and remains
+    // ahead, the longest shorter candidate is confirmed as the abandoned
+    // stroke and can fade out.
+    const abandonedTrail = nextTrails
+      .filter(
+        (trail) =>
+          trail.trailId !== activeTrail.trailId &&
+          !trail.fading &&
+          trail.progress + progressEpsilon < activeTrail.progress,
+      )
+      .sort((left, right) => right.progress - left.progress)[0];
+
+    if (abandonedTrail) {
+      abandonedTrail.fading = true;
+      abandonedTrail.pendingAbandonment = false;
+      activeTrail.pendingAbandonment = false;
+      return {
+        trails: nextTrails,
+        leaderTrailId: activeTrail.trailId,
+        fadeTrailId: abandonedTrail.trailId,
+      };
+    }
+
+    return {
+      trails: nextTrails,
+      leaderTrailId: leaderTrail.trailId,
+      fadeTrailId: null,
+    };
+  }
+
+  if (activeTrail.progress <= leaderTrail.progress + progressEpsilon) {
     return {
       trails: nextTrails,
       leaderTrailId: leaderTrail.trailId,
@@ -583,6 +648,78 @@ export const selectWeldingMagneticTrack = ({
   // Returning the current projection also prevents a one-frame missing seam
   // when the stick moves faster than the track tolerance.
   return currentTrack;
+};
+
+export const resolveWeldingSoftCorridorCursor = ({
+  currentPoint,
+  proposedPoint,
+  trackPoint,
+  corridorRadius,
+  softEdgeRatio,
+}: {
+  currentPoint: WeldingPoint;
+  proposedPoint: WeldingPoint;
+  trackPoint: WeldingPoint;
+  corridorRadius: number;
+  softEdgeRatio: number;
+}): WeldingPoint => {
+  const radius = Math.max(1, corridorRadius);
+  const softRadius = radius * Math.min(0.95, Math.max(0.1, softEdgeRatio));
+  const proposedOffset = subtract(proposedPoint, trackPoint);
+  const proposedDistance = Math.hypot(proposedOffset.x, proposedOffset.y);
+  if (proposedDistance <= softRadius) return proposedPoint;
+
+  const currentDistance = Math.hypot(
+    currentPoint.x - trackPoint.x,
+    currentPoint.y - trackPoint.y,
+  );
+  const outwardDistance = Math.max(0, proposedDistance - currentDistance);
+  if (outwardDistance <= 0) return proposedPoint;
+
+  const edgeSpan = Math.max(1, radius - softRadius);
+  const edgePressure = Math.min(
+    1,
+    Math.max(0, (Math.max(currentDistance, softRadius) - softRadius) / edgeSpan),
+  );
+  // The last part of the corridor behaves like a soft rubber wall: outward
+  // movement loses momentum progressively instead of hitting a hard clamp.
+  const outwardScale = 0.04 + 0.96 * (1 - edgePressure) ** 2;
+  const resolvedDistance = Math.min(
+    radius,
+    Math.max(currentDistance, softRadius) + outwardDistance * outwardScale,
+  );
+  const normalizer = proposedDistance || 1;
+  return {
+    x: trackPoint.x + (proposedOffset.x / normalizer) * resolvedDistance,
+    y: trackPoint.y + (proposedOffset.y / normalizer) * resolvedDistance,
+  };
+};
+
+export const relaxWeldingSoftCorridorCursor = ({
+  cursorPoint,
+  trackPoint,
+  corridorRadius,
+  softEdgeRatio,
+  deltaTime,
+}: {
+  cursorPoint: WeldingPoint;
+  trackPoint: WeldingPoint;
+  corridorRadius: number;
+  softEdgeRatio: number;
+  deltaTime: number;
+}): WeldingPoint => {
+  const radius = Math.max(1, corridorRadius);
+  const softRadius = radius * Math.min(0.95, Math.max(0.1, softEdgeRatio));
+  const offset = subtract(cursorPoint, trackPoint);
+  const cursorDistance = Math.hypot(offset.x, offset.y);
+  if (cursorDistance <= softRadius) return cursorPoint;
+
+  const relaxedDistance = softRadius +
+    (cursorDistance - softRadius) * Math.exp(-8 * Math.max(0, deltaTime));
+  return {
+    x: trackPoint.x + (offset.x / cursorDistance) * relaxedDistance,
+    y: trackPoint.y + (offset.y / cursorDistance) * relaxedDistance,
+  };
 };
 
 export const selectWeldingBranchByDirection = (

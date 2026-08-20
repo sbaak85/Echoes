@@ -7,7 +7,10 @@ import {
   findWeldingPathRejoinIndex,
   getWeldingPathProgress,
   getWeldingSharedTrackPoint,
+  relaxWeldingSoftCorridorCursor,
+  resolveWeldingBackwardHysteresis,
   resolveWeldingCandidateLeadership,
+  resolveWeldingSoftCorridorCursor,
   selectWeldingBranchByDirection,
   selectWeldingMagneticTrack,
   selectWeldingPointerTrack,
@@ -76,6 +79,52 @@ test("gamepad branch selection follows the nearest intended stick direction", ()
   assert.equal(selectWeldingBranchByDirection(branch, { x: 1, y: 0.8 })?.id, "down");
 });
 
+test("welding delays minor backward x motion until retreat intent is clear", () => {
+  const slightRetreat = resolveWeldingBackwardHysteresis({
+    committedPoint: { x: 100, y: 100 },
+    candidatePoint: { x: 92, y: 94 },
+    backwardConfirmed: false,
+    confirmationDistance: 14,
+  });
+  assert.deepEqual(slightRetreat, {
+    backwardConfirmed: false,
+    shouldCommit: false,
+  });
+
+  const confirmedRetreat = resolveWeldingBackwardHysteresis({
+    committedPoint: { x: 100, y: 100 },
+    candidatePoint: { x: 86, y: 112 },
+    backwardConfirmed: false,
+    confirmationDistance: 14,
+  });
+  assert.deepEqual(confirmedRetreat, {
+    backwardConfirmed: true,
+    shouldCommit: true,
+  });
+
+  const continuingRetreat = resolveWeldingBackwardHysteresis({
+    committedPoint: { x: 86, y: 112 },
+    candidatePoint: { x: 84, y: 108 },
+    backwardConfirmed: true,
+    confirmationDistance: 14,
+  });
+  assert.deepEqual(continuingRetreat, {
+    backwardConfirmed: true,
+    shouldCommit: true,
+  });
+
+  const movingForwardAgain = resolveWeldingBackwardHysteresis({
+    committedPoint: { x: 84, y: 108 },
+    candidatePoint: { x: 86, y: 108 },
+    backwardConfirmed: true,
+    confirmationDistance: 14,
+  });
+  assert.deepEqual(movingForwardAgain, {
+    backwardConfirmed: false,
+    shouldCommit: true,
+  });
+});
+
 test("candidate trails wait for a pending route to reclaim the lead before fading", () => {
   let trails = [
     { trailId: 1, progress: 200, pendingAbandonment: false, fading: false },
@@ -112,6 +161,24 @@ test("candidate trails wait for a pending route to reclaim the lead before fadin
     leaderTrailId: resolution.leaderTrailId,
     activeTrailId: 1,
   });
+  assert.equal(resolution.leaderTrailId, 1);
+  assert.equal(resolution.fadeTrailId, 2);
+  assert.equal(
+    resolution.trails.find((trail) => trail.trailId === 2)?.fading,
+    true,
+  );
+});
+
+test("resuming an existing leader fades a shorter abandoned redraw", () => {
+  const resolution = resolveWeldingCandidateLeadership({
+    trails: [
+      { trailId: 1, progress: 214, pendingAbandonment: false, fading: false },
+      { trailId: 2, progress: 126, pendingAbandonment: false, fading: false },
+    ],
+    leaderTrailId: 1,
+    activeTrailId: 1,
+  });
+
   assert.equal(resolution.leaderTrailId, 1);
   assert.equal(resolution.fadeTrailId, 2);
   assert.equal(
@@ -357,16 +424,29 @@ test("the first real weld segment uses the normal hot seam without a degenerate 
   assert.doesNotMatch(component, /weldStartSeed/);
 });
 
-test("welding opens ready without selecting or previewing an answer route", () => {
+test("welding opens with an explicit route preview before player control", () => {
   const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
   assert.match(component, /createWeldingRouteGraph\(\)/);
-  assert.match(component, /useState<WeldingPuzzlePhase>\("ready"\)/);
-  assert.doesNotMatch(component, /createRandomWeldingRoute/);
-  assert.doesNotMatch(component, /開始預覽路線/);
-  assert.doesNotMatch(component, /預覽焊接方式/);
-  assert.doesNotMatch(component, /PREVIEW_DURATION/);
-  assert.doesNotMatch(component, /drawPreview/);
-  assert.doesNotMatch(component, /phase === "preview"/);
+  assert.match(component, /useState<WeldingPuzzlePhase>\("intro"\)/);
+  assert.match(component, /createRandomWeldingRoute\(\(\) => 0\.42\)/);
+  assert.match(component, /開始預覽路線/);
+  assert.match(component, /預覽焊接方式/);
+  assert.match(component, /PREVIEW_WELD_DURATION\s*=\s*5200/);
+  assert.match(component, /startPreviewSequence/);
+  assert.match(component, /phase === "preview"/);
+});
+
+test("automatic preview ends with the cursor visible at a random valid entrance", () => {
+  const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
+  assert.match(component, /const routeEntrancePoints = graph\.nodes\.filter/);
+  assert.match(component, /graph\.startNodeIds\.includes\(node\.id\)/);
+  assert.match(component, /Math\.floor\(Math\.random\(\) \* routeEntrancePoints\.length\)/);
+  assert.match(component, /pointerTargetRef\.current = nextEntrancePoint/);
+  assert.match(component, /updateGunPoint\(nextEntrancePoint\)/);
+  assert.match(
+    component,
+    /updateGunPoint\(nextEntrancePoint\);[\s\S]*setGunVisible\(true\);[\s\S]*updatePhase\("ready"\)/,
+  );
 });
 
 test("welding completion waits for explicit confirmation and uses the project welding torch unchanged", () => {
@@ -382,12 +462,94 @@ test("welding completion waits for explicit confirmation and uses the project we
 
 test("welding pointer keeps damped motion without answer-route failure", () => {
   const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
-  assert.match(component, /JUNCTION_GRACE_RADIUS\s*=\s*42/);
+  assert.match(component, /GAMEPAD_TRACK_CAPTURE_TOLERANCE\s*=\s*56/);
+  assert.match(component, /GAMEPAD_JUNCTION_CAPTURE_RADIUS\s*=\s*70/);
   assert.match(component, /POINTER_SPRING_STRENGTH\s*=\s*34/);
   assert.match(component, /POINTER_SPRING_DAMPING\s*=\s*10\.5/);
   assert.doesNotMatch(component, /WRONG_BRANCH_GRACE_DISTANCE/);
   assert.doesNotMatch(component, /wrongRouteTravelRef/);
   assert.doesNotMatch(component, /failPuzzle/);
+});
+
+test("gamepad capture corridor can enter a connected branch while the weld remains projected", () => {
+  const activeEdge = {
+    id: "active",
+    from: "start",
+    to: "fork",
+    start: { x: 0, y: 0 },
+    end: { x: 20, y: 0 },
+    sourceRouteIds: [],
+  };
+  const branchEdge = {
+    id: "branch",
+    from: "fork",
+    to: "branch-end",
+    start: { x: 20, y: 0 },
+    end: { x: 20, y: -20 },
+    sourceRouteIds: [],
+  };
+  const steeringPoint = { x: 50, y: -20 };
+
+  const narrow = selectWeldingMagneticTrack({
+    point: steeringPoint,
+    graphEdges: [activeEdge, branchEdge],
+    activeEdge,
+    activeProgress: 0.98,
+    startSnapDistance: 34,
+    trackTolerance: 29,
+    junctionRadius: 42,
+    switchProgress: 0.68,
+    switchTEpsilon: 0.025,
+  });
+  const widened = selectWeldingMagneticTrack({
+    point: steeringPoint,
+    graphEdges: [activeEdge, branchEdge],
+    activeEdge,
+    activeProgress: 0.98,
+    startSnapDistance: 34,
+    trackTolerance: 56,
+    junctionRadius: 70,
+    switchProgress: 0.68,
+    switchTEpsilon: 0.025,
+  });
+
+  assert.equal(narrow?.edge.id, "active");
+  assert.equal(widened?.edge.id, "branch");
+  assert.deepEqual(widened?.point, { x: 20, y: -20 });
+});
+
+test("gamepad cursor stays in a narrow soft corridor while the weld projection stays exact", () => {
+  const trackPoint = { x: 100, y: 100 };
+  const freeCursor = resolveWeldingSoftCorridorCursor({
+    currentPoint: { x: 100, y: 100 },
+    proposedPoint: { x: 100, y: 108 },
+    trackPoint,
+    corridorRadius: 12,
+    softEdgeRatio: 0.7,
+  });
+  assert.deepEqual(freeCursor, { x: 100, y: 108 });
+
+  const softenedCursor = resolveWeldingSoftCorridorCursor({
+    currentPoint: { x: 100, y: 110 },
+    proposedPoint: { x: 100, y: 112 },
+    trackPoint,
+    corridorRadius: 12,
+    softEdgeRatio: 0.7,
+  });
+  assert.ok(softenedCursor.y > 110);
+  assert.ok(softenedCursor.y < 112);
+  assert.ok(softenedCursor.y <= 112);
+
+  const relaxedCursor = relaxWeldingSoftCorridorCursor({
+    cursorPoint: softenedCursor,
+    trackPoint,
+    corridorRadius: 12,
+    softEdgeRatio: 0.7,
+    deltaTime: 1 / 60,
+  });
+  assert.ok(relaxedCursor.y < softenedCursor.y);
+  assert.ok(relaxedCursor.y > 108.4);
+  assert.deepEqual(trackPoint, { x: 100, y: 100 });
 });
 
 test("every visible graph edge is magnetic, including a wrong gamepad branch", () => {
@@ -400,9 +562,12 @@ test("every visible graph edge is magnetic, including a wrong gamepad branch", (
   assert.match(component, /const selectPointerTrack/);
   assert.match(core, /edge\.from === junction\.nodeId \|\| edge\.to === junction\.nodeId/);
   assert.match(component, /activeTrackEdgeRef\.current = selectedTrack\.edge/);
-  assert.match(component, /updateGunPoint\(cursorMode === "gamepad" \? selectedTrack\.point : point\)/);
+  assert.match(component, /GAMEPAD_CURSOR_CORRIDOR_RADIUS\s*=\s*12/);
+  assert.match(component, /resolveWeldingSoftCorridorCursor/);
+  assert.match(component, /relaxWeldingSoftCorridorCursor/);
+  assert.match(component, /updateGunPoint\(point\)/);
+  assert.match(component, /x: currentCursor\.x \+ rightX \* GAMEPAD_CURSOR_SPEED \* deltaTime/);
   assert.match(component, /pointerTargetRef\.current = intendedPoint/);
-  assert.doesNotMatch(component, /updateGunPoint\(intendedPoint\)/);
   assert.match(component, /advancePointerWeld\(intendedPoint, "gamepad"\)/);
   assert.doesNotMatch(component, /expectedEdge/);
   assert.doesNotMatch(component, /matchesExpected/);
@@ -444,19 +609,32 @@ test("abandoned branch segments fade only after the replacement path is confirme
   assert.doesNotMatch(component, /correctRoute/);
 });
 
-test("hot weld follows only the player gun and has no preview terminals", () => {
+test("hot weld follows the gun during both automatic preview and player welding", () => {
   const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
   assert.match(component, /const sparkPoint = gunPoint/);
-  assert.match(component, /const showingSparks = activelyWelding/);
-  assert.doesNotMatch(component, /showingPreviewWeld/);
+  assert.match(component, /const showingPreviewWeld = phase === "preview"/);
+  assert.match(component, /const showingSparks = activelyWelding \|\| showingPreviewWeld/);
+  assert.match(component, /setPreviewSegments/);
   assert.doesNotMatch(component, /welding-route-terminals/);
 });
 
-test("welding emits a dense spark field only during active welding", () => {
+test("welding emits a dense spark field during preview and active welding", () => {
   const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
   assert.match(component, /Array\.from\(\{ length: 42 \}/);
-  assert.match(component, /showingSparks\s*=\s*activelyWelding/);
-  assert.doesNotMatch(component, /showingPreviewWeld/);
+  assert.match(component, /className="welding-arc-sparks"/);
+  assert.match(component, /Array\.from\(\{ length: 18 \}/);
+  assert.match(component, /showingPreviewWeld\s*=\s*phase === "preview"/);
+  assert.match(component, /showingSparks\s*=\s*activelyWelding \|\| showingPreviewWeld/);
+});
+
+test("welding hotspot uses the transparent spark sprite and flickers while active", () => {
+  const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
+  const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(component, /className="welding-hotspot-sprite"/);
+  assert.match(component, /href="\/ui\/welding\/spark-transparent\.png"/);
+  assert.doesNotMatch(component, /className="welding-hotspot"/);
+  assert.match(styles, /\.welding-hotspot-sprite\s*\{[\s\S]*animation:\s*welding-hotspot-sprite-flicker/);
+  assert.match(styles, /@keyframes welding-hotspot-sprite-flicker/);
 });
 
 test("gameplay route validation is disabled while the seam recorder is active", () => {
@@ -468,12 +646,14 @@ test("gameplay route validation is disabled while the seam recorder is active", 
   assert.match(component, /沿著任一連續路線焊接至右側終點/);
 });
 
-test("the welding surface is active immediately without an intro overlay", () => {
+test("the welding surface stays locked behind the intro and route preview", () => {
   const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
   assert.match(
     component,
     /if \(phaseRef\.current !== "ready" && phaseRef\.current !== "welding"\) return;/,
   );
-  assert.doesNotMatch(component, /welding-puzzle-intro/);
-  assert.doesNotMatch(component, /startPreviewSequence/);
+  assert.match(component, /welding-puzzle-intro/);
+  assert.match(component, /welding-preview-countdown/);
+  assert.match(component, /startPreviewSequence/);
+  assert.match(component, /updatePhase\("ready"\)/);
 });

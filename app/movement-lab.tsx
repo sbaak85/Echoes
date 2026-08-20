@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -2991,6 +2992,9 @@ export function MovementLab() {
   const virtualCursorControlsEnabledRef = useRef(true);
   const questPromptInputModeRef = useRef<QuestPromptInputMode>("keyboard-mouse");
   const audioEventManagerRef = useRef<AudioEventManager | null>(null);
+  const setWeldingSparkAudioActive = useCallback((active: boolean) => {
+    audioEventManagerRef.current?.setWeldingSparksActive(active);
+  }, []);
   const frequencyFineAudioFrameRef = useRef<number | null>(null);
   const frequencyFineAudioActiveUntilRef = useRef(0);
   const frequencyFineAudioStartedAtRef = useRef(0);
@@ -13028,6 +13032,7 @@ export function MovementLab() {
             showWeldingResultFeedback("金屬碎片 -1");
           }}
           onRequestNextStage={() => false}
+          onSparkActivityChange={setWeldingSparkAudioActive}
         />
       ) : null}
 

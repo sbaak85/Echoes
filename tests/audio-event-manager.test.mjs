@@ -4,6 +4,7 @@ import { stat } from "node:fs/promises";
 
 import {
   AUDIO_EVENT_CONFIG,
+  WELDING_SPARK_MIX_CONFIG,
   getFrequencyFineAudioMix,
 } from "../app/audio-event-manager.ts";
 
@@ -93,6 +94,44 @@ test("電力分配成功後三段發電機音效依序淡入淡出播放", async
 
   const files = await Promise.all(
     [first, second, running].map((event) =>
+      stat(new URL(`../public/${event.sources[0].replace(/^\.\//, "")}`, import.meta.url)),
+    ),
+  );
+  files.forEach((file) => assert.ok(file.size > 0));
+});
+
+test("焊接火星以雙軌混音共同淡入淡出，總音量限制為八成", async () => {
+  assert.deepEqual(
+    WELDING_SPARK_MIX_CONFIG.layerEventNames,
+    ["weldingSparksLayer1", "weldingSparksLayer2"],
+  );
+  assert.equal(WELDING_SPARK_MIX_CONFIG.totalVolume, 0.8);
+  assert.equal(WELDING_SPARK_MIX_CONFIG.fadeInSeconds, 0.1);
+  assert.equal(WELDING_SPARK_MIX_CONFIG.fadeOutSeconds, 0.5);
+
+  const layers = WELDING_SPARK_MIX_CONFIG.layerEventNames.map(
+    (eventName) => AUDIO_EVENT_CONFIG[eventName],
+  );
+  assert.deepEqual(
+    layers.map((event) => event.sourceAssetPaths),
+    [["Assets/Audio/焊接1.mp3"], ["Assets/Audio/焊接2.mp3"]],
+  );
+  assert.deepEqual(
+    layers.map((event) => event.sources),
+    [["./audio/welding-sparks-1.mp3"], ["./audio/welding-sparks-2.mp3"]],
+  );
+  layers.forEach((event) => {
+    assert.equal(event.loop, true);
+    assert.match(event.trigger, /火星/);
+    assert.match(event.trigger, /混音/);
+  });
+  assert.equal(
+    layers.reduce((total, event) => total + event.volume, 0),
+    WELDING_SPARK_MIX_CONFIG.totalVolume,
+  );
+
+  const files = await Promise.all(
+    layers.map((event) =>
       stat(new URL(`../public/${event.sources[0].replace(/^\.\//, "")}`, import.meta.url)),
     ),
   );

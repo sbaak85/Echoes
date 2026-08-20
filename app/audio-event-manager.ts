@@ -245,12 +245,52 @@ export const AUDIO_EVENT_CONFIG = (
       "delaySeconds": 1.5,
       "fadeInSeconds": 0.3,
       "fadeOutSeconds": 0.3
+    },
+    "weldingSparksLayer1": {
+      "label": "焊接火星混音－第一層",
+      "trigger": "焊接小遊戲實際描繪且火星特效持續播放時，與第二層同時循環混音；火星開始時共同淡入，火星停止時共同淡出。",
+      "sourceAssetPaths": [
+        "Assets/Audio/焊接1.mp3"
+      ],
+      "sources": [
+        "./audio/welding-sparks-1.mp3"
+      ],
+      "volume": 0.4,
+      "delaySeconds": 0,
+      "loop": true
+    },
+    "weldingSparksLayer2": {
+      "label": "焊接火星混音－第二層",
+      "trigger": "焊接小遊戲實際描繪且火星特效持續播放時，與第一層同時循環混音；兩支素材自然錯相穿插，對遊戲端視為同一個焊接聲事件。",
+      "sourceAssetPaths": [
+        "Assets/Audio/焊接2.mp3"
+      ],
+      "sources": [
+        "./audio/welding-sparks-2.mp3"
+      ],
+      "volume": 0.4,
+      "delaySeconds": 0,
+      "loop": true
     }
   }
   /* AUDIO_EVENT_CONFIG_END */
 ) as const satisfies Record<string, AudioEventDefinition>;
 
 export type AudioEventName = keyof typeof AUDIO_EVENT_CONFIG;
+
+/**
+ * 兩條音軌在遊戲端只以一個「焊接火星混音」事件控制。
+ * 每層最高 40%，合成後的目標總音量為 80%。
+ */
+export const WELDING_SPARK_MIX_CONFIG = {
+  layerEventNames: [
+    "weldingSparksLayer1",
+    "weldingSparksLayer2",
+  ] as const satisfies readonly AudioEventName[],
+  totalVolume: 0.8,
+  fadeInSeconds: 0.1,
+  fadeOutSeconds: 0.5,
+} as const;
 
 export type FrequencyFineAudioMix = {
   farVolume: number;
@@ -317,6 +357,9 @@ function clampVolume(value: number) {
 export class AudioEventManager {
   private disposed = false;
   private readonly runtimes = new Map<AudioEventName, AudioEventRuntime>();
+  private weldingSparksActive = false;
+  private weldingSparksFadeFrameId: number | null = null;
+  private weldingSparksRequestId = 0;
 
   constructor() {
     (
@@ -380,6 +423,50 @@ export class AudioEventManager {
     this.getRuntime(eventName).audio.volume = clampVolume(volume);
   }
 
+  /**
+   * 將兩支焊接素材視為一個持續混音事件。
+   * 火星開始時 0.1 秒淡入至總音量 80%；火星停止時 0.5 秒淡出後歸零。
+   */
+  setWeldingSparksActive(active: boolean) {
+    if (this.disposed) return;
+    const runtimes = WELDING_SPARK_MIX_CONFIG.layerEventNames.map(
+      (eventName) => this.getRuntime(eventName),
+    );
+    const allPlaying = runtimes.every((runtime) => !runtime.audio.paused);
+    if (active === this.weldingSparksActive && (!active || allPlaying)) return;
+
+    this.weldingSparksActive = active;
+    const requestId = ++this.weldingSparksRequestId;
+    this.cancelWeldingSparksFade();
+
+    if (active) {
+      const resumingFade = runtimes.some((runtime) => !runtime.audio.paused);
+      runtimes.forEach((runtime) => {
+        this.cancelPendingPlay(runtime);
+        if (!resumingFade) {
+          runtime.audio.currentTime = 0;
+          runtime.audio.volume = 0;
+        }
+        void runtime.audio.play().catch(() => {
+          // 焊接是由玩家按住輸入觸發；若瀏覽器仍封鎖音訊，下一次
+          // 火星重新啟動時會再請求播放，不影響焊接操作。
+        });
+      });
+      this.fadeWeldingSparks(
+        requestId,
+        WELDING_SPARK_MIX_CONFIG.fadeInSeconds * 1000,
+        false,
+      );
+      return;
+    }
+
+    this.fadeWeldingSparks(
+      requestId,
+      WELDING_SPARK_MIX_CONFIG.fadeOutSeconds * 1000,
+      true,
+    );
+  }
+
   play(eventName: AudioEventName, options: PlayOptions = {}) {
     const runtime = this.getRuntime(eventName);
     if (this.disposed) return Promise.resolve();
@@ -417,6 +504,9 @@ export class AudioEventManager {
 
   dispose() {
     if (this.disposed) return;
+    this.weldingSparksActive = false;
+    this.weldingSparksRequestId += 1;
+    this.cancelWeldingSparksFade();
     this.disposed = true;
     this.runtimes.forEach((runtime) => {
       this.cancelPendingPlay(runtime);
@@ -504,6 +594,58 @@ export class AudioEventManager {
       }
     };
     runtime.fadeFrameId = window.requestAnimationFrame(updateVolume);
+  }
+
+  private fadeWeldingSparks(
+    requestId: number,
+    durationMilliseconds: number,
+    stopWhenComplete: boolean,
+  ) {
+    const runtimes = WELDING_SPARK_MIX_CONFIG.layerEventNames.map(
+      (eventName) => this.getRuntime(eventName),
+    );
+    const startingVolumes = runtimes.map((runtime) => runtime.audio.volume);
+    const targetVolumes = runtimes.map((runtime) =>
+      stopWhenComplete ? 0 : clampVolume(runtime.definition.volume),
+    );
+    const startedAt = performance.now();
+    const smoothstep = (progress: number) =>
+      progress * progress * (3 - 2 * progress);
+
+    const update = (time: number) => {
+      if (this.disposed || requestId !== this.weldingSparksRequestId) return;
+      const progress = durationMilliseconds <= 0
+        ? 1
+        : Math.min(1, Math.max(0, (time - startedAt) / durationMilliseconds));
+      const eased = smoothstep(progress);
+      runtimes.forEach((runtime, index) => {
+        runtime.audio.volume = clampVolume(
+          startingVolumes[index] +
+            (targetVolumes[index] - startingVolumes[index]) * eased,
+        );
+      });
+
+      if (progress < 1) {
+        this.weldingSparksFadeFrameId = window.requestAnimationFrame(update);
+        return;
+      }
+
+      this.weldingSparksFadeFrameId = null;
+      if (stopWhenComplete && !this.weldingSparksActive) {
+        runtimes.forEach((runtime) => {
+          runtime.audio.pause();
+          runtime.audio.currentTime = 0;
+        });
+      }
+    };
+
+    this.weldingSparksFadeFrameId = window.requestAnimationFrame(update);
+  }
+
+  private cancelWeldingSparksFade() {
+    if (this.weldingSparksFadeFrameId === null) return;
+    window.cancelAnimationFrame(this.weldingSparksFadeFrameId);
+    this.weldingSparksFadeFrameId = null;
   }
 
   private cancelPendingPlay(runtime: AudioEventRuntime) {
