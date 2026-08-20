@@ -396,6 +396,7 @@ type PendingInteraction = {
   repathAttempts?: number;
 };
 type PowerPuzzleSession = Pick<PendingInteraction, "interactable" | "source">;
+const WELDING_ROUTE_INTERACTION_ID = "scene3-interaction-024";
 type QuestItemSubmissionPrompt = {
   interactable: SceneInteractable;
   source: PendingInteraction["source"];
@@ -3026,6 +3027,7 @@ export function MovementLab() {
   const powerPuzzleGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
   const powerPuzzleCursorRearmRequiredRef = useRef(false);
   const completePowerPuzzleInteractionRef = useRef<() => void>(() => {});
+  const completeWeldingPuzzleInteractionRef = useRef<() => void>(() => {});
   const campPowerStateRef = useRef<CampPowerState>(
     createInitialCampPowerState(INITIAL_SURVIVAL_STATE.gameMinutes),
   );
@@ -3386,14 +3388,19 @@ export function MovementLab() {
     setPuzzleSelectionOpen(false);
   };
 
-  const openWeldingPuzzle = () => {
+  const openWeldingPuzzle = (
+    interactable?: SceneInteractable,
+    source?: PendingInteraction["source"],
+  ) => {
     optionsOpenRef.current = false;
     inventoryOpenRef.current = false;
     frequencyPuzzleOpenRef.current = false;
     puzzleSelectionOpenRef.current = false;
     weldingPuzzleOpenRef.current = true;
     powerPuzzleOpenRef.current = true;
-    powerPuzzleSessionRef.current = null;
+    powerPuzzleSessionRef.current = interactable && source
+      ? { interactable, source }
+      : null;
     setOptionsOpen(false);
     setInventoryOpen(false);
     setFrequencyPuzzleOpen(false);
@@ -8040,6 +8047,25 @@ export function MovementLab() {
       completeInteraction(session.interactable, session.source);
     };
 
+    completeWeldingPuzzleInteractionRef.current = () => {
+      const session = powerPuzzleSessionRef.current;
+      closePowerRoutingPuzzle();
+      if (!session) return;
+      if (!completeInteraction(session.interactable, session.source)) return;
+
+      questGameEventSequenceRef.current += 1;
+      const questManager = questRuntimeManagerRef.current;
+      if (!questManager) return;
+      questManager.handleEvent({
+        type: "puzzleCompleted",
+        targetId: session.interactable.id,
+        eventId:
+          `puzzleCompleted:${SCENE_DATA.sceneId}:${session.interactable.id}:` +
+          `${Date.now()}:${questGameEventSequenceRef.current}`,
+      });
+      saveQuestSaveData(questManager.exportSave());
+    };
+
     const openCampPowerRefillConfirmation = (
       interactable: SceneInteractable,
       source: PendingInteraction["source"],
@@ -8280,6 +8306,13 @@ export function MovementLab() {
       }
       if (interactable.id === POWER_ROUTING_INTERACTION_ID) {
         openInteractionPuzzleSelection(interactable, source);
+        if (source === "pointer") {
+          pointerInteractionTriggeredId = interactable.id;
+        }
+        return true;
+      }
+      if (interactable.id === WELDING_ROUTE_INTERACTION_ID) {
+        openWeldingPuzzle(interactable, source);
         if (source === "pointer") {
           pointerInteractionTriggeredId = interactable.id;
         }
@@ -12989,7 +13022,7 @@ export function MovementLab() {
         <WeldingRoutePuzzle
           key={weldingPuzzleSessionKey}
           onCancel={closePowerRoutingPuzzle}
-          onComplete={closePowerRoutingPuzzle}
+          onComplete={() => completeWeldingPuzzleInteractionRef.current()}
           onFail={() => {
             closePowerRoutingPuzzle();
             showWeldingResultFeedback("金屬碎片 -1");

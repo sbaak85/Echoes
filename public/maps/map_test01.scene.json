@@ -4027,6 +4027,32 @@
             "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
+      },
+      "survivalFailureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u9019\u500B\u8981\u5B89\u88DD\u7684\u6771\u897F\u5F88\u591A...\u8B93\u6211\u56DE\u5FA9\u4E00\u9EDE\u9AD4\u529B\u3002"
+          }
+        ]
+      },
+      "completionDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u9019\u6A23\u5C31\u88DD\u597D\u96F6\u4EF6\u4E86!"
+          }
+        ]
       }
     },
     {
@@ -4158,6 +4184,32 @@
           {
             "speaker": "Sbaak",
             "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
+      },
+      "survivalFailureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u710A\u63A5\u9700\u8981\u5F88\u9AD8\u7684\u7CBE\u795E\u529B\uFF0C\u6211\u9084\u662F\u5148\u6062\u5FA9\u4E00\u4E0B\u518D\u9032\u884C\u5427\u3002"
+          }
+        ]
+      },
+      "completionDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "speaker": "Sbaak",
+            "text": "\u9019\u6A23\u5C31\u710A\u63A5\u597D\u4E86! \u5F37\u5EA6...\u6C92\u554F\u984C!"
           }
         ]
       }

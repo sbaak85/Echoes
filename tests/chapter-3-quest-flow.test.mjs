@@ -18,6 +18,8 @@ const INVENTORY_QUEST_ID = "QUEST_CH03_MAIN_002";
 const REST_QUEST_ID = "QUEST_CH03_MAIN_003";
 const HOPE_QUEST_ID = "QUEST_CH03_MAIN_004";
 const FAR_LIGHT_QUEST_ID = "QUEST_CH03_MAIN_005";
+const ARRAY_REPAIR_QUEST_ID = "QUEST_CH03_MAIN_006";
+const WELDING_INTERACTION_ID = "scene3-interaction-024";
 
 function dispatch(manager, eventId, type, targetId) {
   manager.handleEvent({ eventId, type, targetId, amount: 1 });
@@ -252,6 +254,52 @@ test("正式場景的互動區與 ItemPoint 使用正確任務階段條件", () 
       stageMode: "CurrentStageOnly",
     });
   }
+});
+
+test("MAIN_006 stage 02 starts welding at interaction-024 and completes only from its puzzle event", () => {
+  const quest = questDocument.quests.find(
+    (candidate) => candidate.id === ARRAY_REPAIR_QUEST_ID,
+  );
+  const stage = quest?.stages.find(
+    (candidate) => candidate.id === `${ARRAY_REPAIR_QUEST_ID}_STAGE_02`,
+  );
+  const objective = stage?.objectives.find(
+    (candidate) => candidate.id === `${ARRAY_REPAIR_QUEST_ID}_OBJ_04`,
+  );
+  const interaction = scene.interactables.find(
+    (candidate) => candidate.id === WELDING_INTERACTION_ID,
+  );
+
+  assert.ok(quest);
+  assert.ok(stage);
+  assert.ok(objective);
+  assert.ok(interaction);
+  assert.equal(objective.type, "puzzleCompleted");
+  assert.equal(objective.targetId, WELDING_INTERACTION_ID);
+  assert.deepEqual(
+    interaction.useRequirements
+      .filter((requirement) => requirement.kind === "questStage")
+      .map((requirement) => [requirement.questId, requirement.stageId, requirement.stageMode]),
+    [[ARRAY_REPAIR_QUEST_ID, stage.id, "CurrentStageOnly"]],
+  );
+
+  const isolatedQuest = {
+    ...structuredClone(quest),
+    prerequisiteQuestIds: [],
+    stages: [structuredClone(stage)],
+  };
+  const manager = new QuestRuntimeManager({
+    schemaVersion: questDocument.schemaVersion,
+    chapters: questDocument.chapters,
+    quests: [isolatedQuest],
+  });
+  assert.equal(manager.startQuest(ARRAY_REPAIR_QUEST_ID), true);
+  manager.handleEvent({ type: "interactionSucceeded", targetId: WELDING_INTERACTION_ID });
+  assert.equal(manager.getQuestState(ARRAY_REPAIR_QUEST_ID), "active");
+  manager.handleEvent({ type: "puzzleCompleted", targetId: "another-puzzle" });
+  assert.equal(manager.getQuestState(ARRAY_REPAIR_QUEST_ID), "active");
+  manager.handleEvent({ type: "puzzleCompleted", targetId: WELDING_INTERACTION_ID });
+  assert.equal(manager.getQuestState(ARRAY_REPAIR_QUEST_ID), "completed");
 });
 
 test("MAIN_005 preserves the hidden tool chain and advances through the power puzzle", () => {

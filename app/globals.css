@@ -6425,6 +6425,16 @@ html.dialogue-cursor-active .dialogue-box * {
   animation: welding-puzzle-enter 220ms cubic-bezier(0.2, 0.78, 0.28, 1) both;
 }
 
+.welding-puzzle-dialog.is-failure,
+.welding-puzzle-dialog.is-failure-exit {
+  pointer-events: none;
+}
+
+.welding-puzzle-dialog.is-failure-exit {
+  transform-origin: center;
+  animation: welding-puzzle-failure-exit 420ms cubic-bezier(0.55, 0, 0.78, 0.3) both;
+}
+
 .welding-puzzle-dialog::before,
 .welding-puzzle-dialog::after {
   position: absolute;
@@ -6539,6 +6549,37 @@ html.dialogue-cursor-active .dialogue-box * {
   user-select: none;
 }
 
+@keyframes welding-puzzle-failure-exit {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.72); }
+}
+
+/* Before/after welding, this surface contains real UI controls. Keep the
+   physical cursor available and do not inherit the gameplay cursor lock. */
+html.gamepad-cursor-active .welding-puzzle-dialog.is-intro,
+html.gamepad-input-active .welding-puzzle-dialog.is-intro,
+html.dialogue-cursor-active .welding-puzzle-dialog.is-intro,
+html.gamepad-cursor-active .welding-puzzle-dialog.is-success,
+html.gamepad-input-active .welding-puzzle-dialog.is-success,
+html.dialogue-cursor-active .welding-puzzle-dialog.is-success,
+.welding-puzzle-dialog.is-intro,
+.welding-puzzle-dialog.is-success,
+.welding-puzzle-dialog.is-intro .welding-puzzle-board,
+.welding-puzzle-dialog.is-success .welding-puzzle-board {
+  cursor: default !important;
+}
+
+html.gamepad-cursor-active .welding-puzzle-dialog.is-intro button,
+html.gamepad-input-active .welding-puzzle-dialog.is-intro button,
+html.dialogue-cursor-active .welding-puzzle-dialog.is-intro button,
+html.gamepad-cursor-active .welding-puzzle-dialog.is-success button,
+html.gamepad-input-active .welding-puzzle-dialog.is-success button,
+html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
+.welding-puzzle-dialog.is-intro button,
+.welding-puzzle-dialog.is-success button {
+  cursor: pointer !important;
+}
+
 .welding-puzzle-board::before {
   position: absolute;
   z-index: 0;
@@ -6574,7 +6615,7 @@ html.dialogue-cursor-active .dialogue-box * {
   stroke-width: 6;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
-  animation: welding-route-preview-pulse 720ms ease-in-out infinite alternate;
+  animation: welding-route-preview-pulse 420ms ease-in-out infinite alternate;
 }
 
 @keyframes welding-route-preview-pulse {
@@ -6582,7 +6623,16 @@ html.dialogue-cursor-active .dialogue-box * {
   to { opacity: 1; stroke: #fff0b2; }
 }
 
+.welding-route-manual-trail line {
+  stroke: rgba(255, 155, 92, 0.82);
+  stroke-width: 5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
 .welding-route-scorch line {
+  fill: none;
   stroke: rgba(27, 13, 9, 0.94);
   stroke-width: 13;
   stroke-linecap: round;
@@ -6591,11 +6641,24 @@ html.dialogue-cursor-active .dialogue-box * {
 }
 
 .welding-route-seam line {
+  fill: none;
   stroke: #f46f50;
   stroke-width: 4;
   stroke-linecap: round;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
+  animation: welding-precise-seam-settle 260ms ease-out both;
+}
+
+@keyframes welding-precise-seam-settle {
+  from {
+    opacity: 0.28;
+    stroke-width: 5.4;
+  }
+  to {
+    opacity: 1;
+    stroke-width: 4;
+  }
 }
 
 .welding-route-terminals circle {
@@ -6626,18 +6689,56 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .welding-sparks line {
   stroke: #ffd46c;
-  stroke-width: 2;
+  stroke-width: 2.3;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
-  animation: welding-spark-flight 430ms ease-out infinite;
-  animation-delay: calc(var(--spark-index) * -37ms);
+  animation: welding-spark-flight 390ms cubic-bezier(0.15, 0.7, 0.2, 1) infinite;
+  animation-delay: calc(var(--spark-index) * -19ms);
   transform-origin: 0 0;
 }
 
 @keyframes welding-spark-flight {
-  0% { opacity: 1; transform: scale(0.15); }
-  70% { opacity: 0.82; }
-  100% { opacity: 0; transform: scale(1.25); }
+  0% { opacity: 1; transform: scale(0.08) rotate(0deg); }
+  56% { opacity: 0.9; }
+  100% { opacity: 0; transform: scale(1.45) rotate(5deg); }
+}
+
+.welding-preview-countdown {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(21, 80, 82, 0.58), transparent 45%),
+    rgba(0, 10, 12, 0.68);
+  pointer-events: none;
+}
+
+.welding-preview-countdown span {
+  color: #d9fffa;
+  font-size: clamp(20px, 3vw, 34px);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-shadow: 0 0 18px rgba(103, 245, 230, 0.28);
+}
+
+.welding-preview-countdown strong {
+  margin-top: 8px;
+  color: #ffd36c;
+  font-size: clamp(72px, 12vw, 138px);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-shadow: 0 0 30px rgba(255, 174, 48, 0.42);
+  animation: welding-preview-countdown-pop 1000ms cubic-bezier(0.18, 0.82, 0.24, 1) both;
+}
+
+@keyframes welding-preview-countdown-pop {
+  0% { opacity: 0; transform: scale(1.34); }
+  18% { opacity: 1; transform: scale(1); }
+  75% { opacity: 1; transform: scale(0.94); }
+  100% { opacity: 0; transform: scale(0.82); }
 }
 
 .welding-gun-cursor {
@@ -6645,8 +6746,9 @@ html.dialogue-cursor-active .dialogue-box * {
   z-index: 5;
   width: clamp(72px, 9.5vw, 112px);
   height: auto;
-  transform: translate(-50%, -100%) rotate(-4deg);
-  transform-origin: 50% 100%;
+  /* Weldingtorch.png already faces left. Align its nozzle tip with the weld hotspot. */
+  transform: translate(0, -46.25%);
+  transform-origin: 0 46.25%;
   filter: drop-shadow(0 8px 9px rgba(0, 0, 0, 0.66));
   pointer-events: none;
   user-select: none;
@@ -6670,7 +6772,7 @@ html.dialogue-cursor-active .dialogue-box * {
     rgba(0, 14, 15, 0.38);
   color: #dbfff4;
   animation: welding-success-reveal 420ms ease-out both;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .welding-puzzle-success small {
@@ -6690,6 +6792,130 @@ html.dialogue-cursor-active .dialogue-box * {
 .welding-puzzle-success span {
   color: rgba(218, 255, 244, 0.7);
   font-size: 14px;
+}
+
+.welding-puzzle-failure {
+  position: absolute;
+  z-index: 11;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, transparent 4%, rgba(92, 13, 13, 0.78) 28%, rgba(126, 22, 17, 0.88) 50%, rgba(92, 13, 13, 0.78) 72%, transparent 96%),
+    rgba(12, 0, 0, 0.3);
+  color: #fff0ea;
+  animation: welding-failure-message-in 180ms cubic-bezier(0.2, 0.78, 0.28, 1) both;
+}
+
+.welding-puzzle-failure::before,
+.welding-puzzle-failure::after {
+  width: min(760px, 86%);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 137, 112, 0.85), transparent);
+  content: "";
+}
+
+.welding-puzzle-failure small {
+  margin-top: 18px;
+  color: #ff8b75;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+}
+
+.welding-puzzle-failure strong {
+  margin: 7px 0 18px;
+  color: #fff0ea;
+  font-size: clamp(32px, 5vw, 58px);
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 24px rgba(255, 72, 48, 0.52);
+}
+
+@keyframes welding-failure-message-in {
+  from { opacity: 0; transform: scaleX(0.18); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+.welding-puzzle-intro {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(31, 92, 91, 0.28), transparent 48%),
+    rgba(0, 9, 11, 0.72);
+}
+
+.welding-puzzle-intro-panel {
+  width: min(500px, 92%);
+  padding: clamp(24px, 4vw, 38px);
+  border: 1px solid rgba(104, 220, 211, 0.46);
+  border-radius: 6px;
+  background:
+    linear-gradient(145deg, rgba(13, 37, 40, 0.97), rgba(3, 15, 17, 0.98));
+  box-shadow:
+    0 22px 60px rgba(0, 0, 0, 0.5),
+    inset 0 0 36px rgba(61, 194, 187, 0.06);
+  text-align: center;
+}
+
+.welding-puzzle-intro-panel small {
+  color: #6cded6;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+
+.welding-puzzle-intro-panel strong {
+  display: block;
+  margin-top: 8px;
+  color: #fff0bf;
+  font-size: clamp(24px, 3.4vw, 34px);
+  letter-spacing: 0.08em;
+}
+
+.welding-puzzle-intro-panel p {
+  margin: 18px auto 22px;
+  color: rgba(217, 242, 239, 0.78);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.welding-puzzle-primary-action {
+  min-width: 180px;
+  min-height: 46px;
+  padding: 10px 24px;
+  border: 1px solid rgba(234, 192, 89, 0.72);
+  border-radius: 4px;
+  outline: none;
+  background: linear-gradient(180deg, rgba(133, 95, 30, 0.5), rgba(64, 43, 14, 0.72));
+  box-shadow: inset 0 0 0 2px rgba(255, 227, 145, 0.05);
+  color: #fff3c8;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.welding-puzzle-primary-action:hover,
+.welding-puzzle-primary-action:focus,
+.welding-puzzle-primary-action.is-gamepad-selected,
+.welding-puzzle-primary-action[data-gamepad-selected="true"] {
+  border-color: #ffe08a;
+  background: linear-gradient(180deg, rgba(181, 130, 39, 0.68), rgba(82, 54, 16, 0.82));
+  box-shadow: 0 0 0 2px rgba(255, 211, 100, 0.17), 0 0 24px rgba(245, 183, 61, 0.22);
+}
+
+.welding-puzzle-primary-action:active {
+  transform: translateY(2px) scale(0.985);
+}
+
+.welding-puzzle-success .welding-puzzle-primary-action {
+  margin-top: 22px;
 }
 
 @keyframes welding-success-reveal {
