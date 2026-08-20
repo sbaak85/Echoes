@@ -10,30 +10,42 @@ import {
 import {
   WELDING_ROUTE_VIEWBOX,
   WELDING_SOURCE_ROUTES,
-  createRandomWeldingRoute,
-  getWeldingEdgeLength,
-  projectPointToWeldingEdge,
+  createWeldingRouteGraph,
+  findWeldingPathRejoinIndex,
+  getNearestWeldingTrackProjection,
+  getWeldingPathProgress,
+  getWeldingSharedTrackPoint,
+  resolveWeldingCandidateLeadership,
+  selectWeldingMagneticTrack,
+  selectWeldingPointerTrack,
+  type WeldingCandidateProgress,
   type WeldingPoint,
+  type WeldingPathSample,
   type WeldingRouteEdge,
+  type WeldingTrackProjection,
 } from "./welding-route-puzzle";
 
 type WeldingPuzzlePhase =
-  | "intro"
-  | "countdown"
-  | "preview"
   | "ready"
   | "welding"
-  | "failure"
-  | "failure-exit"
   | "success";
 type WeldingInputMode = "pointer" | "gamepad";
-type WeldingTrailPoint = WeldingPoint & {
+type WeldingSegment = {
+  segmentId: number;
   trailId: number;
-  createdAt: number;
-  jitterX: number;
-  jitterY: number;
-  settlePoint: WeldingPoint;
-  canSettle: boolean;
+  start: WeldingPoint;
+  end: WeldingPoint;
+  fadeStartedAt?: number;
+};
+
+type PendingAbandonedTrail = {
+  segmentIds: Set<number>;
+  confirmedDistance: number;
+};
+
+type WeldingCandidateTrail = WeldingCandidateProgress & {
+  samples: WeldingPathSample[];
+  endpoint: WeldingTrackProjection;
 };
 
 type WeldingRoutePuzzleProps = {
@@ -46,35 +58,29 @@ type WeldingRoutePuzzleProps = {
 const START_SNAP_DISTANCE = 34;
 const POINTER_TRACK_TOLERANCE = 29;
 const JUNCTION_GRACE_RADIUS = 42;
-const WRONG_BRANCH_GRACE_DISTANCE = 80;
-const BACKTRACK_ALLOWANCE = 34;
+const TRACK_SWITCH_PROGRESS = 0.68;
+const TRACK_SWITCH_T_EPSILON = 0.025;
 const POINTER_SPRING_STRENGTH = 34;
 const POINTER_SPRING_DAMPING = 10.5;
-const PREVIEW_DURATION = 4200;
 const GAMEPAD_CURSOR_SPEED = 210;
-const WELD_TRAIL_POINT_SPACING = 2.2;
-const MAX_WELD_TRAIL_POINTS = 72;
-const WELD_TRAIL_JITTER = 2.4;
-const WELD_TRAIL_SETTLE_DELAY = 150;
-const WELD_TRAIL_SETTLE_DURATION = 720;
-const WELD_TRAIL_FADE_DELAY = 620;
-const WELD_TRAIL_FADE_DURATION = 520;
-const WELD_TRAIL_LIFETIME = WELD_TRAIL_FADE_DELAY + WELD_TRAIL_FADE_DURATION + 100;
-const WELD_CORRECTION_FOLLOW_RATE = 4.6;
-const FAILURE_MESSAGE_DURATION = 1000;
-const FAILURE_EXIT_DURATION = 420;
+const PATH_REJOIN_MINIMUM_TAIL_DISTANCE = 4;
+const PATH_REJOIN_POINT_TOLERANCE = 5;
+const BRANCH_CHANGE_CONFIRM_DISTANCE = 34;
+const ABANDONED_TRAIL_FADE_DURATION = 720;
+const MINIMUM_WELD_SEGMENT_LENGTH = 0.01;
+const CANDIDATE_TRAIL_RESUME_DISTANCE = 18;
 
 const distance = (a: WeldingPoint, b: WeldingPoint) =>
   Math.hypot(a.x - b.x, a.y - b.y);
 
-const smoothStep = (value: number) => {
-  const clamped = Math.max(0, Math.min(1, value));
-  return clamped * clamped * (3 - 2 * clamped);
-};
-
-const lerpPoint = (edge: WeldingRouteEdge, t: number): WeldingPoint => ({
-  x: edge.start.x + (edge.end.x - edge.start.x) * t,
-  y: edge.start.y + (edge.end.y - edge.start.y) * t,
+const getEndpointTrackProjection = (
+  edge: WeldingRouteEdge,
+  point: WeldingPoint,
+): WeldingTrackProjection => ({
+  edge,
+  point,
+  t: distance(point, edge.start) <= distance(point, edge.end) ? 0 : 1,
+  distance: 0,
 });
 
 const clampToBoard = (point: WeldingPoint): WeldingPoint => ({
@@ -82,75 +88,18 @@ const clampToBoard = (point: WeldingPoint): WeldingPoint => ({
   y: Math.max(8, Math.min(WELDING_ROUTE_VIEWBOX.height - 8, point.y)),
 });
 
-const getTrailDisplayPoint = (
-  point: WeldingTrailPoint,
-  now: number,
-): WeldingPoint & { opacity: number } => {
-  const age = Math.max(0, now - point.createdAt);
-  const settleProgress = point.canSettle
-    ? smoothStep((age - WELD_TRAIL_SETTLE_DELAY) / WELD_TRAIL_SETTLE_DURATION)
-    : 0;
-  const rawPoint = {
-    x: point.x + point.jitterX,
-    y: point.y + point.jitterY,
-  };
-  // Correct strokes settle onto the precise seam and can fade away. A wrong
-  // stroke must stay visible: hiding it makes the torch look as if it were
-  // blocked at the junction even though the player kept drawing.
-  const opacity = point.canSettle
-    ? 1 - smoothStep(
-        (age - WELD_TRAIL_FADE_DELAY) / WELD_TRAIL_FADE_DURATION,
-      )
-    : 1;
-  return {
-    x: rawPoint.x + (point.settlePoint.x - rawPoint.x) * settleProgress,
-    y: rawPoint.y + (point.settlePoint.y - rawPoint.y) * settleProgress,
-    opacity,
-  };
-};
-
 const sourceRoutePoints = (points: WeldingPoint[]) =>
   points.map((point) => `${point.x},${point.y}`).join(" ");
 
-const getRoutePointAtProgress = (
-  edges: WeldingRouteEdge[],
-  progress: number,
-): { point: WeldingPoint; edgeIndex: number; edgeProgress: number } => {
-  const lengths = edges.map(getWeldingEdgeLength);
-  const totalLength = lengths.reduce((sum, length) => sum + length, 0) || 1;
-  let remaining = Math.max(0, Math.min(1, progress)) * totalLength;
-  for (let index = 0; index < edges.length; index += 1) {
-    const length = lengths[index] || 1;
-    if (remaining <= length || index === edges.length - 1) {
-      const edgeProgress = Math.max(0, Math.min(1, remaining / length));
-      return {
-        point: lerpPoint(edges[index], edgeProgress),
-        edgeIndex: index,
-        edgeProgress,
-      };
-    }
-    remaining -= length;
-  }
-  const lastIndex = edges.length - 1;
-  return { point: edges[lastIndex].end, edgeIndex: lastIndex, edgeProgress: 1 };
-};
-
-const getNormalizedRouteProgress = (
-  edges: WeldingRouteEdge[],
-  edgeIndex: number,
-  edgeProgress: number,
-) => {
-  const lengths = edges.map(getWeldingEdgeLength);
-  const totalLength = lengths.reduce((sum, length) => sum + length, 0) || 1;
-  const completedLength = lengths
-    .slice(0, Math.max(0, edgeIndex))
-    .reduce((sum, length) => sum + length, 0);
-  const currentLength = lengths[Math.max(0, edgeIndex)] ?? 0;
-  return Math.max(
-    0,
-    Math.min(1, (completedLength + currentLength * edgeProgress) / totalLength),
-  );
-};
+const getWeldSegmentOpacity = (
+  segment: WeldingSegment,
+  now: number,
+) => segment.fadeStartedAt === undefined
+  ? 1
+  : Math.max(0, Math.min(
+      1,
+      1 - (now - segment.fadeStartedAt) / ABANDONED_TRAIL_FADE_DURATION,
+    ));
 
 const getPrimaryGamepad = () => {
   if (typeof navigator === "undefined" || typeof navigator.getGamepads !== "function") {
@@ -162,42 +111,38 @@ const getPrimaryGamepad = () => {
 export function WeldingRoutePuzzle({
   onCancel,
   onComplete,
-  onFail,
   onRequestNextStage,
 }: WeldingRoutePuzzleProps) {
-  const [session] = useState(() => createRandomWeldingRoute());
-  const [phase, setPhase] = useState<WeldingPuzzlePhase>("intro");
-  const [countdown, setCountdown] = useState(3);
-  const [previewProgress, setPreviewProgress] = useState(0);
+  const [graph] = useState(() => createWeldingRouteGraph());
+  const initialGunPoint: WeldingPoint = graph.nodes.find(
+    (node) => graph.startNodeIds.includes(node.id),
+  ) ?? { x: 20, y: 251 };
+  const [phase, setPhase] = useState<WeldingPuzzlePhase>("ready");
   const [inputMode, setInputMode] = useState<WeldingInputMode>("pointer");
-  const [edgeIndex, setEdgeIndex] = useState(0);
-  const [edgeProgress, setEdgeProgress] = useState(0);
-  const [gunPoint, setGunPoint] = useState<WeldingPoint>(session.start);
+  const [gunPoint, setGunPoint] = useState<WeldingPoint>(initialGunPoint);
   const [gunVisible, setGunVisible] = useState(false);
   const [pointerHeld, setPointerHeld] = useState(false);
-  const [weldTrail, setWeldTrail] = useState<WeldingTrailPoint[]>([]);
-  const [weldTrailClock, setWeldTrailClock] = useState(0);
-  const [correctedRouteProgress, setCorrectedRouteProgress] = useState(0);
+  const [weldSegments, setWeldSegments] = useState<WeldingSegment[]>([]);
+  const [weldRenderClock, setWeldRenderClock] = useState(0);
   const [exitSelected, setExitSelected] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
-  const phaseRef = useRef<WeldingPuzzlePhase>("intro");
-  const edgeIndexRef = useRef(0);
-  const edgeProgressRef = useRef(0);
-  const gunPointRef = useRef<WeldingPoint>(session.start);
-  const pointerTargetRef = useRef<WeldingPoint>(session.start);
+  const phaseRef = useRef<WeldingPuzzlePhase>("ready");
+  const gunPointRef = useRef<WeldingPoint>(initialGunPoint);
+  const pointerTargetRef = useRef<WeldingPoint>(initialGunPoint);
   const gunVelocityRef = useRef<WeldingPoint>({ x: 0, y: 0 });
-  const furthestEdgeProgressRef = useRef(0);
   const pointerHeldRef = useRef(false);
-  const weldTrailRef = useRef<WeldingTrailPoint[]>([]);
-  const weldTrailIdRef = useRef(0);
-  const previousWeldSampleRef = useRef<WeldingPoint | null>(null);
-  const wrongRouteTravelRef = useRef(0);
-  const wrongBranchEdgeRef = useRef<WeldingRouteEdge | null>(null);
-  const correctedRouteProgressRef = useRef(0);
-  const correctionTargetProgressRef = useRef(0);
+  const weldSegmentsRef = useRef<WeldingSegment[]>([]);
+  const weldSegmentIdRef = useRef(0);
+  const candidateTrailsRef = useRef<Map<number, WeldingCandidateTrail>>(new Map());
+  const candidateTrailIdRef = useRef(0);
+  const activeCandidateTrailIdRef = useRef<number | null>(null);
+  const leaderCandidateTrailIdRef = useRef<number | null>(null);
+  const previousWeldSampleRef = useRef<WeldingTrackProjection | null>(null);
+  const activeWeldPathRef = useRef<WeldingPathSample[]>([]);
+  const pendingAbandonedTrailRef = useRef<PendingAbandonedTrail | null>(null);
+  const activeTrackEdgeRef = useRef<WeldingRouteEdge | null>(null);
+  const activeTrackProgressRef = useRef(0);
   const finishedRef = useRef(false);
-  const failureMessageTimeoutRef = useRef<number | null>(null);
-  const failureExitTimeoutRef = useRef<number | null>(null);
   const previousGamepadButtonsRef = useRef({
     back: false,
     confirm: false,
@@ -216,59 +161,6 @@ export function WeldingRoutePuzzle({
     setGunPoint(clamped);
   };
 
-  const updateRoutePosition = (
-    nextEdgeIndex: number,
-    nextProgress: number,
-    snapGunToRoute = true,
-  ) => {
-    if (nextEdgeIndex !== edgeIndexRef.current) {
-      furthestEdgeProgressRef.current = nextProgress;
-    } else {
-      furthestEdgeProgressRef.current = Math.max(
-        furthestEdgeProgressRef.current,
-        nextProgress,
-      );
-    }
-    edgeIndexRef.current = nextEdgeIndex;
-    edgeProgressRef.current = nextProgress;
-    correctionTargetProgressRef.current = getNormalizedRouteProgress(
-      session.edges,
-      nextEdgeIndex,
-      nextProgress,
-    );
-    setEdgeIndex(nextEdgeIndex);
-    setEdgeProgress(nextProgress);
-    if (snapGunToRoute) updateGunPoint(lerpPoint(session.edges[nextEdgeIndex], nextProgress));
-  };
-
-  const failPuzzle = () => {
-    if (finishedRef.current) return;
-    finishedRef.current = true;
-    pointerHeldRef.current = false;
-    setPointerHeld(false);
-    previousWeldSampleRef.current = null;
-    gunVelocityRef.current = { x: 0, y: 0 };
-    wrongBranchEdgeRef.current = null;
-    setGunVisible(false);
-    updatePhase("failure");
-
-    failureMessageTimeoutRef.current = window.setTimeout(() => {
-      updatePhase("failure-exit");
-      failureExitTimeoutRef.current = window.setTimeout(() => {
-        onFail();
-      }, FAILURE_EXIT_DURATION);
-    }, FAILURE_MESSAGE_DURATION);
-  };
-
-  useEffect(() => () => {
-    if (failureMessageTimeoutRef.current !== null) {
-      window.clearTimeout(failureMessageTimeoutRef.current);
-    }
-    if (failureExitTimeoutRef.current !== null) {
-      window.clearTimeout(failureExitTimeoutRef.current);
-    }
-  }, []);
-
   const completePuzzle = () => {
     if (finishedRef.current) return;
     finishedRef.current = true;
@@ -277,71 +169,156 @@ export function WeldingRoutePuzzle({
     updatePhase("success");
   };
 
-  const createWeldTrailPoint = (point: WeldingPoint): WeldingTrailPoint => {
-    const clamped = clampToBoard(point);
-    const currentIndex = edgeIndexRef.current;
-    const candidateEdges = [
-      session.edges[currentIndex],
-      session.edges[currentIndex + 1],
-    ].filter((edge): edge is WeldingRouteEdge => Boolean(edge));
-    const closestProjection = candidateEdges
-      .map((edge) => projectPointToWeldingEdge(clamped, edge))
-      .sort((a, b) => a.distance - b.distance)[0];
-    const trailId = (weldTrailIdRef.current += 1);
-    const angle = trailId * 2.399963229728653;
-    const jitterScale = 0.45 + ((trailId * 37) % 55) / 100;
-    const canSettle =
-      wrongBranchEdgeRef.current === null &&
-      Boolean(closestProjection) &&
-      closestProjection.distance <= POINTER_TRACK_TOLERANCE;
-    return {
-      ...clamped,
-      trailId,
-      createdAt: typeof performance === "undefined" ? 0 : performance.now(),
-      jitterX: Math.cos(angle) * WELD_TRAIL_JITTER * jitterScale,
-      jitterY: Math.sin(angle) * WELD_TRAIL_JITTER * jitterScale,
-      settlePoint: canSettle ? closestProjection.point : clamped,
-      canSettle,
+  const getResumableCandidateTrail = (
+    selectedTrack: WeldingTrackProjection,
+  ): WeldingCandidateTrail | null => {
+    const candidates = [...candidateTrailsRef.current.values()]
+      .filter((trail) => !trail.fading)
+      .map((trail) => ({
+        trail,
+        distance: distance(trail.endpoint.point, selectedTrack.point),
+        edgePenalty: trail.endpoint.edge.id === selectedTrack.edge.id ? 0 : 4,
+      }))
+      .filter(
+        (candidate) => candidate.distance <= CANDIDATE_TRAIL_RESUME_DISTANCE,
+      )
+      .sort(
+        (left, right) =>
+          left.distance + left.edgePenalty - (right.distance + right.edgePenalty),
+      );
+    return candidates[0]?.trail ?? null;
+  };
+
+  const updateCandidateTrailProgress = (
+    endpoint: WeldingTrackProjection,
+  ): number | null => {
+    const activeTrailId = activeCandidateTrailIdRef.current;
+    if (activeTrailId === null) return null;
+    const activeTrail = candidateTrailsRef.current.get(activeTrailId);
+    if (!activeTrail) return null;
+    const samples = [...activeWeldPathRef.current];
+    candidateTrailsRef.current.set(activeTrailId, {
+      ...activeTrail,
+      samples,
+      endpoint,
+      progress: getWeldingPathProgress(samples),
+    });
+    const resolution = resolveWeldingCandidateLeadership({
+      trails: [...candidateTrailsRef.current.values()],
+      leaderTrailId: leaderCandidateTrailIdRef.current,
+      activeTrailId,
+    });
+    for (const progressState of resolution.trails) {
+      const trail = candidateTrailsRef.current.get(progressState.trailId);
+      if (!trail) continue;
+      candidateTrailsRef.current.set(progressState.trailId, {
+        ...trail,
+        ...progressState,
+      });
+    }
+    leaderCandidateTrailIdRef.current = resolution.leaderTrailId;
+    return resolution.fadeTrailId;
+  };
+
+  const appendWeldSegment = (
+    start: WeldingTrackProjection,
+    end: WeldingTrackProjection,
+  ) => {
+    const segmentLength = distance(start.point, end.point);
+    if (segmentLength < MINIMUM_WELD_SEGMENT_LENGTH) return;
+    const activeTrailId = activeCandidateTrailIdRef.current;
+    if (activeTrailId === null) return;
+    const nextSegment: WeldingSegment = {
+      segmentId: (weldSegmentIdRef.current += 1),
+      trailId: activeTrailId,
+      start: start.point,
+      end: end.point,
     };
-  };
+    const nextPathSample: WeldingPathSample = {
+      edgeId: end.edge.id,
+      point: end.point,
+      t: end.t,
+      segmentId: nextSegment.segmentId,
+    };
+    let activePath = activeWeldPathRef.current;
+    if (activePath.at(-1)?.edgeId !== start.edge.id) {
+      // Keep an explicit sample for both sides of a shared junction. That lets
+      // a later retrace reach t=0/t=1 and discard the entire abandoned branch,
+      // including its very first short segment next to the junction.
+      activePath = [...activePath, {
+        edgeId: start.edge.id,
+        point: start.point,
+        t: start.t,
+        segmentId: null,
+      }];
+      activeWeldPathRef.current = activePath;
+    }
+    const rejoinIndex = findWeldingPathRejoinIndex({
+      samples: activePath,
+      next: nextPathSample,
+      minimumTailDistance: PATH_REJOIN_MINIMUM_TAIL_DISTANCE,
+      pointTolerance: PATH_REJOIN_POINT_TOLERANCE,
+    });
+    let pendingTrail = pendingAbandonedTrailRef.current;
 
-  const appendWeldTrail = (point: WeldingPoint, force = false) => {
-    const clamped = clampToBoard(point);
-    const previousPoint = weldTrailRef.current.at(-1);
-    if (!force && previousPoint && distance(previousPoint, clamped) < WELD_TRAIL_POINT_SPACING) {
-      return;
+    if (rejoinIndex >= 0) {
+      pendingTrail ??= {
+        segmentIds: new Set<number>(),
+        confirmedDistance: 0,
+      };
+      for (const sample of activePath.slice(rejoinIndex + 1)) {
+        if (sample.segmentId !== null) pendingTrail.segmentIds.add(sample.segmentId);
+      }
+      // The segment used to retrace back to the older path belongs to the
+      // temporary excursion too. It stays visible until a new direction is
+      // confirmed, then fades with the rest of the abandoned branch.
+      pendingTrail.segmentIds.add(nextSegment.segmentId);
+      pendingTrail.confirmedDistance = 0;
+      const shortenedPath = activePath.slice(0, rejoinIndex + 1);
+      shortenedPath[shortenedPath.length - 1] = {
+        ...shortenedPath[shortenedPath.length - 1],
+        point: end.point,
+        t: end.t,
+      };
+      activeWeldPathRef.current = shortenedPath;
+    } else {
+      activeWeldPathRef.current = [...activePath, nextPathSample];
+      if (pendingTrail) pendingTrail.confirmedDistance += segmentLength;
     }
-    const nextTrail = [
-      ...weldTrailRef.current,
-      createWeldTrailPoint(clamped),
-    ];
-    if (nextTrail.length > MAX_WELD_TRAIL_POINTS) {
-      nextTrail.splice(0, nextTrail.length - MAX_WELD_TRAIL_POINTS);
-    }
-    weldTrailRef.current = nextTrail;
-    setWeldTrail(nextTrail);
-  };
 
-  const finishCurrentEdge = () => {
-    const currentIndex = edgeIndexRef.current;
-    if (currentIndex >= session.edges.length - 1) {
-      updateRoutePosition(currentIndex, 1);
-      completePuzzle();
-      return true;
+    let nextSegments = [...weldSegmentsRef.current, nextSegment];
+    if (
+      pendingTrail &&
+      pendingTrail.confirmedDistance >= BRANCH_CHANGE_CONFIRM_DISTANCE
+    ) {
+      const fadeStartedAt = typeof performance === "undefined"
+        ? Date.now()
+        : performance.now();
+      nextSegments = nextSegments.map((segment) =>
+        pendingTrail.segmentIds.has(segment.segmentId) && segment.fadeStartedAt === undefined
+          ? { ...segment, fadeStartedAt }
+          : segment,
+      );
+      setWeldRenderClock(fadeStartedAt);
+      pendingTrail = null;
     }
-    updateRoutePosition(currentIndex + 1, 0);
-    return true;
-  };
 
-  const finishPointerEdgeIfUnambiguous = () => {
-    const currentIndex = edgeIndexRef.current;
-    if (currentIndex >= session.edges.length - 1) {
-      finishCurrentEdge();
-      return;
+    const candidateFadeTrailId = updateCandidateTrailProgress(end);
+    if (candidateFadeTrailId !== null) {
+      const fadeStartedAt = typeof performance === "undefined"
+        ? Date.now()
+        : performance.now();
+      nextSegments = nextSegments.map((segment) =>
+        segment.trailId === candidateFadeTrailId && segment.fadeStartedAt === undefined
+          ? { ...segment, fadeStartedAt }
+          : segment,
+      );
+      setWeldRenderClock(fadeStartedAt);
     }
-    const currentEdge = session.edges[currentIndex];
-    const outgoing = session.graph.edges.filter((edge) => edge.from === currentEdge.to);
-    if (outgoing.length <= 1) finishCurrentEdge();
+
+    pendingAbandonedTrailRef.current = pendingTrail;
+    weldSegmentsRef.current = nextSegments;
+    setWeldSegments(nextSegments);
   };
 
   const getBoardPoint = (clientX: number, clientY: number): WeldingPoint | null => {
@@ -355,125 +332,118 @@ export function WeldingRoutePuzzle({
     });
   };
 
-  const beginPointerWeld = (point: WeldingPoint) => {
+  const selectMagneticTrack = (
+    point: WeldingPoint,
+  ): WeldingTrackProjection | null => selectWeldingMagneticTrack({
+    point,
+    graphEdges: graph.edges,
+    activeEdge: activeTrackEdgeRef.current,
+    activeProgress: activeTrackProgressRef.current,
+    startSnapDistance: START_SNAP_DISTANCE,
+    trackTolerance: POINTER_TRACK_TOLERANCE,
+    junctionRadius: JUNCTION_GRACE_RADIUS,
+    switchProgress: TRACK_SWITCH_PROGRESS,
+    switchTEpsilon: TRACK_SWITCH_T_EPSILON,
+  });
+
+  const selectPointerTrack = (
+    point: WeldingPoint,
+  ): WeldingTrackProjection | null => selectWeldingPointerTrack({
+    point,
+    graphEdges: graph.edges,
+    activeEdge: activeTrackEdgeRef.current,
+    trackTolerance: POINTER_TRACK_TOLERANCE,
+  });
+
+  const beginPointerWeld = (
+    point: WeldingPoint,
+    cursorMode: WeldingInputMode,
+  ) => {
     if (phaseRef.current !== "ready" && phaseRef.current !== "welding") return;
-    const expectedPoint = lerpPoint(
-      session.edges[edgeIndexRef.current],
-      edgeProgressRef.current,
+    const selectedTrack = getNearestWeldingTrackProjection(
+      point,
+      graph.edges,
     );
-    if (distance(point, expectedPoint) > START_SNAP_DISTANCE) return;
+    if (!selectedTrack || selectedTrack.distance > START_SNAP_DISTANCE) return;
+    const resumedTrail = getResumableCandidateTrail(selectedTrack);
+    const startingTrack = resumedTrail?.endpoint ?? selectedTrack;
+    if (resumedTrail) {
+      activeCandidateTrailIdRef.current = resumedTrail.trailId;
+      activeWeldPathRef.current = [...resumedTrail.samples];
+    } else {
+      const trailId = (candidateTrailIdRef.current += 1);
+      const firstSample: WeldingPathSample = {
+        edgeId: selectedTrack.edge.id,
+        point: selectedTrack.point,
+        t: selectedTrack.t,
+        segmentId: null,
+      };
+      candidateTrailsRef.current.set(trailId, {
+        trailId,
+        samples: [firstSample],
+        endpoint: selectedTrack,
+        progress: 0,
+        pendingAbandonment: false,
+        fading: false,
+      });
+      activeCandidateTrailIdRef.current = trailId;
+      activeWeldPathRef.current = [firstSample];
+    }
     pointerHeldRef.current = true;
     setPointerHeld(true);
     updatePhase("welding");
     pointerTargetRef.current = point;
     gunVelocityRef.current = { x: 0, y: 0 };
-    updateGunPoint(expectedPoint);
-    wrongBranchEdgeRef.current = null;
-    const initialTrailPoint = createWeldTrailPoint(expectedPoint);
-    initialTrailPoint.jitterX = 0;
-    initialTrailPoint.jitterY = 0;
-    weldTrailRef.current = [initialTrailPoint];
-    setWeldTrail([initialTrailPoint]);
-    previousWeldSampleRef.current = expectedPoint;
-    wrongRouteTravelRef.current = 0;
-    const currentRouteProgress = getNormalizedRouteProgress(
-      session.edges,
-      edgeIndexRef.current,
-      edgeProgressRef.current,
-    );
-    correctedRouteProgressRef.current = currentRouteProgress;
-    correctionTargetProgressRef.current = currentRouteProgress;
-    setCorrectedRouteProgress(currentRouteProgress);
+    activeTrackEdgeRef.current = startingTrack.edge;
+    activeTrackProgressRef.current = startingTrack.t;
+    updateGunPoint(cursorMode === "gamepad" ? startingTrack.point : point);
+    previousWeldSampleRef.current = startingTrack;
+    pendingAbandonedTrailRef.current = null;
   };
 
-  const advancePointerWeld = (point: WeldingPoint) => {
+  const advancePointerWeld = (
+    point: WeldingPoint,
+    cursorMode: WeldingInputMode,
+  ) => {
     if (!pointerHeldRef.current || phaseRef.current !== "welding") return;
-    appendWeldTrail(point);
-    const previousSample = previousWeldSampleRef.current;
-    const sampleTravel = previousSample ? distance(previousSample, point) : 0;
-    previousWeldSampleRef.current = point;
-    const currentIndex = edgeIndexRef.current;
-    const currentEdge = session.edges[currentIndex];
-    const currentProgress = edgeProgressRef.current;
-    const activeWrongBranch = wrongBranchEdgeRef.current;
-    if (activeWrongBranch) {
-      const wrongProjection = projectPointToWeldingEdge(point, activeWrongBranch);
-      const returnedToJunction =
-        wrongProjection.t <= 0.03 &&
-        distance(point, activeWrongBranch.start) <= JUNCTION_GRACE_RADIUS;
-      if (returnedToJunction) {
-        wrongBranchEdgeRef.current = null;
-        wrongRouteTravelRef.current = 0;
-      } else {
-        wrongRouteTravelRef.current =
-          wrongProjection.t * getWeldingEdgeLength(activeWrongBranch);
-        // Keep the torch and the live stroke completely free on a wrong
-        // branch. The projection is used only to measure the mistake; it must
-        // never be fed back into the cursor position.
-        wrongRouteTravelRef.current = Math.max(
-          wrongRouteTravelRef.current,
-          wrongProjection.distance,
-        );
-        if (wrongRouteTravelRef.current > WRONG_BRANCH_GRACE_DISTANCE) {
-          failPuzzle();
-        }
-        return;
-      }
-    }
-    const projection = projectPointToWeldingEdge(point, currentEdge);
-
-    if (currentProgress > 0.7 && currentIndex < session.edges.length - 1) {
-      const outgoing = session.graph.edges.filter((edge) => edge.from === currentEdge.to);
-      const candidates = outgoing
-        .map((edge) => ({ edge, projection: projectPointToWeldingEdge(point, edge) }))
-        .filter((candidate) => candidate.projection.t > 0.04 && candidate.projection.distance <= POINTER_TRACK_TOLERANCE)
-        .sort((a, b) => a.projection.distance - b.projection.distance);
-      if (candidates.length > 0) {
-        const selected = candidates[0];
-        const expectedNext = session.edges[currentIndex + 1];
-        if (selected.edge.id !== expectedNext.id) {
-          wrongBranchEdgeRef.current = selected.edge;
-          const wrongBranchDistance =
-            selected.projection.t * getWeldingEdgeLength(selected.edge);
-          // Measure the actual excursion from the junction so retreating along
-          // the wrong branch reduces the error instead of accumulating forever.
-          wrongRouteTravelRef.current = wrongBranchDistance;
-          if (wrongRouteTravelRef.current > WRONG_BRANCH_GRACE_DISTANCE) failPuzzle();
-          return;
-        }
-        wrongBranchEdgeRef.current = null;
-        wrongRouteTravelRef.current = 0;
-        updateRoutePosition(currentIndex + 1, selected.projection.t, false);
-        if (selected.projection.t >= 0.995) finishPointerEdgeIfUnambiguous();
-        return;
-      }
-    }
-
-    if (projection.distance > POINTER_TRACK_TOLERANCE) {
-      wrongRouteTravelRef.current += sampleTravel;
-    } else {
-      wrongRouteTravelRef.current = 0;
-    }
-    // Off-route drawing is allowed and rendered normally. Only the accumulated
-    // wrong travel is judged, and only after it actually exceeds 80 px.
-    if (wrongRouteTravelRef.current > WRONG_BRANCH_GRACE_DISTANCE) {
-      failPuzzle();
+    const selectedTrack = cursorMode === "gamepad"
+      ? selectMagneticTrack(point)
+      : selectPointerTrack(point);
+    if (!selectedTrack) {
+      // No graph line is close enough, so no weld is added. Pointer mode still
+      // follows the real cursor; gamepad mode remains at its last magnetic point.
+      if (cursorMode === "pointer") updateGunPoint(point);
       return;
     }
-    const edgeLength = getWeldingEdgeLength(currentEdge) || 1;
-    const minimumAllowedProgress = Math.max(
-      0,
-      furthestEdgeProgressRef.current - BACKTRACK_ALLOWANCE / edgeLength,
-    );
+
+    const previousEdge = activeTrackEdgeRef.current;
+    const switchedTrack = previousEdge?.id !== selectedTrack.edge.id;
+    const previousSample = previousWeldSampleRef.current;
+
+    activeTrackEdgeRef.current = selectedTrack.edge;
+    activeTrackProgressRef.current = selectedTrack.t;
+    updateGunPoint(cursorMode === "gamepad" ? selectedTrack.point : point);
+
+    const sharedTrackPoint = switchedTrack && previousEdge
+      ? getWeldingSharedTrackPoint(previousEdge, selectedTrack.edge)
+      : null;
+    if (previousSample && !switchedTrack) {
+      appendWeldSegment(previousSample, selectedTrack);
+    } else if (previousSample && sharedTrackPoint) {
+      // Every graph transition is split at the shared junction, so the actual
+      // player-drawn seam stays continuous regardless of which branch is used.
+      const previousJunction = getEndpointTrackProjection(previousEdge, sharedTrackPoint);
+      const nextJunction = getEndpointTrackProjection(selectedTrack.edge, sharedTrackPoint);
+      appendWeldSegment(previousSample, previousJunction);
+      appendWeldSegment(nextJunction, selectedTrack);
+    }
+    previousWeldSampleRef.current = selectedTrack;
+
     if (
-      projection.distance <= POINTER_TRACK_TOLERANCE &&
-      projection.t >= minimumAllowedProgress
+      selectedTrack.t >= 0.995 &&
+      graph.endNodeIds.includes(selectedTrack.edge.to)
     ) {
-      const nextProgress = projection.t < currentProgress
-        ? Math.max(minimumAllowedProgress, currentProgress - (currentProgress - projection.t) * 0.2)
-        : projection.t;
-      updateRoutePosition(currentIndex, nextProgress, false);
-      if (nextProgress >= 0.995) finishPointerEdgeIfUnambiguous();
+      completePuzzle();
     }
   };
 
@@ -502,7 +472,7 @@ export function WeldingRoutePuzzle({
     setInputMode("pointer");
     setGunVisible(true);
     pointerTargetRef.current = point;
-    beginPointerWeld(point);
+    beginPointerWeld(point, "pointer");
   };
 
   const stopPointerWeld = (event?: ReactPointerEvent<HTMLDivElement>) => {
@@ -511,16 +481,20 @@ export function WeldingRoutePuzzle({
     }
     pointerHeldRef.current = false;
     setPointerHeld(false);
-    wrongBranchEdgeRef.current = null;
+    const activeTrailId = activeCandidateTrailIdRef.current;
+    if (activeTrailId !== null) {
+      const activeTrail = candidateTrailsRef.current.get(activeTrailId);
+      if (activeTrail && activeTrail.progress < MINIMUM_WELD_SEGMENT_LENGTH) {
+        candidateTrailsRef.current.delete(activeTrailId);
+        if (leaderCandidateTrailIdRef.current === activeTrailId) {
+          leaderCandidateTrailIdRef.current = null;
+        }
+      }
+    }
+    activeCandidateTrailIdRef.current = null;
+    activeTrackEdgeRef.current = null;
+    activeTrackProgressRef.current = 0;
     previousWeldSampleRef.current = null;
-    wrongRouteTravelRef.current = 0;
-  };
-
-  const startPreviewSequence = () => {
-    setExitSelected(false);
-    setCountdown(3);
-    setPreviewProgress(0);
-    updatePhase("countdown");
   };
 
   const confirmCompletion = () => {
@@ -529,42 +503,37 @@ export function WeldingRoutePuzzle({
   };
 
   useEffect(() => {
-    if (phase !== "countdown") return;
-    const countdownTimer = window.setTimeout(() => {
-      if (countdown > 1) {
-        setCountdown((value) => value - 1);
-      } else {
-        setPreviewProgress(0);
-        updatePhase("preview");
-      }
-    }, 1000);
-    return () => window.clearTimeout(countdownTimer);
-  }, [countdown, phase]);
-
-  useEffect(() => {
-    if (phase !== "preview") return;
+    const fadeEnd = weldSegments.reduce(
+      (latest, segment) => segment.fadeStartedAt === undefined
+        ? latest
+        : Math.max(latest, segment.fadeStartedAt + ABANDONED_TRAIL_FADE_DURATION),
+      0,
+    );
+    if (fadeEnd <= 0) return;
     let frameId = 0;
-    let readyTimer = 0;
-    const startedAt = performance.now();
-    const drawPreview = (now: number) => {
-      const linearProgress = Math.min(1, (now - startedAt) / PREVIEW_DURATION);
-      const easedProgress =
-        linearProgress < 0.5
-          ? 2 * linearProgress * linearProgress
-          : 1 - ((-2 * linearProgress + 2) ** 2) / 2;
-      setPreviewProgress(easedProgress);
-      if (linearProgress < 1) {
-        frameId = window.requestAnimationFrame(drawPreview);
-      } else {
-        readyTimer = window.setTimeout(() => updatePhase("ready"), 280);
+    const updateFade = (now: number) => {
+      setWeldRenderClock(now);
+      if (now < fadeEnd) {
+        frameId = window.requestAnimationFrame(updateFade);
+        return;
       }
+      const visibleSegments = weldSegmentsRef.current.filter(
+        (segment) => segment.fadeStartedAt === undefined,
+      );
+      const visibleTrailIds = new Set(
+        visibleSegments.map((segment) => segment.trailId),
+      );
+      for (const trail of candidateTrailsRef.current.values()) {
+        if (trail.fading && !visibleTrailIds.has(trail.trailId)) {
+          candidateTrailsRef.current.delete(trail.trailId);
+        }
+      }
+      weldSegmentsRef.current = visibleSegments;
+      setWeldSegments(visibleSegments);
     };
-    frameId = window.requestAnimationFrame(drawPreview);
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.clearTimeout(readyTimer);
-    };
-  }, [phase]);
+    frameId = window.requestAnimationFrame(updateFade);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [weldSegments]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -582,23 +551,9 @@ export function WeldingRoutePuzzle({
     const tick = (now: number) => {
       const deltaTime = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
       lastTime = now;
-      if (weldTrailRef.current.length > 0) {
-        const visibleTrail = weldTrailRef.current.filter(
-          (point) =>
-            !point.canSettle || now - point.createdAt <= WELD_TRAIL_LIFETIME,
-        );
-        if (visibleTrail.length !== weldTrailRef.current.length) {
-          weldTrailRef.current = visibleTrail;
-          setWeldTrail(visibleTrail);
-        }
-        setWeldTrailClock(now);
-      }
       if (
         inputMode === "pointer" &&
         gunVisible &&
-        phaseRef.current !== "intro" &&
-        phaseRef.current !== "countdown" &&
-        phaseRef.current !== "preview" &&
         phaseRef.current !== "success"
       ) {
         if (!pointerHeldRef.current) {
@@ -619,21 +574,10 @@ export function WeldingRoutePuzzle({
           });
           gunVelocityRef.current = nextVelocity;
           updateGunPoint(nextPoint);
-          advancePointerWeld(nextPoint);
+          advancePointerWeld(nextPoint, "pointer");
         }
       }
 
-      const correctionTarget = correctionTargetProgressRef.current;
-      const currentCorrection = correctedRouteProgressRef.current;
-      if (correctionTarget > currentCorrection) {
-        const followAmount = 1 - Math.exp(-WELD_CORRECTION_FOLLOW_RATE * deltaTime);
-        const remaining = correctionTarget - currentCorrection;
-        const nextCorrection = remaining < 0.00035
-          ? correctionTarget
-          : currentCorrection + remaining * followAmount;
-        correctedRouteProgressRef.current = nextCorrection;
-        setCorrectedRouteProgress(nextCorrection);
-      }
       const gamepad = getPrimaryGamepad();
       if (gamepad) {
         const rightX = Math.abs(gamepad.axes[2] ?? 0) >= 0.14 ? gamepad.axes[2] ?? 0 : 0;
@@ -661,14 +605,10 @@ export function WeldingRoutePuzzle({
           setExitSelected(false);
         }
 
-        const failurePlaying =
-          phaseRef.current === "failure" || phaseRef.current === "failure-exit";
-        if (backPressed && !previousGamepadButtonsRef.current.back && !failurePlaying) onCancel();
-        if (confirmPressed && !previousGamepadButtonsRef.current.confirm && !failurePlaying) {
+        if (backPressed && !previousGamepadButtonsRef.current.back) onCancel();
+        if (confirmPressed && !previousGamepadButtonsRef.current.confirm) {
           if (exitSelected) {
             onCancel();
-          } else if (phaseRef.current === "intro") {
-            startPreviewSequence();
           } else if (phaseRef.current === "success") {
             confirmCompletion();
           }
@@ -682,7 +622,7 @@ export function WeldingRoutePuzzle({
 
         if (inputMode === "gamepad") {
           const gamepadActivelyWelding =
-            rightTriggerHeld && phaseRef.current === "welding";
+            rightTriggerHeld && pointerHeldRef.current;
           if (
             rightStickActive &&
             phaseRef.current !== "success" &&
@@ -692,32 +632,35 @@ export function WeldingRoutePuzzle({
               x: pointerTargetRef.current.x + rightX * GAMEPAD_CURSOR_SPEED * deltaTime,
               y: pointerTargetRef.current.y + rightY * GAMEPAD_CURSOR_SPEED * deltaTime,
             });
+            gunVelocityRef.current = { x: 0, y: 0 };
+            updateGunPoint(pointerTargetRef.current);
           }
           if (
             rightTriggerHeld &&
             (phaseRef.current === "ready" || phaseRef.current === "welding")
           ) {
-            if (phaseRef.current === "ready") {
-              if (distance(gunPointRef.current, session.start) <= START_SNAP_DISTANCE) {
-                beginPointerWeld(gunPointRef.current);
+            if (!pointerHeldRef.current) {
+              const nearestTrack = getNearestWeldingTrackProjection(
+                gunPointRef.current,
+                graph.edges,
+              );
+              if (nearestTrack && nearestTrack.distance <= START_SNAP_DISTANCE) {
+                beginPointerWeld(gunPointRef.current, "gamepad");
               }
             } else if (rightStickActive) {
               const intendedPoint = clampToBoard({
                 x: gunPointRef.current.x + rightX * GAMEPAD_CURSOR_SPEED * deltaTime,
                 y: gunPointRef.current.y + rightY * GAMEPAD_CURSOR_SPEED * deltaTime,
               });
-              // The right stick controls the real weld position. Never project
-              // it back onto the expected route: wrong branches must be
-              // drawable just like pointer input, with failure only after the
-              // shared 80 px grace distance.
+              // The shared magnetic graph resolves this intended point to any
+              // nearby connected line. Only the player's current movement and
+              // the graph junctions participate in seam recording.
               pointerTargetRef.current = intendedPoint;
               gunVelocityRef.current = { x: 0, y: 0 };
-              updateGunPoint(intendedPoint);
-              advancePointerWeld(intendedPoint);
+              advancePointerWeld(intendedPoint, "gamepad");
             }
           } else {
-            pointerHeldRef.current = false;
-            setPointerHeld(false);
+            if (pointerHeldRef.current) stopPointerWeld();
             if (rightStickActive && phaseRef.current !== "success") {
               gunVelocityRef.current = { x: 0, y: 0 };
               updateGunPoint(pointerTargetRef.current);
@@ -729,54 +672,13 @@ export function WeldingRoutePuzzle({
     };
     frameId = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frameId);
-    // The RAF intentionally reads the current refs; remounting creates a fresh session.
+    // The RAF intentionally reads the current refs; remounting creates a fresh board.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exitSelected, gunVisible, inputMode, onCancel, session]);
+  }, [exitSelected, graph, gunVisible, inputMode, onCancel]);
 
   const activelyWelding = phase === "welding" && pointerHeld;
-  // Give the preview a visible hot seam from its very first moving frame.
-  // Without this small visual seed, the gun can cover the sub-pixel segment
-  // and make the dark route underneath appear before the red heat catches up.
-  const visiblePreviewProgress = previewProgress > 0
-    ? Math.max(previewProgress, 0.012)
-    : 0;
-  const previewPosition = getRoutePointAtProgress(
-    session.edges,
-    visiblePreviewProgress,
-  );
-  const previewCompletedEdges = session.edges.slice(0, previewPosition.edgeIndex);
-  const previewCurrentEdge = session.edges[previewPosition.edgeIndex];
-  const previewPartialEnd = lerpPoint(previewCurrentEdge, previewPosition.edgeProgress);
-  const showingPreviewWeld = phase === "preview";
-  const sparkPoint = showingPreviewWeld ? previewPosition.point : gunPoint;
-  const showingSparks = activelyWelding || showingPreviewWeld;
-  const liveRouteProgress = getNormalizedRouteProgress(
-    session.edges,
-    edgeIndex,
-    edgeProgress,
-  );
-  // While the player is actively welding a valid route, the red-hot layer
-  // must reach the current weld point immediately. The slower corrected
-  // progress remains useful after movement for the settling effect, but it
-  // must never expose a scorch-only prefix under the active torch.
-  const visibleCorrectedRouteProgress = activelyWelding
-    ? Math.max(correctedRouteProgress, liveRouteProgress)
-    : correctedRouteProgress;
-  const correctedRoutePosition = getRoutePointAtProgress(
-    session.edges,
-    visibleCorrectedRouteProgress,
-  );
-  const weldedEdges = session.edges.slice(0, correctedRoutePosition.edgeIndex);
-  const weldedCurrentEdge = session.edges[correctedRoutePosition.edgeIndex];
-  const weldedPartialEnd = lerpPoint(
-    weldedCurrentEdge,
-    correctedRoutePosition.edgeProgress,
-  );
-  const displayedWeldTrail = weldTrail.map((point) =>
-    getTrailDisplayPoint(point, weldTrailClock),
-  );
-  const showPreviewStartTerminal = showingPreviewWeld && previewProgress > 0;
-  const showPreviewEndTerminal = showingPreviewWeld && previewProgress >= 0.999;
+  const sparkPoint = gunPoint;
+  const showingSparks = activelyWelding;
 
   return (
     <div className="welding-puzzle-overlay" data-input-mode={inputMode}>
@@ -792,12 +694,8 @@ export function WeldingRoutePuzzle({
             <h2 id="welding-puzzle-title">焊接各部位元件</h2>
           </div>
           <p>
-            {phase === "intro" ? "閱讀操作說明後開始預覽正確焊接路線" :
-              phase === "countdown" ? "準備觀察自動焊接示範" :
-              phase === "preview" ? "觀察焊槍從起點完整走到終點" :
-              phase === "failure" || phase === "failure-exit" ? "焊接路線已超出容許範圍" :
-              phase === "success" ? "結構接點已完成固定" :
-                "從左側起點沿著正確路徑焊接至右側終點"}
+            {phase === "success" ? "結構接點已完成固定" :
+                "從左側起點沿著任一連續路線焊接至右側終點"}
           </p>
           <button
             className={exitSelected ? "is-gamepad-selected" : undefined}
@@ -806,7 +704,6 @@ export function WeldingRoutePuzzle({
             onFocus={() => setExitSelected(true)}
             onMouseEnter={() => setExitSelected(true)}
             onClick={onCancel}
-            disabled={phase === "failure" || phase === "failure-exit"}
           >
             離開
           </button>
@@ -835,10 +732,6 @@ export function WeldingRoutePuzzle({
             aria-label="焊接路線圖"
           >
             <defs>
-              <filter id="welding-route-glow" x="-60%" y="-60%" width="220%" height="220%">
-                <feGaussianBlur stdDeviation="4.6" result="blur" />
-                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-              </filter>
               <filter id="welding-hotspot-glow" x="-150%" y="-150%" width="400%" height="400%">
                 <feGaussianBlur stdDeviation="7" result="blur" />
                 <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
@@ -849,72 +742,6 @@ export function WeldingRoutePuzzle({
                 <polyline key={route.id} points={sourceRoutePoints(route.points)} />
               ))}
             </g>
-            {phase === "preview" ? (
-              <g className="welding-route-preview" filter="url(#welding-route-glow)">
-                {previewCompletedEdges.map((edge) => (
-                  <line key={edge.id} x1={edge.start.x} y1={edge.start.y} x2={edge.end.x} y2={edge.end.y} />
-                ))}
-                {previewPosition.edgeProgress > 0 ? (
-                  <line
-                    x1={previewCurrentEdge.start.x}
-                    y1={previewCurrentEdge.start.y}
-                    x2={previewPartialEnd.x}
-                    y2={previewPartialEnd.y}
-                  />
-                ) : null}
-              </g>
-            ) : null}
-            <g className="welding-route-manual-trail">
-              {displayedWeldTrail.slice(1).map((point, index) => {
-                const previousPoint = displayedWeldTrail[index];
-                return (
-                  <line
-                    key={weldTrail[index + 1].trailId}
-                    x1={previousPoint.x}
-                    y1={previousPoint.y}
-                    x2={point.x}
-                    y2={point.y}
-                    opacity={Math.min(previousPoint.opacity, point.opacity)}
-                  />
-                );
-              })}
-            </g>
-            <g className="welding-route-scorch">
-              {weldedEdges.map((edge) => (
-                <line key={edge.id} x1={edge.start.x} y1={edge.start.y} x2={edge.end.x} y2={edge.end.y} />
-              ))}
-              {correctedRoutePosition.edgeProgress > 0 ? (
-                <line
-                  x1={weldedCurrentEdge.start.x}
-                  y1={weldedCurrentEdge.start.y}
-                  x2={weldedPartialEnd.x}
-                  y2={weldedPartialEnd.y}
-                />
-              ) : null}
-            </g>
-            <g className="welding-route-seam" filter="url(#welding-route-glow)">
-              {weldedEdges.map((edge) => (
-                <line key={edge.id} x1={edge.start.x} y1={edge.start.y} x2={edge.end.x} y2={edge.end.y} />
-              ))}
-              {correctedRoutePosition.edgeProgress > 0 ? (
-                <line
-                  x1={weldedCurrentEdge.start.x}
-                  y1={weldedCurrentEdge.start.y}
-                  x2={weldedPartialEnd.x}
-                  y2={weldedPartialEnd.y}
-                />
-              ) : null}
-            </g>
-            {showPreviewStartTerminal || showPreviewEndTerminal ? (
-              <g className="welding-route-terminals">
-                {showPreviewStartTerminal ? (
-                  <circle className="is-start" cx={session.start.x} cy={session.start.y} r="8" />
-                ) : null}
-                {showPreviewEndTerminal ? (
-                  <circle className="is-end" cx={session.end.x} cy={session.end.y} r="8" />
-                ) : null}
-              </g>
-            ) : null}
             {showingSparks ? (
               <g className="welding-sparks" transform={`translate(${sparkPoint.x} ${sparkPoint.y})`}>
                 {Array.from({ length: 42 }, (_, index) => {
@@ -941,7 +768,7 @@ export function WeldingRoutePuzzle({
             ) : null}
           </svg>
 
-          {(gunVisible || showingPreviewWeld) && phase !== "intro" && phase !== "countdown" && phase !== "failure" && phase !== "failure-exit" && phase !== "success" ? (
+          {gunVisible && phase !== "success" ? (
             // Use the project-provided Weldingtorch.png unchanged; its nozzle already points left.
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -956,41 +783,42 @@ export function WeldingRoutePuzzle({
             />
           ) : null}
 
-          {phase === "intro" ? (
-            <div className="welding-puzzle-intro" role="group" aria-label="焊接方式說明">
-              <div className="welding-puzzle-intro-panel">
-                <small>WELDING INSTRUCTIONS</small>
-                <strong>先觀察正確焊接路線</strong>
-                <p>
-                  預覽結束後，按住滑鼠左鍵或手把 RT，使用滑鼠／右搖桿沿路線焊接。
-                  岔路口允許短距離修正，但偏離過遠仍會失敗。
-                </p>
-                <button
-                  className={`welding-puzzle-primary-action${!exitSelected ? " is-gamepad-selected" : ""}`}
-                  type="button"
-                  data-gamepad-selected={!exitSelected || undefined}
-                  onFocus={() => setExitSelected(false)}
-                  onMouseEnter={() => setExitSelected(false)}
-                  onClick={startPreviewSequence}
+          {weldSegments.length > 0 ? (
+            <svg
+              className="welding-live-seam-overlay"
+              viewBox={`0 0 ${WELDING_ROUTE_VIEWBOX.width} ${WELDING_ROUTE_VIEWBOX.height}`}
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <defs>
+                <filter
+                  id="welding-live-seam-glow"
+                  filterUnits="userSpaceOnUse"
+                  x="-40"
+                  y="-40"
+                  width={WELDING_ROUTE_VIEWBOX.width + 80}
+                  height={WELDING_ROUTE_VIEWBOX.height + 80}
                 >
-                  開始預覽路線
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          {phase === "countdown" ? (
-            <div className="welding-preview-countdown" role="status" aria-live="polite">
-              <span>預覽焊接方式</span>
-              <strong key={countdown}>{countdown}</strong>
-            </div>
-          ) : null}
-
-          {phase === "failure" || phase === "failure-exit" ? (
-            <div className="welding-puzzle-failure" role="status" aria-live="assertive">
-              <small>WELDING ERROR</small>
-              <strong>焊接錯誤了</strong>
-            </div>
+                  <feGaussianBlur stdDeviation="4.6" result="blur" />
+                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+              </defs>
+              <g
+                className="welding-route-hot-seam welding-route-player-weld"
+                filter="url(#welding-live-seam-glow)"
+              >
+                {weldSegments.map((segment) => (
+                  <line
+                    key={`weld-hot-${segment.segmentId}`}
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    opacity={getWeldSegmentOpacity(segment, weldRenderClock)}
+                  />
+                ))}
+              </g>
+            </svg>
           ) : null}
 
           {phase === "success" ? (
@@ -1015,7 +843,7 @@ export function WeldingRoutePuzzle({
         <footer className="welding-puzzle-footer">
           <span><b>PC／行動裝置</b> 長按左鍵或觸控焊接</span>
           <span><b>手把</b> 右搖桿移動 · 靠近起點後按住 RT</span>
-          <span className="welding-route-legend"><i /> 正確路線僅於開始時顯示</span>
+          <span className="welding-route-legend"><i /> 可自由選擇任一連續分岔</span>
         </footer>
       </section>
     </div>

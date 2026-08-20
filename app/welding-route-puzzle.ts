@@ -31,6 +31,33 @@ export type WeldingRouteSession = {
   end: WeldingPoint;
 };
 
+export type WeldingTrackProjection = {
+  edge: WeldingRouteEdge;
+  point: WeldingPoint;
+  t: number;
+  distance: number;
+};
+
+export type WeldingPathSample = {
+  edgeId: string;
+  point: WeldingPoint;
+  t: number;
+  segmentId: number | null;
+};
+
+export type WeldingCandidateProgress = {
+  trailId: number;
+  progress: number;
+  pendingAbandonment: boolean;
+  fading: boolean;
+};
+
+export type WeldingLeadershipResolution = {
+  trails: WeldingCandidateProgress[];
+  leaderTrailId: number;
+  fadeTrailId: number | null;
+};
+
 type SourceRoute = {
   id: string;
   points: WeldingPoint[];
@@ -96,6 +123,75 @@ const pointKey = (point: WeldingPoint) =>
 
 const distanceSquared = (a: WeldingPoint, b: WeldingPoint) =>
   (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+
+export const getWeldingPathProgress = (samples: WeldingPathSample[]) => {
+  let progress = 0;
+  for (let index = 1; index < samples.length; index += 1) {
+    progress += Math.sqrt(distanceSquared(
+      samples[index - 1].point,
+      samples[index].point,
+    ));
+  }
+  return progress;
+};
+
+export const resolveWeldingCandidateLeadership = ({
+  trails,
+  leaderTrailId,
+  activeTrailId,
+  progressEpsilon = EPSILON,
+}: {
+  trails: WeldingCandidateProgress[];
+  leaderTrailId: number | null;
+  activeTrailId: number;
+  progressEpsilon?: number;
+}): WeldingLeadershipResolution => {
+  const nextTrails = trails.map((trail) => ({ ...trail }));
+  const activeTrail = nextTrails.find(
+    (trail) => trail.trailId === activeTrailId && !trail.fading,
+  );
+  if (!activeTrail) {
+    throw new Error(`Unknown active welding trail ${activeTrailId}.`);
+  }
+  const leaderTrail = nextTrails.find(
+    (trail) => trail.trailId === leaderTrailId && !trail.fading,
+  );
+  if (!leaderTrail) {
+    activeTrail.pendingAbandonment = false;
+    return {
+      trails: nextTrails,
+      leaderTrailId: activeTrail.trailId,
+      fadeTrailId: null,
+    };
+  }
+  if (
+    leaderTrail.trailId === activeTrail.trailId ||
+    activeTrail.progress <= leaderTrail.progress + progressEpsilon
+  ) {
+    return {
+      trails: nextTrails,
+      leaderTrailId: leaderTrail.trailId,
+      fadeTrailId: null,
+    };
+  }
+
+  if (activeTrail.pendingAbandonment) {
+    leaderTrail.fading = true;
+    activeTrail.pendingAbandonment = false;
+    return {
+      trails: nextTrails,
+      leaderTrailId: activeTrail.trailId,
+      fadeTrailId: leaderTrail.trailId,
+    };
+  }
+
+  leaderTrail.pendingAbandonment = true;
+  return {
+    trails: nextTrails,
+    leaderTrailId: activeTrail.trailId,
+    fadeTrailId: null,
+  };
+};
 
 const cross = (a: WeldingPoint, b: WeldingPoint) => a.x * b.y - a.y * b.x;
 
@@ -308,6 +404,186 @@ export const projectPointToWeldingEdge = (
 export const getWeldingEdgeLength = (
   edge: Pick<WeldingRouteEdge, "start" | "end">,
 ) => Math.sqrt(distanceSquared(edge.start, edge.end));
+
+export const getNearestWeldingTrackProjection = (
+  point: WeldingPoint,
+  edges: WeldingRouteEdge[],
+): WeldingTrackProjection | null => {
+  let nearest: WeldingTrackProjection | null = null;
+  for (const edge of edges) {
+    const projection = projectPointToWeldingEdge(point, edge);
+    if (!nearest || projection.distance < nearest.distance) {
+      nearest = { edge, ...projection };
+    }
+  }
+  return nearest;
+};
+
+export const selectWeldingPointerTrack = ({
+  point,
+  graphEdges,
+  activeEdge,
+  trackTolerance,
+  switchBias = 2,
+}: {
+  point: WeldingPoint;
+  graphEdges: WeldingRouteEdge[];
+  activeEdge: WeldingRouteEdge | null;
+  trackTolerance: number;
+  switchBias?: number;
+}): WeldingTrackProjection | null => {
+  const nearest = getNearestWeldingTrackProjection(point, graphEdges);
+  if (!nearest || nearest.distance > trackTolerance) return null;
+  if (!activeEdge) return nearest;
+
+  const activeProjection = projectPointToWeldingEdge(point, activeEdge);
+  if (
+    activeProjection.distance <= trackTolerance &&
+    activeProjection.distance <= nearest.distance + switchBias
+  ) {
+    return { edge: activeEdge, ...activeProjection };
+  }
+  return nearest;
+};
+
+export const getWeldingSharedTrackPoint = (
+  previousEdge: WeldingRouteEdge,
+  nextEdge: WeldingRouteEdge,
+): WeldingPoint | null => {
+  if (previousEdge.from === nextEdge.from || previousEdge.from === nextEdge.to) {
+    return previousEdge.start;
+  }
+  if (previousEdge.to === nextEdge.from || previousEdge.to === nextEdge.to) {
+    return previousEdge.end;
+  }
+  return null;
+};
+
+export const findWeldingPathRejoinIndex = ({
+  samples,
+  next,
+  minimumTailDistance,
+  pointTolerance,
+}: {
+  samples: WeldingPathSample[];
+  next: Pick<WeldingPathSample, "edgeId" | "point" | "t">;
+  minimumTailDistance: number;
+  pointTolerance: number;
+}): number => {
+  let tailDistance = 0;
+  const currentTail = samples.at(-1);
+  if (!currentTail) return -1;
+  for (let index = samples.length - 2; index >= 0; index -= 1) {
+    tailDistance += Math.sqrt(distanceSquared(
+      samples[index].point,
+      samples[index + 1].point,
+    ));
+    if (tailDistance < minimumTailDistance) continue;
+    if (samples[index].edgeId !== next.edgeId) continue;
+    const previousDistance = Math.sqrt(distanceSquared(
+      samples[index].point,
+      currentTail.point,
+    ));
+    const nextDistance = Math.sqrt(distanceSquared(
+      samples[index].point,
+      next.point,
+    ));
+    const isActuallyReturning = nextDistance + 0.1 < previousDistance;
+    if (isActuallyReturning && nextDistance <= pointTolerance) {
+      return index;
+    }
+  }
+  return -1;
+};
+
+export const selectWeldingMagneticTrack = ({
+  point,
+  graphEdges,
+  activeEdge,
+  activeProgress,
+  startSnapDistance,
+  trackTolerance,
+  junctionRadius,
+  switchProgress,
+  switchTEpsilon,
+}: {
+  point: WeldingPoint;
+  graphEdges: WeldingRouteEdge[];
+  activeEdge: WeldingRouteEdge | null;
+  activeProgress: number;
+  startSnapDistance: number;
+  trackTolerance: number;
+  junctionRadius: number;
+  switchProgress: number;
+  switchTEpsilon: number;
+}): WeldingTrackProjection | null => {
+  if (!activeEdge) {
+    const nearest = getNearestWeldingTrackProjection(point, graphEdges);
+    return nearest && nearest.distance <= startSnapDistance ? nearest : null;
+  }
+
+  const currentProjection = projectPointToWeldingEdge(point, activeEdge);
+  const currentTrack: WeldingTrackProjection = {
+    edge: activeEdge,
+    ...currentProjection,
+  };
+  const nearbyJunctions = [
+    {
+      nodeId: activeEdge.from,
+      atStart: true,
+      isNearby:
+        activeProgress <= 1 - switchProgress ||
+        Math.sqrt(distanceSquared(point, activeEdge.start)) <= junctionRadius,
+    },
+    {
+      nodeId: activeEdge.to,
+      atStart: false,
+      isNearby:
+        activeProgress >= switchProgress ||
+        Math.sqrt(distanceSquared(point, activeEdge.end)) <= junctionRadius,
+    },
+  ].filter((junction) => junction.isNearby);
+
+  const connected = nearbyJunctions
+    .flatMap((junction) => graphEdges
+      .filter((edge) =>
+        edge.id !== activeEdge.id &&
+        (edge.from === junction.nodeId || edge.to === junction.nodeId),
+      )
+      .map((edge) => ({
+        junction,
+        edge,
+        ...projectPointToWeldingEdge(point, edge),
+      })))
+    .filter((candidate) => {
+      const leavesFromStart = candidate.edge.from === candidate.junction.nodeId;
+      const movesAwayFromJunction = leavesFromStart
+        ? candidate.t > switchTEpsilon
+        : candidate.t < 1 - switchTEpsilon;
+      return movesAwayFromJunction && candidate.distance <= trackTolerance;
+    })
+    .sort((left, right) => left.distance - right.distance)[0];
+
+  if (connected) {
+    const activeAtJunction = connected.junction.atStart
+      ? activeProgress <= 0.06
+      : activeProgress >= 0.94;
+    if (activeAtJunction || connected.distance + 2 < currentTrack.distance) {
+      return {
+        edge: connected.edge,
+        point: connected.point,
+        t: connected.t,
+        distance: connected.distance,
+      };
+    }
+  }
+  // Once a gamepad weld has started, never jump to an unrelated nearby edge.
+  // The intended cursor can move freely, but the magnetic weld point must stay
+  // on the active edge until a graph-connected junction is selected above.
+  // Returning the current projection also prevents a one-frame missing seam
+  // when the stick moves faster than the track tolerance.
+  return currentTrack;
+};
 
 export const selectWeldingBranchByDirection = (
   outgoing: WeldingRouteEdge[],
