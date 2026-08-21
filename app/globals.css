@@ -6426,6 +6426,8 @@ html.dialogue-cursor-active .dialogue-box * {
 }
 
 .welding-puzzle-dialog.is-failure,
+.welding-puzzle-dialog.is-failure-message,
+.welding-puzzle-dialog.is-failure-review,
 .welding-puzzle-dialog.is-failure-exit {
   pointer-events: none;
 }
@@ -6643,6 +6645,57 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   to { stroke: #fff0b2; stroke-opacity: 1; }
 }
 
+.welding-puzzle-dialog.is-failure-review .welding-route-player-weld line.is-correct-route {
+  animation: welding-correct-route-review 240ms ease-in-out 6 alternate both;
+}
+
+.welding-puzzle-dialog.is-failure-review .welding-route-player-weld line.is-wrong-route {
+  animation: welding-wrong-route-scorch 420ms ease-out forwards;
+}
+
+.welding-puzzle-dialog.is-failure-exit .welding-route-player-weld line.is-correct-route {
+  stroke: #fff0b2;
+  stroke-opacity: 1;
+  filter: drop-shadow(0 0 5px rgba(255, 180, 99, 0.9));
+  animation: none;
+}
+
+.welding-puzzle-dialog.is-failure-exit .welding-route-player-weld line.is-wrong-route {
+  stroke: #160f0c;
+  stroke-width: 7;
+  stroke-opacity: 0.92;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9));
+  animation: none;
+}
+
+@keyframes welding-correct-route-review {
+  from {
+    stroke: #ff6845;
+    stroke-opacity: 0.7;
+    filter: drop-shadow(0 0 2px rgba(255, 89, 55, 0.5));
+  }
+  to {
+    stroke: #fff7cf;
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 10px rgba(255, 221, 151, 1));
+  }
+}
+
+@keyframes welding-wrong-route-scorch {
+  from {
+    stroke: #ff6845;
+    stroke-width: 6;
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 4px rgba(255, 87, 54, 0.7));
+  }
+  to {
+    stroke: #160f0c;
+    stroke-width: 7;
+    stroke-opacity: 0.92;
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9));
+  }
+}
+
 .welding-route-terminals circle {
   fill: rgba(4, 24, 26, 0.92);
   stroke-width: 2.5;
@@ -6829,7 +6882,7 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
     linear-gradient(90deg, transparent 4%, rgba(92, 13, 13, 0.78) 28%, rgba(126, 22, 17, 0.88) 50%, rgba(92, 13, 13, 0.78) 72%, transparent 96%),
     rgba(12, 0, 0, 0.3);
   color: #fff0ea;
-  animation: welding-failure-message-in 180ms cubic-bezier(0.2, 0.78, 0.28, 1) both;
+  animation: welding-failure-message 1400ms linear both;
 }
 
 .welding-puzzle-failure::before,
@@ -6856,9 +6909,11 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   text-shadow: 0 0 24px rgba(255, 72, 48, 0.52);
 }
 
-@keyframes welding-failure-message-in {
-  from { opacity: 0; transform: scaleX(0.18); }
-  to { opacity: 1; transform: scaleX(1); }
+@keyframes welding-failure-message {
+  0% { opacity: 0; }
+  14.2857% { opacity: 1; }
+  85.7143% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .welding-puzzle-intro {

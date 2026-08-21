@@ -29,6 +29,9 @@ public sealed class MainForm : Form
     private readonly TextBox _selectionNameText = new();
     private readonly Label _documentInfoLabel = new();
     private readonly Label _selectionInfoLabel = new();
+    private readonly Button _copyInteractionIdButton =
+        CreateButton("", 241, 228, 24, 24);
+    private readonly ToolTip _copyInteractionIdToolTip = new();
     private readonly Label _zoomLabel = new();
     private readonly ToolStripStatusLabel _statusLabel = new("準備就緒");
     private readonly Dictionary<MapPageDirection, Button> _mapPageButtons = new();
@@ -544,6 +547,12 @@ public sealed class MainForm : Form
         _selectionInfoLabel.SetBounds(10, 230, 255, 22);
         _selectionInfoLabel.ForeColor = Color.FromArgb(129, 222, 211);
         layersGroup.Controls.Add(_selectionInfoLabel);
+        _copyInteractionIdButton.Visible = false;
+        _copyInteractionIdButton.AccessibleName = "複製互動 ID";
+        _copyInteractionIdButton.Paint += DrawCopyInteractionIdIcon;
+        _copyInteractionIdButton.Click += (_, _) => CopySelectedInteractionId();
+        _copyInteractionIdToolTip.SetToolTip(_copyInteractionIdButton, "Copy ID");
+        layersGroup.Controls.Add(_copyInteractionIdButton);
         _selectionNameText.SetBounds(10, 255, 168, 27);
         layersGroup.Controls.Add(_selectionNameText);
         var renameButton = CreateButton("重新命名", 184, 254, 81, 29);
@@ -1490,6 +1499,8 @@ public sealed class MainForm : Form
         _syncingSelection = true;
         try
         {
+            _copyInteractionIdButton.Visible = false;
+            _selectionInfoLabel.Width = 255;
             var selectedItem = _layersList.Items
                 .Cast<LayerListItem>()
                 .FirstOrDefault(item => item.Selection == _canvas.Selection);
@@ -1520,6 +1531,8 @@ public sealed class MainForm : Form
                     ? $" · Node {_canvas.SelectedVertexIndex + 1}"
                     : "";
                 _selectionInfoLabel.Text = $"互動 ID：{interactable.Id}{node}";
+                _selectionInfoLabel.Width = 225;
+                _copyInteractionIdButton.Visible = true;
                 _selectionNameText.Text = interactable.Label;
                 _interactionVerbText.Text = interactable.Verb;
                 _interactionTypeCombo.SelectedIndex = Math.Max(
@@ -1677,6 +1690,36 @@ public sealed class MainForm : Form
         {
             _syncingSelection = false;
         }
+    }
+
+    private void CopySelectedInteractionId()
+    {
+        var interactionId = _canvas.SelectedInteractable?.Id?.Trim();
+        if (string.IsNullOrWhiteSpace(interactionId))
+        {
+            _statusLabel.Text = "請先選取一個互動多邊形。";
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetText(interactionId);
+            _statusLabel.Text = $"已複製互動 ID：{interactionId}";
+        }
+        catch (ExternalException)
+        {
+            _statusLabel.Text = "剪貼簿目前忙碌，請稍後再試。";
+        }
+    }
+
+    private static void DrawCopyInteractionIdIcon(object? sender, PaintEventArgs e)
+    {
+        if (sender is not Button button) return;
+        using var pen = new Pen(
+            button.Enabled ? Color.FromArgb(192, 235, 230) : Color.FromArgb(105, 116, 122),
+            1.5f);
+        e.Graphics.DrawRectangle(pen, 8, 5, 9, 11);
+        e.Graphics.DrawRectangle(pen, 5, 8, 9, 11);
     }
 
     private void LayersListOnSelectedIndexChanged(object? sender, EventArgs e)
@@ -1998,6 +2041,19 @@ public sealed class MainForm : Form
 
             _canvas.SelectLayer(item.Selection);
             _canvas.RenameSelection(originalLabel);
+        }
+
+        var interactableItem = _layersList.Items
+            .Cast<LayerListItem>()
+            .First(candidate => candidate.Selection.Kind == SceneLayerKind.Interactable);
+        _canvas.SelectLayer(interactableItem.Selection);
+        RefreshSelectionUi();
+        if (!_copyInteractionIdButton.Visible ||
+            !_copyInteractionIdButton.Enabled ||
+            _copyInteractionIdButton.Size != new Size(24, 24) ||
+            !_copyInteractionIdButton.AccessibleName.Equals("複製互動 ID", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("互動 ID 複製按鈕沒有在互動圖層選取時正確顯示。");
         }
     }
 

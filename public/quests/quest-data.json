@@ -974,7 +974,7 @@
               "startDelaySeconds": 0,
               "startPresentationDelaySeconds": 0,
               "completionDelaySeconds": 0,
-              "completionPresentationDelaySeconds": 0,
+              "completionPresentationDelaySeconds": 2.5,
               "activationMode": "immediate",
               "activationEventId": "",
               "blocksStageCompletion": true,

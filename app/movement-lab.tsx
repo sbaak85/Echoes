@@ -3007,6 +3007,7 @@ export function MovementLab() {
     () => false,
   );
   const debugItemInputRef = useRef<HTMLInputElement>(null);
+  const lastDebugCommandRef = useRef("");
   const survivalFlowPausedRef = useRef(false);
   const restartConfirmationOpenRef = useRef(false);
   const restartConfirmationChoiceRef = useRef<"cancel" | "confirm">("cancel");
@@ -3022,6 +3023,7 @@ export function MovementLab() {
   const powerPuzzleOpenRef = useRef(false);
   const frequencyPuzzleOpenRef = useRef(false);
   const weldingPuzzleOpenRef = useRef(false);
+  const weldingPuzzleVirtualCursorAvailableRef = useRef(false);
   const puzzleSelectionOpenRef = useRef(false);
   const puzzleSelectionChoiceRef = useRef<"power" | "frequency">("power");
   const powerPuzzleSessionRef = useRef<PowerPuzzleSession | null>(null);
@@ -3180,6 +3182,8 @@ export function MovementLab() {
   const [powerPuzzleOpen, setPowerPuzzleOpen] = useState(false);
   const [frequencyPuzzleOpen, setFrequencyPuzzleOpen] = useState(false);
   const [weldingPuzzleOpen, setWeldingPuzzleOpen] = useState(false);
+  const [weldingPuzzleVirtualCursorAvailable, setWeldingPuzzleVirtualCursorAvailable] =
+    useState(false);
   const [weldingPuzzleSessionKey, setWeldingPuzzleSessionKey] = useState(0);
   const [puzzleSelectionOpen, setPuzzleSelectionOpen] = useState(false);
   const [puzzleSelectionChoice, setPuzzleSelectionChoice] =
@@ -3382,6 +3386,7 @@ export function MovementLab() {
     powerPuzzleOpenRef.current = false;
     frequencyPuzzleOpenRef.current = false;
     weldingPuzzleOpenRef.current = false;
+    weldingPuzzleVirtualCursorAvailableRef.current = false;
     puzzleSelectionOpenRef.current = false;
     powerPuzzleSessionRef.current = null;
     powerPuzzleGamepadModeRef.current = "dpad";
@@ -3389,6 +3394,7 @@ export function MovementLab() {
     setPowerPuzzleOpen(false);
     setFrequencyPuzzleOpen(false);
     setWeldingPuzzleOpen(false);
+    setWeldingPuzzleVirtualCursorAvailable(false);
     setPuzzleSelectionOpen(false);
   };
 
@@ -3401,7 +3407,10 @@ export function MovementLab() {
     frequencyPuzzleOpenRef.current = false;
     puzzleSelectionOpenRef.current = false;
     weldingPuzzleOpenRef.current = true;
+    weldingPuzzleVirtualCursorAvailableRef.current = true;
     powerPuzzleOpenRef.current = true;
+    powerPuzzleGamepadModeRef.current = "cursor";
+    powerPuzzleCursorRearmRequiredRef.current = false;
     powerPuzzleSessionRef.current = interactable && source
       ? { interactable, source }
       : null;
@@ -3409,10 +3418,28 @@ export function MovementLab() {
     setInventoryOpen(false);
     setFrequencyPuzzleOpen(false);
     setPuzzleSelectionOpen(false);
+    setWeldingPuzzleVirtualCursorAvailable(true);
     setWeldingPuzzleSessionKey((current) => current + 1);
     setWeldingPuzzleOpen(true);
     setPowerPuzzleOpen(true);
   };
+
+  const handleWeldingPuzzleVirtualCursorAvailabilityChange = useCallback(
+    (available: boolean) => {
+      weldingPuzzleVirtualCursorAvailableRef.current = available;
+      setWeldingPuzzleVirtualCursorAvailable(available);
+      if (available) {
+        powerPuzzleGamepadModeRef.current = "cursor";
+        powerPuzzleCursorRearmRequiredRef.current = false;
+      }
+    },
+    [],
+  );
+
+  const shouldWeldingPuzzleHandleGamepadConfirm = useCallback(
+    () => powerPuzzleGamepadModeRef.current !== "cursor",
+    [],
+  );
 
   const showWeldingResultFeedback = (message: string) => {
     hotbarUseSequenceRef.current += 1;
@@ -4499,7 +4526,9 @@ export function MovementLab() {
 
   const submitDebugItemSpawn = (event: ReactFormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const succeeded = debugItemSpawnHandlerRef.current(debugItemSpawnCommand);
+    const command = debugItemSpawnCommand.trim();
+    if (command.length > 0) lastDebugCommandRef.current = command;
+    const succeeded = debugItemSpawnHandlerRef.current(command);
     if (succeeded) {
       closeDebugItemSpawner();
       return;
@@ -6683,6 +6712,20 @@ export function MovementLab() {
       }
     };
 
+    const activateWeldingPuzzleDpadMode = () => {
+      powerPuzzleGamepadModeRef.current = "dpad";
+      powerPuzzleCursorRearmRequiredRef.current = true;
+      virtualCursorVisible = false;
+      deactivateGamepadCursor();
+      const focusedElement = document.activeElement;
+      if (
+        focusedElement instanceof HTMLElement &&
+        focusedElement.closest(".welding-puzzle-dialog")
+      ) {
+        focusedElement.blur();
+      }
+    };
+
     const activateCurrentPuzzleControlMode = () => {
       if (frequencyPuzzleOpenRef.current) {
         activateFrequencyPuzzleControlMode();
@@ -8273,18 +8316,19 @@ export function MovementLab() {
       if (objectives.length === 0) return false;
       const prompt = getQuestItemSubmissionPrompt(interactable, source, true);
       if (!prompt) {
-        const missingNames = objectives
-          .map((entry) => entry.objective.itemRequirements?.[0]?.itemId)
-          .filter((itemId): itemId is string => Boolean(itemId))
-          .map((itemId) => ITEM_BY_ID.get(itemId)?.name ?? itemId);
-        showInteractionItemFeedback(
-          missingNames.length > 0
-            ? `目前沒有可投入的任務零件：${missingNames.join("、")}`
-            : "目前沒有可投入的任務零件。",
-        );
+        openInteractionFailureDialogue(interactable, source);
         return true;
       }
-      showQuestItemSubmissionPrompt(prompt);
+
+      const openSubmissionPrompt = () => {
+        showQuestItemSubmissionPrompt(prompt);
+      };
+      const successDialogue = selectInteractionDialogue(interactable, "success");
+      if (successDialogue) {
+        openDialogue(interactable, openSubmissionPrompt, successDialogue);
+      } else {
+        openSubmissionPrompt();
+      }
       return true;
     };
 
@@ -8316,7 +8360,15 @@ export function MovementLab() {
         return true;
       }
       if (interactable.id === WELDING_ROUTE_INTERACTION_ID) {
-        openWeldingPuzzle(interactable, source);
+        const startWeldingPuzzle = () => {
+          openWeldingPuzzle(interactable, source);
+        };
+        const successDialogue = selectInteractionDialogue(interactable, "success");
+        if (successDialogue) {
+          openDialogue(interactable, startWeldingPuzzle, successDialogue);
+        } else {
+          startWeldingPuzzle();
+        }
         if (source === "pointer") {
           pointerInteractionTriggeredId = interactable.id;
         }
@@ -8802,7 +8854,7 @@ export function MovementLab() {
       }
 
       return element.closest(
-        ".inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .dialogue-box, .quest-hud",
+        ".inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .dialogue-box, .quest-hud",
       )
         ? "blocked"
         : "none";
@@ -10508,6 +10560,14 @@ export function MovementLab() {
       if (!powerPuzzleOpenRef.current) {
         powerPuzzleCursorShownForSession = false;
       } else if (
+        weldingPuzzleOpenRef.current &&
+        !weldingPuzzleVirtualCursorAvailableRef.current
+      ) {
+        powerPuzzleCursorShownForSession = false;
+        powerPuzzleGamepadModeRef.current = "dpad";
+        virtualCursorVisible = false;
+        deactivateGamepadCursor();
+      } else if (
         gamepadInput.connected &&
         !frequencyPuzzleOpenRef.current &&
         !powerPuzzleCursorShownForSession
@@ -10540,6 +10600,7 @@ export function MovementLab() {
       }
       const powerPuzzleDirectionalInputActive =
         powerPuzzleOpenRef.current &&
+        !weldingPuzzleOpenRef.current &&
         (Math.abs(gamepadInput.dpadX) > 0 ||
           Math.abs(gamepadInput.dpadY) > 0 ||
           Math.abs(gamepadInput.stickX) >= 0.65 ||
@@ -10548,6 +10609,16 @@ export function MovementLab() {
             Math.abs(gamepadInput.cursorX) >= 0.18));
       if (powerPuzzleDirectionalInputActive) {
         activateCurrentPuzzleControlMode();
+      }
+      const weldingPuzzleDirectionalInputActive =
+        weldingPuzzleOpenRef.current &&
+        weldingPuzzleVirtualCursorAvailableRef.current &&
+        (Math.abs(gamepadInput.dpadX) > 0 ||
+          Math.abs(gamepadInput.dpadY) > 0 ||
+          Math.abs(gamepadInput.stickX) >= 0.65 ||
+          Math.abs(gamepadInput.stickY) >= 0.65);
+      if (weldingPuzzleDirectionalInputActive) {
+        activateWeldingPuzzleDpadMode();
       }
       if (
         campPowerConfirmationOpenRef.current &&
@@ -10584,11 +10655,17 @@ export function MovementLab() {
             cursorInputLength,
           )) &&
         (!powerPuzzleOpenRef.current ||
-          (!frequencyPuzzleOpenRef.current &&
-            !powerPuzzleDirectionalInputActive &&
-            !powerPuzzleCursorRearmRequiredRef.current &&
-            (powerPuzzleGamepadModeRef.current === "cursor" ||
-              cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD))) &&
+          (weldingPuzzleOpenRef.current
+            ? weldingPuzzleVirtualCursorAvailableRef.current &&
+              !weldingPuzzleDirectionalInputActive &&
+              !powerPuzzleCursorRearmRequiredRef.current &&
+              (powerPuzzleGamepadModeRef.current === "cursor" ||
+                cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD)
+            : !frequencyPuzzleOpenRef.current &&
+              !powerPuzzleDirectionalInputActive &&
+              !powerPuzzleCursorRearmRequiredRef.current &&
+              (powerPuzzleGamepadModeRef.current === "cursor" ||
+                cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD))) &&
         (!campPowerConfirmationOpenRef.current ||
           (!campPowerConfirmationDirectionalInputActive &&
             !campPowerConfirmationCursorRearmRequiredRef.current &&
@@ -10827,7 +10904,9 @@ export function MovementLab() {
           });
         }
         const verticalInput =
-          Math.abs(gamepadInput.dpadY) > 0
+          weldingPuzzleOpenRef.current
+            ? 0
+            : Math.abs(gamepadInput.dpadY) > 0
             ? gamepadInput.dpadY
             : !frequencyPuzzleOpenRef.current &&
                 Math.abs(gamepadInput.stickY) >= 0.65
@@ -10869,7 +10948,9 @@ export function MovementLab() {
         }
 
         const horizontalInput =
-          Math.abs(gamepadInput.dpadX) > 0
+          weldingPuzzleOpenRef.current
+            ? 0
+            : Math.abs(gamepadInput.dpadX) > 0
             ? gamepadInput.dpadX
             : !frequencyPuzzleOpenRef.current &&
                 Math.abs(gamepadInput.stickX) >= 0.65
@@ -10922,7 +11003,16 @@ export function MovementLab() {
           gamepadInput.confirmPressed &&
           !wasGamepadConfirmPressed
         ) {
-          if (powerPuzzleGamepadModeRef.current === "cursor") {
+          if (weldingPuzzleOpenRef.current) {
+            if (
+              weldingPuzzleVirtualCursorAvailableRef.current &&
+              powerPuzzleGamepadModeRef.current === "cursor"
+            ) {
+              activateVirtualCursorUi();
+            }
+            // Directional-selection confirmation is owned by the welding
+            // component after the interaction-opening A press is released.
+          } else if (powerPuzzleGamepadModeRef.current === "cursor") {
             activateVirtualCursorUi();
           } else if (puzzleSelectionOpenRef.current) {
             playOneShotAudio("uiInput");
@@ -12275,6 +12365,14 @@ export function MovementLab() {
               } else if (event.key === "Enter") {
                 event.preventDefault();
                 event.currentTarget.form?.requestSubmit();
+              } else if (event.key === "ArrowUp" && lastDebugCommandRef.current) {
+                event.preventDefault();
+                const recalledCommand = lastDebugCommandRef.current;
+                const input = event.currentTarget;
+                setDebugItemSpawnCommand(recalledCommand);
+                window.setTimeout(() => {
+                  input.setSelectionRange(recalledCommand.length, recalledCommand.length);
+                }, 0);
               }
             }}
             placeholder="Game 3／Time 2000／Item All／道具ID 數量"
@@ -13033,6 +13131,10 @@ export function MovementLab() {
           }}
           onRequestNextStage={() => false}
           onSparkActivityChange={setWeldingSparkAudioActive}
+          onVirtualCursorAvailabilityChange={
+            handleWeldingPuzzleVirtualCursorAvailabilityChange
+          }
+          shouldHandleGamepadConfirm={shouldWeldingPuzzleHandleGamepadConfirm}
         />
       ) : null}
 
@@ -13677,7 +13779,7 @@ export function MovementLab() {
 
       <canvas
         ref={cursorCanvasRef}
-        className={`cursor-layer${powerPuzzleOpen || campPowerConfirmationOpen || sceneConnectionConfirmation ? " is-over-modal" : ""}${weldingPuzzleOpen ? " is-hidden-for-welding" : ""}`}
+        className={`cursor-layer${powerPuzzleOpen || campPowerConfirmationOpen || sceneConnectionConfirmation ? " is-over-modal" : ""}${weldingPuzzleOpen && !weldingPuzzleVirtualCursorAvailable ? " is-hidden-for-welding" : ""}`}
         aria-hidden="true"
       />
       </main>

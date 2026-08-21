@@ -22,4 +22,24 @@ test("movement lab wires Game 1 through Game 3 and remounts welding sessions", (
   assert.match(source, /gameCommand\.gameNumber === 3/);
   assert.match(source, /setWeldingPuzzleSessionKey\(\(current\) => current \+ 1\)/);
   assert.match(source, /showWeldingResultFeedback\("金屬碎片 -1"\)/);
+  assert.match(source, /powerPuzzleOpenRef\.current &&\s*!weldingPuzzleOpenRef\.current/);
+  assert.match(source, /weldingPuzzleVirtualCursorAvailableRef = useRef\(false\)/);
+  assert.match(source, /activateWeldingPuzzleDpadMode/);
+  assert.match(source, /weldingPuzzleOpen && !weldingPuzzleVirtualCursorAvailable \? " is-hidden-for-welding"/);
+  assert.match(
+    source,
+    /weldingPuzzleVirtualCursorAvailableRef\.current &&[\s\S]*powerPuzzleGamepadModeRef\.current === "cursor"[\s\S]*activateVirtualCursorUi\(\)/,
+  );
+  assert.match(source, /shouldHandleGamepadConfirm=\{shouldWeldingPuzzleHandleGamepadConfirm\}/);
+  const weldingFailureHandler = source.match(/onFail=\{\(\) => \{([\s\S]*?)\n\s*\}\}/)?.[1] ?? "";
+  assert.doesNotMatch(weldingFailureHandler, /removeInventoryItem|R0009/);
+});
+
+test("debug command input recalls the last submitted command with ArrowUp", () => {
+  const source = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(source, /const lastDebugCommandRef = useRef\(""\)/);
+  assert.match(source, /if \(command\.length > 0\) lastDebugCommandRef\.current = command/);
+  assert.match(source, /event\.key === "ArrowUp" && lastDebugCommandRef\.current/);
+  assert.match(source, /setDebugItemSpawnCommand\(recalledCommand\)/);
+  assert.match(source, /input\.setSelectionRange\(recalledCommand\.length, recalledCommand\.length\)/);
 });

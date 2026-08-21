@@ -4011,7 +4011,7 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "..."
+            "text": "\u6211\u770B\u770B...\u628A\u9019\u500B\u96F6\u4EF6\u5B89\u88DD\u4E0A\u53BB\u3002"
           }
         ]
       },
@@ -4024,7 +4024,21 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+            "text": "\u5982\u679C\u6C92\u6709\u5168\u90E8\u7684\u96F6\u4EF6\u662F\u6C92\u6709\u8FA6\u6CD5\u7D44\u88DD\u7684\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u7E3D\u5171\u9700\u8981...\u901A\u8A0A\u9762\u677F\u3001\u91CF\u5B50\u50B3\u8F38\u3001\u6821\u6B63\u5143\u4EF6...\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "speaker": "Sbaak",
+            "text": "\u597D\u50CF\u5C11\u4E86\u5E7E\u500B\u96F6\u4EF6...\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           }
         ]
       },
@@ -4037,7 +4051,7 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u9019\u500B\u8981\u5B89\u88DD\u7684\u6771\u897F\u5F88\u591A...\u8B93\u6211\u56DE\u5FA9\u4E00\u9EDE\u9AD4\u529B\u3002"
+            "text": "\u9019\u500B\u8981\u5B89\u88DD\u7684\u6771\u897F\u5F88\u591A...\u9700\u8981\u56DE\u5FA9\u4E00\u9EDE\u9AD4\u529B\u3002"
           }
         ]
       },
@@ -4050,7 +4064,7 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u9019\u6A23\u5C31\u88DD\u597D\u96F6\u4EF6\u4E86!"
+            "text": "\u9019\u6A23\u5C31\u5B89\u88DD\u597D\u8DB3\u5920\u7684\u96F6\u4EF6\u4E86!"
           }
         ]
       }
@@ -4105,6 +4119,14 @@
           "comparison": "atLeast",
           "value": 60
         },
+        "hunger": {
+          "comparison": "atLeast",
+          "value": 50
+        },
+        "thirst": {
+          "comparison": "atLeast",
+          "value": 50
+        },
         "spirit": {
           "comparison": "atLeast",
           "value": 60
@@ -4142,6 +4164,18 @@
           "disableStageId": "",
           "quantity": 1,
           "chapter": 1
+        },
+        {
+          "kind": "item",
+          "scope": "interaction",
+          "itemId": "R0009",
+          "questId": "",
+          "stageId": "",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
         }
       ],
       "interactionPoints": [
@@ -4170,7 +4204,7 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "..."
+            "text": "\u6E96\u5099\u597D\u53EF\u4EE5\u958B\u59CB\u7D44\u88DD\u4E86\u3002"
           }
         ]
       },
@@ -4183,7 +4217,7 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+            "text": "\u554A...\u8981\u7D44\u88DD\u5FC5\u9808\u8981\u6709\u710A\u69CD\u5DE5\u5177\u8DDF\u81F3\u5C11\u4E00\u584A\u91D1\u5C6C\u7247\u7576\u52A9\u710A\u5291\u624D\u80FD\u9032\u884C!"
           }
         ]
       },
@@ -4209,7 +4243,7 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u9019\u6A23\u5C31\u710A\u63A5\u597D\u4E86! \u5F37\u5EA6...\u6C92\u554F\u984C!"
+            "text": "\u7D44\u88DD\u5B8C\u6210!"
           }
         ]
       }

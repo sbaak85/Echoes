@@ -63,6 +63,14 @@ export type WeldingBackwardHysteresisResolution = {
   shouldCommit: boolean;
 };
 
+export type WeldingRouteFailureState = {
+  wrongBranchActive: boolean;
+  wrongDistance: number;
+  failed: boolean;
+};
+
+export type WeldingEndpointResult = "not-end" | "correct" | "wrong";
+
 type SourceRoute = {
   id: string;
   points: WeldingPoint[];
@@ -74,6 +82,114 @@ const NODE_PRECISION = 1000;
 export const WELDING_ROUTE_VIEWBOX = {
   width: 441,
   height: 320,
+};
+
+export const createWeldingRouteFailureState = (): WeldingRouteFailureState => ({
+  wrongBranchActive: false,
+  wrongDistance: 0,
+  failed: false,
+});
+
+export const isWeldingRouteComparisonNode = (
+  graph: WeldingRouteGraph,
+  nodeId: string,
+) => {
+  if (graph.startNodeIds.includes(nodeId) || graph.endNodeIds.includes(nodeId)) {
+    return true;
+  }
+  const incidentEdgeCount = graph.edges.filter(
+    (edge) => edge.from === nodeId || edge.to === nodeId,
+  ).length;
+  return incidentEdgeCount > 2;
+};
+
+/**
+ * Route correctness is evaluated only when leaving a start/fork/end node.
+ * Ordinary degree-two corners never trigger an answer comparison.
+ */
+export const resolveWeldingRouteNodeChoice = ({
+  state,
+  graph,
+  correctEdgeIds,
+  nodeId,
+  selectedEdgeId,
+  leavingForward,
+}: {
+  state: WeldingRouteFailureState;
+  graph: WeldingRouteGraph;
+  correctEdgeIds: string[];
+  nodeId: string;
+  selectedEdgeId: string;
+  leavingForward: boolean;
+}): WeldingRouteFailureState => {
+  if (!isWeldingRouteComparisonNode(graph, nodeId) || !leavingForward) {
+    return state;
+  }
+  const correctEdgeSet = new Set(correctEdgeIds);
+  const expectedEdge = graph.edges.find(
+    (edge) => edge.from === nodeId && correctEdgeSet.has(edge.id),
+  );
+  if (expectedEdge?.id === selectedEdgeId) {
+    return createWeldingRouteFailureState();
+  }
+  return {
+    wrongBranchActive: true,
+    wrongDistance: state.wrongDistance,
+    failed: false,
+  };
+};
+
+/**
+ * Reaching an end node is an immediate hard checkpoint. A wrong endpoint must
+ * fail even when its branch is shorter than the ordinary 100px grace distance.
+ */
+export const resolveWeldingEndpointResult = ({
+  graph,
+  correctEdgeIds,
+  selectedEdge,
+}: {
+  graph: WeldingRouteGraph;
+  correctEdgeIds: string[];
+  selectedEdge: WeldingRouteEdge;
+}): WeldingEndpointResult => {
+  if (!graph.endNodeIds.includes(selectedEdge.to)) return "not-end";
+  return selectedEdge.id === correctEdgeIds.at(-1) ? "correct" : "wrong";
+};
+
+/**
+ * Once a node has armed a wrong branch, travel only performs signed distance
+ * accumulation. Forward movement adds distance; retracing the same graph
+ * edges subtracts it, so a player can return before the grace distance expires.
+ */
+export const advanceWeldingWrongRouteDistance = ({
+  state,
+  start,
+  end,
+  failureDistance,
+  scaleX = 1,
+  scaleY = 1,
+}: {
+  state: WeldingRouteFailureState;
+  start: WeldingTrackProjection;
+  end: WeldingTrackProjection;
+  failureDistance: number;
+  scaleX?: number;
+  scaleY?: number;
+}): WeldingRouteFailureState => {
+  if (!state.wrongBranchActive || state.failed || start.edge.id !== end.edge.id) {
+    return state;
+  }
+  const renderedEdgeLength = Math.hypot(
+    (end.edge.end.x - end.edge.start.x) * scaleX,
+    (end.edge.end.y - end.edge.start.y) * scaleY,
+  );
+  const signedDistance = (end.t - start.t) * renderedEdgeLength;
+  const wrongDistance = Math.max(0, state.wrongDistance + signedDistance);
+  return {
+    wrongBranchActive: true,
+    wrongDistance,
+    failed: wrongDistance > failureDistance,
+  };
 };
 
 export const resolveWeldingBackwardHysteresis = ({
