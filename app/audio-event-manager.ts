@@ -11,10 +11,10 @@ export type AudioEventDefinition = {
   volume: number;
   /** 每次事件成立後延遲幾秒才開始播放。 */
   delaySeconds: number;
-  /** 大於 0 時，聲音開始播放後由靜音平滑淡入至設定音量。 */
-  fadeInSeconds?: number;
-  /** 大於 0 時，聲音結束前由設定音量平滑淡出至靜音。 */
-  fadeOutSeconds?: number;
+  /** 音檔總長的 0～100%；大於 0 時由靜音平滑淡入至設定音量。 */
+  fadeInPercent?: number;
+  /** 音檔總長的 0～100%；大於 0 時於自然播放結束前平滑淡出至靜音。 */
+  fadeOutPercent?: number;
   /** 省略時預設單次；BGM、腳步、打字音等持續聲音設為 true。 */
   loop?: boolean;
 };
@@ -42,7 +42,9 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 0.35,
       "delaySeconds": 0,
-      "loop": true
+      "loop": true,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "footsteps": {
       "label": "草地腳步",
@@ -55,7 +57,9 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 0.5,
       "delaySeconds": 0,
-      "loop": true
+      "loop": true,
+      "fadeInPercent": 1,
+      "fadeOutPercent": 0
     },
     "dialogueTyping": {
       "label": "對話文字打字效果",
@@ -180,6 +184,66 @@ export const AUDIO_EVENT_CONFIG = (
       "volume": 0.9,
       "delaySeconds": 0
     },
+    "crystalMiningSucceeded": {
+      "label": "藍色晶體採礦成功",
+      "trigger": "interaction-006 成功完成，且藍色晶體碎片的地面 Spawn 獎勵已成功建立後播放一次；需求不足、超過每日次數或找不到合法 Spawn 落點時不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/採礦聲1.mp3"
+      ],
+      "sources": [
+        "./audio/mining-1.mp3"
+      ],
+      "volume": 0.7,
+      "delaySeconds": 0
+    },
+    "emergencyRationConsumed": {
+      "label": "成功食用緊急口糧",
+      "trigger": "玩家從背包或快捷工具列成功使用 R0005 緊急口糧，生存數值已套用且道具已扣除後播放一次；無法使用或數值已滿時不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/飲食1.mp3"
+      ],
+      "sources": [
+        "./audio/eating-1.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0
+    },
+    "purifiedWaterConsumed": {
+      "label": "成功飲用淨水瓶",
+      "trigger": "玩家從背包或快捷工具列成功使用 R0004 淨水瓶，口渴數值已恢復且道具已扣除後播放一次；無法使用或口渴已滿時不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/飲水2.mp3"
+      ],
+      "sources": [
+        "./audio/drinking-2.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0
+    },
+    "alienFruitConsumed": {
+      "label": "成功食用外星果實",
+      "trigger": "玩家從背包或快捷工具列成功使用 R0012 外星果實，生存數值已套用且道具已扣除後播放一次；無法使用或數值已滿時不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/吃水果.mp3"
+      ],
+      "sources": [
+        "./audio/eat-fruit.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0
+    },
+    "generatorPanelOpened": {
+      "label": "共振發電機蓋板拆開成功",
+      "trigger": "interaction-020 成功完成且其地面 Spawn 獎勵已成功建立後播放一次；需求不足、互動已使用或找不到合法 Spawn 落點時不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/拆開面板2.mp3"
+      ],
+      "sources": [
+        "./audio/panel-open-2.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0
+    },
     "questCompleted": {
       "label": "任務完成提示",
       "trigger": "任務提示 UI 開始播放綠色 COMPLETE 底光與外框擴散演出的瞬間播放一次。",
@@ -213,10 +277,10 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/generator-startup-1.mp3"
       ],
-      "volume": 1,
+      "volume": 0.9,
       "delaySeconds": 0,
-      "fadeInSeconds": 0.3,
-      "fadeOutSeconds": 0.3
+      "fadeInPercent": 0,
+      "fadeOutPercent": 15
     },
     "generatorStartup2": {
       "label": "發電機成功啟動－第二段",
@@ -227,10 +291,10 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/generator-startup-2.mp3"
       ],
-      "volume": 0.8,
+      "volume": 0.7,
       "delaySeconds": 1,
-      "fadeInSeconds": 0.3,
-      "fadeOutSeconds": 0.3
+      "fadeInPercent": 0,
+      "fadeOutPercent": 15
     },
     "generatorRunning": {
       "label": "發電機成功啟動－運作聲",
@@ -243,8 +307,8 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 0.7,
       "delaySeconds": 1.5,
-      "fadeInSeconds": 0.3,
-      "fadeOutSeconds": 0.3
+      "fadeInPercent": 0,
+      "fadeOutPercent": 15
     },
     "weldingSparksLayer1": {
       "label": "焊接火星混音－第一層",
@@ -257,7 +321,9 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 0.4,
       "delaySeconds": 0,
-      "loop": true
+      "loop": true,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "weldingSparksLayer2": {
       "label": "焊接火星混音－第二層",
@@ -270,13 +336,70 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 0.4,
       "delaySeconds": 0,
-      "loop": true
+      "loop": true,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "weldingFailed": {
+      "label": "焊接失敗提示",
+      "trigger": "焊接小遊戲判定失敗，紅色「焊接錯誤了」底板實際出現時播放一次；後續失敗檢視、退出、耗材扣除與失敗對話不重複播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/焊接失敗.mp3"
+      ],
+      "sources": [
+        "./audio/welding-failed.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "weldingSucceeded": {
+      "label": "焊接成功提示",
+      "trigger": "焊接小遊戲正式判定成功，綠色「焊接成功」底板實際出現時播放一次；確認完成與後續成功對話不重複播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/調頻成功.mp3"
+      ],
+      "sources": [
+        "./audio/frequency-lock-success.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     }
   }
   /* AUDIO_EVENT_CONFIG_END */
 ) as const satisfies Record<string, AudioEventDefinition>;
 
 export type AudioEventName = keyof typeof AUDIO_EVENT_CONFIG;
+
+const SUCCESSFUL_ITEM_USE_AUDIO_EVENT_BY_ITEM_ID = {
+  R0004: "purifiedWaterConsumed",
+  R0005: "emergencyRationConsumed",
+  R0012: "alienFruitConsumed",
+} as const satisfies Readonly<Record<string, AudioEventName>>;
+
+const SUCCESSFUL_INTERACTION_AUDIO_EVENT_BY_INTERACTION_ID = {
+  "interaction-006": "crystalMiningSucceeded",
+  "interaction-020": "generatorPanelOpened",
+} as const satisfies Readonly<Record<string, AudioEventName>>;
+
+export function getSuccessfulItemUseAudioEvent(
+  itemId: string,
+): AudioEventName | null {
+  return SUCCESSFUL_ITEM_USE_AUDIO_EVENT_BY_ITEM_ID[
+    itemId as keyof typeof SUCCESSFUL_ITEM_USE_AUDIO_EVENT_BY_ITEM_ID
+  ] ?? null;
+}
+
+export function getSuccessfulInteractionAudioEvent(
+  interactionId: string,
+): AudioEventName | null {
+  return SUCCESSFUL_INTERACTION_AUDIO_EVENT_BY_INTERACTION_ID[
+    interactionId as keyof typeof SUCCESSFUL_INTERACTION_AUDIO_EVENT_BY_INTERACTION_ID
+  ] ?? null;
+}
 
 /**
  * 兩條音軌在遊戲端只以一個「焊接火星混音」事件控制。
@@ -352,6 +475,19 @@ type StopOptions = {
 
 function clampVolume(value: number) {
   return Math.min(1, Math.max(0, value));
+}
+
+function clampPercent(value: number | undefined) {
+  return Math.min(100, Math.max(0, value ?? 0));
+}
+
+/** 將音檔總長百分比換算成實際淡入／淡出毫秒數。 */
+export function getAudioFadeDurationMilliseconds(
+  durationSeconds: number,
+  fadePercent: number | undefined,
+) {
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return 0;
+  return durationSeconds * 1000 * clampPercent(fadePercent) / 100;
 }
 
 export class AudioEventManager {
@@ -537,19 +673,13 @@ export class AudioEventManager {
     }
 
     if (this.disposed || runtime.requestId !== requestId) return;
-    const fadeInMilliseconds = Math.max(
-      0,
-      (runtime.definition.fadeInSeconds ?? 0) * 1000,
-    );
-    const fadeOutMilliseconds = Math.max(
-      0,
-      (runtime.definition.fadeOutSeconds ?? 0) * 1000,
-    );
+    const fadeInPercent = clampPercent(runtime.definition.fadeInPercent);
+    const fadeOutPercent = clampPercent(runtime.definition.fadeOutPercent);
     const targetVolume = clampVolume(runtime.definition.volume);
-    if (fadeInMilliseconds > 0) runtime.audio.volume = 0;
+    if (fadeInPercent > 0) runtime.audio.volume = 0;
     await runtime.audio.play();
     if (
-      (fadeInMilliseconds > 0 || fadeOutMilliseconds > 0) &&
+      (fadeInPercent > 0 || fadeOutPercent > 0) &&
       !this.disposed &&
       runtime.requestId === requestId
     ) {
@@ -557,8 +687,8 @@ export class AudioEventManager {
         runtime,
         requestId,
         targetVolume,
-        fadeInMilliseconds,
-        fadeOutMilliseconds,
+        fadeInPercent,
+        fadeOutPercent,
       );
     }
   }
@@ -567,21 +697,31 @@ export class AudioEventManager {
     runtime: AudioEventRuntime,
     requestId: number,
     targetVolume: number,
-    fadeInMilliseconds: number,
-    fadeOutMilliseconds: number,
+    fadeInPercent: number,
+    fadeOutPercent: number,
   ) {
     const smoothstep = (progress: number) =>
       progress * progress * (3 - 2 * progress);
     const updateVolume = () => {
       if (this.disposed || runtime.requestId !== requestId) return;
       const playbackMilliseconds = runtime.audio.currentTime * 1000;
-      const fadeInProgress = fadeInMilliseconds > 0
-        ? Math.min(1, Math.max(0, playbackMilliseconds / fadeInMilliseconds))
+      const fadeInMilliseconds = getAudioFadeDurationMilliseconds(
+        runtime.audio.duration,
+        fadeInPercent,
+      );
+      const fadeOutMilliseconds = getAudioFadeDurationMilliseconds(
+        runtime.audio.duration,
+        fadeOutPercent,
+      );
+      const fadeInProgress = fadeInPercent > 0
+        ? fadeInMilliseconds > 0
+          ? Math.min(1, Math.max(0, playbackMilliseconds / fadeInMilliseconds))
+          : 0
         : 1;
       const remainingMilliseconds = Number.isFinite(runtime.audio.duration)
         ? Math.max(0, runtime.audio.duration * 1000 - playbackMilliseconds)
         : Number.POSITIVE_INFINITY;
-      const fadeOutProgress = fadeOutMilliseconds > 0
+      const fadeOutProgress = fadeOutPercent > 0 && fadeOutMilliseconds > 0
         ? Math.min(1, Math.max(0, remainingMilliseconds / fadeOutMilliseconds))
         : 1;
       runtime.audio.volume = clampVolume(

@@ -795,6 +795,14 @@ html.dialogue-cursor-active .dialogue-box * {
   cursor: pointer !important;
 }
 
+/* A dialogue can open directly after a gamepad-driven puzzle. Until a real
+   mouse move takes ownership, keep the physical pointer hidden so it does not
+   overlap the game's virtual dialogue cursor. */
+html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box,
+html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
+  cursor: none !important;
+}
+
 .top-left-hud {
   position: absolute;
   z-index: 3;
@@ -3716,6 +3724,352 @@ html.dialogue-cursor-active .dialogue-box * {
   font-size: 12px;
 }
 
+.quest-item-submission-confirmation {
+  width: min(690px, calc(100% - 24px));
+}
+
+.item-change-visualization {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(48px, 9vw, 82px) minmax(86px, 0.42fr);
+  align-items: center;
+  gap: 12px;
+  margin: 18px 22px 10px;
+  padding: 16px;
+  border: 1px solid rgba(73, 216, 217, 0.3);
+  background:
+    linear-gradient(90deg, rgba(21, 91, 89, 0.06), transparent 34%, transparent 66%, rgba(21, 91, 89, 0.06)),
+    rgba(3, 18, 22, 0.78);
+}
+
+.item-change-visual-group {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: clamp(8px, 1.6vw, 14px);
+  min-width: 0;
+}
+
+.item-change-visual-card {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: #b9dfdd;
+}
+
+.item-change-visual-icon {
+  position: relative;
+  display: grid;
+  width: 68px;
+  height: 68px;
+  place-items: center;
+  overflow: hidden;
+  border: 2px solid rgba(123, 202, 199, 0.7);
+  border-radius: 7px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(80, 219, 213, 0.16), transparent 68%),
+    rgba(10, 35, 38, 0.94);
+  box-shadow: inset 0 0 18px rgba(64, 198, 193, 0.06);
+  color: #8de5e0;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.item-change-visual-icon > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.item-change-visual-icon > .item-change-visual-quantity {
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  padding: 2px 3px;
+  border-radius: 2px;
+  background: rgba(2, 13, 17, 0.82);
+  color: #efffff;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.item-change-visual-card.has-outside-quantity {
+  grid-template-areas:
+    "icon quantity"
+    "label label";
+  grid-template-columns: 68px minmax(34px, auto);
+  column-gap: 10px;
+}
+
+.item-change-visual-card.has-outside-quantity .item-change-visual-icon {
+  grid-area: icon;
+}
+
+.item-change-visual-card > .item-change-visual-quantity.is-outside {
+  grid-area: quantity;
+  align-self: center;
+  justify-self: start;
+  color: #efffff;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  text-shadow: 0 2px 7px rgba(0, 0, 0, 0.68);
+}
+
+.item-change-visual-card.has-outside-quantity > small {
+  grid-area: label;
+}
+
+.item-change-visual-card > small {
+  max-width: 92px;
+  overflow: hidden;
+  color: currentColor;
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-change-visual-card.is-missing {
+  opacity: 0.38;
+  filter: saturate(0.35);
+}
+
+.item-change-visual-card.is-submitted {
+  color: #a8f2c6;
+}
+
+.item-change-visual-card.is-submitted .item-change-visual-icon {
+  border-color: #70e7a4;
+  background:
+    linear-gradient(rgba(32, 151, 91, 0.7), rgba(17, 90, 59, 0.82)),
+    rgba(8, 39, 28, 0.95);
+  box-shadow: 0 0 15px rgba(77, 231, 143, 0.22);
+  animation: item-change-submitted 260ms ease-out both;
+}
+
+.item-change-visual-check {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(7, 75, 46, 0.32);
+  color: #d9ffe8;
+  font-family: Arial, sans-serif;
+  font-size: 34px;
+  font-style: normal;
+  font-weight: 800;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.62);
+}
+
+.item-change-visual-arrow {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 28px;
+}
+
+.item-change-visual-arrow::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  right: 9px;
+  left: 0;
+  height: 5px;
+  border-radius: 4px 0 0 4px;
+  background: #d7e3e0;
+  box-shadow: 0 0 8px rgba(186, 236, 232, 0.18);
+}
+
+.item-change-visual-arrow::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 0;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-left: 15px solid #d7e3e0;
+}
+
+.quest-item-submission-visualization .item-change-visual-group.is-target .item-change-visual-icon {
+  width: 82px;
+  height: 82px;
+  border-color: rgba(218, 232, 228, 0.84);
+  background: rgba(214, 222, 220, 0.94);
+}
+
+.quest-item-submission-visualization .item-change-visual-group.is-source .item-change-visual-card {
+  container-type: inline-size;
+  flex: 1 1 0;
+  width: 0;
+}
+
+.quest-item-submission-visualization .item-change-visual-card > small {
+  width: 100%;
+  max-width: none;
+  font-size: clamp(10px, 14cqi, 16px);
+  text-overflow: clip;
+}
+
+.quest-item-submission-visualization .item-change-visual-group.is-target .item-change-visual-card > small {
+  width: auto;
+  max-width: 110px;
+  font-size: 16px;
+}
+
+.quest-item-submission-visualization .item-change-visual-icon > .item-change-visual-quantity {
+  right: 3px;
+  bottom: 3px;
+  padding: 2px;
+  font-size: 18px;
+  font-weight: 700;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.78);
+}
+
+.quest-item-submission-confirmation .camp-power-confirmation-owned {
+  margin-right: 22px;
+  margin-left: 22px;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.camp-power-confirmation-actions button:disabled,
+.camp-power-confirmation-actions button:disabled:hover,
+.camp-power-confirmation-actions button:disabled.is-selected {
+  border-color: rgba(116, 167, 166, 0.18);
+  background: rgba(9, 20, 22, 0.76);
+  box-shadow: none;
+  color: rgba(175, 195, 194, 0.34);
+  cursor: not-allowed;
+}
+
+@keyframes item-change-submitted {
+  0% { transform: scale(0.88); filter: brightness(1.5); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+.item-use-confirmation {
+  width: min(600px, calc(100% - 24px));
+}
+
+.item-use-confirmation h3 {
+  padding: 0 26px;
+  font-size: clamp(20px, 2.5vw, 25px);
+  line-height: 1.5;
+}
+
+.item-use-confirmation h3 > span {
+  display: block;
+}
+
+.item-use-change-visualization {
+  grid-template-columns: minmax(92px, 1fr) 80px minmax(92px, 1fr);
+  margin-top: 16px;
+  border-color: rgba(211, 173, 84, 0.28);
+  background:
+    linear-gradient(90deg, rgba(177, 126, 37, 0.05), transparent 38%, transparent 62%, rgba(177, 126, 37, 0.05)),
+    rgba(5, 18, 21, 0.78);
+}
+
+.item-use-change-visualization .item-change-visual-icon {
+  border-color: rgba(209, 181, 112, 0.72);
+  background:
+    radial-gradient(circle at 50% 42%, rgba(226, 184, 82, 0.14), transparent 68%),
+    rgba(18, 32, 33, 0.96);
+  color: #e2c26f;
+}
+
+.item-use-change-visualization .item-change-visual-card {
+  container-type: inline-size;
+}
+
+.item-use-change-visualization .item-change-visual-card > small {
+  width: 100%;
+  max-width: 150px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: clip;
+}
+
+.item-use-change-visualization .item-change-visual-arrow::before {
+  background: #f0e7ce;
+}
+
+.item-use-change-visualization .item-change-visual-arrow::after {
+  border-left-color: #f0e7ce;
+}
+
+@media (max-width: 620px) {
+  .item-change-visualization {
+    grid-template-columns: minmax(0, 1fr) 38px minmax(72px, 0.38fr);
+    gap: 7px;
+    margin-right: 12px;
+    margin-left: 12px;
+    padding: 12px 8px;
+  }
+
+  .item-change-visual-group {
+    gap: 5px;
+  }
+
+  .item-change-visual-icon {
+    width: 52px;
+    height: 52px;
+    font-size: 27px;
+  }
+
+  .item-change-visual-card.has-outside-quantity {
+    grid-template-columns: 52px minmax(28px, auto);
+    column-gap: 7px;
+  }
+
+  .item-change-visual-card > .item-change-visual-quantity.is-outside {
+    font-size: 24px;
+  }
+
+  .quest-item-submission-visualization .item-change-visual-group.is-target .item-change-visual-icon {
+    width: 62px;
+    height: 62px;
+  }
+
+  .item-change-visual-card > small {
+    max-width: 62px;
+    font-size: 9px;
+  }
+
+  .item-use-change-visualization .item-change-visual-card > small,
+  .quest-item-submission-visualization .item-change-visual-card > small {
+    max-width: 100%;
+    font-size: clamp(9px, 14cqi, 13px);
+  }
+}
+
+.item-use-confirmation > .item-use-confirmation-consumption {
+  margin: 14px 26px 4px;
+  color: #aebbb8;
+  font-size: 13px;
+}
+
+.item-use-confirmation > .item-use-confirmation-delivery {
+  margin: 4px 26px 16px;
+  color: #d4b764;
+  font-size: 13px;
+}
+
+.item-use-confirmation-actions button:focus,
+.item-use-confirmation-actions button:focus-visible {
+  outline: none;
+}
+
 /* Emergency power-routing puzzle. */
 .frequency-puzzle-overlay {
   position: absolute;
@@ -4253,121 +4607,6 @@ html.dialogue-cursor-active .dialogue-box * {
   .frequency-dial > i { display: none; }
   .frequency-wave-canvas-wrap canvas { min-height: 190px; }
   .frequency-puzzle-footer { grid-template-columns: minmax(0, 1fr) 155px 190px; min-height: 65px; }
-}
-
-.interaction-puzzle-selection-overlay {
-  position: absolute;
-  z-index: 182;
-  inset: 0;
-  display: grid;
-  padding: 20px;
-  place-items: center;
-  background: rgba(0, 5, 8, 0.78);
-  backdrop-filter: blur(5px) brightness(0.72);
-}
-
-.interaction-puzzle-selection {
-  width: min(720px, 94vw);
-  overflow: hidden;
-  border: 1px solid rgba(101, 226, 227, 0.52);
-  border-radius: 10px;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(37, 138, 143, 0.2), transparent 58%),
-    linear-gradient(145deg, rgba(4, 22, 28, 0.99), rgba(2, 11, 15, 0.99));
-  box-shadow:
-    0 30px 90px rgba(0, 0, 0, 0.7),
-    inset 0 0 45px rgba(39, 185, 187, 0.06);
-  color: #d7ffff;
-  animation: power-puzzle-enter 180ms ease-out both;
-}
-
-.interaction-puzzle-selection > header {
-  padding: 24px 28px 18px;
-  border-bottom: 1px solid rgba(89, 211, 215, 0.18);
-  text-align: center;
-}
-
-.interaction-puzzle-selection > header small,
-.interaction-puzzle-selection-options button small {
-  color: #62dfe3;
-  font-size: 11px;
-  letter-spacing: 0.16em;
-}
-
-.interaction-puzzle-selection h3 {
-  margin: 7px 0 5px;
-  font-size: clamp(23px, 2.2vw, 30px);
-  letter-spacing: 0.06em;
-}
-
-.interaction-puzzle-selection p {
-  margin: 0;
-  color: rgba(207, 238, 239, 0.65);
-  font-size: 14px;
-}
-
-.interaction-puzzle-selection-options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  padding: 22px 24px;
-}
-
-.interaction-puzzle-selection-options button {
-  display: grid;
-  min-height: 150px;
-  padding: 20px 14px;
-  place-items: center;
-  border: 1px solid rgba(103, 207, 210, 0.25);
-  border-radius: 7px;
-  background: rgba(7, 33, 39, 0.72);
-  color: #d8fafa;
-  cursor: pointer;
-  transition: 120ms ease;
-}
-
-.interaction-puzzle-selection-options button > span {
-  color: #71edf0;
-  font-size: 35px;
-  line-height: 1;
-  text-shadow: 0 0 16px rgba(71, 238, 240, 0.38);
-}
-
-.interaction-puzzle-selection-options button strong {
-  font-size: 20px;
-  letter-spacing: 0.05em;
-}
-
-.interaction-puzzle-selection-options button[data-selected="true"],
-.interaction-puzzle-selection-options button:hover {
-  border-color: rgba(155, 255, 253, 0.9);
-  background: rgba(15, 70, 77, 0.82);
-  box-shadow:
-    0 0 0 2px rgba(76, 226, 224, 0.16),
-    0 0 22px rgba(45, 219, 216, 0.18),
-    inset 0 0 24px rgba(62, 229, 227, 0.08);
-}
-
-.interaction-puzzle-selection-options button:active {
-  transform: translateY(2px) scale(0.99);
-}
-
-.interaction-puzzle-selection-options button:focus-visible {
-  outline: none;
-}
-
-.interaction-puzzle-selection > footer {
-  padding: 12px 20px 14px;
-  border-top: 1px solid rgba(89, 211, 215, 0.14);
-  color: rgba(188, 225, 226, 0.56);
-  font-size: 12px;
-  letter-spacing: 0.07em;
-  text-align: center;
-}
-
-@media (max-width: 620px) {
-  .interaction-puzzle-selection-options { grid-template-columns: 1fr; }
-  .interaction-puzzle-selection-options button { min-height: 112px; }
 }
 
 .power-puzzle-overlay {
@@ -5097,36 +5336,44 @@ html.dialogue-cursor-active .dialogue-box * {
 }
 
 .power-puzzle-apply {
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
   margin: 8px 10px;
   padding: 8px 14px;
-  border: 2px solid rgba(144, 196, 189, 0.55);
-  border-radius: 5px;
-  background:
-    linear-gradient(180deg, rgba(72, 81, 77, 0.75), rgba(23, 29, 29, 0.94)),
-    #172021;
-  box-shadow: inset 0 0 0 3px rgba(3, 13, 15, 0.8), 0 5px 0 rgba(0, 0, 0, 0.45);
-  color: #f3eee1;
+  border: 2px solid #a47b23;
+  border-radius: 3px;
+  background: linear-gradient(#997328, #604313);
+  box-shadow:
+    inset 0 0 18px rgba(255, 217, 90, 0.22),
+    0 0 16px rgba(225, 168, 34, 0.2);
+  color: #fff0b0;
   cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   transition: border-color 120ms ease, box-shadow 120ms ease, transform 80ms ease;
 }
 
-.power-puzzle-apply:hover:not(:disabled),
+.power-puzzle-apply:focus,
 .power-puzzle-apply:focus-visible {
-  border-color: #67f0e8;
-  box-shadow: inset 0 0 0 3px rgba(3, 13, 15, 0.8), 0 0 18px rgba(58, 230, 221, 0.22);
   outline: none;
 }
 
-.power-puzzle-apply[data-gamepad-selected="true"]:not(:disabled) {
-  border-color: #bffff9;
+.power-puzzle-apply:hover:not(:disabled) {
+  border-color: #ebc45f;
   box-shadow:
-    inset 0 0 0 3px rgba(3, 13, 15, 0.8),
-    0 0 0 2px rgba(95, 248, 243, 0.42),
-    0 0 22px rgba(58, 230, 221, 0.3);
+    inset 0 0 20px rgba(255, 226, 122, 0.3),
+    0 0 18px rgba(224, 174, 49, 0.28);
+  color: #fff7d0;
+}
+
+.power-puzzle-apply[data-gamepad-selected="true"]:not(:disabled) {
+  border-color: #ffe18a;
+  box-shadow:
+    inset 0 0 20px rgba(255, 226, 122, 0.34),
+    0 0 0 2px rgba(255, 217, 105, 0.32),
+    0 0 22px rgba(225, 168, 34, 0.34);
 }
 
 .power-puzzle-apply:active:not(:disabled) {
@@ -5140,14 +5387,26 @@ html.dialogue-cursor-active .dialogue-box * {
 
 .power-puzzle-apply strong {
   font-size: clamp(18px, 1.5vw, 23px);
-  font-weight: 570;
-  letter-spacing: 0.12em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
 }
 
-.power-puzzle-apply small {
-  color: #d6cfc0;
-  font-size: 10px;
-  letter-spacing: 0.12em;
+.power-puzzle-apply > span:not(.power-trigger-key) {
+  font-size: 18px;
+}
+
+.power-puzzle-apply .power-trigger-key {
+  display: inline-grid;
+  min-width: 32px;
+  height: 25px;
+  place-items: center;
+  border: 1px solid rgba(255, 220, 125, 0.72);
+  border-radius: 5px 5px 3px 3px;
+  background: linear-gradient(#39392f, #171a17);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.42), 0 0 8px rgba(224, 184, 73, 0.12);
+  color: #ffe6a0;
+  font: 700 12px/1 Consolas, monospace;
+  letter-spacing: 0;
 }
 
 .power-puzzle-dialog.is-completing {
@@ -6506,6 +6765,27 @@ html.dialogue-cursor-active .dialogue-box * {
   text-align: center;
 }
 
+.welding-puzzle-header > p.welding-start-instruction {
+  color: #ffd018;
+  font-size: clamp(15px, 1.55vw, 21px);
+  font-weight: 800;
+  line-height: 1.22;
+  letter-spacing: 0.035em;
+  text-shadow:
+    0 0 7px rgba(255, 198, 0, 0.35),
+    0 0 18px rgba(255, 198, 0, 0.14);
+  animation: welding-start-instruction-breathe 1.8s ease-in-out infinite;
+}
+
+.welding-start-instruction > span {
+  display: block;
+}
+
+@keyframes welding-start-instruction-breathe {
+  0%, 100% { opacity: 0.78; transform: translateY(1px) scale(0.985); }
+  50% { opacity: 1; transform: translateY(-2px) scale(1.015); }
+}
+
 .welding-puzzle-header > button {
   min-width: 68px;
   min-height: 38px;
@@ -6541,7 +6821,7 @@ html.dialogue-cursor-active .dialogue-box * {
   border-radius: 5px;
   background:
     linear-gradient(rgba(0, 31, 34, 0.18), rgba(0, 14, 17, 0.3)),
-    url("/ui/welding/brushed-metal-background.webp") center / cover;
+    var(--welding-board-background-image) center / cover;
   box-shadow:
     inset 0 0 0 5px rgba(5, 14, 15, 0.34),
     inset 0 0 70px rgba(0, 0, 0, 0.54),
@@ -6630,6 +6910,82 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   stroke-linecap: round;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
+}
+
+.welding-start-guidance {
+  pointer-events: none;
+}
+
+.welding-start-callout {
+  transform-box: view-box;
+  transform-origin: 20px 82px;
+  animation: welding-start-callout-float 1.45s ease-in-out infinite;
+}
+
+.welding-start-callout text {
+  fill: #ffd51a;
+  font-family: "Share Tech Mono", "Noto Sans TC", monospace;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  paint-order: stroke;
+  stroke: rgba(18, 22, 11, 0.72);
+  stroke-width: 2px;
+  text-shadow: 0 0 9px rgba(255, 211, 25, 0.7);
+}
+
+.welding-start-arrow-body {
+  fill: #f2bd16;
+  stroke: #fff0a1;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  filter:
+    drop-shadow(0 1px 0 rgba(79, 53, 0, 0.95))
+    drop-shadow(0 0 5px rgba(255, 204, 25, 0.7));
+}
+
+.welding-start-arrow-highlight {
+  fill: none;
+  stroke: rgba(255, 253, 205, 0.9);
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.welding-start-beacon {
+  pointer-events: none;
+}
+
+.welding-start-beacon-glow {
+  fill: rgba(255, 70, 55, 0.92);
+  stroke: none;
+  filter:
+    blur(5px)
+    drop-shadow(0 0 7px rgba(255, 42, 30, 0.76));
+  animation: welding-start-beacon-glow-breathe 1.8s ease-in-out infinite;
+  animation-delay: var(--start-beacon-delay, 0ms);
+}
+
+@keyframes welding-start-callout-float {
+  0%, 100% { opacity: 0.74; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(3px); }
+}
+
+@keyframes welding-start-beacon-glow-breathe {
+  0%, 100% {
+    opacity: 0.3;
+    filter:
+      blur(5px)
+      drop-shadow(0 0 5px rgba(255, 42, 30, 0.5));
+  }
+  50% {
+    opacity: 0.78;
+    filter:
+      blur(5px)
+      drop-shadow(0 0 10px rgba(255, 42, 30, 0.9));
+  }
 }
 
 .welding-route-hot-seam line {
@@ -6847,7 +7203,7 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
     linear-gradient(90deg, transparent, rgba(15, 94, 85, 0.82) 35%, rgba(21, 116, 99, 0.86) 65%, transparent),
     rgba(0, 14, 15, 0.38);
   color: #dbfff4;
-  animation: welding-success-reveal 420ms ease-out both;
+  animation: welding-success-fade-in 200ms linear both;
   pointer-events: auto;
 }
 
@@ -6929,8 +7285,15 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 }
 
 .welding-puzzle-intro-panel {
-  width: min(500px, 92%);
-  padding: clamp(24px, 4vw, 38px);
+  display: flex;
+  width: min(620px, 94%);
+  height: min(540px, calc(100% - 28px));
+  max-height: calc(100% - 20px);
+  box-sizing: border-box;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(22px, 3vw, 32px);
+  overflow: auto;
   border: 1px solid rgba(104, 220, 211, 0.46);
   border-radius: 6px;
   background:
@@ -6952,15 +7315,176 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   display: block;
   margin-top: 8px;
   color: #fff0bf;
-  font-size: clamp(24px, 3.4vw, 34px);
-  letter-spacing: 0.08em;
+  font-size: clamp(22px, 3vw, 30px);
+  line-height: 1.42;
+  letter-spacing: 0.06em;
+}
+
+.welding-puzzle-intro-panel strong > span {
+  display: block;
+}
+
+.welding-briefing-demo {
+  position: relative;
+  width: 100%;
+  margin: 20px auto 0;
+  overflow: hidden;
+  border: 1px solid rgba(111, 224, 215, 0.36);
+  border-radius: 4px;
+  background:
+    linear-gradient(rgba(25, 70, 68, 0.2), rgba(5, 24, 26, 0.3)),
+    repeating-linear-gradient(0deg, transparent 0 17px, rgba(104, 226, 218, 0.035) 17px 18px),
+    #102b2d;
+  box-shadow:
+    inset 0 0 34px rgba(0, 0, 0, 0.48),
+    0 8px 24px rgba(0, 0, 0, 0.24);
+  pointer-events: none;
+}
+
+.welding-briefing-demo::before,
+.welding-briefing-demo::after {
+  position: absolute;
+  z-index: 2;
+  width: 15px;
+  height: 15px;
+  border-color: rgba(110, 234, 224, 0.56);
+  content: "";
+}
+
+.welding-briefing-demo::before {
+  top: 7px;
+  left: 7px;
+  border-top: 1px solid;
+  border-left: 1px solid;
+}
+
+.welding-briefing-demo::after {
+  right: 7px;
+  bottom: 7px;
+  border-right: 1px solid;
+  border-bottom: 1px solid;
+}
+
+.welding-briefing-demo > svg {
+  display: block;
+  width: 100%;
+  aspect-ratio: 8 / 3;
+  overflow: visible;
+}
+
+.welding-briefing-demo-guide,
+.welding-briefing-demo-seam {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.welding-briefing-demo-guide {
+  stroke: rgba(196, 239, 235, 0.78);
+  stroke-width: 4;
+  stroke-dasharray: 8 8;
+}
+
+.welding-briefing-demo-seam {
+  stroke: #ff6542;
+  stroke-width: 7;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: welding-briefing-seam-replay 4.8s linear infinite;
+}
+
+.welding-briefing-demo-direction {
+  position: absolute;
+  right: 34%;
+  bottom: 13%;
+  width: 24%;
+  height: 18px;
+  animation: welding-briefing-arrow-pulse 1.15s ease-in-out infinite alternate;
+}
+
+.welding-briefing-demo-direction::before {
+  position: absolute;
+  top: 7px;
+  right: 11px;
+  left: 0;
+  height: 5px;
+  border-radius: 4px 0 0 4px;
+  background: #59eed9;
+  box-shadow: 0 0 8px rgba(89, 238, 217, 0.38);
+  content: "";
+}
+
+.welding-briefing-demo-direction::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-left: 14px solid #59eed9;
+  content: "";
+}
+
+.welding-briefing-demo-torch,
+.welding-briefing-demo-static image {
+  filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.72));
+}
+
+.welding-briefing-demo-spark,
+.welding-briefing-demo-rays {
+  animation: welding-briefing-spark-replay 4.8s linear infinite;
+}
+
+.welding-briefing-demo-spark {
+  filter:
+    drop-shadow(0 0 3px rgba(255, 247, 187, 0.94))
+    drop-shadow(0 0 7px rgba(255, 126, 37, 0.82));
+}
+
+.welding-briefing-demo-rays line {
+  stroke: #ffe25f;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+  animation: welding-briefing-ray-flicker 260ms ease-in-out infinite alternate;
+  animation-delay: calc(var(--briefing-ray-index) * -23ms);
+}
+
+.welding-briefing-demo-static {
+  display: none;
+}
+
+@keyframes welding-briefing-seam-replay {
+  0%, 8% { stroke-dashoffset: 1; opacity: 0; }
+  12% { opacity: 1; }
+  75%, 88% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+@keyframes welding-briefing-spark-replay {
+  0%, 6%, 77%, 100% { opacity: 0; }
+  9%, 73% { opacity: 1; }
+}
+
+@keyframes welding-briefing-ray-flicker {
+  from { transform: scale(0.62); opacity: 0.58; }
+  to { transform: scale(1.18); opacity: 1; }
+}
+
+@keyframes welding-briefing-arrow-pulse {
+  from { opacity: 0.52; transform: translateX(-5px); }
+  to { opacity: 1; transform: translateX(5px); }
 }
 
 .welding-puzzle-intro-panel p {
-  margin: 18px auto 22px;
+  margin: 12px auto 14px;
   color: rgba(217, 242, 239, 0.78);
-  font-size: 14px;
-  line-height: 1.8;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.welding-puzzle-intro-panel > .welding-puzzle-primary-action {
+  width: min(360px, 78%);
+  max-width: 100%;
+  align-self: center;
 }
 
 .welding-puzzle-primary-action {
@@ -6996,9 +7520,9 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   margin-top: 22px;
 }
 
-@keyframes welding-success-reveal {
-  from { opacity: 0; transform: scaleX(0.22); }
-  to { opacity: 1; transform: scaleX(1); }
+@keyframes welding-success-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .welding-puzzle-footer {
@@ -7048,6 +7572,21 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
     width: calc(100% - 12px);
     margin: 6px;
   }
+  .welding-puzzle-intro { padding: 8px; }
+  .welding-puzzle-intro-panel {
+    width: min(620px, 98%);
+    height: calc(100% - 8px);
+    max-height: calc(100% - 4px);
+    padding: 14px;
+  }
+  .welding-puzzle-intro-panel strong { font-size: clamp(20px, 5vw, 27px); }
+  .welding-briefing-demo { margin-top: 10px; }
+  .welding-puzzle-intro-panel p {
+    margin-top: 9px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    line-height: 1.55;
+  }
   .welding-puzzle-footer {
     min-height: 42px;
     grid-template-columns: 1fr;
@@ -7056,4 +7595,17 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   .welding-puzzle-footer > span { display: none; }
   .welding-puzzle-footer > span:first-child { display: block; border: 0; }
   .welding-gun-cursor { width: clamp(58px, 16vw, 86px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welding-puzzle-header > p.welding-start-instruction,
+  .welding-start-callout,
+  .welding-start-beacon-glow { animation: none; }
+  .welding-briefing-demo-motion { display: none; }
+  .welding-briefing-demo-static { display: block; }
+  .welding-briefing-demo-seam {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+  .welding-briefing-demo-direction { animation: none; }
 }

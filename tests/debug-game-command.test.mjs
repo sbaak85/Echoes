@@ -21,7 +21,11 @@ test("movement lab wires Game 1 through Game 3 and remounts welding sessions", (
   assert.match(source, /gameCommand\.gameNumber === 2/);
   assert.match(source, /gameCommand\.gameNumber === 3/);
   assert.match(source, /setWeldingPuzzleSessionKey\(\(current\) => current \+ 1\)/);
-  assert.match(source, /showWeldingResultFeedback\("金屬碎片 -1"\)/);
+  assert.match(source, /onFail=\{handleWeldingPuzzleFailure\}/);
+  assert.match(source, /WELDING_FAILURE_MATERIAL_ITEM_ID = "R0009"/);
+  assert.match(source, /removeInventoryItem\([\s\S]*WELDING_FAILURE_MATERIAL_ITEM_ID/);
+  assert.match(source, /savePlayerInventory\(nextInventory\)/);
+  assert.match(source, /焊接失敗，消耗「金屬碎片」/);
   assert.match(source, /powerPuzzleOpenRef\.current &&\s*!weldingPuzzleOpenRef\.current/);
   assert.match(source, /weldingPuzzleVirtualCursorAvailableRef = useRef\(false\)/);
   assert.match(source, /activateWeldingPuzzleDpadMode/);
@@ -31,8 +35,6 @@ test("movement lab wires Game 1 through Game 3 and remounts welding sessions", (
     /weldingPuzzleVirtualCursorAvailableRef\.current &&[\s\S]*powerPuzzleGamepadModeRef\.current === "cursor"[\s\S]*activateVirtualCursorUi\(\)/,
   );
   assert.match(source, /shouldHandleGamepadConfirm=\{shouldWeldingPuzzleHandleGamepadConfirm\}/);
-  const weldingFailureHandler = source.match(/onFail=\{\(\) => \{([\s\S]*?)\n\s*\}\}/)?.[1] ?? "";
-  assert.doesNotMatch(weldingFailureHandler, /removeInventoryItem|R0009/);
 });
 
 test("debug command input recalls the last submitted command with ArrowUp", () => {

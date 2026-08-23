@@ -517,19 +517,13 @@
         "lines": [
           {
             "speaker": "Sbaak",
-            "text": "\u7A0D\u5FAE\u9019\u908A\u7D81\u7DCA...\u5F9E\u9019\u88E1\u964D\u4E0B\u53BB\u3002",
+            "text": "\u7528\u7E69\u7D22\u628A\u9019\u908A\u7D81\u7DCA...\u5F9E\u9019\u88E1\u964D\u4E0B\u53BB\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
             "speaker": "Sbaak",
-            "text": "\u7D81\u7DCA\u9019\u88E1\uFF0C\u7528\u529B\u62C9\u7DCA!",
-            "randomGroupId": "random-group-1",
-            "weight": 1
-          },
-          {
-            "speaker": "Sbaak",
-            "text": "\u9019\u6A23\u5C31\u53EF\u4EE5\u6500\u964D\u4E0B\u53BB\u4E86!",
+            "text": "\u7528\u7E69\u7D22\u7D81\u7DCA\u9019\u88E1\uFF0C\u505A\u4E00\u500B\u81E8\u6642\u7684\u7E69\u68AF\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           }
@@ -740,9 +734,9 @@
           "itemId": "",
           "questId": "QUEST_CH03_MAIN_005",
           "stageId": "QUEST_CH03_MAIN_005_STAGE_03",
-          "stageMode": "UnlockFromStage",
-          "disableQuestId": "",
-          "disableStageId": "",
+          "stageMode": "UnlockUntilCondition",
+          "disableQuestId": "QUEST_CH03_MAIN_005",
+          "disableStageId": "QUEST_CH03_MAIN_005_STAGE_04",
           "quantity": 1,
           "chapter": 1
         }
@@ -751,7 +745,7 @@
   ],
   "itemPoints": [
     {
-      "id": "item-point-001",
+      "id": "scene2-item-point-001",
       "label": "ItemPoint 1",
       "itemId": "T0008",
       "quantity": 1,

@@ -3,6 +3,7 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $gameUrl = "http://localhost:3000/"
 $runtimeDirectory = Join-Path $projectRoot ".runtime"
+$modulesDirectory = Join-Path $projectRoot "node_modules"
 $standardOutputLog = Join-Path $runtimeDirectory "game-server.log"
 $standardErrorLog = Join-Path $runtimeDirectory "game-server-error.log"
 $processIdFile = Join-Path $runtimeDirectory "game-server.pid"
@@ -129,8 +130,15 @@ function Install-GameDependencies {
     Show-LauncherMessage (ConvertFrom-LauncherText "6aaW5qyh5ZWf5YuV5q2j5Zyo5rqW5YKZ6YGK5oiy5omA6ZyA5YWD5Lu277yM5a6M5oiQ5b6M5pyD6Ieq5YuV6ZaL5ZWf6YGK5oiy44CC6YCZ5Y+v6IO96ZyA6KaB5bm+5YiG6ZCY44CC")
 
     if (Test-Path -LiteralPath $bundledPnpmCli) {
-        & $NodeExecutable $bundledPnpmCli "install" "--frozen-lockfile" `
-            "--reporter" "append-only" *>> $standardOutputLog
+        $pnpmExecutable = $NodeExecutable
+        $pnpmArguments = @(
+            $bundledPnpmCli,
+            "install",
+            "--frozen-lockfile",
+            "--force",
+            "--reporter",
+            "append-only"
+        )
     }
     else {
         $pnpmCommand = Get-Command "pnpm.cmd" -ErrorAction SilentlyContinue
@@ -143,11 +151,41 @@ function Install-GameDependencies {
             exit 1
         }
 
-        & $pnpmCommand.Source "install" "--frozen-lockfile" `
-            "--reporter" "append-only" *>> $standardOutputLog
+        $pnpmExecutable = $pnpmCommand.Source
+        $pnpmArguments = @(
+            "install",
+            "--frozen-lockfile",
+            "--force",
+            "--reporter",
+            "append-only"
+        )
     }
 
-    if ($LASTEXITCODE -ne 0) {
+    $previousCiValue = $env:CI
+    $previousPnpmPmOnFailValue = $env:pnpm_config_pm_on_fail
+    try {
+        $env:CI = "true"
+        $env:pnpm_config_pm_on_fail = "ignore"
+        & $pnpmExecutable @pnpmArguments *>> $standardOutputLog
+        $installExitCode = $LASTEXITCODE
+    }
+    finally {
+        if ($null -eq $previousCiValue) {
+            Remove-Item Env:CI -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:CI = $previousCiValue
+        }
+
+        if ($null -eq $previousPnpmPmOnFailValue) {
+            Remove-Item Env:pnpm_config_pm_on_fail -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:pnpm_config_pm_on_fail = $previousPnpmPmOnFailValue
+        }
+    }
+
+    if ($installExitCode -ne 0) {
         Show-LauncherMessage (ConvertFrom-LauncherText "54Sh5rOV6Ieq5YuV5rqW5YKZ6YGK5oiy44CC6KuL56K66KqN57ay6Lev6YCj57ea5b6M5YaN6Kmm5LiA5qyh44CC")
         exit 1
     }
@@ -182,8 +220,27 @@ try {
     $nodeDirectory = Split-Path -Parent $nodeExecutable
     $env:Path = "$nodeDirectory;$env:Path"
 
-    $vinextCli = Join-Path $projectRoot "node_modules\vinext\dist\cli.js"
+    $vinextCli = Join-Path $modulesDirectory "vinext\dist\cli.js"
     if (-not (Test-Path -LiteralPath $vinextCli)) {
+        if (Test-Path -LiteralPath $modulesDirectory) {
+            $expectedModulesDirectory = [System.IO.Path]::GetFullPath(
+                (Join-Path $projectRoot "node_modules")
+            )
+            $resolvedModulesDirectory = [System.IO.Path]::GetFullPath(
+                $modulesDirectory
+            )
+
+            if (-not [string]::Equals(
+                $resolvedModulesDirectory,
+                $expectedModulesDirectory,
+                [System.StringComparison]::OrdinalIgnoreCase
+            )) {
+                throw "Refusing to remove an unexpected modules directory."
+            }
+
+            Remove-Item -LiteralPath $resolvedModulesDirectory -Recurse -Force
+        }
+
         Install-GameDependencies -NodeExecutable $nodeExecutable
 
         if (-not (Test-Path -LiteralPath $vinextCli)) {

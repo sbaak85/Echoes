@@ -149,4 +149,28 @@ test("校頻成功會記錄旗標、播放世界觀訊息並在末句停留一�
   assert.match(component, /SUCCESS_AUTO_CLOSE_DELAY_MS = 1000/);
   assert.match(component, /completionFlagId: FREQUENCY_CALIBRATION_COMPLETION_FLAG/);
   assert.match(movementLab, /setStoryFlag\(FREQUENCY_CALIBRATION_COMPLETION_FLAG, true\)/);
+  assert.match(
+    movementLab,
+    /FREQUENCY_CALIBRATION_INTERACTION_ID = "scene3-interaction-025"/,
+  );
+  assert.match(
+    movementLab,
+    /interactable\.id === FREQUENCY_CALIBRATION_INTERACTION_ID[\s\S]*selectInteractionDialogue\(interactable, "success"\)[\s\S]*openDialogue\([\s\S]*startFrequencyCalibrationPuzzle[\s\S]*availableDialogue[\s\S]*\)/,
+  );
+  const scene = JSON.parse(
+    await readFile(new URL("../public/maps/map_test01.scene.json", import.meta.url), "utf8"),
+  );
+  const interaction = scene.interactables.find(
+    (candidate) => candidate.id === "scene3-interaction-025",
+  );
+  assert.ok(interaction?.dialogue?.lines.length > 0);
+  assert.match(
+    interaction.dialogue.lines.at(-1).text,
+    /校準介面已就緒/,
+  );
+  assert.match(movementLab, /completeFrequencyPuzzleInteractionRef\.current\(\)/);
+  assert.match(
+    movementLab,
+    /completeFrequencyPuzzleInteractionRef\.current = \(\) => \{[\s\S]*publishPuzzleCompleted\(session\)/,
+  );
 });

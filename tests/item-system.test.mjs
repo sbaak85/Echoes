@@ -97,9 +97,9 @@ test("中央道具資料庫固定保留 100 欄，現有 31 項道具都有分�
       return [item?.id, item?.name, item?.category, item?.usable];
     }),
     [
-      ["R0013", "通訊陣列面板", "resource", false],
-      ["R0014", "量子傳輸器", "resource", false],
-      ["R0015", "校正元件", "resource", false],
+      ["R0013", "通訊陣列面板", "quest", false],
+      ["R0014", "量子傳輸器", "quest", false],
+      ["R0015", "校正元件", "quest", false],
     ],
   );
   assert.deepEqual(
@@ -114,6 +114,39 @@ test("中央道具資料庫固定保留 100 欄，現有 31 項道具都有分�
       ["T0010", "sharp-metal-fragment", "鋒利的金屬片", "tool"],
     ],
   );
+});
+
+test("多功能工具箱設定為確認打開後在地面生成一個現有銲槍工具", () => {
+  const repairKit = ITEM_DEFINITIONS.find((item) => item.id === "T0003");
+  const weldingTool = ITEM_DEFINITIONS.find((item) => item.id === "T0007");
+
+  assert.equal(repairKit?.name, "多功能工具箱");
+  assert.equal(weldingTool?.name, "銲槍工具");
+  assert.deepEqual(repairKit?.useAction, {
+    type: "grant-items",
+    verb: "打開",
+    consumeQuantity: 1,
+    rewards: [{ itemId: "T0007", quantity: 1, delivery: "world" }],
+  });
+});
+
+test("金屬零件設定為確認拆解後在地面生成三個金屬碎片", () => {
+  const metalParts = ITEM_DEFINITIONS.find((item) => item.id === "R0002");
+  const metalScrap = ITEM_DEFINITIONS.find((item) => item.id === "R0009");
+
+  assert.equal(metalParts?.name, "金屬零件");
+  assert.equal(metalParts?.usable, true);
+  assert.equal(metalScrap?.name, "金屬碎片");
+  assert.equal(
+    metalScrap?.description,
+    "可重新融製的金屬廢料，焊接過程中可用來當作助焊劑使用。",
+  );
+  assert.deepEqual(metalParts?.useAction, {
+    type: "grant-items",
+    verb: "拆解",
+    consumeQuantity: 1,
+    rewards: [{ itemId: "R0009", quantity: 3, delivery: "world" }],
+  });
 });
 
 test("藍色晶體碎片標記為裝置互動使用，不會被玩家直接吃掉", () => {

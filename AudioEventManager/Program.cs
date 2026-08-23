@@ -67,6 +67,7 @@ internal static class Program
         events.Values.First().SourceAssetPaths.Clear();
         var rewrittenSource = AudioEventConfigDocument.RewriteSource(source, events);
         var roundTripEvents = AudioEventConfigDocument.ParseEvents(rewrittenSource);
+        var fadeOutPercent = roundTripEvents["generatorRunning"].FadeOutPercent;
         var firstGameSource = roundTripEvents.Values
             .SelectMany(definition => definition.Sources)
             .First();
@@ -81,6 +82,7 @@ internal static class Program
             firstOriginalSource);
         return events.Count == roundTripEvents.Count &&
             roundTripEvents.Values.First().SourceAssetPaths.Count == 0 &&
+            fadeOutPercent == 15 &&
             File.Exists(previewPath) &&
             File.Exists(originalPreviewPath) &&
             rewrittenSource.Contains(

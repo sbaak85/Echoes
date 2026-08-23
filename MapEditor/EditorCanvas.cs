@@ -451,6 +451,22 @@ public sealed class EditorCanvas : Control
         if (_document.SceneId == sceneId && _document.DisplayName == displayName) return;
         PerformMutation(() =>
         {
+            if (!_document.SceneId.Equals(sceneId, StringComparison.OrdinalIgnoreCase))
+            {
+                var previousPrefix = SceneJson.CreateSceneScopedIdPrefix(
+                    _document.SceneId,
+                    "item-point");
+                var nextPrefix = SceneJson.CreateSceneScopedIdPrefix(sceneId, "item-point");
+                foreach (var itemPoint in _document.ItemPoints)
+                {
+                    if (itemPoint.Id.StartsWith(
+                            $"{previousPrefix}-",
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        itemPoint.Id = $"{nextPrefix}{itemPoint.Id[previousPrefix.Length..]}";
+                    }
+                }
+            }
             _document.SceneId = sceneId;
             _document.DisplayName = displayName;
         });
@@ -1232,7 +1248,9 @@ public sealed class EditorCanvas : Control
             var itemPointIndex = _document.ItemPoints.Count;
             _document.ItemPoints.Add(new SceneItemPoint
             {
-                Id = "self-test-selected-item-point",
+                Id = NextSceneScopedId(
+                    "item-point",
+                    _document.ItemPoints.Select(item => item.Id)),
                 Label = "Selected ItemPoint",
                 X = _document.PlayerSpawn.X,
                 Y = _document.PlayerSpawn.Y,
@@ -2858,7 +2876,9 @@ public sealed class EditorCanvas : Control
         {
             _document.ItemPoints.Add(new SceneItemPoint
             {
-                Id = NextId("item-point", _document.ItemPoints.Select(item => item.Id)),
+                Id = NextSceneScopedId(
+                    "item-point",
+                    _document.ItemPoints.Select(item => item.Id)),
                 Label = $"ItemPoint {index + 1}",
                 X = _contextWorldPoint.X,
                 Y = _contextWorldPoint.Y,
@@ -3549,23 +3569,15 @@ public sealed class EditorCanvas : Control
 
     private string NextSceneScopedId(string entityPrefix, IEnumerable<string> existingIds)
     {
-        var sceneToken = string.Concat(
-            _document.SceneId
-                .Trim()
-                .ToLowerInvariant()
-                .Where(char.IsLetterOrDigit));
-        if (sceneToken.Length == 0)
-        {
-            sceneToken = "scene";
-        }
-
         var used = existingIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var highestSuffix = used
             .Select(id => id.Split('-').LastOrDefault())
             .Select(value => int.TryParse(value, out var number) ? number : 0)
             .DefaultIfEmpty(0)
             .Max();
-        var scopedPrefix = $"{sceneToken}-{entityPrefix}";
+        var scopedPrefix = SceneJson.CreateSceneScopedIdPrefix(
+            _document.SceneId,
+            entityPrefix);
 
         for (var number = highestSuffix + 1; number < int.MaxValue; number++)
         {

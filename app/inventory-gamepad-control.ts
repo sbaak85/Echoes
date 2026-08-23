@@ -20,3 +20,10 @@ export function getClampedInventoryCategoryIndex(
     ),
   );
 }
+
+export function getVirtualCursorInventoryItemAction(
+  selectedIndex: number,
+  hoveredIndex: number,
+): "select" | "use" {
+  return selectedIndex === hoveredIndex ? "use" : "select";
+}

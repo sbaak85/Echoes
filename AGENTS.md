@@ -1,5 +1,17 @@
 # EchoesBeyond agent instructions
 
+## Project relocation skill
+
+Before moving, copying, renaming, repointing, rebuilding, or repairing this project after its root path changes, read and apply [`.codex/skills/echoes-project-relocation/SKILL.md`](.codex/skills/echoes-project-relocation/SKILL.md).
+
+The newest project root explicitly designated by the user is authoritative. Treat previous roots as historical unless the user explicitly brings them back into scope.
+
+## Project summary skill
+
+Before creating, locating, reading, updating, or scheduling any daily, temporary, caution, special-case, progress, handoff, or similarly named project-summary Markdown file, read and apply [`.codex/skills/echoes-project-summaries/SKILL.md`](.codex/skills/echoes-project-summaries/SKILL.md).
+
+Use `docs/daily-summaries` as the canonical repository-relative summary directory. When refreshing project context, inspect its most recently modified Markdown files before performing a project-wide fallback search.
+
 ## Project UI skill
 
 Before creating, modifying, reviewing, or testing any browser-game UI with buttons, menus, inputs, sliders, modals, virtual cursors, keyboard navigation, or gamepad navigation, read and apply [`.codex/skills/browser-ui-focus-visuals/SKILL.md`](.codex/skills/browser-ui-focus-visuals/SKILL.md).

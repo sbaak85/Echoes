@@ -20,13 +20,21 @@ test("inventory opening and successful item use publish quest events", () => {
     source.indexOf("function useInventoryItem"),
     source.indexOf("const getHotbarSlotAtPoint"),
   );
+  const itemUsedPublisherSource = source.slice(
+    source.indexOf("const publishItemUsedQuestEvent"),
+    source.indexOf("function executeInventoryItemUseAction"),
+  );
   assert.match(inventoryOpenSource, /open && !wasOpen/);
   assert.match(inventoryOpenSource, /type: "interfaceOpened"/);
   assert.match(inventoryOpenSource, /targetId: "Inventory"/);
   assert.match(itemUseSource, /result\.status === "not-owned"/);
-  assert.match(itemUseSource, /type: "itemUsed"/);
-  assert.match(itemUseSource, /targetId: item\.id/);
-  assert.ok(itemUseSource.indexOf('type: "itemUsed"') > itemUseSource.indexOf("} else {"));
+  assert.match(itemUsedPublisherSource, /type: "itemUsed"/);
+  assert.match(itemUsedPublisherSource, /targetId: itemId/);
+  assert.match(itemUseSource, /publishItemUsedQuestEvent\(item\.id\)/);
+  assert.ok(
+    itemUseSource.indexOf("publishItemUsedQuestEvent(item.id)") >
+      itemUseSource.indexOf("} else {"),
+  );
   assert.match(source, /startAvailableAutomaticQuests\(/);
 });
 

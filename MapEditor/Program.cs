@@ -485,7 +485,7 @@ internal static class EditorSelfTest
         var itemPointDocument = SceneJson.Deserialize(SceneJson.Serialize(roundTrip));
         itemPointDocument.ItemPoints.Add(new SceneItemPoint
         {
-            Id = "item-point-self-test",
+            Id = "scene3-item-point-self-test",
             Label = "測試道具點",
             X = itemPointDocument.PlayerSpawn.X,
             Y = itemPointDocument.PlayerSpawn.Y,
@@ -502,9 +502,9 @@ internal static class EditorSelfTest
         });
         var itemPointRoundTrip = SceneJson.Deserialize(SceneJson.Serialize(itemPointDocument));
         SceneJson.Validate(itemPointRoundTrip);
-        if (itemPointRoundTrip.ItemPoints.SingleOrDefault(item => item.Id == "item-point-self-test") is not
+        if (itemPointRoundTrip.ItemPoints.SingleOrDefault(item => item.Id == "scene3-item-point-self-test") is not
             {
-                Id: "item-point-self-test",
+                Id: "scene3-item-point-self-test",
                 ItemId: "R0001",
                 Quantity: 3,
                 SpawnPolicy: "daily",

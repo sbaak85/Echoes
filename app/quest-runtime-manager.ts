@@ -189,6 +189,8 @@ export type QuestRuntimeEntry = {
   questCompletionPresented?: boolean;
   completionTriggerAvailableAtEpochMs?: number;
   completionTriggerCompleted?: boolean;
+  /** Persistent counters used by conditional objective activation rules. */
+  eventCounters?: Record<string, number>;
 };
 
 export type QuestSaveData = {
@@ -279,10 +281,12 @@ const emptySave = (): QuestSaveData => ({
 export class QuestRuntimeManager {
   private readonly definitions = new Map<string, QuestDefinition>();
   private readonly host: QuestRuntimeHost;
+  private readonly startingQuestIds = new Set<string>();
   private readonly pendingStageCompletionDelays = new Set<string>();
   private readonly pendingQuestStarts = new Set<string>();
   private readonly pendingCompletionTriggers = new Set<string>();
   private readonly pendingObjectiveCompletionEvents = new Set<string>();
+  private currentInventorySnapshot: Readonly<Record<string, number>> | null = null;
   private saveData: QuestSaveData;
 
   constructor(
@@ -312,6 +316,48 @@ export class QuestRuntimeManager {
 
   exportSave(): QuestSaveData {
     return structuredClone(this.saveData);
+  }
+
+  /**
+   * Replace the current inventory snapshot and immediately re-evaluate every
+   * active `haveItem` objective in the active Quest stages. Locked event
+   * objectives keep the snapshot without progressing until they are unlocked.
+   */
+  syncCurrentInventory(inventory: Readonly<Record<string, number>>): void {
+    this.currentInventorySnapshot = Object.fromEntries(
+      Object.entries(inventory).map(([itemId, amount]) => [
+        itemId,
+        Math.max(0, Math.floor(Number(amount) || 0)),
+      ]),
+    );
+    for (const definition of this.definitions.values()) {
+      const entry = this.requireEntry(definition.id);
+      if (entry.state !== "active") continue;
+      this.refreshCurrentInventoryObjectives(definition, entry);
+    }
+  }
+
+  /**
+   * Atomically replace the runtime snapshot without replaying quest dialogue,
+   * rewards, teleports, or delayed presentation callbacks. Debug scenarios use
+   * this to materialize the final state that normal play would have produced.
+   */
+  replaceSaveData(saveData: QuestSaveData, notify = true): void {
+    this.pendingStageCompletionDelays.clear();
+    this.pendingQuestStarts.clear();
+    this.pendingCompletionTriggers.clear();
+    this.pendingObjectiveCompletionEvents.clear();
+    this.saveData = structuredClone(saveData);
+    this.saveData.processedEventIds ??= [];
+    for (const definition of this.definitions.values()) this.ensureEntry(definition);
+    this.saveData.completionSequence = Math.max(
+      this.saveData.completionSequence ?? 0,
+      ...Object.values(this.saveData.quests).map(entry => entry.completedOrder ?? 0),
+    );
+    this.refreshAvailability();
+    if (notify) {
+      for (const definition of this.definitions.values()) this.notify(definition.id);
+    }
   }
 
   getQuestState(questId: string): QuestState {
@@ -352,7 +398,38 @@ export class QuestRuntimeManager {
     return structuredClone(progress);
   }
 
+  getEventCounter(questId: string, counterId: string): number {
+    const normalizedId = counterId.trim();
+    if (!normalizedId) return 0;
+    return Math.max(0, this.requireEntry(questId).eventCounters?.[normalizedId] ?? 0);
+  }
+
+  incrementEventCounter(questId: string, counterId: string, amount = 1): number {
+    const normalizedId = counterId.trim();
+    const normalizedAmount = Math.max(0, Math.floor(Number(amount) || 0));
+    const entry = this.requireEntry(questId);
+    if (!normalizedId || normalizedAmount <= 0 || entry.state !== "active") {
+      return this.getEventCounter(questId, normalizedId);
+    }
+    entry.eventCounters ??= {};
+    const next = this.getEventCounter(questId, normalizedId) + normalizedAmount;
+    entry.eventCounters[normalizedId] = next;
+    this.notify(questId);
+    return next;
+  }
+
   getActiveItemSubmissionObjectives(interactionId: string): Array<{
+    questId: string;
+    stageId: string;
+    objective: QuestObjectiveDefinition;
+    progress: QuestObjectiveRuntime;
+  }> {
+    return this.getCurrentItemSubmissionObjectives(interactionId).filter(
+      entry => !entry.progress.completed,
+    );
+  }
+
+  getCurrentItemSubmissionObjectives(interactionId: string): Array<{
     questId: string;
     stageId: string;
     objective: QuestObjectiveDefinition;
@@ -376,8 +453,8 @@ export class QuestRuntimeManager {
         if (
           objective.type !== "submitItemAtInteraction" ||
           objective.targetId !== normalizedInteractionId ||
-          !progress || progress.completed ||
-          !this.isObjectiveActive(entry, progress)
+          !progress ||
+          (!progress.completed && !this.isObjectiveActive(entry, progress))
         ) continue;
         matches.push({
           questId: definition.id,
@@ -414,6 +491,7 @@ export class QuestRuntimeManager {
         structuredClone(entry),
         structuredClone(objective),
       );
+      this.refreshCurrentInventoryObjective(definition, entry, objective);
       this.notify(definition.id);
       this.advanceIfComplete(definition, entry);
       return true;
@@ -436,8 +514,14 @@ export class QuestRuntimeManager {
       questId: definition.id,
       phase: "start",
     });
-    this.configureStageActivation(definition, entry);
-    this.host.onQuestStarted?.(questId, structuredClone(entry));
+    this.startingQuestIds.add(questId);
+    try {
+      this.configureStageActivation(definition, entry);
+      this.host.onQuestStarted?.(questId, structuredClone(entry));
+    } finally {
+      this.startingQuestIds.delete(questId);
+    }
+    this.refreshCurrentInventoryObjectives(definition, entry);
     this.notify(questId);
     return true;
   }
@@ -699,8 +783,10 @@ export class QuestRuntimeManager {
             structuredClone(entry),
             structuredClone(objective),
           );
+          this.refreshCurrentInventoryObjective(definition, entry, objective);
           this.notify(definition.id);
         }
+        if (entry.state !== "active" || entry.currentStageId !== stage.id) continue;
         if (!this.isObjectiveActive(entry, progress)) continue;
         if (objective.type === "compoundCollectItem") {
           if (event.type !== "itemCollected") continue;
@@ -848,7 +934,9 @@ export class QuestRuntimeManager {
 
     const presentationStates = completionObjectives.map((objective) => {
       const progress = entry.objectives[objective.id];
-      return progress?.completed === true && progress.completionPresented !== false;
+      return progress?.completed === true &&
+        progress.completionPresented !== false &&
+        progress.completionEventCompleted !== false;
     });
     const completionPresented = stage.completionMode === "any"
       ? presentationStates.some(Boolean)
@@ -1034,6 +1122,8 @@ export class QuestRuntimeManager {
         const latest = this.saveData.quests[definition.id]?.objectives[objective.id];
         if (!latest?.completed) return;
         latest.completionEventCompleted = true;
+        const latestEntry = this.saveData.quests[definition.id];
+        if (latestEntry) this.advanceIfComplete(definition, latestEntry);
         this.notify(definition.id);
       })
       .catch(() => {
@@ -1327,6 +1417,9 @@ export class QuestRuntimeManager {
         });
         if (stage.startEventFlowId) this.host.runEventFlow?.(stage.startEventFlowId);
       }
+      if (!this.startingQuestIds.has(questId)) {
+        this.refreshCurrentInventoryObjectives(definition, current);
+      }
       this.notify(questId);
     });
 
@@ -1345,9 +1438,41 @@ export class QuestRuntimeManager {
             objectiveId: objective.id,
             phase: "start",
           });
+        if (!this.startingQuestIds.has(questId)) {
+          this.refreshCurrentInventoryObjective(definition, current, objective);
+        }
         this.notify(questId);
       });
     }
+  }
+
+  private refreshCurrentInventoryObjectives(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+  ) {
+    if (!this.currentInventorySnapshot || entry.state !== "active") return;
+    const stage = definition.stages.find(candidate => candidate.id === entry.currentStageId);
+    if (!stage) return;
+    for (const objective of stage.objectives) {
+      this.refreshCurrentInventoryObjective(definition, entry, objective);
+      if (entry.state !== "active" || entry.currentStageId !== stage.id) return;
+    }
+  }
+
+  private refreshCurrentInventoryObjective(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+    objective: QuestObjectiveDefinition,
+  ) {
+    if (!this.currentInventorySnapshot || objective.type !== "haveItem") return;
+    const progress = entry.objectives[objective.id];
+    if (!progress || progress.completed || !this.isObjectiveActive(entry, progress)) return;
+    const amount = Math.max(
+      0,
+      Math.floor(Number(this.currentInventorySnapshot[objective.targetId]) || 0),
+    );
+    if (progress.currentAmount === amount && amount < objective.requiredAmount) return;
+    this.setObjectiveProgress(definition.id, objective.id, amount);
   }
 
   private createEntry(definition: QuestDefinition): QuestRuntimeEntry {

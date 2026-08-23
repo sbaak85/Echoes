@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { QuestRuntimeManager } from "../app/quest-runtime-manager.ts";
 
@@ -61,6 +62,11 @@ const document = {
     },
   ],
 };
+
+const movementLabSource = readFileSync(
+  new URL("../app/movement-lab.tsx", import.meta.url),
+  "utf8",
+);
 
 test("quest runtime advances stages and completes the quest", () => {
   const rewards = [];
@@ -541,6 +547,179 @@ test("objective completion flow runs after its own delay without waiting for sta
   assert.deepEqual(flows, ["chapter03-section-6"]);
   assert.equal(manager.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_OBJECTIVE_FLOW");
   assert.equal(manager.getQuestState("QUEST_TEST"), "active");
+});
+
+test("事件啟用持有道具目標時會立即查核已同步的目前持有量", () => {
+  const haveItemDocument = structuredClone(document);
+  const quest = haveItemDocument.quests[0];
+  quest.rewardItemId = "";
+  quest.rewardItemAmount = 0;
+  quest.stages = [{
+    id: "QUEST_TEST_STAGE_HAVE_ITEM",
+    name: "事件型持有量測試",
+    completionMode: "all",
+    objectives: [{
+      id: "QUEST_TEST_OBJ_HAVE_ITEM",
+      displayText: "持有焊槍工具",
+      type: "haveItem",
+      targetId: "T0007",
+      requiredAmount: 1,
+      countMode: "currentInventory",
+      interactionMode: "succeeded",
+      activationMode: "event",
+      activationEventId: "welding-help-unlocked",
+      blocksStageCompletion: false,
+      showProgress: false,
+      showHintIcon: false,
+    }],
+  }];
+
+  const lifecycle = [];
+  const manager = new QuestRuntimeManager(haveItemDocument, {
+    onObjectiveActivated: () => lifecycle.push("activated"),
+    onObjectiveCompleted: () => lifecycle.push("completed"),
+  });
+  manager.syncCurrentInventory({ T0007: 1 });
+  manager.startQuest("QUEST_TEST");
+  assert.equal(
+    manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_HAVE_ITEM").state,
+    "locked",
+  );
+  assert.equal(manager.getQuestState("QUEST_TEST"), "active");
+
+  manager.handleEvent({
+    type: "storyTriggerCompleted",
+    targetId: "welding-help-unlocked",
+  });
+  assert.equal(
+    manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_HAVE_ITEM").completed,
+    true,
+  );
+  assert.equal(manager.getQuestState("QUEST_TEST"), "completed");
+  assert.deepEqual(lifecycle, ["activated", "completed"]);
+});
+
+test("持有道具目標啟用後會隨背包目前數量變更完成", () => {
+  const haveItemDocument = structuredClone(document);
+  const quest = haveItemDocument.quests[0];
+  quest.rewardItemId = "";
+  quest.rewardItemAmount = 0;
+  quest.stages = [{
+    id: "QUEST_TEST_STAGE_HAVE_ITEM",
+    name: "持有量更新測試",
+    completionMode: "all",
+    objectives: [{
+      id: "QUEST_TEST_OBJ_HAVE_ITEM",
+      displayText: "持有焊槍工具",
+      type: "haveItem",
+      targetId: "T0007",
+      requiredAmount: 1,
+      countMode: "currentInventory",
+      interactionMode: "succeeded",
+      showProgress: true,
+      showHintIcon: false,
+    }],
+  }];
+
+  const manager = new QuestRuntimeManager(haveItemDocument);
+  manager.syncCurrentInventory({});
+  manager.startQuest("QUEST_TEST");
+  assert.equal(
+    manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_HAVE_ITEM").currentAmount,
+    0,
+  );
+  manager.syncCurrentInventory({ T0007: 1 });
+  assert.equal(
+    manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_HAVE_ITEM").completed,
+    true,
+  );
+  assert.equal(manager.getQuestState("QUEST_TEST"), "completed");
+});
+
+test("遊戲載入與每次背包狀態變更都同步目前持有量任務", () => {
+  assert.match(
+    movementLabSource,
+    /questRuntimeManagerRef\.current\.syncCurrentInventory\(loadedInventory\)/,
+  );
+  assert.match(
+    movementLabSource,
+    /playerInventoryRef\.current = playerInventory;[\s\S]*?syncCurrentInventory\(playerInventory\)/,
+  );
+  assert.match(
+    movementLabSource,
+    /replaceSaveData\(plan\.questSave, false\);\s*manager\.syncCurrentInventory\(plan\.inventory\)/,
+  );
+});
+
+test("a required objective completion flow must finish before the next stage activates", async () => {
+  const gatedDocument = structuredClone(document);
+  const quest = gatedDocument.quests[0];
+  quest.rewardItemId = "";
+  quest.rewardItemAmount = 0;
+  quest.stages = [
+    {
+      id: "QUEST_TEST_STAGE_BEFORE_DIALOGUE",
+      name: "對話前階段",
+      completionMode: "all",
+      nextStageId: "QUEST_TEST_STAGE_AFTER_DIALOGUE",
+      objectives: [{
+        id: "QUEST_TEST_OBJ_DIALOGUE_HANDOFF",
+        displayText: "完成互動並播放銜接對話",
+        type: "puzzleCompleted",
+        targetId: "puzzle-before-dialogue",
+        requiredAmount: 1,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+        completionEventFlowId: "chapter03-section-8",
+      }],
+    },
+    {
+      id: "QUEST_TEST_STAGE_AFTER_DIALOGUE",
+      name: "對話後階段",
+      completionMode: "all",
+      objectives: [{
+        id: "QUEST_TEST_OBJ_FINAL",
+        displayText: "完成最後互動",
+        type: "puzzleCompleted",
+        targetId: "puzzle-final",
+        requiredAmount: 1,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+      }],
+    },
+  ];
+
+  let finishDialogue;
+  const dialogueRuns = [];
+  const dialogueResult = new Promise((resolve) => {
+    finishDialogue = resolve;
+  });
+  const manager = new QuestRuntimeManager(gatedDocument, {
+    runEventFlow: (eventFlowId) => {
+      dialogueRuns.push(eventFlowId);
+      return dialogueResult;
+    },
+  });
+
+  manager.startQuest("QUEST_TEST");
+  manager.handleEvent({
+    type: "puzzleCompleted",
+    targetId: "puzzle-before-dialogue",
+  });
+  assert.equal(
+    manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_DIALOGUE_HANDOFF").completed,
+    true,
+  );
+  assert.deepEqual(dialogueRuns, ["chapter03-section-8"]);
+  assert.equal(manager.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_BEFORE_DIALOGUE");
+
+  finishDialogue(true);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(manager.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_AFTER_DIALOGUE");
+
+  manager.handleEvent({ type: "puzzleCompleted", targetId: "puzzle-final" });
+  assert.equal(manager.getQuestState("QUEST_TEST"), "completed");
 });
 
 test("unfinished Objective dialogue retries after reload and repairs legacy saves", async () => {
@@ -1032,6 +1211,19 @@ test("interaction item submissions keep objective order while allowing out-of-or
       .map((entry) => entry.objective.itemRequirements[0].itemId),
     ["R0013", "R0015"],
   );
+  assert.deepEqual(
+    manager
+      .getCurrentItemSubmissionObjectives("scene3-interaction-023")
+      .map((entry) => ({
+        itemId: entry.objective.itemRequirements[0].itemId,
+        completed: entry.progress.completed,
+      })),
+    [
+      { itemId: "R0013", completed: false },
+      { itemId: "R0014", completed: true },
+      { itemId: "R0015", completed: false },
+    ],
+  );
 
   manager.handleEvent({
     type: "itemSubmitted",
@@ -1049,4 +1241,41 @@ test("interaction item submissions keep objective order while allowing out-of-or
   });
 
   assert.equal(manager.getQuestState(quest.id), "completed");
+
+  const submissionOrders = [
+    ["R0013", "R0014", "R0015"],
+    ["R0013", "R0015", "R0014"],
+    ["R0014", "R0013", "R0015"],
+    ["R0014", "R0015", "R0013"],
+    ["R0015", "R0013", "R0014"],
+    ["R0015", "R0014", "R0013"],
+  ];
+  for (const [runIndex, submissionOrder] of submissionOrders.entries()) {
+    const repeatedManager = new QuestRuntimeManager(submissionDocument);
+    repeatedManager.startQuest(quest.id);
+    for (const [submissionIndex, itemId] of submissionOrder.entries()) {
+      repeatedManager.handleEvent({
+        type: "itemSubmitted",
+        targetId: "scene3-interaction-023",
+        itemId,
+        amount: 1,
+        eventId: `repeat-${runIndex}-${itemId}`,
+      });
+      if (submissionIndex < submissionOrder.length - 1) {
+        const currentVisualStates = repeatedManager
+          .getCurrentItemSubmissionObjectives("scene3-interaction-023")
+          .map((entry) => entry.progress.completed);
+        assert.equal(
+          currentVisualStates.filter(Boolean).length,
+          submissionIndex + 1,
+          `第 ${runIndex + 1} 輪第 ${submissionIndex + 1} 次投入應增加一格完成狀態`,
+        );
+        assert.equal(
+          repeatedManager.getActiveItemSubmissionObjectives("scene3-interaction-023").length,
+          submissionOrder.length - submissionIndex - 1,
+        );
+      }
+    }
+    assert.equal(repeatedManager.getQuestState(quest.id), "completed");
+  }
 });

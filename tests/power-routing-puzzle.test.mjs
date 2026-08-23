@@ -11,7 +11,7 @@ import {
   togglePowerRoutingDevice,
 } from "../app/power-routing-puzzle.ts";
 
-test("解謎手把選取依設備順序移動，並可移到確認供電", () => {
+test("解謎手把選取依設備順序移動，並可移到啟動供電", () => {
   assert.equal(movePowerRoutingMenuTarget("workbenchCore", -1), "workbenchCore");
   assert.equal(movePowerRoutingMenuTarget("workbenchCore", 1), "dataTerminal");
   assert.equal(movePowerRoutingMenuTarget("heater", 1), "coolingLoop");
@@ -89,7 +89,35 @@ test("供電成功入口只排程一次三段發電機音效", async () => {
   assert.match(movementLabSource, /playOneShotAudio\("generatorRunning"\)/);
 });
 
-test("interaction-012 會先開暫代選項視窗，再選擇電力分配或調頻", async () => {
+test("啟動供電沿用黃色主操作按鈕，手把模式顯示 RT 並可直接觸發", async () => {
+  const [movementLabSource, puzzleSource, styles] = await Promise.all([
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/power-routing-puzzle.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(puzzleSource, /gamepadMode \? \([\s\S]*power-trigger-key[\s\S]*>RT</);
+  assert.match(puzzleSource, /completing \? "啟動中…" : "啟動供電"/);
+  assert.doesNotMatch(puzzleSource, /確認供電|APPLY POWER/);
+  assert.match(puzzleSource, /applyPower: \(\) => void/);
+  assert.match(puzzleSource, /useImperativeHandle\([\s\S]*applyPower,/);
+  assert.match(movementLabSource, /gamepadMode=\{questPromptInputMode === "gamepad"\}/);
+  assert.match(
+    movementLabSource,
+    /rightTriggerJustPressed[\s\S]*powerPuzzleControllerRef\.current\?\.applyPower\(\)/,
+  );
+  assert.match(
+    styles,
+    /\.power-puzzle-apply\s*\{[\s\S]*border:\s*2px solid #a47b23;[\s\S]*background:\s*linear-gradient\(#997328, #604313\)/,
+  );
+  assert.match(styles, /\.power-puzzle-apply \.power-trigger-key\s*\{/);
+  assert.match(
+    styles,
+    /\.power-puzzle-apply:focus,[\s\S]*\.power-puzzle-apply:focus-visible\s*\{[\s\S]*outline:\s*none;/,
+  );
+});
+
+test("interaction-012 直接開啟電力分配，不再出現暫代小遊戲選單", async () => {
   const [scene, movementLabSource, puzzleSource] = await Promise.all([
     readFile(new URL("../public/maps/map_test01.scene.json", import.meta.url), "utf8")
       .then(JSON.parse),
@@ -106,12 +134,10 @@ test("interaction-012 會先開暫代選項視窗，再選擇電力分配或調�
     movementLabSource,
     /interactable\.id === POWER_ROUTING_INTERACTION_ID/,
   );
-  assert.match(movementLabSource, /openInteractionPuzzleSelection\(interactable, source\)/);
-  assert.match(movementLabSource, /chooseInteractionPuzzle/);
-  assert.match(movementLabSource, />電力分配小遊戲</);
-  assert.match(movementLabSource, />調頻小遊戲</);
-  assert.match(movementLabSource, /openPowerRoutingPuzzle\(session\.interactable, session\.source\)/);
-  assert.match(movementLabSource, /openFrequencyCalibrationPuzzle\(\)/);
+  assert.match(movementLabSource, /openPowerRoutingPuzzle\(interactable, source\)/);
+  assert.doesNotMatch(movementLabSource, /openInteractionPuzzleSelection/);
+  assert.doesNotMatch(movementLabSource, /chooseInteractionPuzzle/);
+  assert.doesNotMatch(movementLabSource, /TEMPORARY PUZZLE SELECT/);
   assert.match(movementLabSource, /completePowerPuzzleInteractionRef\.current/);
   assert.match(puzzleSource, /useState\(createInitialPowerRoutingState\)/);
   assert.match(puzzleSource, /evaluatePowerRouting\(state, availablePower\)/);
@@ -142,7 +168,7 @@ test("interaction-012 會先開暫代選項視窗，再選擇電力分配或調�
   assert.match(puzzleSource, /event\.stopPropagation\(\)/);
   assert.match(
     movementLabSource,
-    /className={`cursor-layer\$\{powerPuzzleOpen \|\| campPowerConfirmationOpen \? " is-over-modal" : ""\}`}/,
+    /className={`cursor-layer\$\{powerPuzzleOpen \|\| itemUseConfirmation \|\| campPowerConfirmationOpen \|\| sceneConnectionConfirmation \? " is-over-modal" : ""\}/,
   );
   assert.doesNotMatch(puzzleSource, /power-device-kind/);
   assert.match(puzzleSource, /is-unavailable/);

@@ -10,8 +10,10 @@ import {
 import {
   WELDING_ROUTE_VIEWBOX,
   WELDING_SOURCE_ROUTES,
+  advanceWeldingStartValidation,
   createRandomWeldingRoute,
   createWeldingRouteFailureState,
+  createWeldingStartValidationState,
   createWeldingRouteGraph,
   advanceWeldingWrongRouteDistance,
   findWeldingPathRejoinIndex,
@@ -31,8 +33,10 @@ import {
   type WeldingPathSample,
   type WeldingRouteEdge,
   type WeldingRouteFailureState,
+  type WeldingStartValidationState,
   type WeldingTrackProjection,
 } from "./welding-route-puzzle";
+import { resolvePublicAssetUrl } from "./public-asset-url";
 
 type WeldingPuzzlePhase =
   | "intro"
@@ -63,12 +67,15 @@ type WeldingCandidateTrail = WeldingCandidateProgress & {
   samples: WeldingPathSample[];
   endpoint: WeldingTrackProjection;
   routeFailure: WeldingRouteFailureState;
+  startValidation: WeldingStartValidationState;
 };
 
 type WeldingRoutePuzzleProps = {
   onCancel: () => void;
   onComplete: () => void;
   onFail: () => void;
+  onFailureShown?: () => void;
+  onSuccessShown?: () => void;
   onRequestNextStage?: () => boolean;
   onSparkActivityChange?: (active: boolean) => void;
   onVirtualCursorAvailabilityChange?: (available: boolean) => void;
@@ -100,9 +107,104 @@ const PREVIEW_COUNTDOWN_STEP_DURATION = 1000;
 const PREVIEW_WELD_DURATION = 5200;
 const PREVIEW_SETTLE_DURATION = 260;
 const WRONG_ROUTE_FAILURE_DISTANCE_PX = 100;
+const INVALID_START_FAILURE_DISTANCE_PX = 100;
 const FAILURE_MESSAGE_DURATION = 1400;
 const FAILURE_REVIEW_DURATION = 1800;
 const FAILURE_EXIT_DURATION = 420;
+
+const weldingAssetUrl = (fileName: string) => resolvePublicAssetUrl(
+  import.meta.env.BASE_URL,
+  `ui/welding/${fileName}`,
+);
+const WELDING_BACKGROUND_URL = weldingAssetUrl("brushed-metal-background.webp");
+const WELDING_SPARK_URL = weldingAssetUrl("spark-transparent.png");
+const WELDING_TORCH_URL = weldingAssetUrl("Weldingtorch.png");
+const WELDING_BRIEFING_DEMO_PATH = "M 38 94 L 145 94 L 176 54 L 262 54 L 292 94 L 360 94";
+const roundBriefingCoordinate = (value: number) => Number(value.toFixed(3));
+
+function WeldingBriefingDemo() {
+  return (
+    <div
+      className="welding-briefing-demo"
+      role="img"
+      aria-label="焊槍沿著虛線由左向右移動，火花將路線焊成紅色焊線的循環示範"
+    >
+      <svg viewBox="0 0 480 180" aria-hidden="true">
+        <defs>
+          <filter id="welding-briefing-seam-glow" x="-20%" y="-80%" width="140%" height="260%">
+            <feGaussianBlur stdDeviation="2.6" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+
+        <path className="welding-briefing-demo-guide" d={WELDING_BRIEFING_DEMO_PATH} />
+        <path
+          className="welding-briefing-demo-seam"
+          d={WELDING_BRIEFING_DEMO_PATH}
+          pathLength="1"
+          filter="url(#welding-briefing-seam-glow)"
+        />
+        <g className="welding-briefing-demo-motion">
+          <animateMotion
+            dur="4.8s"
+            repeatCount="indefinite"
+            path={WELDING_BRIEFING_DEMO_PATH}
+            keyPoints="0;0;1;1"
+            keyTimes="0;0.08;0.75;1"
+            calcMode="linear"
+            rotate="0"
+          />
+          <image
+            className="welding-briefing-demo-torch"
+            href={WELDING_TORCH_URL}
+            x="0"
+            y="-50"
+            width="176"
+            height="100"
+            preserveAspectRatio="xMinYMid meet"
+          />
+          <image
+            className="welding-briefing-demo-spark"
+            href={WELDING_SPARK_URL}
+            x="-31"
+            y="-24"
+            width="62"
+            height="48"
+            preserveAspectRatio="xMidYMid meet"
+          />
+          <g className="welding-briefing-demo-rays">
+            {Array.from({ length: 12 }, (_, index) => {
+              const angle = (index / 12) * Math.PI * 2;
+              const length = 16 + (index % 3) * 5;
+              return (
+                <line
+                  key={index}
+                  style={{ "--briefing-ray-index": index } as CSSProperties}
+                  x1={roundBriefingCoordinate(Math.cos(angle) * 4)}
+                  y1={roundBriefingCoordinate(Math.sin(angle) * 4)}
+                  x2={roundBriefingCoordinate(Math.cos(angle) * length)}
+                  y2={roundBriefingCoordinate(Math.sin(angle) * length)}
+                />
+              );
+            })}
+          </g>
+        </g>
+
+        <g className="welding-briefing-demo-static" transform="translate(360 94)">
+          <image
+            href={WELDING_TORCH_URL}
+            x="0"
+            y="-50"
+            width="176"
+            height="100"
+            preserveAspectRatio="xMinYMid meet"
+          />
+        </g>
+      </svg>
+      <i className="welding-briefing-demo-direction" aria-hidden="true" />
+    </div>
+  );
+}
 
 const isWeldingFailurePhase = (phase: WeldingPuzzlePhase) =>
   phase === "failure-message" ||
@@ -151,6 +253,8 @@ export function WeldingRoutePuzzle({
   onCancel,
   onComplete,
   onFail,
+  onFailureShown,
+  onSuccessShown,
   onRequestNextStage,
   onSparkActivityChange,
   onVirtualCursorAvailabilityChange,
@@ -161,6 +265,9 @@ export function WeldingRoutePuzzle({
   const initialGunPoint: WeldingPoint = graph.nodes.find(
     (node) => graph.startNodeIds.includes(node.id),
   ) ?? { x: 20, y: 251 };
+  const startNodes = graph.startNodeIds
+    .map((nodeId) => graph.nodes.find((node) => node.id === nodeId))
+    .filter((node): node is NonNullable<typeof node> => Boolean(node));
   const [phase, setPhase] = useState<WeldingPuzzlePhase>("intro");
   const [inputMode, setInputMode] = useState<WeldingInputMode>("pointer");
   const [gunPoint, setGunPoint] = useState<WeldingPoint>(initialGunPoint);
@@ -171,6 +278,9 @@ export function WeldingRoutePuzzle({
   const [previewCountdown, setPreviewCountdown] = useState(3);
   const [weldRenderClock, setWeldRenderClock] = useState(0);
   const [exitSelected, setExitSelected] = useState(false);
+  const [weldStartedFromStart, setWeldStartedFromStart] = useState(false);
+  const failureShownNotifiedRef = useRef(false);
+  const successShownNotifiedRef = useRef(false);
   const boardRef = useRef<HTMLDivElement>(null);
   const phaseRef = useRef<WeldingPuzzlePhase>("intro");
   const gunPointRef = useRef<WeldingPoint>(initialGunPoint);
@@ -220,6 +330,7 @@ export function WeldingRoutePuzzle({
     finishedRef.current = true;
     pointerHeldRef.current = false;
     setPointerHeld(false);
+    setExitSelected(false);
     updatePhase("success");
   };
 
@@ -289,6 +400,41 @@ export function WeldingRoutePuzzle({
     return routeFailure.failed;
   };
 
+  useEffect(() => {
+    if (phase !== "failure-message" || failureShownNotifiedRef.current) return;
+    failureShownNotifiedRef.current = true;
+    onFailureShown?.();
+  }, [onFailureShown, phase]);
+
+  useEffect(() => {
+    if (phase !== "success" || successShownNotifiedRef.current) return;
+    successShownNotifiedRef.current = true;
+    onSuccessShown?.();
+  }, [onSuccessShown, phase]);
+
+  const advanceActiveStartValidation = (
+    start: WeldingTrackProjection,
+    end: WeldingTrackProjection,
+  ) => {
+    const activeTrailId = activeCandidateTrailIdRef.current;
+    if (activeTrailId === null) return false;
+    const activeTrail = candidateTrailsRef.current.get(activeTrailId);
+    if (!activeTrail) return false;
+    const startValidation = advanceWeldingStartValidation({
+      state: activeTrail.startValidation,
+      start,
+      end,
+      failureDistance: INVALID_START_FAILURE_DISTANCE_PX,
+      scaleX: routeDistanceScaleRef.current.x,
+      scaleY: routeDistanceScaleRef.current.y,
+    });
+    candidateTrailsRef.current.set(activeTrailId, {
+      ...activeTrail,
+      startValidation,
+    });
+    return startValidation.failed;
+  };
+
   const getResumableCandidateTrail = (
     selectedTrack: WeldingTrackProjection,
   ): WeldingCandidateTrail | null => {
@@ -348,6 +494,7 @@ export function WeldingRoutePuzzle({
     if (segmentLength < MINIMUM_WELD_SEGMENT_LENGTH) return false;
     const activeTrailId = activeCandidateTrailIdRef.current;
     if (activeTrailId === null) return false;
+    const invalidStartFailed = advanceActiveStartValidation(start, end);
     const routeFailed = advanceActiveWrongRouteDistance(start, end);
     const nextSegment: WeldingSegment = {
       segmentId: (weldSegmentIdRef.current += 1),
@@ -441,7 +588,7 @@ export function WeldingRoutePuzzle({
     pendingAbandonedTrailRef.current = pendingTrail;
     weldSegmentsRef.current = nextSegments;
     setWeldSegments(nextSegments);
-    if (routeFailed) {
+    if (invalidStartFailed || routeFailed) {
       failPuzzle();
       return true;
     }
@@ -503,8 +650,15 @@ export function WeldingRoutePuzzle({
     if (resumedTrail) {
       activeCandidateTrailIdRef.current = resumedTrail.trailId;
       activeWeldPathRef.current = [...resumedTrail.samples];
+      setWeldStartedFromStart(resumedTrail.startValidation.startedFromStart);
     } else {
       const trailId = (candidateTrailIdRef.current += 1);
+      const startValidation = createWeldingStartValidationState({
+        graph,
+        projection: selectedTrack,
+        scaleX: routeDistanceScaleRef.current.x,
+        scaleY: routeDistanceScaleRef.current.y,
+      });
       let routeFailure = createWeldingRouteFailureState();
       if (!previewRoute.edgeIds.includes(selectedTrack.edge.id)) {
         routeFailure = {
@@ -513,7 +667,10 @@ export function WeldingRoutePuzzle({
           failed: false,
         };
       }
-      if (selectedTrack.t <= 0.06) {
+      if (
+        startValidation.startedFromStart &&
+        graph.startNodeIds.includes(selectedTrack.edge.from)
+      ) {
         routeFailure = resolveWeldingRouteNodeChoice({
           state: routeFailure,
           graph,
@@ -534,12 +691,14 @@ export function WeldingRoutePuzzle({
         samples: [firstSample],
         endpoint: selectedTrack,
         routeFailure,
+        startValidation,
         progress: 0,
         pendingAbandonment: false,
         fading: false,
       });
       activeCandidateTrailIdRef.current = trailId;
       activeWeldPathRef.current = [firstSample];
+      setWeldStartedFromStart(startValidation.startedFromStart);
     }
     pointerHeldRef.current = true;
     setPointerHeld(true);
@@ -610,14 +769,18 @@ export function WeldingRoutePuzzle({
     previousWeldSampleRef.current = selectedTrack;
 
     if (selectedTrack.t >= 0.995) {
+      const activeTrailId = activeCandidateTrailIdRef.current;
+      const startedFromStart = activeTrailId !== null &&
+        candidateTrailsRef.current.get(activeTrailId)?.startValidation.startedFromStart === true;
       const endpointResult = resolveWeldingEndpointResult({
         graph,
         correctEdgeIds: previewRoute.edgeIds,
         selectedEdge: selectedTrack.edge,
+        startedFromStart,
       });
       if (endpointResult === "correct") {
         completePuzzle();
-      } else if (endpointResult === "wrong") {
+      } else if (endpointResult === "wrong" || endpointResult === "unqualified") {
         failPuzzle();
       }
     }
@@ -699,6 +862,7 @@ export function WeldingRoutePuzzle({
     setGunVisible(false);
     setPreviewCountdown(3);
     setExitSelected(false);
+    setWeldStartedFromStart(false);
     updatePhase("countdown");
   };
 
@@ -838,7 +1002,10 @@ export function WeldingRoutePuzzle({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.repeat) return;
-      if (isWeldingFailurePhase(phaseRef.current)) return;
+      if (
+        isWeldingFailurePhase(phaseRef.current) ||
+        phaseRef.current === "success"
+      ) return;
       event.preventDefault();
       onCancel();
     };
@@ -903,15 +1070,24 @@ export function WeldingRoutePuzzle({
         }
 
         const failurePlaying = isWeldingFailurePhase(phaseRef.current);
+        const successShowing = phaseRef.current === "success";
         if (!failurePlaying) {
-          if (navigateUp && !previousGamepadButtonsRef.current.navigateUp) {
+          if (
+            !successShowing &&
+            navigateUp &&
+            !previousGamepadButtonsRef.current.navigateUp
+          ) {
             setExitSelected(true);
           }
           if (navigateDown && !previousGamepadButtonsRef.current.navigateDown) {
             setExitSelected(false);
           }
 
-          if (backPressed && !previousGamepadButtonsRef.current.back) onCancel();
+          if (
+            !successShowing &&
+            backPressed &&
+            !previousGamepadButtonsRef.current.back
+          ) onCancel();
           if (!gamepadConfirmArmedRef.current && !confirmPressed) {
             gamepadConfirmArmedRef.current = true;
           }
@@ -921,12 +1097,12 @@ export function WeldingRoutePuzzle({
             !previousGamepadButtonsRef.current.confirm &&
             (shouldHandleGamepadConfirm?.() ?? true)
           ) {
-            if (exitSelected) {
+            if (successShowing) {
+              confirmCompletion();
+            } else if (exitSelected) {
               onCancel();
             } else if (phaseRef.current === "intro") {
               startPreviewSequence();
-            } else if (phaseRef.current === "success") {
-              confirmCompletion();
             }
           }
         }
@@ -1024,6 +1200,9 @@ export function WeldingRoutePuzzle({
   const showingFailureReview = phase === "failure-review" || phase === "failure-exit";
   const sparkPoint = gunPoint;
   const showingSparks = activelyWelding || showingPreviewWeld;
+  const showingStartGuidance =
+    (phase === "ready" || phase === "welding") && !weldStartedFromStart;
+  const showingStartInstruction = phase === "ready" || phase === "welding";
 
   useEffect(() => {
     onSparkActivityChange?.(showingSparks);
@@ -1053,34 +1232,53 @@ export function WeldingRoutePuzzle({
             <small>FIELD REPAIR · WELDING STAGE 01</small>
             <h2 id="welding-puzzle-title">焊接各部位元件</h2>
           </div>
-          <p>
-            {phase === "success" ? "結構接點已完成固定" :
+          <p className={showingStartInstruction ? "welding-start-instruction" : undefined}>
+            {showingStartInstruction ? (
+              <>
+                <span>按住 [RT] 推動 [右搖桿] 控制焊槍</span>
+                <span>由最左側向右行走開始進行焊接</span>
+              </>
+            ) : phase === "success" ? "結構接點已完成固定" :
               isWeldingFailurePhase(phase) ? "焊接路線已超出容許範圍" :
               phase === "intro" || phase === "countdown" || phase === "preview"
                 ? "先觀察焊槍自動走過一次正確路線"
-                : "依照預覽路線焊接；錯誤分支超過 100px 將失敗"}
+                : null}
           </p>
-          <button
-            className={exitSelected ? "is-gamepad-selected" : undefined}
-            type="button"
-            data-gamepad-selected={exitSelected || undefined}
-            onFocus={() => setExitSelected(true)}
-            onMouseEnter={() => setExitSelected(true)}
-            onClick={onCancel}
-            disabled={isWeldingFailurePhase(phase)}
-          >
-            離開
-          </button>
+          {phase !== "success" ? (
+            <button
+              className={exitSelected ? "is-gamepad-selected" : undefined}
+              type="button"
+              data-gamepad-selected={exitSelected || undefined}
+              onFocus={() => setExitSelected(true)}
+              onMouseEnter={() => setExitSelected(true)}
+              onClick={onCancel}
+              disabled={isWeldingFailurePhase(phase)}
+            >
+              離開
+            </button>
+          ) : null}
         </header>
 
         <div
           ref={boardRef}
           className="welding-puzzle-board"
+          style={{
+            "--welding-board-background-image": `url("${WELDING_BACKGROUND_URL}")`,
+          } as CSSProperties}
           onPointerEnter={(event) => {
             handlePointerMove(event);
           }}
           onPointerLeave={() => {
-            if (!pointerHeldRef.current && inputMode === "pointer") setGunVisible(false);
+            const currentPhase = phaseRef.current;
+            const playerControlActive =
+              currentPhase === "ready" || currentPhase === "welding";
+            if (
+              playerControlActive &&
+              !pointerHeldRef.current &&
+              inputMode === "pointer"
+            ) {
+              setGunVisible(false);
+            }
           }}
           onPointerMove={handlePointerMove}
           onPointerDown={handlePointerDown}
@@ -1099,6 +1297,31 @@ export function WeldingRoutePuzzle({
                 <polyline key={route.id} points={sourceRoutePoints(route.points)} />
               ))}
             </g>
+            {showingStartGuidance ? (
+              <g className="welding-start-guidance" aria-hidden="true">
+                <g className="welding-start-callout">
+                  <text x="28" y="31" textAnchor="middle">START</text>
+                  <path
+                    className="welding-start-arrow-body"
+                    d="M18 44 Q18 42 20 42 Q22 42 22 44 L22 70 L25.8 66.2 Q27.3 64.7 28.7 66.1 L30.2 67.6 Q31.6 69 30.2 70.5 L21.5 81.5 Q20 83.5 18.5 81.5 L9.8 70.5 Q8.4 69 9.8 67.6 L11.3 66.1 Q12.7 64.7 14.2 66.2 L18 70 Z"
+                  />
+                  <path
+                    className="welding-start-arrow-highlight"
+                    d="M20 47 L20 70"
+                  />
+                </g>
+                {startNodes.map((node, index) => (
+                  <g
+                    key={node.id}
+                    className="welding-start-beacon"
+                    style={{ "--start-beacon-delay": `${index * 170}ms` } as CSSProperties}
+                    transform={`translate(${node.x} ${node.y})`}
+                  >
+                    <circle className="welding-start-beacon-glow" r="9" />
+                  </g>
+                ))}
+              </g>
+            ) : null}
           </svg>
 
           {previewSegments.length > 0 || weldSegments.length > 0 ? (
@@ -1201,7 +1424,7 @@ export function WeldingRoutePuzzle({
               </g>
               <image
                 className="welding-hotspot-sprite"
-                href="/ui/welding/spark-transparent.png"
+                href={WELDING_SPARK_URL}
                 x={sparkPoint.x - 85}
                 y={sparkPoint.y - 63.75}
                 width="170"
@@ -1216,7 +1439,7 @@ export function WeldingRoutePuzzle({
             // eslint-disable-next-line @next/next/no-img-element
             <img
               className={`welding-gun-cursor${showingSparks ? " is-active" : ""}`}
-              src="/ui/welding/Weldingtorch.png"
+              src={WELDING_TORCH_URL}
               alt=""
               draggable={false}
               style={{
@@ -1230,8 +1453,12 @@ export function WeldingRoutePuzzle({
             <div className="welding-puzzle-intro">
               <div className="welding-puzzle-intro-panel">
                 <small>WELDING ROUTE BRIEFING</small>
-                <strong>先觀察正確焊接路線</strong>
-                <p>按下開始後，焊槍會自動走過一次正確路線；預覽結束後再交由你操作。</p>
+                <strong>
+                  <span>先觀察正確的焊接路線，</span>
+                  <span>再重複走過一遍相同的路線。</span>
+                </strong>
+                <WeldingBriefingDemo />
+                <p>焊接路線錯誤的話，將會消耗一塊金屬碎片。</p>
                 <button
                   autoFocus
                   className={`welding-puzzle-primary-action${!exitSelected ? " is-gamepad-selected" : ""}`}
@@ -1264,7 +1491,7 @@ export function WeldingRoutePuzzle({
           {phase === "success" ? (
             <div className="welding-puzzle-success" role="status">
               <small>WELDING COMPLETE</small>
-              <strong>焊接完成</strong>
+              <strong>焊接成功</strong>
               <span>接點強度穩定</span>
               <button
                 className={`welding-puzzle-primary-action${!exitSelected ? " is-gamepad-selected" : ""}`}

@@ -1,8 +1,21 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
+import { getUnmetInteractionUseRequirements } from "../app/interaction-flow.ts";
+import { resolvePublicAssetUrl } from "../app/public-asset-url.ts";
+import { STORY_DIALOGUES } from "../app/story-content.ts";
+import { QuestRuntimeManager } from "../app/quest-runtime-manager.ts";
 import {
+  WELDING_TOOL_HINT_ACTIVATION_EVENT_ID,
+  WELDING_TOOL_HINT_FAILURE_COUNTER_ID,
+  WELDING_TOOL_HINT_OBJECTIVE_ID,
+  recordWeldingToolHintInteractionFailure,
+} from "../app/welding-objective-hint.ts";
+import {
+  WELDING_START_DISTANCE_TOLERANCE_PX,
+  advanceWeldingStartValidation,
   advanceWeldingWrongRouteDistance,
+  createWeldingStartValidationState,
   createWeldingRouteFailureState,
   createRandomWeldingRoute,
   createWeldingRouteGraph,
@@ -391,6 +404,27 @@ test("welding UI includes generated assets, RT input, pointer capture and hidden
   assert.ok(existsSync(new URL("../public/ui/welding/brushed-metal-background.webp", import.meta.url)));
 });
 
+test("welding assets resolve under both local root and GitHub Pages base path", () => {
+  assert.equal(
+    resolvePublicAssetUrl("/", "/ui/welding/Weldingtorch.png"),
+    "/ui/welding/Weldingtorch.png",
+  );
+  assert.equal(
+    resolvePublicAssetUrl("/Echoes/", "ui/welding/Weldingtorch.png"),
+    "/Echoes/ui/welding/Weldingtorch.png",
+  );
+
+  const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
+  const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(component, /import\.meta\.env\.BASE_URL/);
+  assert.match(component, /WELDING_BACKGROUND_URL/);
+  assert.match(component, /href=\{WELDING_SPARK_URL\}/);
+  assert.match(component, /src=\{WELDING_TORCH_URL\}/);
+  assert.match(styles, /var\(--welding-board-background-image\) center \/ cover/);
+  assert.doesNotMatch(component, /["']\/ui\/welding\//);
+  assert.doesNotMatch(styles, /url\(["']\/ui\/welding\//);
+});
+
 test("gamepad can release RT, move freely, and reattach at the interrupted seam", () => {
   const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
   assert.match(component, /rightTriggerHeld && pointerHeldRef\.current/);
@@ -431,6 +465,7 @@ test("the first real weld segment uses the normal hot seam without a degenerate 
 
 test("welding opens with an explicit route preview before player control", () => {
   const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
+  const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(component, /createWeldingRouteGraph\(\)/);
   assert.match(component, /useState<WeldingPuzzlePhase>\("intro"\)/);
   assert.match(component, /useState\(\(\) => createRandomWeldingRoute\(\)\)/);
@@ -448,6 +483,69 @@ test("welding opens with an explicit route preview before player control", () =>
   assert.match(component, /onVirtualCursorAvailabilityChange/);
   assert.match(component, /phase === "intro" \|\| phase === "success"/);
   assert.match(component, /shouldHandleGamepadConfirm\?\.\(\) \?\? true/);
+  assert.match(component, /function WeldingBriefingDemo\(\)/);
+  assert.match(component, /welding-briefing-demo-guide/);
+  assert.match(component, /welding-briefing-demo-seam/);
+  assert.match(component, /welding-briefing-demo-motion/);
+  assert.match(component, /href=\{WELDING_TORCH_URL\}/);
+  assert.match(component, /href=\{WELDING_SPARK_URL\}/);
+  assert.match(component, /className="welding-briefing-demo-torch"[\s\S]*width="176"[\s\S]*height="100"/);
+  assert.match(component, /先觀察正確的焊接路線，/);
+  assert.match(component, /再重複走過一遍相同的路線。/);
+  assert.match(component, /焊接路線錯誤的話，將會消耗一塊金屬碎片。/);
+  assert.doesNotMatch(component, /按下開始後，焊槍會自動走過一次正確路線/);
+  assert.match(styles, /\.welding-puzzle-intro-panel > \.welding-puzzle-primary-action\s*\{[\s\S]*width:\s*min\(360px, 78%\)/);
+  assert.match(styles, /\.welding-puzzle-intro-panel p\s*\{[\s\S]*font-size:\s*16px/);
+  assert.doesNotMatch(component, /焊接方向 · 路線示範重播/);
+  assert.doesNotMatch(styles, /\.welding-briefing-demo > span/);
+  assert.match(component, /welding-briefing-demo-direction/);
+  assert.match(component, /repeatCount="indefinite"/);
+  assert.match(styles, /height:\s*min\(540px, calc\(100% - 28px\)\)/);
+  assert.match(component, /roundBriefingCoordinate/);
+  assert.match(styles, /@keyframes welding-briefing-seam-replay/);
+  assert.match(styles, /@keyframes welding-briefing-spark-replay/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
+});
+
+test("gamepad-opened briefing keeps A on the selected action while retaining virtual cursor takeover", () => {
+  const movementLab = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  const openStart = movementLab.indexOf("const openWeldingPuzzle = (");
+  const availabilityStart = movementLab.indexOf(
+    "const handleWeldingPuzzleVirtualCursorAvailabilityChange",
+    openStart,
+  );
+  const confirmOwnershipStart = movementLab.indexOf(
+    "const shouldWeldingPuzzleHandleGamepadConfirm",
+    availabilityStart,
+  );
+  const openHandler = movementLab.slice(openStart, availabilityStart);
+  const availabilityHandler = movementLab.slice(
+    availabilityStart,
+    confirmOwnershipStart,
+  );
+  const dpadStart = movementLab.indexOf("const activateWeldingPuzzleDpadMode = () => {");
+  const dpadEnd = movementLab.indexOf("const activateCurrentPuzzleControlMode", dpadStart);
+  const dpadHandler = movementLab.slice(dpadStart, dpadEnd);
+
+  assert.match(openHandler, /const openedWithGamepad = source === "gamepad"/);
+  assert.match(
+    openHandler,
+    /powerPuzzleGamepadModeRef\.current = openedWithGamepad \? "dpad" : "cursor"/,
+  );
+  assert.match(
+    openHandler,
+    /powerPuzzleCursorRearmRequiredRef\.current = openedWithGamepad/,
+  );
+  assert.doesNotMatch(
+    availabilityHandler,
+    /powerPuzzleGamepadModeRef\.current = "cursor"/,
+  );
+  assert.match(dpadHandler, /virtualCursorVisible = true/);
+  assert.match(dpadHandler, /activateGamepadCursor\(\)/);
+  assert.match(
+    movementLab,
+    /cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD[\s\S]*powerPuzzleGamepadModeRef\.current = "cursor"/,
+  );
 });
 
 test("automatic preview ends with the cursor at this answer route entrance", () => {
@@ -466,7 +564,7 @@ test("welding completion waits for explicit confirmation and uses the project we
   assert.match(component, /確認完成/);
   assert.match(component, /onClick=\{confirmCompletion\}/);
   assert.doesNotMatch(component, /setTimeout\(\(\) => \{[\s\S]*onComplete\(\)[\s\S]*\},\s*1250\)/);
-  assert.match(component, /src="\/ui\/welding\/Weldingtorch\.png"/);
+  assert.match(component, /src=\{WELDING_TORCH_URL\}/);
   assert.match(styles, /\.welding-gun-cursor\s*\{[\s\S]*translate\(0, -46\.25%\)/);
   assert.doesNotMatch(styles, /\.welding-gun-cursor\s*\{[\s\S]*rotate\(/);
 });
@@ -630,6 +728,22 @@ test("hot weld follows the gun during both automatic preview and player welding"
   assert.doesNotMatch(component, /welding-route-terminals/);
 });
 
+test("mouse leaving the board cannot hide the torch during automatic preview", () => {
+  const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
+  const leaveHandlerStart = component.indexOf("onPointerLeave={() => {");
+  const leaveHandlerEnd = component.indexOf("onPointerMove={handlePointerMove}", leaveHandlerStart);
+  const leaveHandler = component.slice(leaveHandlerStart, leaveHandlerEnd);
+
+  assert.ok(leaveHandlerStart >= 0, "應能找到焊接面板的滑鼠離開處理器");
+  assert.match(leaveHandler, /const currentPhase = phaseRef\.current/);
+  assert.match(
+    leaveHandler,
+    /currentPhase === "ready" \|\| currentPhase === "welding"/,
+  );
+  assert.match(leaveHandler, /playerControlActive[\s\S]*setGunVisible\(false\)/);
+  assert.doesNotMatch(leaveHandler, /currentPhase === "preview"/);
+});
+
 test("welding emits a dense spark field during preview and active welding", () => {
   const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
   assert.match(component, /Array\.from\(\{ length: 42 \}/);
@@ -643,7 +757,7 @@ test("welding hotspot uses the transparent spark sprite and flickers while activ
   const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
   const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(component, /className="welding-hotspot-sprite"/);
-  assert.match(component, /href="\/ui\/welding\/spark-transparent\.png"/);
+  assert.match(component, /href=\{WELDING_SPARK_URL\}/);
   assert.doesNotMatch(component, /className="welding-hotspot"/);
   assert.match(styles, /\.welding-hotspot-sprite\s*\{[\s\S]*animation:\s*welding-hotspot-sprite-flicker/);
   assert.match(styles, /@keyframes welding-hotspot-sprite-flicker/);
@@ -699,6 +813,84 @@ test("reaching a wrong endpoint fails immediately without waiting for 100px", ()
     correctEdgeIds: route.edgeIds,
     selectedEdge: nonFinalEdge,
   }), "not-end");
+  assert.equal(resolveWeldingEndpointResult({
+    graph: route.graph,
+    correctEdgeIds: route.edgeIds,
+    selectedEdge: correctFinalEdge,
+    startedFromStart: false,
+  }), "unqualified");
+});
+
+test("welding must begin at a left start and an invalid start fails after 100 rendered pixels", () => {
+  const route = createRandomWeldingRoute(() => 0.42);
+  const firstEdge = route.edges[0];
+  const middleEdge = {
+    id: "middle-edge",
+    from: "middle-a",
+    to: "middle-b",
+    start: { x: 0, y: 0 },
+    end: { x: 100, y: 0 },
+    sourceRouteIds: [],
+  };
+  const projection = (edge, t) => ({
+    edge,
+    point: {
+      x: edge.start.x + (edge.end.x - edge.start.x) * t,
+      y: edge.start.y + (edge.end.y - edge.start.y) * t,
+    },
+    t,
+    distance: 0,
+  });
+
+  const valid = createWeldingStartValidationState({
+    graph: route.graph,
+    projection: projection(firstEdge, 0.03),
+  });
+  assert.equal(valid.startedFromStart, true);
+  assert.equal(WELDING_START_DISTANCE_TOLERANCE_PX, 50);
+  const firstEdgeLength = Math.hypot(
+    firstEdge.end.x - firstEdge.start.x,
+    firstEdge.end.y - firstEdge.start.y,
+  );
+  const renderedScale = 100 / firstEdgeLength;
+  assert.equal(createWeldingStartValidationState({
+    graph: route.graph,
+    projection: projection(firstEdge, 0.5),
+    scaleX: renderedScale,
+    scaleY: renderedScale,
+  }).startedFromStart, true);
+  assert.equal(createWeldingStartValidationState({
+    graph: route.graph,
+    projection: projection(firstEdge, 0.501),
+    scaleX: renderedScale,
+    scaleY: renderedScale,
+  }).startedFromStart, false);
+
+  const invalid = createWeldingStartValidationState({
+    graph: route.graph,
+    projection: projection(middleEdge, 0.5),
+  });
+  assert.equal(invalid.startedFromStart, false);
+
+  const ninetyPixels = advanceWeldingStartValidation({
+    state: invalid,
+    start: projection(middleEdge, 0),
+    end: projection(middleEdge, 0.45),
+    failureDistance: 100,
+    scaleX: 2,
+  });
+  assert.equal(Math.round(ninetyPixels.unqualifiedDistance), 90);
+  assert.equal(ninetyPixels.failed, false);
+
+  const overLimit = advanceWeldingStartValidation({
+    state: ninetyPixels,
+    start: projection(middleEdge, 0.45),
+    end: projection(middleEdge, 0.51),
+    failureDistance: 100,
+    scaleX: 2,
+  });
+  assert.equal(Math.round(overLimit.unqualifiedDistance), 102);
+  assert.equal(overLimit.failed, true);
 });
 
 test("a wrong fork arms one comparison state and the correct route clears it", () => {
@@ -788,13 +980,38 @@ test("wrong route fails only beyond 100 rendered pixels and retracing subtracts 
 test("gameplay compares the preview answer at nodes and calls the existing failure flow", () => {
   const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
   assert.match(component, /WRONG_ROUTE_FAILURE_DISTANCE_PX = 100/);
+  assert.match(component, /INVALID_START_FAILURE_DISTANCE_PX = 100/);
+  assert.match(component, /advanceWeldingStartValidation/);
+  assert.match(component, /startedFromStart/);
   assert.match(component, /resolveWeldingRouteNodeChoice/);
   assert.match(component, /advanceWeldingWrongRouteDistance/);
   assert.match(component, /resolveWeldingEndpointResult/);
   assert.match(component, /endpointResult === "wrong"[\s\S]*failPuzzle\(\)/);
   assert.match(component, /onFail\(\)/);
-  assert.match(component, /錯誤分支超過 100px 將失敗/);
+  assert.match(component, /endpointResult === "wrong" \|\| endpointResult === "unqualified"/);
   assert.match(component, /useState\(\(\) => createRandomWeldingRoute\(\)\)/);
+});
+
+test("player phase shows four breathing start beacons, a START arrow, and the RT instruction", () => {
+  const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
+  const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(component, /showingStartGuidance/);
+  assert.match(component, /startNodes\.map\(\(node, index\) =>/);
+  assert.match(component, /className="welding-start-callout"/);
+  assert.match(component, />START<\/text>/);
+  assert.match(component, /className="welding-start-beacon"/);
+  assert.match(component, /按住 \[RT\] 推動 \[右搖桿\] 控制焊槍/);
+  assert.match(component, /由最左側向右行走開始進行焊接/);
+  assert.match(styles, /@keyframes welding-start-instruction-breathe/);
+  assert.match(styles, /@keyframes welding-start-callout-float/);
+  assert.match(styles, /@keyframes welding-start-beacon-glow-breathe/);
+  assert.match(styles, /\.welding-start-beacon-glow\s*\{[^}]*blur\(5px\)/);
+  assert.match(styles, /\.welding-start-beacon-glow\s*\{[^}]*fill:\s*rgba\(255, 70, 55, 0\.92\)/);
+  assert.doesNotMatch(component, /welding-start-beacon-ring/);
+  assert.doesNotMatch(component, /welding-start-beacon-core/);
+  assert.doesNotMatch(styles, /\.welding-start-beacon\s*\{[^}]*animation:/);
+  assert.match(component, /className="welding-start-arrow-body"/);
+  assert.match(component, /className="welding-start-arrow-highlight"/);
 });
 
 test("wrong-route failure shows the timed message, reviews both route types, then closes", () => {
@@ -822,6 +1039,45 @@ test("wrong-route failure shows the timed message, reviews both route types, the
   assert.match(styles, /welding-puzzle-failure-exit 420ms cubic-bezier/);
 });
 
+test("welding success background fades in without expanding from the centre", () => {
+  const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
+  const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const successStart = styles.indexOf(".welding-puzzle-success {");
+  const successEnd = styles.indexOf(".welding-puzzle-success small", successStart);
+  const successStyles = styles.slice(successStart, successEnd);
+  const animationStart = styles.indexOf("@keyframes welding-success-fade-in");
+  const animationEnd = styles.indexOf(".welding-puzzle-footer", animationStart);
+  const animationStyles = styles.slice(animationStart, animationEnd);
+
+  assert.match(successStyles, /welding-success-fade-in 200ms linear both/);
+  assert.match(component, /<strong>焊接成功<\/strong>/);
+  assert.match(animationStyles, /from \{ opacity: 0; \}/);
+  assert.match(animationStyles, /to \{ opacity: 1; \}/);
+  assert.doesNotMatch(successStyles, /scaleX/);
+  assert.doesNotMatch(animationStyles, /scaleX/);
+  assert.doesNotMatch(styles, /welding-success-reveal/);
+});
+
+test("welding success removes every in-puzzle cancel path and keeps only confirmation", () => {
+  const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
+  const headerStart = component.indexOf('<header className="welding-puzzle-header">');
+  const headerEnd = component.indexOf("</header>", headerStart);
+  const header = component.slice(headerStart, headerEnd);
+  const escapeStart = component.indexOf("const handleKeyDown = (event: KeyboardEvent)");
+  const escapeEnd = component.indexOf("window.addEventListener", escapeStart);
+  const escapeHandler = component.slice(escapeStart, escapeEnd);
+
+  assert.match(header, /phase !== "success" \? \([\s\S]*離開[\s\S]*\) : null/);
+  assert.match(escapeHandler, /phaseRef\.current === "success"/);
+  assert.match(component, /const successShowing = phaseRef\.current === "success"/);
+  assert.match(component, /!successShowing &&[\s\S]*backPressed/);
+  assert.match(
+    component,
+    /if \(successShowing\) \{[\s\S]*confirmCompletion\(\);[\s\S]*\} else if \(exitSelected\)/,
+  );
+  assert.match(component, /setExitSelected\(false\);[\s\S]*updatePhase\("success"\)/);
+});
+
 test("formal welding interaction finishes its success dialogue before opening the puzzle", () => {
   const movementLab = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
   const weldingBranchStart = movementLab.indexOf(
@@ -839,22 +1095,183 @@ test("formal welding interaction finishes its success dialogue before opening th
   assert.doesNotMatch(weldingBranch, /completeInteraction\(/);
 });
 
-test("welding consumes its one-time interaction only after puzzle success", () => {
+test("formal welding interaction requires both the welding tool and metal scrap", () => {
+  const scene = JSON.parse(
+    readFileSync(new URL("../public/maps/map_test01.scene.json", import.meta.url), "utf8"),
+  );
+  const interaction = scene.interactables.find(
+    (candidate) => candidate.id === "scene3-interaction-024",
+  );
+  assert.ok(interaction);
+  assert.deepEqual(
+    interaction.useRequirements
+      .filter((requirement) => requirement.kind === "item")
+      .map((requirement) => [requirement.itemId, requirement.quantity]),
+    [["T0007", 1], ["R0009", 1]],
+  );
+
+  const withoutMetalScrap = getUnmetInteractionUseRequirements(
+    interaction.useRequirements,
+    { T0007: 1 },
+    3,
+    () => true,
+    () => true,
+  );
+  assert.deepEqual(
+    withoutMetalScrap.map((requirement) => [requirement.kind, requirement.itemId, requirement.actual]),
+    [["item", "R0009", 0]],
+  );
+  assert.deepEqual(
+    getUnmetInteractionUseRequirements(
+      interaction.useRequirements,
+      { T0007: 1, R0009: 1 },
+      3,
+      () => true,
+      () => true,
+    ),
+    [],
+  );
+});
+
+test("焊接互動需求連續失敗兩次後啟用隱藏焊槍 OBJ 並保留計數", () => {
+  const questDocument = JSON.parse(
+    readFileSync(new URL("../public/quests/quest-data.json", import.meta.url), "utf8"),
+  );
+  const quest = structuredClone(
+    questDocument.quests.find((candidate) => candidate.id === "QUEST_CH03_MAIN_006"),
+  );
+  const stage = structuredClone(
+    quest.stages.find((candidate) => candidate.id === "QUEST_CH03_MAIN_006_STAGE_02"),
+  );
+  stage.nextStageId = "";
+  quest.prerequisiteQuestIds = [];
+  quest.stages = [stage];
+  const isolatedDocument = {
+    schemaVersion: questDocument.schemaVersion,
+    chapters: questDocument.chapters,
+    quests: [quest],
+  };
+
+  const objective = stage.objectives.find(
+    (candidate) => candidate.id === WELDING_TOOL_HINT_OBJECTIVE_ID,
+  );
+  assert.equal(objective.activationMode, "event");
+  assert.equal(objective.activationEventId, WELDING_TOOL_HINT_ACTIVATION_EVENT_ID);
+  assert.equal(objective.blocksStageCompletion, false);
+
+  const firstManager = new QuestRuntimeManager(isolatedDocument);
+  firstManager.syncCurrentInventory({});
+  firstManager.startQuest(quest.id);
+  const firstFailure = recordWeldingToolHintInteractionFailure(
+    firstManager,
+    "scene3-interaction-024",
+  );
+  assert.deepEqual(firstFailure, { activated: false, failureCount: 1 });
+  assert.equal(
+    firstManager.getObjectiveProgress(quest.id, WELDING_TOOL_HINT_OBJECTIVE_ID).state,
+    "locked",
+  );
+
+  const restoredManager = new QuestRuntimeManager(
+    isolatedDocument,
+    {},
+    firstManager.exportSave(),
+  );
+  restoredManager.syncCurrentInventory({ T0007: 1 });
+  const secondFailure = recordWeldingToolHintInteractionFailure(
+    restoredManager,
+    "scene3-interaction-024",
+  );
+  assert.deepEqual(secondFailure, { activated: true, failureCount: 2 });
+  const completedHint = restoredManager.getObjectiveProgress(
+    quest.id,
+    WELDING_TOOL_HINT_OBJECTIVE_ID,
+  );
+  assert.equal(completedHint.completed, true);
+  assert.equal(completedHint.activatedByEventId, WELDING_TOOL_HINT_ACTIVATION_EVENT_ID);
+  assert.equal(
+    restoredManager.getEventCounter(quest.id, WELDING_TOOL_HINT_FAILURE_COUNTER_ID),
+    2,
+  );
+
+  assert.deepEqual(
+    recordWeldingToolHintInteractionFailure(restoredManager, "scene3-interaction-024"),
+    { activated: false, failureCount: 2 },
+  );
+
+  const movementLab = readFileSync(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  const interactionFailureStart = movementLab.indexOf(
+    "const openInteractionFailureDialogue = (",
+  );
+  const interactionFailureEnd = movementLab.indexOf(
+    "const onControlBindingsChanged",
+    interactionFailureStart,
+  );
+  const puzzleFailureStart = movementLab.indexOf(
+    "const handleWeldingPuzzleFailure = () => {",
+  );
+  const puzzleFailureEnd = movementLab.indexOf(
+    "const openFrequencyCalibrationPuzzle",
+    puzzleFailureStart,
+  );
+  assert.match(
+    movementLab.slice(interactionFailureStart, interactionFailureEnd),
+    /recordWeldingToolHintInteractionFailure\(questManager, interactable\.id\)/,
+  );
+  assert.doesNotMatch(
+    movementLab.slice(puzzleFailureStart, puzzleFailureEnd),
+    /recordWeldingToolHintInteractionFailure/,
+  );
+});
+
+test("welding consumes metal scrap on failure but its one-time interaction only on success", () => {
   const movementLab = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
-  const completionStart = movementLab.indexOf("completeWeldingPuzzleInteractionRef.current = () =>");
+  const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const completionStart = movementLab.indexOf("const publishPuzzleCompleted = (");
   const completionEnd = movementLab.indexOf(
     "const openCampPowerRefillConfirmation",
     completionStart,
   );
   const completionHandler = movementLab.slice(completionStart, completionEnd);
-  const failureStart = movementLab.indexOf("onFail={() => {");
-  const failureEnd = movementLab.indexOf("onRequestNextStage", failureStart);
+  const failureStart = movementLab.indexOf("const handleWeldingPuzzleFailure = () => {");
+  const failureEnd = movementLab.indexOf("const openFrequencyCalibrationPuzzle", failureStart);
   const failureHandler = movementLab.slice(failureStart, failureEnd);
 
-  assert.match(completionHandler, /completeInteraction\(session\.interactable, session\.source\)/);
+  assert.match(
+    completionHandler,
+    /completeInteraction\([\s\S]*session\.interactable,[\s\S]*session\.source,[\s\S]*\(\) => publishPuzzleCompleted\(session\)/,
+  );
+  assert.match(completionHandler, /const publishPuzzleCompleted/);
   assert.match(completionHandler, /type: "puzzleCompleted"/);
+  assert.match(
+    movementLab,
+    /openDialogue\([\s\S]*onCompletionDialogueComplete,[\s\S]*completionDialogue/,
+  );
   assert.match(movementLab, /const usage = recordInteractionUse\(/);
   assert.match(failureHandler, /closePowerRoutingPuzzle\(\)/);
+  assert.match(failureHandler, /removeInventoryItem\(/);
+  assert.match(failureHandler, /WELDING_FAILURE_MATERIAL_ITEM_ID/);
+  assert.match(failureHandler, /savePlayerInventory\(nextInventory\)/);
+  assert.match(failureHandler, /焊接失敗，消耗「金屬碎片」/);
+  assert.match(movementLab, /WELDING_FAILURE_DIALOGUE_ID = "chapter03-special-1"/);
+  assert.match(failureHandler, /dialogueManager\.get\(WELDING_FAILURE_DIALOGUE_ID\)/);
+  assert.match(
+    failureHandler,
+    /dialogueManager\.playUnique\([\s\S]*WELDING_FAILURE_DIALOGUE_ID[\s\S]*failureDialogueContext/,
+  );
+  assert.ok(
+    failureHandler.indexOf("savePlayerInventory(nextInventory)") <
+      failureHandler.indexOf("dialogueManager.playUnique"),
+  );
+  assert.equal(STORY_DIALOGUES["chapter03-special-1"]?.lines.length, 3);
+  assert.match(
+    styles,
+    /html\.gamepad-cursor-active\.dialogue-cursor-active \.dialogue-box,[\s\S]*cursor: none !important/,
+  );
+  assert.match(movementLab, /onFail=\{handleWeldingPuzzleFailure\}/);
   assert.doesNotMatch(failureHandler, /completeInteraction|recordInteractionUse|puzzleCompleted/);
 });
 

@@ -38,6 +38,8 @@ internal sealed class AudioEventEditorForm : Form
         Dock = DockStyle.Left,
         Width = 110,
     };
+    private readonly NumericUpDown _fadeInInput = CreatePercentageInput();
+    private readonly NumericUpDown _fadeOutInput = CreatePercentageInput();
     private readonly CheckBox _loopCheck = new()
     {
         AutoSize = true,
@@ -200,7 +202,7 @@ internal sealed class AudioEventEditorForm : Form
             Dock = DockStyle.Fill,
             AutoScroll = true,
             ColumnCount = 2,
-            RowCount = 8,
+            RowCount = 10,
             Padding = new Padding(0, 0, 8, 0),
         };
         fields.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
@@ -269,7 +271,41 @@ internal sealed class AudioEventEditorForm : Form
         });
         AddField(fields, 6, "播放延遲", delayPanel, 42);
         AddField(fields, 7, "Loop", _loopCheck, 42);
+        AddField(fields, 8, "FadeIn", BuildPercentagePanel(_fadeInInput), 42);
+        AddField(fields, 9, "FadeOut", BuildPercentagePanel(_fadeOutInput), 42);
         return fields;
+    }
+
+    private static NumericUpDown CreatePercentageInput()
+    {
+        return new NumericUpDown
+        {
+            Minimum = 0,
+            Maximum = 100,
+            DecimalPlaces = 0,
+            Increment = 1,
+            Dock = DockStyle.Left,
+            Width = 110,
+        };
+    }
+
+    private static Control BuildPercentagePanel(NumericUpDown input)
+    {
+        var panel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+        };
+        panel.Controls.Add(input);
+        panel.Controls.Add(new Label
+        {
+            AutoSize = true,
+            Text = "%（音檔總長）",
+            Margin = new Padding(8, 7, 0, 0),
+            ForeColor = Color.FromArgb(194, 201, 209),
+        });
+        return panel;
     }
 
     private static void AddField(
@@ -332,6 +368,8 @@ internal sealed class AudioEventEditorForm : Form
         };
         _delayInput.ValueChanged += (_, _) => MarkDirty();
         _loopCheck.CheckedChanged += (_, _) => MarkDirty();
+        _fadeInInput.ValueChanged += (_, _) => MarkDirty();
+        _fadeOutInput.ValueChanged += (_, _) => MarkDirty();
     }
 
     private void EventListOnSelectedIndexChanged(object? sender, EventArgs eventArgs)
@@ -363,6 +401,14 @@ internal sealed class AudioEventEditorForm : Form
                 _delayInput.Minimum,
                 _delayInput.Maximum);
             _loopCheck.Checked = definition.Loop ?? false;
+            _fadeInInput.Value = Math.Clamp(
+                (decimal)(definition.FadeInPercent ?? 0),
+                _fadeInInput.Minimum,
+                _fadeInInput.Maximum);
+            _fadeOutInput.Value = Math.Clamp(
+                (decimal)(definition.FadeOutPercent ?? 0),
+                _fadeOutInput.Minimum,
+                _fadeOutInput.Maximum);
         }
         finally
         {
@@ -381,6 +427,8 @@ internal sealed class AudioEventEditorForm : Form
         definition.Volume = decimal.ToDouble(_volumeInput.Value / 100m);
         definition.DelaySeconds = decimal.ToDouble(_delayInput.Value);
         definition.Loop = _loopCheck.Checked ? true : null;
+        definition.FadeInPercent = decimal.ToDouble(_fadeInInput.Value);
+        definition.FadeOutPercent = decimal.ToDouble(_fadeOutInput.Value);
 
         var listItem = _eventList.Items
             .Cast<AudioEventListItem>()
@@ -823,6 +871,14 @@ internal sealed class AudioEventConfigDocument
             {
                 throw new InvalidDataException($"{eventId}：播放延遲不可小於 0 秒。");
             }
+            if (definition.FadeInPercent is < 0 or > 100)
+            {
+                throw new InvalidDataException($"{eventId}：FadeIn 必須介於 0～100%。");
+            }
+            if (definition.FadeOutPercent is < 0 or > 100)
+            {
+                throw new InvalidDataException($"{eventId}：FadeOut 必須介於 0～100%。");
+            }
         }
     }
 
@@ -845,6 +901,8 @@ internal sealed class AudioEventEditableDefinition
     public double Volume { get; set; }
     public double DelaySeconds { get; set; }
     public bool? Loop { get; set; }
+    public double? FadeInPercent { get; set; }
+    public double? FadeOutPercent { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? AdditionalProperties { get; set; }

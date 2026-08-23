@@ -8,6 +8,10 @@ namespace Echoes.MapEditor;
 public sealed class MainForm : Form
 {
     private const int WmSetRedraw = 0x000B;
+    private const int SidebarPanelWidth = 390;
+    private const int SidebarGroupWidth = 348;
+    private const int SidebarContentWidth = 325;
+    private const int SidebarFieldWidth = 252;
 
     [DllImport("user32.dll")]
     private static extern IntPtr SendMessage(
@@ -29,9 +33,9 @@ public sealed class MainForm : Form
     private readonly TextBox _selectionNameText = new();
     private readonly Label _documentInfoLabel = new();
     private readonly Label _selectionInfoLabel = new();
-    private readonly Button _copyInteractionIdButton =
-        CreateButton("", 241, 228, 24, 24);
-    private readonly ToolTip _copyInteractionIdToolTip = new();
+    private readonly Button _copyLayerIdButton =
+        CreateButton("", 311, 228, 24, 24);
+    private readonly ToolTip _copyLayerIdToolTip = new();
     private readonly Label _zoomLabel = new();
     private readonly ToolStripStatusLabel _statusLabel = new("準備就緒");
     private readonly Dictionary<MapPageDirection, Button> _mapPageButtons = new();
@@ -41,8 +45,8 @@ public sealed class MainForm : Form
     private readonly ToolStripButton _redoButton = new("重做");
     private readonly ToolStripButton _gridButton = new("格線") { CheckOnClick = true };
     private readonly ToolStripButton _snapButton = new("吸附") { CheckOnClick = true };
-    private readonly Button _insertNodeButton = CreateButton("插入 Node", 10, 354, 124, 30);
-    private readonly Button _deleteNodeButton = CreateButton("刪除 Node", 141, 354, 124, 30);
+    private readonly Button _insertNodeButton = CreateButton("插入 Node", 10, 354, 159, 30);
+    private readonly Button _deleteNodeButton = CreateButton("刪除 Node", 176, 354, 159, 30);
     private readonly NumericUpDown _gridSizeInput = new()
     {
         Minimum = 2,
@@ -64,7 +68,7 @@ public sealed class MainForm : Form
     private readonly GroupBox _interactionGroup = CreateGroup("互動設定", 270);
     private readonly Label _dialogueSummaryLabel = new();
     private readonly Label _survivalSummaryLabel = new();
-    private readonly Button _dialogueMoreButton = CreateButton("更多...", 141, 152, 124, 30);
+    private readonly Button _dialogueMoreButton = CreateButton("更多...", 176, 152, 159, 30);
     private readonly GroupBox _movementGuideGroup = CreateGroup("強制引導線設定", 112);
     private readonly NumericUpDown _movementGuideWidthInput = new()
     {
@@ -124,7 +128,7 @@ public sealed class MainForm : Form
         AutoSize = true,
     };
     private readonly Button _itemPointSpawnRequirementButton =
-        CreateButton("Spawn 需求設定…", 10, 283, 255, 30);
+        CreateButton("Spawn 需求設定…", 10, 283, SidebarContentWidth, 30);
     private readonly GroupBox _entryPointGroup = CreateGroup("地圖 Entry Point", 112);
     private readonly TextBox _entryPointIdText = new();
     private readonly GroupBox _teleportPointGroup = CreateGroup("傳送 Point 設定", 160);
@@ -189,14 +193,29 @@ public sealed class MainForm : Form
             Dock = DockStyle.Fill,
             Orientation = Orientation.Vertical,
             FixedPanel = FixedPanel.Panel2,
+            Panel1MinSize = 400,
             SplitterWidth = 5,
             BackColor = Color.FromArgb(48, 53, 62),
         };
         split.Panel1.Controls.Add(BuildMapWorkspace());
         split.Panel2.Controls.Add(BuildSidebar());
+        var splitLayoutReady = false;
+        Load += (_, _) =>
+        {
+            var desiredDistance = split.Width - SidebarPanelWidth - split.SplitterWidth;
+            if (desiredDistance >= split.Panel1MinSize)
+            {
+                split.SplitterDistance = desiredDistance;
+                split.Panel2MinSize = SidebarPanelWidth;
+            }
+
+            splitLayoutReady = true;
+        };
         split.SizeChanged += (_, _) =>
         {
-            if (split.Width > 700) split.SplitterDistance = Math.Max(400, split.Width - 310);
+            if (!splitLayoutReady) return;
+            var desiredDistance = split.Width - SidebarPanelWidth - split.SplitterWidth;
+            if (desiredDistance >= split.Panel1MinSize) split.SplitterDistance = desiredDistance;
         };
 
         Controls.Add(split);
@@ -522,7 +541,7 @@ public sealed class MainForm : Form
         var sceneGroup = CreateGroup("場景資料", 178);
         AddField(sceneGroup, "地圖 ID", _sceneIdText, 28);
         AddField(sceneGroup, "顯示名稱", _displayNameText, 78);
-        var applySceneButton = CreateButton("套用地圖資料", 10, 126, 255, 30);
+        var applySceneButton = CreateButton("套用地圖資料", 10, 126, SidebarContentWidth, 30);
         applySceneButton.Click += (_, _) =>
         {
             _canvas.UpdateSceneIdentity(_sceneIdText.Text, _displayNameText.Text);
@@ -532,10 +551,10 @@ public sealed class MainForm : Form
         sidebar.Controls.Add(sceneGroup);
 
         var layersGroup = CreateGroup("向量圖層", 404);
-        _documentInfoLabel.SetBounds(10, 26, 255, 32);
+        _documentInfoLabel.SetBounds(10, 26, SidebarContentWidth, 32);
         _documentInfoLabel.ForeColor = Color.FromArgb(155, 166, 176);
         layersGroup.Controls.Add(_documentInfoLabel);
-        _layersList.SetBounds(10, 62, 255, 160);
+        _layersList.SetBounds(10, 62, SidebarContentWidth, 160);
         _layersList.BackColor = Color.FromArgb(20, 23, 29);
         _layersList.ForeColor = Color.FromArgb(226, 230, 234);
         _layersList.BorderStyle = BorderStyle.FixedSingle;
@@ -544,27 +563,27 @@ public sealed class MainForm : Form
         _layerRenameEditor.ForeColor = Color.WhiteSmoke;
         layersGroup.Controls.Add(_layerRenameEditor);
         _layerRenameEditor.BringToFront();
-        _selectionInfoLabel.SetBounds(10, 230, 255, 22);
+        _selectionInfoLabel.SetBounds(10, 230, SidebarContentWidth - 30, 22);
         _selectionInfoLabel.ForeColor = Color.FromArgb(129, 222, 211);
         layersGroup.Controls.Add(_selectionInfoLabel);
-        _copyInteractionIdButton.Visible = false;
-        _copyInteractionIdButton.AccessibleName = "複製互動 ID";
-        _copyInteractionIdButton.Paint += DrawCopyInteractionIdIcon;
-        _copyInteractionIdButton.Click += (_, _) => CopySelectedInteractionId();
-        _copyInteractionIdToolTip.SetToolTip(_copyInteractionIdButton, "Copy ID");
-        layersGroup.Controls.Add(_copyInteractionIdButton);
-        _selectionNameText.SetBounds(10, 255, 168, 27);
+        _copyLayerIdButton.Visible = false;
+        _copyLayerIdButton.AccessibleName = "複製圖層 ID";
+        _copyLayerIdButton.Paint += DrawCopyLayerIdIcon;
+        _copyLayerIdButton.Click += (_, _) => CopySelectedLayerId();
+        _copyLayerIdToolTip.SetToolTip(_copyLayerIdButton, "複製 ID");
+        layersGroup.Controls.Add(_copyLayerIdButton);
+        _selectionNameText.SetBounds(10, 255, 238, 27);
         layersGroup.Controls.Add(_selectionNameText);
-        var renameButton = CreateButton("重新命名", 184, 254, 81, 29);
+        var renameButton = CreateButton("重新命名", 254, 254, 81, 29);
         renameButton.Click += (_, _) => _canvas.RenameSelection(_selectionNameText.Text);
         layersGroup.Controls.Add(renameButton);
-        var shrinkButton = CreateButton("縮小", 10, 294, 78, 30);
+        var shrinkButton = CreateButton("縮小", 10, 294, 103, 30);
         shrinkButton.Click += (_, _) => _canvas.ScaleSelection(0.9f);
         layersGroup.Controls.Add(shrinkButton);
-        var enlargeButton = CreateButton("放大", 96, 294, 78, 30);
+        var enlargeButton = CreateButton("放大", 121, 294, 103, 30);
         enlargeButton.Click += (_, _) => _canvas.ScaleSelection(1.1f);
         layersGroup.Controls.Add(enlargeButton);
-        var deleteButton = CreateButton("刪除圖形", 182, 294, 83, 30);
+        var deleteButton = CreateButton("刪除圖形", 232, 294, 103, 30);
         deleteButton.Click += (_, _) => _canvas.DeleteSelection();
         layersGroup.Controls.Add(deleteButton);
         var nodeEditLabel = new Label
@@ -573,7 +592,7 @@ public sealed class MainForm : Form
             AutoSize = false,
             ForeColor = Color.FromArgb(152, 163, 174),
         };
-        nodeEditLabel.SetBounds(10, 330, 255, 20);
+        nodeEditLabel.SetBounds(10, 330, SidebarContentWidth, 20);
         layersGroup.Controls.Add(nodeEditLabel);
         _insertNodeButton.Enabled = false;
         _insertNodeButton.Click += (_, _) => _canvas.InsertNodeAfterSelection();
@@ -583,7 +602,7 @@ public sealed class MainForm : Form
         layersGroup.Controls.Add(_deleteNodeButton);
         sidebar.Controls.Add(layersGroup);
 
-        _teleportBlackoutCheck.SetBounds(10, 25, 255, 24);
+        _teleportBlackoutCheck.SetBounds(10, 25, SidebarContentWidth, 24);
         _teleportBlackoutCheck.CheckedChanged += (_, _) =>
         {
             if (_syncingSelection) return;
@@ -591,13 +610,13 @@ public sealed class MainForm : Form
             _teleportBlackoutHoldInput.Enabled = _teleportBlackoutCheck.Checked;
         };
         _teleportPointGroup.Controls.Add(_teleportBlackoutCheck);
-        _teleportPointGroup.Controls.Add(CreateFieldLabel("Fade IN 秒數", 10, 53, 121));
-        _teleportPointGroup.Controls.Add(CreateFieldLabel("全黑停留秒數", 144, 53, 121));
-        _teleportBlackoutFadeInput.SetBounds(10, 75, 121, 27);
-        _teleportBlackoutHoldInput.SetBounds(144, 75, 121, 27);
+        _teleportPointGroup.Controls.Add(CreateFieldLabel("Fade IN 秒數", 10, 53, 159));
+        _teleportPointGroup.Controls.Add(CreateFieldLabel("全黑停留秒數", 176, 53, 159));
+        _teleportBlackoutFadeInput.SetBounds(10, 75, 159, 27);
+        _teleportBlackoutHoldInput.SetBounds(176, 75, 159, 27);
         _teleportPointGroup.Controls.Add(_teleportBlackoutFadeInput);
         _teleportPointGroup.Controls.Add(_teleportBlackoutHoldInput);
-        var applyTeleportBlackoutButton = CreateButton("套用傳送黑幕設定", 10, 114, 255, 30);
+        var applyTeleportBlackoutButton = CreateButton("套用傳送黑幕設定", 10, 114, SidebarContentWidth, 30);
         applyTeleportBlackoutButton.Click += (_, _) =>
         {
             _canvas.UpdateSelectedTeleportPointBlackout(
@@ -611,8 +630,8 @@ public sealed class MainForm : Form
         sidebar.Controls.Add(_teleportPointGroup);
 
         var entryPointIdLabel = CreateFieldLabel("Point ID", 10, 31, 68);
-        _entryPointIdText.SetBounds(83, 27, 182, 27);
-        var applyEntryPointButton = CreateButton("套用 Entry Point ID", 10, 66, 255, 30);
+        _entryPointIdText.SetBounds(83, 27, SidebarFieldWidth, 27);
+        var applyEntryPointButton = CreateButton("套用 Entry Point ID", 10, 66, SidebarContentWidth, 30);
         applyEntryPointButton.Click += (_, _) =>
         {
             _canvas.UpdateSelectedEntryPoint(_entryPointIdText.Text);
@@ -632,10 +651,10 @@ public sealed class MainForm : Form
         AddConnectionField(_sceneConnectionGroup, "轉場方式", _connectionTransitionModeCombo, 172);
         AddConnectionField(_sceneConnectionGroup, "角色移動", _connectionTransferModeCombo, 208);
         AddConnectionField(_sceneConnectionGroup, "鏡頭定位", _connectionCameraFocusCombo, 244);
-        var connectionRequirementsButton = CreateButton("需求條件...", 10, 280, 255, 30);
+        var connectionRequirementsButton = CreateButton("需求條件...", 10, 280, SidebarContentWidth, 30);
         connectionRequirementsButton.Click += (_, _) => OpenSceneConnectionRequirementEditor();
         _sceneConnectionGroup.Controls.Add(connectionRequirementsButton);
-        var applyConnectionButton = CreateButton("套用出入口設定", 10, 318, 255, 30);
+        var applyConnectionButton = CreateButton("套用出入口設定", 10, 318, SidebarContentWidth, 30);
         applyConnectionButton.Click += (_, _) => ApplySceneConnectionSettings();
         _sceneConnectionGroup.Controls.Add(applyConnectionButton);
         _sceneConnectionGroup.Visible = false;
@@ -643,27 +662,27 @@ public sealed class MainForm : Form
 
         var typeLabel = new Label { Text = "互動類型", AutoSize = false, ForeColor = Color.FromArgb(152, 163, 174) };
         typeLabel.SetBounds(10, 30, 70, 24);
-        _interactionTypeCombo.SetBounds(83, 27, 182, 27);
+        _interactionTypeCombo.SetBounds(83, 27, SidebarFieldWidth, 27);
         _interactionGroup.Controls.Add(typeLabel);
         _interactionGroup.Controls.Add(_interactionTypeCombo);
         var verbLabel = new Label { Text = "提示動詞", AutoSize = false, ForeColor = Color.FromArgb(152, 163, 174) };
         verbLabel.SetBounds(10, 68, 70, 24);
-        _interactionVerbText.SetBounds(83, 65, 182, 27);
+        _interactionVerbText.SetBounds(83, 65, SidebarFieldWidth, 27);
         _interactionGroup.Controls.Add(verbLabel);
         _interactionGroup.Controls.Add(_interactionVerbText);
-        _dialogueSummaryLabel.SetBounds(10, 100, 255, 22);
+        _dialogueSummaryLabel.SetBounds(10, 100, SidebarContentWidth, 22);
         _dialogueSummaryLabel.ForeColor = Color.FromArgb(155, 166, 176);
         _interactionGroup.Controls.Add(_dialogueSummaryLabel);
-        _survivalSummaryLabel.SetBounds(10, 124, 255, 38);
+        _survivalSummaryLabel.SetBounds(10, 124, SidebarContentWidth, 38);
         _survivalSummaryLabel.ForeColor = Color.FromArgb(129, 222, 211);
         _interactionGroup.Controls.Add(_survivalSummaryLabel);
-        var applyInteractionButton = CreateButton("套用設定", 10, 164, 124, 30);
+        var applyInteractionButton = CreateButton("套用設定", 10, 164, 159, 30);
         applyInteractionButton.Click += (_, _) => ApplyInteractionSettings();
         _interactionGroup.Controls.Add(applyInteractionButton);
-        _dialogueMoreButton.SetBounds(141, 164, 124, 30);
+        _dialogueMoreButton.SetBounds(176, 164, 159, 30);
         _dialogueMoreButton.Click += (_, _) => OpenDialogueEditor();
         _interactionGroup.Controls.Add(_dialogueMoreButton);
-        var survivalButton = CreateButton("需求與完成效果...", 10, 202, 255, 30);
+        var survivalButton = CreateButton("需求與完成效果...", 10, 202, SidebarContentWidth, 30);
         survivalButton.Click += (_, _) => OpenSurvivalEffectEditor();
         _interactionGroup.Controls.Add(survivalButton);
         var resetLabel = new Label
@@ -672,7 +691,7 @@ public sealed class MainForm : Form
             AutoSize = false,
             ForeColor = Color.FromArgb(130, 140, 150),
         };
-        resetLabel.SetBounds(10, 240, 255, 22);
+        resetLabel.SetBounds(10, 240, SidebarContentWidth, 22);
         _interactionGroup.Controls.Add(resetLabel);
         _interactionGroup.Visible = false;
         sidebar.Controls.Add(_interactionGroup);
@@ -684,10 +703,10 @@ public sealed class MainForm : Form
             ForeColor = Color.FromArgb(152, 163, 174),
         };
         guideWidthLabel.SetBounds(10, 32, 70, 24);
-        _movementGuideWidthInput.SetBounds(83, 28, 182, 27);
+        _movementGuideWidthInput.SetBounds(83, 28, SidebarFieldWidth, 27);
         _movementGuideGroup.Controls.Add(guideWidthLabel);
         _movementGuideGroup.Controls.Add(_movementGuideWidthInput);
-        var applyGuideButton = CreateButton("套用引導寬度", 10, 66, 255, 30);
+        var applyGuideButton = CreateButton("套用引導寬度", 10, 66, SidebarContentWidth, 30);
         applyGuideButton.Click += (_, _) =>
             _canvas.UpdateSelectedMovementGuideWidth((float)_movementGuideWidthInput.Value);
         _movementGuideGroup.Controls.Add(applyGuideButton);
@@ -701,7 +720,7 @@ public sealed class MainForm : Form
             ForeColor = Color.FromArgb(152, 163, 174),
         };
         storyDialogueLabel.SetBounds(10, 30, 70, 24);
-        _storyTriggerDialogueIdText.SetBounds(83, 27, 182, 27);
+        _storyTriggerDialogueIdText.SetBounds(83, 27, SidebarFieldWidth, 27);
         var storyDelayLabel = new Label
         {
             Text = "觸發延遲（秒）",
@@ -709,9 +728,9 @@ public sealed class MainForm : Form
             ForeColor = Color.FromArgb(152, 163, 174),
         };
         storyDelayLabel.SetBounds(10, 65, 105, 24);
-        _storyTriggerDelayInput.SetBounds(118, 62, 147, 27);
+        _storyTriggerDelayInput.SetBounds(118, 62, 217, 27);
         _storyTriggerOnceCheck.SetBounds(83, 96, 150, 24);
-        var applyStoryTriggerButton = CreateButton("套用劇情觸發設定", 10, 130, 255, 30);
+        var applyStoryTriggerButton = CreateButton("套用劇情觸發設定", 10, 130, SidebarContentWidth, 30);
         applyStoryTriggerButton.Click += (_, _) =>
         {
             _canvas.UpdateSelectedStoryTrigger(
@@ -727,13 +746,13 @@ public sealed class MainForm : Form
         _storyTriggerGroup.Controls.Add(_storyTriggerDelayInput);
         _storyTriggerGroup.Controls.Add(_storyTriggerOnceCheck);
         _storyTriggerGroup.Controls.Add(applyStoryTriggerButton);
-        var storyTriggerEffectsButton = CreateButton("需求與完成效果...", 10, 166, 255, 30);
+        var storyTriggerEffectsButton = CreateButton("需求與完成效果...", 10, 166, SidebarContentWidth, 30);
         storyTriggerEffectsButton.Click += (_, _) => OpenStoryTriggerEffectEditor();
         _storyTriggerGroup.Controls.Add(storyTriggerEffectsButton);
         _storyTriggerGroup.Visible = false;
         sidebar.Controls.Add(_storyTriggerGroup);
 
-        _itemPointList.SetBounds(10, 28, 255, 82);
+        _itemPointList.SetBounds(10, 28, SidebarContentWidth, 82);
         _itemPointList.BackColor = Color.FromArgb(20, 23, 29);
         _itemPointList.ForeColor = Color.FromArgb(226, 230, 234);
         _itemPointList.BorderStyle = BorderStyle.FixedSingle;
@@ -745,7 +764,7 @@ public sealed class MainForm : Form
             ForeColor = Color.FromArgb(152, 163, 174),
         };
         itemPointNameLabel.SetBounds(10, 120, 52, 24);
-        _itemPointNameText.SetBounds(62, 117, 203, 27);
+        _itemPointNameText.SetBounds(62, 117, 273, 27);
         _itemPointGroup.Controls.Add(itemPointNameLabel);
         _itemPointGroup.Controls.Add(_itemPointNameText);
         var itemPointItemLabel = new Label
@@ -755,7 +774,7 @@ public sealed class MainForm : Form
             ForeColor = Color.FromArgb(152, 163, 174),
         };
         itemPointItemLabel.SetBounds(10, 154, 52, 24);
-        _itemPointItemCombo.SetBounds(62, 151, 203, 27);
+        _itemPointItemCombo.SetBounds(62, 151, 273, 27);
         _itemPointGroup.Controls.Add(itemPointItemLabel);
         _itemPointGroup.Controls.Add(_itemPointItemCombo);
         var itemPointQuantityLabel = new Label
@@ -766,7 +785,7 @@ public sealed class MainForm : Form
         };
         itemPointQuantityLabel.SetBounds(10, 188, 52, 24);
         _itemPointQuantityInput.SetBounds(62, 185, 58, 27);
-        _itemPointSpawnPolicyCombo.SetBounds(126, 185, 139, 27);
+        _itemPointSpawnPolicyCombo.SetBounds(126, 185, 209, 27);
         _itemPointGroup.Controls.Add(itemPointQuantityLabel);
         _itemPointGroup.Controls.Add(_itemPointQuantityInput);
         _itemPointGroup.Controls.Add(_itemPointSpawnPolicyCombo);
@@ -777,18 +796,18 @@ public sealed class MainForm : Form
             ForeColor = Color.FromArgb(152, 163, 174),
         };
         itemPointPositionLabel.SetBounds(10, 222, 52, 24);
-        _itemPointXInput.SetBounds(62, 219, 96, 27);
-        _itemPointYInput.SetBounds(169, 219, 96, 27);
+        _itemPointXInput.SetBounds(62, 219, 130, 27);
+        _itemPointYInput.SetBounds(205, 219, 130, 27);
         _itemPointGroup.Controls.Add(itemPointPositionLabel);
         _itemPointGroup.Controls.Add(_itemPointXInput);
         _itemPointGroup.Controls.Add(_itemPointYInput);
-        _itemPointShowOnMinimapCheck.SetBounds(10, 253, 255, 24);
+        _itemPointShowOnMinimapCheck.SetBounds(10, 253, SidebarContentWidth, 24);
         _itemPointGroup.Controls.Add(_itemPointShowOnMinimapCheck);
         _itemPointSpawnRequirementButton.Click += (_, _) => EditItemPointSpawnRequirement();
         _itemPointGroup.Controls.Add(_itemPointSpawnRequirementButton);
-        var applyItemPointButton = CreateButton("套用 ItemPoint", 10, 323, 164, 30);
+        var applyItemPointButton = CreateButton("套用 ItemPoint", 10, 323, 215, 30);
         applyItemPointButton.Click += (_, _) => ApplyItemPointSettings();
-        var deleteItemPointButton = CreateButton("刪除", 182, 323, 83, 30);
+        var deleteItemPointButton = CreateButton("刪除", 232, 323, 103, 30);
         deleteItemPointButton.Click += (_, _) =>
         {
             if (_canvas.Selection.Kind != SceneLayerKind.ItemPoint) return;
@@ -803,7 +822,7 @@ public sealed class MainForm : Form
         {
             AutoSize = false,
         };
-        futureLabel.SetBounds(10, 27, 255, 98);
+        futureLabel.SetBounds(10, 27, SidebarContentWidth, 98);
         futureLabel.Text = "畫布四周箭頭可切換上下左右地圖頁。\r\n亮白：已有地圖；暗灰：按下後可確認新增。\r\nEntry Point 與出入口多邊形已可設定；\r\n遊戲端切圖與鏡頭轉場留待下一版。";
         futureLabel.ForeColor = Color.FromArgb(130, 140, 150);
         futureGroup.Controls.Add(futureLabel);
@@ -821,7 +840,7 @@ public sealed class MainForm : Form
                 "滾輪縮放，中鍵或 Space 拖曳平移。",
             ForeColor = Color.FromArgb(176, 184, 192),
         };
-        helpLabel.SetBounds(10, 27, 255, 190);
+        helpLabel.SetBounds(10, 27, SidebarContentWidth, 190);
         helpGroup.Controls.Add(helpLabel);
         sidebar.Controls.Add(helpGroup);
 
@@ -1465,7 +1484,7 @@ public sealed class MainForm : Form
                 var policy = FormatItemPointSpawnPolicy(itemPoint.SpawnPolicy);
                 var listItem = new LayerListItem(
                     selection,
-                    $"[ItemPoint/{policy}] {itemPoint.Label} · {itemPoint.ItemId} ×{itemPoint.Quantity}",
+                    $"[ItemPoint/{policy}] ID {itemPoint.Id} · {itemPoint.Label} · {itemPoint.ItemId} ×{itemPoint.Quantity}",
                     itemPoint.Label);
                 _layersList.Items.Add(listItem);
                 _itemPointList.Items.Add(new LayerListItem(
@@ -1499,8 +1518,8 @@ public sealed class MainForm : Form
         _syncingSelection = true;
         try
         {
-            _copyInteractionIdButton.Visible = false;
-            _selectionInfoLabel.Width = 255;
+            _copyLayerIdButton.Visible = false;
+            _selectionInfoLabel.Width = SidebarContentWidth;
             var selectedItem = _layersList.Items
                 .Cast<LayerListItem>()
                 .FirstOrDefault(item => item.Selection == _canvas.Selection);
@@ -1531,8 +1550,6 @@ public sealed class MainForm : Form
                     ? $" · Node {_canvas.SelectedVertexIndex + 1}"
                     : "";
                 _selectionInfoLabel.Text = $"互動 ID：{interactable.Id}{node}";
-                _selectionInfoLabel.Width = 225;
-                _copyInteractionIdButton.Visible = true;
                 _selectionNameText.Text = interactable.Label;
                 _interactionVerbText.Text = interactable.Verb;
                 _interactionTypeCombo.SelectedIndex = Math.Max(
@@ -1586,7 +1603,7 @@ public sealed class MainForm : Form
             else if (_canvas.Selection.Kind == SceneLayerKind.ItemPoint && _canvas.Selection.Index >= 0)
             {
                 var itemPoint = _canvas.Document.ItemPoints[_canvas.Selection.Index];
-                _selectionInfoLabel.Text = $"已選取 ItemPoint · {itemPoint.Id}";
+                _selectionInfoLabel.Text = $"ItemPoint ID：{itemPoint.Id}";
                 _selectionNameText.Text = itemPoint.Label;
                 _itemPointNameText.Text = itemPoint.Label;
                 _itemPointItemCombo.SelectedIndex = Math.Max(
@@ -1672,6 +1689,7 @@ public sealed class MainForm : Form
                 _selectionInfoLabel.Text = "尚未選取圖形";
                 _selectionNameText.Text = "";
             }
+            RefreshLayerIdCopyButton();
             _mapPageToolTip.SetToolTip(_selectionInfoLabel, _selectionInfoLabel.Text);
             _interactionGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.Interactable;
             _movementGuideGroup.Visible = _canvas.Selection.Kind == SceneLayerKind.MovementGuide;
@@ -1692,19 +1710,49 @@ public sealed class MainForm : Form
         }
     }
 
-    private void CopySelectedInteractionId()
+    private void RefreshLayerIdCopyButton()
     {
-        var interactionId = _canvas.SelectedInteractable?.Id?.Trim();
-        if (string.IsNullOrWhiteSpace(interactionId))
+        var layerId = GetSelectedCopyableLayerId();
+        var canCopy = !string.IsNullOrWhiteSpace(layerId);
+        _copyLayerIdButton.Visible = canCopy;
+        _copyLayerIdButton.Enabled = canCopy;
+        _selectionInfoLabel.Width = canCopy
+            ? SidebarContentWidth - 30
+            : SidebarContentWidth;
+    }
+
+    private string GetSelectedCopyableLayerId()
+    {
+        var selection = _canvas.Selection;
+        if (selection.Index < 0) return "";
+
+        return selection.Kind switch
         {
-            _statusLabel.Text = "請先選取一個互動多邊形。";
+            SceneLayerKind.Interactable when selection.Index < _canvas.Document.Interactables.Count =>
+                _canvas.Document.Interactables[selection.Index].Id?.Trim() ?? "",
+            SceneLayerKind.StoryTrigger when selection.Index < _canvas.Document.StoryTriggers.Count =>
+                _canvas.Document.StoryTriggers[selection.Index].Id?.Trim() ?? "",
+            SceneLayerKind.SceneConnection when selection.Index < _canvas.Document.Connections.Count =>
+                _canvas.Document.Connections[selection.Index].Id?.Trim() ?? "",
+            SceneLayerKind.ItemPoint when selection.Index < _canvas.Document.ItemPoints.Count =>
+                _canvas.Document.ItemPoints[selection.Index].Id?.Trim() ?? "",
+            _ => "",
+        };
+    }
+
+    private void CopySelectedLayerId()
+    {
+        var layerId = GetSelectedCopyableLayerId();
+        if (string.IsNullOrWhiteSpace(layerId))
+        {
+            _statusLabel.Text = "目前選取的圖層沒有可複製的 ID。";
             return;
         }
 
         try
         {
-            Clipboard.SetText(interactionId);
-            _statusLabel.Text = $"已複製互動 ID：{interactionId}";
+            Clipboard.SetText(layerId);
+            _statusLabel.Text = $"已複製圖層 ID：{layerId}";
         }
         catch (ExternalException)
         {
@@ -1712,7 +1760,7 @@ public sealed class MainForm : Form
         }
     }
 
-    private static void DrawCopyInteractionIdIcon(object? sender, PaintEventArgs e)
+    private static void DrawCopyLayerIdIcon(object? sender, PaintEventArgs e)
     {
         if (sender is not Button button) return;
         using var pen = new Pen(
@@ -2043,17 +2091,59 @@ public sealed class MainForm : Form
             _canvas.RenameSelection(originalLabel);
         }
 
-        var interactableItem = _layersList.Items
-            .Cast<LayerListItem>()
-            .First(candidate => candidate.Selection.Kind == SceneLayerKind.Interactable);
-        _canvas.SelectLayer(interactableItem.Selection);
-        RefreshSelectionUi();
-        if (!_copyInteractionIdButton.Visible ||
-            !_copyInteractionIdButton.Enabled ||
-            _copyInteractionIdButton.Size != new Size(24, 24) ||
-            !_copyInteractionIdButton.AccessibleName.Equals("複製互動 ID", StringComparison.Ordinal))
+        var copyableLayerKinds = new[]
         {
-            throw new InvalidOperationException("互動 ID 複製按鈕沒有在互動圖層選取時正確顯示。");
+            SceneLayerKind.Interactable,
+            SceneLayerKind.StoryTrigger,
+            SceneLayerKind.SceneConnection,
+            SceneLayerKind.ItemPoint,
+        };
+        foreach (var kind in copyableLayerKinds)
+        {
+            var item = _layersList.Items
+                .Cast<LayerListItem>()
+                .First(candidate => candidate.Selection.Kind == kind);
+            _canvas.SelectLayer(item.Selection);
+            RefreshSelectionUi();
+            var selectedLayerId = GetSelectedCopyableLayerId();
+            if (!_copyLayerIdButton.Visible ||
+                !_copyLayerIdButton.Enabled ||
+                _copyLayerIdButton.Size != new Size(24, 24) ||
+                !_selectionInfoLabel.Text.Contains(selectedLayerId, StringComparison.Ordinal) ||
+                _selectionInfoLabel.Width < SidebarContentWidth - 30 ||
+                !_copyLayerIdButton.AccessibleName.Equals("複製圖層 ID", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException($"{kind} 圖層選取時沒有同時顯示完整 ID 與複製按鈕。");
+            }
+            if (kind == SceneLayerKind.ItemPoint &&
+                TextRenderer.MeasureText(
+                    _selectionInfoLabel.Text,
+                    _selectionInfoLabel.Font).Width > _selectionInfoLabel.ClientSize.Width)
+            {
+                throw new InvalidOperationException("ItemPoint Scene 唯一 ID 超出選取資訊欄位寬度。");
+            }
+        }
+
+        var itemPointSelection = _layersList.Items
+            .Cast<LayerListItem>()
+            .First(candidate => candidate.Selection.Kind == SceneLayerKind.ItemPoint)
+            .Selection;
+        var itemPoint = _canvas.Document.ItemPoints[itemPointSelection.Index];
+        var originalItemPointId = itemPoint.Id;
+        try
+        {
+            itemPoint.Id = " ";
+            _canvas.SelectLayer(itemPointSelection);
+            RefreshSelectionUi();
+            if (_copyLayerIdButton.Visible || _copyLayerIdButton.Enabled)
+            {
+                throw new InvalidOperationException("沒有 ID 的 ItemPoint 不應顯示複製按鈕。");
+            }
+        }
+        finally
+        {
+            itemPoint.Id = originalItemPointId;
+            RefreshSelectionUi();
         }
     }
 
@@ -2388,7 +2478,7 @@ public sealed class MainForm : Form
         return new GroupBox
         {
             Text = title,
-            Width = 278,
+            Width = SidebarGroupWidth,
             Height = height,
             ForeColor = Color.FromArgb(220, 225, 230),
             BackColor = Color.FromArgb(31, 35, 42),
@@ -2405,7 +2495,7 @@ public sealed class MainForm : Form
             ForeColor = Color.FromArgb(152, 163, 174),
         };
         label.SetBounds(10, top, 70, 24);
-        textBox.SetBounds(83, top - 2, 182, 27);
+        textBox.SetBounds(83, top - 2, SidebarFieldWidth, 27);
         parent.Controls.Add(label);
         parent.Controls.Add(textBox);
     }
@@ -2424,7 +2514,7 @@ public sealed class MainForm : Form
     private static void AddConnectionField(Control parent, string labelText, Control input, int top)
     {
         parent.Controls.Add(CreateFieldLabel(labelText, 10, top + 3, 70));
-        input.SetBounds(83, top, 182, 27);
+        input.SetBounds(83, top, SidebarFieldWidth, 27);
         parent.Controls.Add(input);
     }
 

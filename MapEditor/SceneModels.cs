@@ -1154,8 +1154,11 @@ public static class SceneJson
             trigger.Once = trigger.InteractionLimitMode == "once";
         }
 
-        foreach (var itemPoint in document.ItemPoints)
+        var itemPointIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var itemPointIdPrefix = CreateSceneScopedIdPrefix(document.SceneId, "item-point");
+        for (var index = 0; index < document.ItemPoints.Count; index++)
         {
+            var itemPoint = document.ItemPoints[index];
             var item = ItemCatalog.Find(itemPoint.ItemId);
             if (item is null)
             {
@@ -1163,10 +1166,21 @@ public static class SceneJson
                     $"ItemPoint {itemPoint.Id} 設定了未知道具 {itemPoint.ItemId}。");
             }
             itemPoint.Id = string.IsNullOrWhiteSpace(itemPoint.Id)
-                ? $"item-point-{document.ItemPoints.IndexOf(itemPoint) + 1:000}"
+                ? $"{itemPointIdPrefix}-{index + 1:000}"
                 : itemPoint.Id.Trim();
+            if (!itemPoint.Id.StartsWith(
+                    $"{itemPointIdPrefix}-",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    $"ItemPoint ID 必須包含目前 Scene：{itemPoint.Id}，預期前綴 {itemPointIdPrefix}-");
+            }
+            if (!itemPointIds.Add(itemPoint.Id))
+            {
+                throw new InvalidDataException($"ItemPoint ID 重複：{itemPoint.Id}");
+            }
             itemPoint.Label = string.IsNullOrWhiteSpace(itemPoint.Label)
-                ? $"ItemPoint {document.ItemPoints.IndexOf(itemPoint) + 1}"
+                ? $"ItemPoint {index + 1}"
                 : itemPoint.Label.Trim();
             itemPoint.ItemId = item.Id;
             itemPoint.Quantity = Math.Clamp(itemPoint.Quantity, 1, 99);
@@ -1329,6 +1343,19 @@ public static class SceneJson
                 connection.UseRequirements = null;
             }
         }
+    }
+
+    internal static string CreateSceneScopedIdPrefix(string? sceneId, string entityPrefix)
+    {
+        var sceneToken = string.Concat(
+            (sceneId ?? "")
+                .Trim()
+                .ToLowerInvariant()
+                .Where(char.IsLetterOrDigit));
+        if (sceneToken.Length == 0) sceneToken = "scene";
+
+        var normalizedEntityPrefix = entityPrefix.Trim().ToLowerInvariant();
+        return $"{sceneToken}-{normalizedEntityPrefix}";
     }
 
     private static bool PointInPolygon(ScenePoint point, IReadOnlyList<ScenePoint> polygon)

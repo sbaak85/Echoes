@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 
 import {
   AUDIO_EVENT_CONFIG,
   WELDING_SPARK_MIX_CONFIG,
+  getAudioFadeDurationMilliseconds,
   getFrequencyFineAudioMix,
+  getSuccessfulInteractionAudioEvent,
+  getSuccessfulItemUseAudioEvent,
 } from "../app/audio-event-manager.ts";
 
 test("介面點擊音效集中登記 InPut.mp3 與完整觸發時機", () => {
@@ -42,6 +45,101 @@ test("成功拾取場上道具後集中播放 Pick.mp3", () => {
   assert.match(event.trigger, /不播放/);
 });
 
+test("採礦、拆面板與三種生存道具成功音效集中登記並綁定穩定 ID", async () => {
+  const cases = [
+    {
+      eventName: "crystalMiningSucceeded",
+      sourceAsset: "Assets/Audio/採礦聲1.mp3",
+      publicSource: "./audio/mining-1.mp3",
+      resolved: getSuccessfulInteractionAudioEvent("interaction-006"),
+    },
+    {
+      eventName: "generatorPanelOpened",
+      sourceAsset: "Assets/Audio/拆開面板2.mp3",
+      publicSource: "./audio/panel-open-2.mp3",
+      resolved: getSuccessfulInteractionAudioEvent("interaction-020"),
+    },
+    {
+      eventName: "emergencyRationConsumed",
+      sourceAsset: "Assets/Audio/飲食1.mp3",
+      publicSource: "./audio/eating-1.mp3",
+      resolved: getSuccessfulItemUseAudioEvent("R0005"),
+    },
+    {
+      eventName: "purifiedWaterConsumed",
+      sourceAsset: "Assets/Audio/飲水2.mp3",
+      publicSource: "./audio/drinking-2.mp3",
+      resolved: getSuccessfulItemUseAudioEvent("R0004"),
+    },
+    {
+      eventName: "alienFruitConsumed",
+      sourceAsset: "Assets/Audio/吃水果.mp3",
+      publicSource: "./audio/eat-fruit.mp3",
+      resolved: getSuccessfulItemUseAudioEvent("R0012"),
+    },
+  ];
+
+  for (const entry of cases) {
+    assert.equal(entry.resolved, entry.eventName);
+    const event = AUDIO_EVENT_CONFIG[entry.eventName];
+    assert.deepEqual(event.sourceAssetPaths, [entry.sourceAsset]);
+    assert.deepEqual(event.sources, [entry.publicSource]);
+    assert.equal(event.delaySeconds, 0);
+    assert.equal(event.loop, undefined);
+    assert.match(event.trigger, /成功|已成功/);
+    assert.match(event.trigger, /不播放/);
+
+    const [sourceBytes, publicBytes] = await Promise.all([
+      readFile(new URL(`../${entry.sourceAsset}`, import.meta.url)),
+      readFile(
+        new URL(
+          `../public/${entry.publicSource.replace(/^\.\//, "")}`,
+          import.meta.url,
+        ),
+      ),
+    ]);
+    assert.deepEqual(publicBytes, sourceBytes);
+  }
+
+  assert.equal(getSuccessfulInteractionAudioEvent("interaction-999"), null);
+  assert.equal(getSuccessfulItemUseAudioEvent("R9999"), null);
+});
+
+test("五種新音效只接在成功的互動與道具結算路徑", async () => {
+  const source = await readFile(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  const itemUseStart = source.indexOf("function useInventoryItem");
+  const itemUseEnd = source.indexOf("const getHotbarSlotAtPoint", itemUseStart);
+  const itemUseSource = source.slice(itemUseStart, itemUseEnd);
+  assert.ok(itemUseStart >= 0 && itemUseEnd > itemUseStart);
+  assert.ok(
+    itemUseSource.indexOf("publishItemUsedQuestEvent(item.id)") <
+      itemUseSource.indexOf("getSuccessfulItemUseAudioEvent(item.id)"),
+  );
+  assert.match(
+    itemUseSource,
+    /getSuccessfulItemUseAudioEvent\(item\.id\)[\s\S]*\.play\(successfulUseAudioEvent, \{ restart: true \}\)/,
+  );
+
+  const interactionStart = source.indexOf("const completeInteraction");
+  const interactionEnd = source.indexOf(
+    "completeWeldingPuzzleInteractionRef.current",
+    interactionStart,
+  );
+  const interactionSource = source.slice(interactionStart, interactionEnd);
+  assert.ok(interactionStart >= 0 && interactionEnd > interactionStart);
+  assert.ok(
+    interactionSource.indexOf("!grantInteractionItemRewards(interactable)") <
+      interactionSource.indexOf("getSuccessfulInteractionAudioEvent(interactable.id)"),
+  );
+  assert.match(
+    interactionSource,
+    /getSuccessfulInteractionAudioEvent\(interactable\.id\)[\s\S]*\.play\(successfulInteractionAudioEvent, \{ restart: true \}\)/,
+  );
+});
+
 test("任務 COMPLETE 與 NEXT 事件使用集中管理的單次音效", () => {
   const completed = AUDIO_EVENT_CONFIG.questCompleted;
   assert.deepEqual(completed.sourceAssetPaths, ["Assets/Audio/任務成功.mp3"]);
@@ -67,7 +165,7 @@ test("任務提示音效的遊戲載入檔案已存在", async () => {
   assert.ok(startAudio.size > 0);
 });
 
-test("電力分配成功後三段發電機音效依序淡入淡出播放", async () => {
+test("電力分配成功後三段發電機音效依序播放並在末段 15% 自然淡出", async () => {
   const first = AUDIO_EVENT_CONFIG.generatorStartup1;
   const second = AUDIO_EVENT_CONFIG.generatorStartup2;
   const running = AUDIO_EVENT_CONFIG.generatorRunning;
@@ -80,12 +178,12 @@ test("電力分配成功後三段發電機音效依序淡入淡出播放", async
     [0, 1, 1.5],
   );
   assert.deepEqual(
-    [first.fadeInSeconds, second.fadeInSeconds, running.fadeInSeconds],
-    [0.3, 0.3, 0.3],
+    [first.fadeInPercent, second.fadeInPercent, running.fadeInPercent],
+    [0, 0, 0],
   );
   assert.deepEqual(
-    [first.fadeOutSeconds, second.fadeOutSeconds, running.fadeOutSeconds],
-    [0.3, 0.3, 0.3],
+    [first.fadeOutPercent, second.fadeOutPercent, running.fadeOutPercent],
+    [15, 15, 15],
   );
   [first, second, running].forEach((event) => {
     assert.match(event.trigger, /成功/);
@@ -98,6 +196,15 @@ test("電力分配成功後三段發電機音效依序淡入淡出播放", async
     ),
   );
   files.forEach((file) => assert.ok(file.size > 0));
+});
+
+test("Audio Event 淡入淡出百分比會依各自音檔總長換算", () => {
+  assert.equal(getAudioFadeDurationMilliseconds(3, 15), 450);
+  assert.equal(getAudioFadeDurationMilliseconds(8, 25), 2000);
+  assert.equal(getAudioFadeDurationMilliseconds(3, 0), 0);
+  assert.equal(getAudioFadeDurationMilliseconds(3, -20), 0);
+  assert.equal(getAudioFadeDurationMilliseconds(3, 150), 3000);
+  assert.equal(getAudioFadeDurationMilliseconds(Number.NaN, 15), 0);
 });
 
 test("焊接火星以雙軌混音共同淡入淡出，總音量限制為八成", async () => {
@@ -136,6 +243,60 @@ test("焊接火星以雙軌混音共同淡入淡出，總音量限制為八成",
     ),
   );
   files.forEach((file) => assert.ok(file.size > 0));
+});
+
+test("焊接失敗紅底出現時透過 AudioEventManager 單次播放失敗音效", async () => {
+  const event = AUDIO_EVENT_CONFIG.weldingFailed;
+  assert.deepEqual(event.sourceAssetPaths, ["Assets/Audio/焊接失敗.mp3"]);
+  assert.deepEqual(event.sources, ["./audio/welding-failed.mp3"]);
+  assert.equal(event.volume, 1);
+  assert.equal(event.delaySeconds, 0);
+  assert.equal(event.loop, undefined);
+  assert.match(event.trigger, /紅色「焊接錯誤了」底板實際出現/);
+  assert.match(event.trigger, /不重複播放/);
+
+  const [sourceBytes, publicBytes, puzzleSource, movementLabSource] = await Promise.all([
+    readFile(new URL("../Assets/Audio/焊接失敗.mp3", import.meta.url)),
+    readFile(new URL("../public/audio/welding-failed.mp3", import.meta.url)),
+    readFile(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.deepEqual(publicBytes, sourceBytes);
+  assert.match(
+    puzzleSource,
+    /phase !== "failure-message" \|\| failureShownNotifiedRef\.current[\s\S]*onFailureShown\?\.\(\)/,
+  );
+  assert.match(
+    movementLabSource,
+    /onFailureShown=\{\(\) => playOneShotAudio\("weldingFailed"\)\}/,
+  );
+});
+
+test("焊接成功綠底出現時透過 AudioEventManager 單次播放調頻成功音效", async () => {
+  const event = AUDIO_EVENT_CONFIG.weldingSucceeded;
+  assert.deepEqual(event.sourceAssetPaths, ["Assets/Audio/調頻成功.mp3"]);
+  assert.deepEqual(event.sources, ["./audio/frequency-lock-success.mp3"]);
+  assert.equal(event.volume, 1);
+  assert.equal(event.delaySeconds, 0);
+  assert.equal(event.loop, undefined);
+  assert.match(event.trigger, /綠色「焊接成功」底板實際出現/);
+  assert.match(event.trigger, /不重複播放/);
+
+  const [sourceBytes, publicBytes, puzzleSource, movementLabSource] = await Promise.all([
+    readFile(new URL("../Assets/Audio/調頻成功.mp3", import.meta.url)),
+    readFile(new URL("../public/audio/frequency-lock-success.mp3", import.meta.url)),
+    readFile(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.deepEqual(publicBytes, sourceBytes);
+  assert.match(
+    puzzleSource,
+    /phase !== "success" \|\| successShownNotifiedRef\.current[\s\S]*onSuccessShown\?\.\(\)/,
+  );
+  assert.match(
+    movementLabSource,
+    /onSuccessShown=\{\(\) => playOneShotAudio\("weldingSucceeded"\)\}/,
+  );
 });
 
 test("調頻四種聲音事件集中登記並使用正確素材", async () => {

@@ -10,6 +10,19 @@ export type ItemCategory = "resource" | "tool" | "quest" | "main";
 
 export type ItemDebugSpawnDelivery = "world" | "inventory";
 
+export type ItemUseActionReward = {
+  itemId: string;
+  quantity: number;
+  delivery: "world" | "inventory";
+};
+
+export type ItemUseAction = {
+  type: "grant-items";
+  verb?: string;
+  consumeQuantity?: number;
+  rewards: readonly ItemUseActionReward[];
+};
+
 export type ItemInventoryRules = {
   transferable: boolean;
   discardable: boolean;
@@ -26,6 +39,7 @@ export type ItemDefinition = {
   weight: number;
   usable: boolean;
   useMode?: "direct" | "interaction";
+  useAction?: ItemUseAction;
   survivalEffects: SurvivalEffects;
   inventoryRules: ItemInventoryRules;
   debugSpawnDelivery?: ItemDebugSpawnDelivery;
@@ -71,7 +85,13 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       category: "resource",
       description: "從舊設備拆下的通用機械零件。",
       weight: 0.4,
-      usable: false,
+      usable: true,
+      useAction: {
+        type: "grant-items",
+        verb: "拆解",
+        consumeQuantity: 1,
+        rewards: [{ itemId: "R0009", quantity: 3, delivery: "world" }],
+      },
       survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 99 },
     },
@@ -177,6 +197,12 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       description: "整合維修、拆裝與現場調整用途的多功能工具箱。",
       weight: 1.8,
       usable: true,
+      useAction: {
+        type: "grant-items",
+        verb: "打開",
+        consumeQuantity: 1,
+        rewards: [{ itemId: "T0007", quantity: 1, delivery: "world" }],
+      },
       survivalEffects: {},
       inventoryRules: { transferable: true, discardable: true, stackSize: 5 },
     },
@@ -325,7 +351,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       name: "金屬碎片",
       symbol: "⬟",
       category: "resource",
-      description: "可重新熔製利用的金屬廢料。",
+      description: "可重新融製的金屬廢料，焊接過程中可用來當作助焊劑使用。",
       weight: 0.2,
       usable: false,
       survivalEffects: {},
@@ -434,7 +460,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       englishName: "communication-array-panel",
       name: "通訊陣列面板",
       symbol: "▤",
-      category: "resource",
+      category: "quest",
       description: "通訊陣列使用的模組化控制面板，可用於修復訊號接收與傳輸設備。",
       weight: 1.2,
       usable: false,
@@ -449,7 +475,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       englishName: "quantum-transmitter",
       name: "量子傳輸器",
       symbol: "⌬",
-      category: "resource",
+      category: "quest",
       description: "能維持短距離量子訊號同步的精密傳輸模組。",
       weight: 0.8,
       usable: false,
@@ -464,7 +490,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       englishName: "calibration-component",
       name: "校正元件",
       symbol: "◈",
-      category: "resource",
+      category: "quest",
       description: "用於校正精密儀器讀值與訊號偏差的標準元件。",
       weight: 0.25,
       usable: false,
@@ -799,12 +825,6 @@ export function validateItemDatabase() {
   }
   const itemIds = new Set<string>();
   const englishNames = new Set<string>();
-  const categoryPrefixes: Readonly<Record<ItemCategory, string>> = {
-    resource: "R",
-    tool: "T",
-    quest: "Q",
-    main: "M",
-  };
   ITEM_DATABASE.forEach((slot, index) => {
     if (slot.slot !== index + 1) {
       throw new Error(`Item database slot ${index + 1} is out of order.`);
@@ -815,9 +835,9 @@ export function validateItemDatabase() {
     }
     const englishName = slot.item.englishName.trim().toLowerCase();
     if (
-      !new RegExp(`^${categoryPrefixes[slot.item.category]}\\d{4}$`).test(
-        slot.item.id,
-      ) ||
+      // Item IDs are stable references used by saves, scenes, and quests.
+      // Moving an existing item to another inventory category must not rename it.
+      !/^[RTQM]\d{4}$/.test(slot.item.id) ||
       !englishName ||
       englishNames.has(englishName)
     ) {

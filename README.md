@@ -29,7 +29,8 @@
 - 所有遊戲音效事件集中在 `app/audio-event-manager.ts` 的
   `AUDIO_EVENT_CONFIG`。
 - 每個事件會記錄觸發時機、原始素材路徑、瀏覽器播放路徑、音量、
-  延遲秒數與是否循環；`loop` 省略時預設為單次播放。
+  延遲秒數、是否循環，以及依個別 MP3 總長百分比計算的 FadeIn／FadeOut；
+  `loop` 省略時預設為單次播放。
 - 可由 `MapEditor/MapEditor.exe` 上方的「Audio 音效」開啟管理視窗，
   直接輸入後按「儲存到 TS」，不需要手動編輯 TypeScript。
 - 也可直接執行 `AudioEventManager/AudioEventManager.exe`，不需要先開啟

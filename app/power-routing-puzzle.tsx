@@ -32,6 +32,7 @@ const STARTUP_MESSAGES = [
 
 type PowerRoutingPuzzleProps = {
   availablePower?: number;
+  gamepadMode?: boolean;
   onCancel: () => void;
   onComplete: () => void;
   onInput?: () => void;
@@ -40,6 +41,7 @@ type PowerRoutingPuzzleProps = {
 
 export type PowerRoutingPuzzleController = {
   activateSelection: () => void;
+  applyPower: () => void;
   cancel: () => void;
   moveSelection: (direction: number) => void;
   setSelectedDeviceActive: (active: boolean) => void;
@@ -51,6 +53,7 @@ export const PowerRoutingPuzzle = forwardRef<
 >(function PowerRoutingPuzzle(
   {
     availablePower = POWER_ROUTING_CAPACITY,
+    gamepadMode = false,
     onCancel,
     onComplete,
     onInput,
@@ -151,6 +154,7 @@ export const PowerRoutingPuzzle = forwardRef<
       if (menuSelection === "apply") applyPower();
       else toggleDevice(menuSelection);
     },
+    applyPower,
     cancel: () => {
       if (completing) return;
       onInput?.();
@@ -338,8 +342,12 @@ export const PowerRoutingPuzzle = forwardRef<
               applyPower();
             }}
           >
-            <strong>{completing ? "啟動中…" : "確認供電"}</strong>
-            <small>{completing ? "INITIALIZING" : "APPLY POWER"}</small>
+            {gamepadMode ? (
+              <span className="power-trigger-key" aria-hidden="true">RT</span>
+            ) : (
+              <span aria-hidden="true">▣</span>
+            )}
+            <strong>{completing ? "啟動中…" : "啟動供電"}</strong>
           </button>
         </footer>
       </section>

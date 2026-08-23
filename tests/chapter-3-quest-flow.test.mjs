@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { QuestRuntimeManager } from "../app/quest-runtime-manager.ts";
+import { STORY_DIALOGUES } from "../app/story-content.ts";
 
 const questDocument = JSON.parse(
   readFileSync(new URL("../public/quests/quest-data.json", import.meta.url), "utf8"),
@@ -20,6 +21,7 @@ const HOPE_QUEST_ID = "QUEST_CH03_MAIN_004";
 const FAR_LIGHT_QUEST_ID = "QUEST_CH03_MAIN_005";
 const ARRAY_REPAIR_QUEST_ID = "QUEST_CH03_MAIN_006";
 const WELDING_INTERACTION_ID = "scene3-interaction-024";
+const FREQUENCY_INTERACTION_ID = "scene3-interaction-025";
 
 function dispatch(manager, eventId, type, targetId) {
   manager.handleEvent({ eventId, type, targetId, amount: 1 });
@@ -247,7 +249,11 @@ test("正式場景的互動區與 ItemPoint 使用正確任務階段條件", () 
   assert.equal(computerRequirement.stageId, `${QUEST_ID}_STAGE_02`);
   assert.equal(computerRequirement.stageMode, "CurrentStageOnly");
 
-  for (const itemPointId of ["item-point-001", "item-point-002", "item-point-003"]) {
+  for (const itemPointId of [
+    "scene3-item-point-001",
+    "scene3-item-point-002",
+    "scene3-item-point-003",
+  ]) {
     assert.deepEqual(itemPoints.get(itemPointId).spawnRequirement, {
       questId: QUEST_ID,
       stageId: `${QUEST_ID}_STAGE_03`,
@@ -256,7 +262,60 @@ test("正式場景的互動區與 ItemPoint 使用正確任務階段條件", () 
   }
 });
 
-test("MAIN_006 stage 02 starts welding at interaction-024 and completes only from its puzzle event", () => {
+test("所有 ItemPoint ID 皆為 Scene 唯一且任務階段索引有效", () => {
+  const scenes = [scene, scene2];
+  const globalItemPointIds = new Set();
+
+  for (const sceneDocument of scenes) {
+    const sceneToken = Array.from(sceneDocument.sceneId.toLowerCase())
+      .filter((character) => /[\p{L}\p{N}]/u.test(character))
+      .join("") || "scene";
+    const expectedPrefix = `${sceneToken}-item-point-`;
+
+    for (const itemPoint of sceneDocument.itemPoints ?? []) {
+      assert.ok(
+        itemPoint.id.startsWith(expectedPrefix),
+        `${sceneDocument.sceneId} 的 ItemPoint ID 未包含 Scene：${itemPoint.id}`,
+      );
+      assert.equal(
+        globalItemPointIds.has(itemPoint.id),
+        false,
+        `ItemPoint ID 跨場景重複：${itemPoint.id}`,
+      );
+      globalItemPointIds.add(itemPoint.id);
+
+      if (!itemPoint.spawnRequirement) continue;
+      const quest = questDocument.quests.find(
+        (candidate) => candidate.id === itemPoint.spawnRequirement.questId,
+      );
+      assert.ok(quest, `ItemPoint ${itemPoint.id} 索引了不存在的任務`);
+      assert.ok(
+        quest.stages.some(
+          (stage) => stage.id === itemPoint.spawnRequirement.stageId,
+        ),
+        `ItemPoint ${itemPoint.id} 索引了不存在的任務階段`,
+      );
+    }
+  }
+
+  const questItemPointTargetIds = questDocument.quests.flatMap((quest) =>
+    quest.stages.flatMap((stage) =>
+      stage.objectives
+        .map((objective) => objective.targetId)
+        .filter((targetId) =>
+          typeof targetId === "string" && targetId.includes("item-point")
+        )
+    )
+  );
+  for (const targetId of questItemPointTargetIds) {
+    assert.ok(
+      globalItemPointIds.has(targetId),
+      `任務階段索引了不存在的 ItemPoint：${targetId}`,
+    );
+  }
+});
+
+test("MAIN_006 waits for section-8 between welding and frequency calibration, then completes", async () => {
   const quest = questDocument.quests.find(
     (candidate) => candidate.id === ARRAY_REPAIR_QUEST_ID,
   );
@@ -269,29 +328,61 @@ test("MAIN_006 stage 02 starts welding at interaction-024 and completes only fro
   const interaction = scene.interactables.find(
     (candidate) => candidate.id === WELDING_INTERACTION_ID,
   );
+  const nextStage = quest?.stages.find(
+    (candidate) => candidate.id === `${ARRAY_REPAIR_QUEST_ID}_STAGE_03`,
+  );
+  const nextObjective = nextStage?.objectives.find(
+    (candidate) => candidate.id === `${ARRAY_REPAIR_QUEST_ID}_OBJ_05`,
+  );
+  const frequencyInteraction = scene.interactables.find(
+    (candidate) => candidate.id === FREQUENCY_INTERACTION_ID,
+  );
 
   assert.ok(quest);
   assert.ok(stage);
   assert.ok(objective);
   assert.ok(interaction);
+  assert.ok(nextStage);
+  assert.ok(nextObjective);
+  assert.ok(frequencyInteraction);
   assert.equal(objective.type, "puzzleCompleted");
   assert.equal(objective.targetId, WELDING_INTERACTION_ID);
+  assert.equal(objective.completionEventFlowId, "chapter03-section-8");
+  assert.ok(STORY_DIALOGUES["chapter03-section-8"]?.lines.length > 0);
+  assert.equal(nextObjective.type, "puzzleCompleted");
+  assert.equal(nextObjective.targetId, FREQUENCY_INTERACTION_ID);
   assert.deepEqual(
     interaction.useRequirements
       .filter((requirement) => requirement.kind === "questStage")
       .map((requirement) => [requirement.questId, requirement.stageId, requirement.stageMode]),
     [[ARRAY_REPAIR_QUEST_ID, stage.id, "CurrentStageOnly"]],
   );
+  assert.deepEqual(
+    frequencyInteraction.useRequirements
+      .filter((requirement) => requirement.kind === "questStage")
+      .map((requirement) => [requirement.questId, requirement.stageId, requirement.stageMode]),
+    [[ARRAY_REPAIR_QUEST_ID, nextStage.id, "CurrentStageOnly"]],
+  );
 
   const isolatedQuest = {
     ...structuredClone(quest),
     prerequisiteQuestIds: [],
-    stages: [structuredClone(stage)],
+    stages: [structuredClone(stage), structuredClone(nextStage)],
   };
+  let finishSection8;
+  const section8Result = new Promise((resolve) => {
+    finishSection8 = resolve;
+  });
+  const playedFlows = [];
   const manager = new QuestRuntimeManager({
     schemaVersion: questDocument.schemaVersion,
     chapters: questDocument.chapters,
     quests: [isolatedQuest],
+  }, {
+    runEventFlow: (eventFlowId) => {
+      playedFlows.push(eventFlowId);
+      return section8Result;
+    },
   });
   assert.equal(manager.startQuest(ARRAY_REPAIR_QUEST_ID), true);
   manager.handleEvent({ type: "interactionSucceeded", targetId: WELDING_INTERACTION_ID });
@@ -299,6 +390,22 @@ test("MAIN_006 stage 02 starts welding at interaction-024 and completes only fro
   manager.handleEvent({ type: "puzzleCompleted", targetId: "another-puzzle" });
   assert.equal(manager.getQuestState(ARRAY_REPAIR_QUEST_ID), "active");
   manager.handleEvent({ type: "puzzleCompleted", targetId: WELDING_INTERACTION_ID });
+  assert.equal(
+    manager.getObjectiveProgress(
+      ARRAY_REPAIR_QUEST_ID,
+      `${ARRAY_REPAIR_QUEST_ID}_OBJ_04`,
+    ).completed,
+    true,
+  );
+  assert.deepEqual(playedFlows, ["chapter03-section-8"]);
+  assert.equal(manager.getCurrentStage(ARRAY_REPAIR_QUEST_ID), stage.id);
+
+  finishSection8(true);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(manager.getCurrentStage(ARRAY_REPAIR_QUEST_ID), nextStage.id);
+
+  manager.handleEvent({ type: "puzzleCompleted", targetId: FREQUENCY_INTERACTION_ID });
   assert.equal(manager.getQuestState(ARRAY_REPAIR_QUEST_ID), "completed");
 });
 
@@ -391,6 +498,7 @@ test("MAIN_005 preserves the hidden tool chain and advances through the power pu
     stageId: `${FAR_LIGHT_QUEST_ID}_STAGE_03`,
     stageMode: "UnlockFromStage",
   });
+  assert.equal(scene2.itemPoints[0].id, "scene2-item-point-001");
   assert.equal(scene2.itemPoints[0].itemId, "T0008");
 
   const isolatedDocument = {

@@ -69,7 +69,13 @@ export type WeldingRouteFailureState = {
   failed: boolean;
 };
 
-export type WeldingEndpointResult = "not-end" | "correct" | "wrong";
+export type WeldingStartValidationState = {
+  startedFromStart: boolean;
+  unqualifiedDistance: number;
+  failed: boolean;
+};
+
+export type WeldingEndpointResult = "not-end" | "correct" | "wrong" | "unqualified";
 
 type SourceRoute = {
   id: string;
@@ -84,11 +90,73 @@ export const WELDING_ROUTE_VIEWBOX = {
   height: 320,
 };
 
+export const WELDING_START_DISTANCE_TOLERANCE_PX = 50;
+
 export const createWeldingRouteFailureState = (): WeldingRouteFailureState => ({
   wrongBranchActive: false,
   wrongDistance: 0,
   failed: false,
 });
+
+export const createWeldingStartValidationState = ({
+  graph,
+  projection,
+  startDistanceTolerance = WELDING_START_DISTANCE_TOLERANCE_PX,
+  scaleX = 1,
+  scaleY = 1,
+}: {
+  graph: WeldingRouteGraph;
+  projection: WeldingTrackProjection;
+  startDistanceTolerance?: number;
+  scaleX?: number;
+  scaleY?: number;
+}): WeldingStartValidationState => {
+  const startedFromStart = graph.nodes.some((node) =>
+    graph.startNodeIds.includes(node.id) &&
+    Math.hypot(
+      (projection.point.x - node.x) * scaleX,
+      (projection.point.y - node.y) * scaleY,
+    ) <= startDistanceTolerance,
+  );
+  return {
+    startedFromStart,
+    unqualifiedDistance: 0,
+    failed: false,
+  };
+};
+
+/**
+ * A trail that did not begin at one of the four left-side start nodes receives
+ * only a short correction window. Distance is measured in rendered pixels so
+ * the 100px rule behaves consistently at different board sizes.
+ */
+export const advanceWeldingStartValidation = ({
+  state,
+  start,
+  end,
+  failureDistance,
+  scaleX = 1,
+  scaleY = 1,
+}: {
+  state: WeldingStartValidationState;
+  start: WeldingTrackProjection;
+  end: WeldingTrackProjection;
+  failureDistance: number;
+  scaleX?: number;
+  scaleY?: number;
+}): WeldingStartValidationState => {
+  if (state.startedFromStart || state.failed) return state;
+  const renderedDistance = Math.hypot(
+    (end.point.x - start.point.x) * scaleX,
+    (end.point.y - start.point.y) * scaleY,
+  );
+  const unqualifiedDistance = state.unqualifiedDistance + renderedDistance;
+  return {
+    ...state,
+    unqualifiedDistance,
+    failed: unqualifiedDistance > failureDistance,
+  };
+};
 
 export const isWeldingRouteComparisonNode = (
   graph: WeldingRouteGraph,
@@ -147,12 +215,15 @@ export const resolveWeldingEndpointResult = ({
   graph,
   correctEdgeIds,
   selectedEdge,
+  startedFromStart = true,
 }: {
   graph: WeldingRouteGraph;
   correctEdgeIds: string[];
   selectedEdge: WeldingRouteEdge;
+  startedFromStart?: boolean;
 }): WeldingEndpointResult => {
   if (!graph.endNodeIds.includes(selectedEdge.to)) return "not-end";
+  if (!startedFromStart) return "unqualified";
   return selectedEdge.id === correctEdgeIds.at(-1) ? "correct" : "wrong";
 };
 

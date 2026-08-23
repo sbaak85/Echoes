@@ -84,6 +84,22 @@ export function getItemPointProgressId(itemPoint: SceneItemPoint) {
   return `${itemPoint.sceneId}:${itemPoint.id}`;
 }
 
+function migrateLegacyItemPointProgressId(value: string) {
+  const id = value.trim();
+  const separatorIndex = id.indexOf(":");
+  if (separatorIndex <= 0) return id;
+
+  const sceneId = id.slice(0, separatorIndex);
+  const itemPointId = id.slice(separatorIndex + 1);
+  const legacyMatch = /^item-point-(.+)$/i.exec(itemPointId);
+  if (!legacyMatch) return id;
+
+  const sceneToken = Array.from(sceneId.toLowerCase())
+    .filter((character) => /[\p{L}\p{N}]/u.test(character))
+    .join("") || "scene";
+  return `${sceneId}:${sceneToken}-item-point-${legacyMatch[1]}`;
+}
+
 function normalizeSpawnRequirement(value: unknown): ItemPointSpawnRequirement | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const candidate = value as Partial<ItemPointSpawnRequirement>;
@@ -105,16 +121,22 @@ export function normalizeItemPointProgress(value: unknown): ItemPointProgress {
   }
   const candidate = value as Partial<ItemPointProgress>;
   const onceCollectedIds = Array.isArray(candidate.onceCollectedIds)
-    ? [...new Set(candidate.onceCollectedIds.filter(
-        (id): id is string => typeof id === "string" && id.trim().length > 0,
+    ? [...new Set(candidate.onceCollectedIds.flatMap((id) =>
+        typeof id === "string" && id.trim().length > 0
+          ? [migrateLegacyItemPointProgressId(id)]
+          : []
       ))]
     : [];
-  const dailyCollectedCycles = Object.fromEntries(
-    Object.entries(candidate.dailyCollectedCycles ?? {}).flatMap(([id, cycle]) => {
-      const normalized = Math.floor(Number(cycle));
-      return id.trim() && Number.isFinite(normalized) ? [[id, normalized]] : [];
-    }),
-  );
+  const dailyCollectedCycles: Record<string, number> = {};
+  for (const [id, cycle] of Object.entries(candidate.dailyCollectedCycles ?? {})) {
+    const normalizedCycle = Math.floor(Number(cycle));
+    if (!id.trim() || !Number.isFinite(normalizedCycle)) continue;
+    const normalizedId = migrateLegacyItemPointProgressId(id);
+    dailyCollectedCycles[normalizedId] = Math.max(
+      dailyCollectedCycles[normalizedId] ?? Number.NEGATIVE_INFINITY,
+      normalizedCycle,
+    );
+  }
   return { onceCollectedIds, dailyCollectedCycles };
 }
 

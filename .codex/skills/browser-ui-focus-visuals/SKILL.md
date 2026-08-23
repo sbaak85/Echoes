@@ -1,6 +1,6 @@
 ---
 name: browser-ui-focus-visuals
-description: Enforce browser-game and web UI focus-visual and default gamepad-control rules. Use when creating, modifying, reviewing, or testing interactive browser UI such as buttons, inputs, range sliders, menus, modals, virtual cursors, keyboard navigation, or gamepad navigation. Hide native browser focus visuals and give every menu or clickable-button UI default left-stick navigation and A-button activation.
+description: Enforce browser-game and web UI focus visuals, blocking-overlay hit testing, and default gamepad-control rules. Use when creating, modifying, reviewing, or testing interactive browser UI such as buttons, inputs, range sliders, menus, modals, virtual cursors, keyboard navigation, or gamepad navigation. Hide native browser focus visuals, prevent blocking UI from leaking input to the game world, and give every menu or clickable-button UI default left-stick navigation and A-button activation.
 ---
 
 # Browser UI Focus Visuals
@@ -21,6 +21,18 @@ Give every UI containing a menu or clickable button gamepad support by default. 
 - Follow the last active input method. Mouse, virtual cursor, directional navigation, and analog controls must not display or seize another mode's selection visuals.
 - When an analog control changes a value directly, do not show a directional-navigation selection frame. Blur a hidden native input if it retains an unwanted browser focus state.
 - Restore only the game's custom highlight when directional keyboard or gamepad navigation resumes.
+
+## Blocking UI and world interaction
+
+A blocking UI is any open modal, overlay, panel, confirmation, dialogue, menu, minigame, or failure screen whose presence is intended to suspend ordinary world input. While any blocking UI is open:
+
+- The virtual cursor must never hit, highlight, select, path toward, or activate world interactables behind the UI.
+- Non-interactive space inside the blocking UI still consumes the input. Do not fall through to a world action merely because no UI button is under the cursor.
+- Suppress world interaction prompts and hover highlights, and clear cached world targets or prompt ownership so stale indicators do not remain visible behind the UI.
+- Apply one shared blocking condition to world-target discovery, prompt rendering, and actual activation. Hiding the prompt alone is insufficient if keyboard, pointer, touch, or gamepad input can still trigger the target.
+- Keep UI hit testing active so the virtual cursor can continue selecting controls inside the open interface. Closing the last blocking UI restores world hit testing.
+
+Apply this rule consistently to mouse, touch, keyboard, gamepad buttons, directional selection, and virtual-cursor activation. Passive HUD elements that are not intended to block world control are not blocking UI.
 
 ## Default gamepad menu support
 
@@ -44,5 +56,7 @@ Check all relevant paths:
 5. Programmatic focus after opening, closing, or switching a modal.
 6. Left-stick wraparound across every enabled button or menu item.
 7. A-button activation producing the same result as pointer click, exactly once per press.
+8. Opening every blocking UI over a world interactable: the virtual cursor must operate the UI without showing or triggering the covered world target, including over non-interactive gaps in the panel.
+9. Closing the blocking UI: world prompts and activation resume without restoring a stale cached target.
 
 Confirm that no native focus background or border appears, while custom selection feedback and every input method still work. For every menu or clickable-button UI, confirm that left-stick navigation and A-button activation work without additional feature-specific setup.

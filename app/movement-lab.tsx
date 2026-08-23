@@ -18,6 +18,8 @@ import {
   AUDIO_EVENT_CONFIG,
   AudioEventManager,
   getFrequencyFineAudioMix,
+  getSuccessfulInteractionAudioEvent,
+  getSuccessfulItemUseAudioEvent,
   type AudioEventName,
 } from "./audio-event-manager";
 import {
@@ -46,6 +48,7 @@ import {
   savePlayerInventory,
   useSurvivalInventoryItem,
   type ItemCategory,
+  type ItemDefinition,
   type PlayerInventory,
 } from "./item-database";
 import {
@@ -66,7 +69,14 @@ import {
 import {
   getClampedInventoryCategoryIndex,
   getInventoryCategoryOffsetForBumper,
+  getVirtualCursorInventoryItemAction,
 } from "./inventory-gamepad-control";
+import {
+  formatItemUseActionEffect,
+  moveItemUseConfirmationChoice,
+  resolveItemUseActionVerb,
+  type ItemUseConfirmationChoice,
+} from "./item-use-confirmation";
 import {
   DEFAULT_HOTBAR_ASSIGNMENTS,
   HOTBAR_SLOT_COUNT,
@@ -75,7 +85,7 @@ import {
   loadHotbarAssignments,
   saveHotbarAssignments,
 } from "./hotbar-assignments";
-import { resetStoredNewGameProgress } from "./new-game-reset";
+import { createNewGameProgress, resetStoredNewGameProgress } from "./new-game-reset";
 import {
   evaluateInteractionStageRequirement,
   filterInteractionRequirementsByPurpose,
@@ -217,8 +227,19 @@ import {
   type QuestObjectiveDefinition,
   type QuestRuntimeEntry,
 } from "./quest-runtime-manager";
+import { recordWeldingToolHintInteractionFailure } from "./welding-objective-hint";
+import {
+  buildQuestDebugScenarioPlan,
+  isQuestDebugCommand,
+  parseQuestDebugCommand,
+  validateQuestDebugConfiguration,
+} from "./quest-debug-scenario";
+import { createQuestSkipKeyController } from "./quest-debug-hotkey";
 
 const QUEST_DOCUMENT = questDocumentSource as QuestDocument;
+const QUEST_DEBUG_ITEM_SURVIVAL_EFFECTS = Object.fromEntries(
+  ITEM_DEFINITIONS.map((item) => [item.id, item.survivalEffects]),
+);
 
 type Direction = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
 type Point = { x: number; y: number };
@@ -397,7 +418,35 @@ type PendingInteraction = {
   repathAttempts?: number;
 };
 type PowerPuzzleSession = Pick<PendingInteraction, "interactable" | "source">;
+type PendingItemUseConfirmation = {
+  itemId: string;
+  feedbackSlotIndex: number;
+};
 const WELDING_ROUTE_INTERACTION_ID = "scene3-interaction-024";
+const FREQUENCY_CALIBRATION_INTERACTION_ID = "scene3-interaction-025";
+const WELDING_FAILURE_MATERIAL_ITEM_ID = "R0009";
+const WELDING_FAILURE_MATERIAL_QUANTITY = 1;
+const WELDING_FAILURE_DIALOGUE_ID = "chapter03-special-1";
+const COMMUNICATION_ARRAY_INTERACTION_ID = "scene3-interaction-023";
+const COMMUNICATION_ARRAY_TARGET_ICON_SRC =
+  "/ui/interactions/communication-array-tower-icon.png";
+const QUEST_ITEM_SUBMISSION_COMPLETION_PREVIEW_MS = 800;
+type ItemChangeVisualState = "available" | "missing" | "submitted" | "result";
+type ItemChangeVisualEntry = {
+  item?: ItemDefinition | null;
+  label: string;
+  quantity?: number;
+  state: ItemChangeVisualState;
+  imageSrc?: string;
+};
+type ItemChangeQuantityPlacement = "inside" | "outside";
+type QuestItemSubmissionRequirement = {
+  objectiveId: string;
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  completed: boolean;
+};
 type QuestItemSubmissionPrompt = {
   interactable: SceneInteractable;
   source: PendingInteraction["source"];
@@ -407,9 +456,92 @@ type QuestItemSubmissionPrompt = {
   itemId: string;
   itemName: string;
   quantity: number;
-  order: number;
-  total: number;
+  requirements: QuestItemSubmissionRequirement[];
 };
+
+function ItemChangeVisualCard({
+  entry,
+  quantityPlacement,
+}: {
+  entry: ItemChangeVisualEntry;
+  quantityPlacement: ItemChangeQuantityPlacement;
+}) {
+  const quantity = Math.max(1, Math.floor(Number(entry.quantity) || 1));
+  return (
+    <div
+      className={`item-change-visual-card is-${entry.state} has-${quantityPlacement}-quantity`}
+      aria-label={`${entry.label} ×${quantity}${
+        entry.state === "submitted"
+          ? "，已投入"
+          : entry.state === "missing"
+            ? "，目前缺少"
+            : ""
+      }`}
+    >
+      <span className="item-change-visual-icon">
+        {entry.imageSrc ? (
+          // This is a compact, transparent game HUD asset rather than page content.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={entry.imageSrc} alt="" draggable={false} />
+        ) : (
+          <span aria-hidden="true">{entry.item?.symbol ?? "◇"}</span>
+        )}
+        {entry.quantity && quantityPlacement === "inside" ? (
+          <b className="item-change-visual-quantity">×{quantity}</b>
+        ) : null}
+        {entry.state === "submitted" ? (
+          <i className="item-change-visual-check" aria-hidden="true">✓</i>
+        ) : null}
+      </span>
+      {entry.quantity && quantityPlacement === "outside" ? (
+        <b className="item-change-visual-quantity is-outside">×{quantity}</b>
+      ) : null}
+      <small>{entry.label}</small>
+    </div>
+  );
+}
+
+function ItemChangeVisualization({
+  sources,
+  targets,
+  className = "",
+  quantityPlacement = "inside",
+}: {
+  sources: ItemChangeVisualEntry[];
+  targets: ItemChangeVisualEntry[];
+  className?: string;
+  quantityPlacement?: ItemChangeQuantityPlacement;
+}) {
+  return (
+    <div
+      className={`item-change-visualization${className ? ` ${className}` : ""}`}
+      aria-label="物件變化預覽"
+      aria-live="polite"
+    >
+      <div className="item-change-visual-group is-source">
+        {sources.map((entry, index) => (
+          <ItemChangeVisualCard
+            key={`${entry.label}:${index}`}
+            entry={entry}
+            quantityPlacement={quantityPlacement}
+          />
+        ))}
+      </div>
+      <span className="item-change-visual-arrow" aria-hidden="true">
+        <i />
+      </span>
+      <div className="item-change-visual-group is-target">
+        {targets.map((entry, index) => (
+          <ItemChangeVisualCard
+            key={`${entry.label}:${index}`}
+            entry={entry}
+            quantityPlacement={quantityPlacement}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 type DialoguePlayback = {
   interactable: SceneInteractable;
   lineIndex: number;
@@ -1428,6 +1560,28 @@ function formatSurvivalEffects(effects: SurvivalEffects) {
     },
   );
   return entries.length > 0 ? entries.join("、") : "尚未設定";
+}
+
+function formatInventoryItemInformationEffect(
+  item: Pick<ItemDefinition, "survivalEffects" | "useAction">,
+) {
+  const useActionEffect = formatItemUseActionEffect(
+    item.useAction,
+    (itemId) => ITEM_BY_ID.get(itemId)?.name,
+  );
+  if (useActionEffect) return useActionEffect;
+
+  const survivalEffect = formatSurvivalEffects(item.survivalEffects);
+  return hasConfiguredSurvivalEffects(item.survivalEffects)
+    ? `生存影響　${survivalEffect}`
+    : survivalEffect;
+}
+
+function hasConfiguredInventoryItemInformationEffect(
+  item: Pick<ItemDefinition, "survivalEffects" | "useAction">,
+) {
+  return Boolean(item.useAction) ||
+    hasConfiguredSurvivalEffects(item.survivalEffects);
 }
 
 type InventoryCategory = "all" | ItemCategory;
@@ -3011,6 +3165,14 @@ export function MovementLab() {
   const survivalFlowPausedRef = useRef(false);
   const restartConfirmationOpenRef = useRef(false);
   const restartConfirmationChoiceRef = useRef<"cancel" | "confirm">("cancel");
+  const itemUseConfirmationOpenRef = useRef(false);
+  const itemUseConfirmationChoiceRef = useRef<ItemUseConfirmationChoice>("cancel");
+  const itemUseConfirmationGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
+  const itemUseConfirmationCursorRearmRequiredRef = useRef(false);
+  const pendingItemUseConfirmationRef =
+    useRef<PendingItemUseConfirmation | null>(null);
+  const itemUseConfirmationTriggerRef = useRef<HTMLElement | null>(null);
+  const confirmItemUseActionRef = useRef<() => void>(() => {});
   const sceneConnectionConfirmationOpenRef = useRef(false);
   const sceneConnectionConfirmationChoiceRef = useRef<"cancel" | "confirm">("cancel");
   const sceneConnectionConfirmationGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
@@ -3024,8 +3186,6 @@ export function MovementLab() {
   const frequencyPuzzleOpenRef = useRef(false);
   const weldingPuzzleOpenRef = useRef(false);
   const weldingPuzzleVirtualCursorAvailableRef = useRef(false);
-  const puzzleSelectionOpenRef = useRef(false);
-  const puzzleSelectionChoiceRef = useRef<"power" | "frequency">("power");
   const powerPuzzleSessionRef = useRef<PowerPuzzleSession | null>(null);
   const powerPuzzleControllerRef = useRef<PowerRoutingPuzzleController | null>(null);
   const frequencyPuzzleControllerRef =
@@ -3033,6 +3193,7 @@ export function MovementLab() {
   const powerPuzzleGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
   const powerPuzzleCursorRearmRequiredRef = useRef(false);
   const completePowerPuzzleInteractionRef = useRef<() => void>(() => {});
+  const completeFrequencyPuzzleInteractionRef = useRef<() => void>(() => {});
   const completeWeldingPuzzleInteractionRef = useRef<() => void>(() => {});
   const campPowerStateRef = useRef<CampPowerState>(
     createInitialCampPowerState(INITIAL_SURVIVAL_STATE.gameMinutes),
@@ -3041,6 +3202,8 @@ export function MovementLab() {
   const campPowerConfirmationChoiceRef = useRef<"cancel" | "confirm">("cancel");
   const campPowerConfirmationGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
   const campPowerConfirmationCursorRearmRequiredRef = useRef(false);
+  const questItemSubmissionCompletingRef = useRef(false);
+  const questItemSubmissionCompletionTimerRef = useRef<number | null>(null);
   const confirmCampPowerRefillRef = useRef<() => void>(() => {});
   const optionsTabRef = useRef<OptionsTab>("display");
   const optionsMenuSelectionRef = useRef<OptionsMenuItem>(
@@ -3171,6 +3334,10 @@ export function MovementLab() {
   const [restartConfirmationOpen, setRestartConfirmationOpen] = useState(false);
   const [restartConfirmationChoice, setRestartConfirmationChoice] =
     useState<"cancel" | "confirm">("cancel");
+  const [itemUseConfirmation, setItemUseConfirmation] =
+    useState<PendingItemUseConfirmation | null>(null);
+  const [itemUseConfirmationChoice, setItemUseConfirmationChoice] =
+    useState<ItemUseConfirmationChoice>("cancel");
   const [sceneConnectionConfirmation, setSceneConnectionConfirmation] = useState<{
     id: string;
     label: string;
@@ -3185,9 +3352,6 @@ export function MovementLab() {
   const [weldingPuzzleVirtualCursorAvailable, setWeldingPuzzleVirtualCursorAvailable] =
     useState(false);
   const [weldingPuzzleSessionKey, setWeldingPuzzleSessionKey] = useState(0);
-  const [puzzleSelectionOpen, setPuzzleSelectionOpen] = useState(false);
-  const [puzzleSelectionChoice, setPuzzleSelectionChoice] =
-    useState<"power" | "frequency">("power");
   const [campPowerState, setCampPowerState] = useState<CampPowerState>(() =>
     createInitialCampPowerState(INITIAL_SURVIVAL_STATE.gameMinutes),
   );
@@ -3196,6 +3360,8 @@ export function MovementLab() {
     useState<"cancel" | "confirm">("cancel");
   const [questItemSubmissionPrompt, setQuestItemSubmissionPrompt] =
     useState<QuestItemSubmissionPrompt | null>(null);
+  const [questItemSubmissionCompleting, setQuestItemSubmissionCompleting] =
+    useState(false);
   const [stageFullscreen, setStageFullscreen] = useState(false);
   const [optionsTab, setOptionsTab] = useState<OptionsTab>("display");
   const [optionsMenuSelection, setOptionsMenuSelection] =
@@ -3361,6 +3527,32 @@ export function MovementLab() {
     if (nextState !== campPowerStateRef.current) applyCampPowerState(nextState);
   };
 
+  const setItemUseConfirmationChoiceValue = (
+    choice: ItemUseConfirmationChoice,
+  ) => {
+    itemUseConfirmationChoiceRef.current = choice;
+    setItemUseConfirmationChoice(choice);
+  };
+
+  const closeItemUseConfirmation = () => {
+    const trigger = itemUseConfirmationTriggerRef.current;
+    itemUseConfirmationOpenRef.current = false;
+    itemUseConfirmationGamepadModeRef.current = "dpad";
+    itemUseConfirmationCursorRearmRequiredRef.current = false;
+    pendingItemUseConfirmationRef.current = null;
+    itemUseConfirmationTriggerRef.current = null;
+    setItemUseConfirmation(null);
+    setItemUseConfirmationChoiceValue("cancel");
+    window.queueMicrotask(() => {
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+      else canvasRef.current?.focus({ preventScroll: true });
+    });
+  };
+
+  const confirmItemUseAction = () => {
+    confirmItemUseActionRef.current();
+  };
+
   const setCampPowerConfirmationChoiceValue = (
     choice: "cancel" | "confirm",
   ) => {
@@ -3368,12 +3560,19 @@ export function MovementLab() {
     setCampPowerConfirmationChoice(choice);
   };
 
-  const closeCampPowerConfirmation = () => {
+  const closeCampPowerConfirmation = (force = false) => {
+    if (questItemSubmissionCompletingRef.current && !force) return;
+    if (questItemSubmissionCompletionTimerRef.current !== null) {
+      window.clearTimeout(questItemSubmissionCompletionTimerRef.current);
+      questItemSubmissionCompletionTimerRef.current = null;
+    }
+    questItemSubmissionCompletingRef.current = false;
     campPowerConfirmationOpenRef.current = false;
     campPowerConfirmationGamepadModeRef.current = "dpad";
     campPowerConfirmationCursorRearmRequiredRef.current = false;
     setCampPowerConfirmationOpen(false);
     setQuestItemSubmissionPrompt(null);
+    setQuestItemSubmissionCompleting(false);
     setCampPowerConfirmationChoiceValue("cancel");
   };
 
@@ -3387,7 +3586,6 @@ export function MovementLab() {
     frequencyPuzzleOpenRef.current = false;
     weldingPuzzleOpenRef.current = false;
     weldingPuzzleVirtualCursorAvailableRef.current = false;
-    puzzleSelectionOpenRef.current = false;
     powerPuzzleSessionRef.current = null;
     powerPuzzleGamepadModeRef.current = "dpad";
     powerPuzzleCursorRearmRequiredRef.current = false;
@@ -3395,29 +3593,31 @@ export function MovementLab() {
     setFrequencyPuzzleOpen(false);
     setWeldingPuzzleOpen(false);
     setWeldingPuzzleVirtualCursorAvailable(false);
-    setPuzzleSelectionOpen(false);
   };
 
   const openWeldingPuzzle = (
     interactable?: SceneInteractable,
     source?: PendingInteraction["source"],
   ) => {
+    const openedWithGamepad = source === "gamepad";
     optionsOpenRef.current = false;
     inventoryOpenRef.current = false;
     frequencyPuzzleOpenRef.current = false;
-    puzzleSelectionOpenRef.current = false;
     weldingPuzzleOpenRef.current = true;
     weldingPuzzleVirtualCursorAvailableRef.current = true;
     powerPuzzleOpenRef.current = true;
-    powerPuzzleGamepadModeRef.current = "cursor";
-    powerPuzzleCursorRearmRequiredRef.current = false;
+    // Keep the virtual cursor available, but let the same control scheme that
+    // opened the interaction retain ownership. A gamepad player can release
+    // the opening A press and press A again on the selected briefing action;
+    // intentional right-stick movement can still take cursor control later.
+    powerPuzzleGamepadModeRef.current = openedWithGamepad ? "dpad" : "cursor";
+    powerPuzzleCursorRearmRequiredRef.current = openedWithGamepad;
     powerPuzzleSessionRef.current = interactable && source
       ? { interactable, source }
       : null;
     setOptionsOpen(false);
     setInventoryOpen(false);
     setFrequencyPuzzleOpen(false);
-    setPuzzleSelectionOpen(false);
     setWeldingPuzzleVirtualCursorAvailable(true);
     setWeldingPuzzleSessionKey((current) => current + 1);
     setWeldingPuzzleOpen(true);
@@ -3428,8 +3628,7 @@ export function MovementLab() {
     (available: boolean) => {
       weldingPuzzleVirtualCursorAvailableRef.current = available;
       setWeldingPuzzleVirtualCursorAvailable(available);
-      if (available) {
-        powerPuzzleGamepadModeRef.current = "cursor";
+      if (!available) {
         powerPuzzleCursorRearmRequiredRef.current = false;
       }
     },
@@ -3457,18 +3656,69 @@ export function MovementLab() {
     }, 1800);
   };
 
-  const setPuzzleSelectionChoiceValue = (choice: "power" | "frequency") => {
-    puzzleSelectionChoiceRef.current = choice;
-    setPuzzleSelectionChoice(choice);
+  const handleWeldingPuzzleFailure = () => {
+    const failureDialogueContext =
+      powerPuzzleSessionRef.current?.interactable ?? {
+        id: `${WELDING_ROUTE_INTERACTION_ID}:failure`,
+        label: "焊接失敗",
+        type: "dialogue" as const,
+      };
+    closePowerRoutingPuzzle();
+
+    const currentInventory = playerInventoryRef.current;
+    const currentMaterialCount =
+      currentInventory[WELDING_FAILURE_MATERIAL_ITEM_ID] ?? 0;
+    if (currentMaterialCount < WELDING_FAILURE_MATERIAL_QUANTITY) {
+      showWeldingResultFeedback(
+        "焊接失敗，但背包中沒有可扣除的「金屬碎片」。",
+      );
+      return;
+    }
+
+    const nextInventory = removeInventoryItem(
+      currentInventory,
+      WELDING_FAILURE_MATERIAL_ITEM_ID,
+      WELDING_FAILURE_MATERIAL_QUANTITY,
+    );
+    const remainingMaterialCount =
+      nextInventory[WELDING_FAILURE_MATERIAL_ITEM_ID] ?? 0;
+    playerInventoryRef.current = nextInventory;
+    setPlayerInventory(nextInventory);
+    try {
+      savePlayerInventory(nextInventory);
+    } catch {
+      // 儲存空間不可用時，仍保留本次工作階段的消耗結果。
+    }
+
+    showWeldingResultFeedback(
+      `焊接失敗，消耗「金屬碎片」×${WELDING_FAILURE_MATERIAL_QUANTITY}` +
+        `（剩餘 ${remainingMaterialCount}）`,
+    );
+
+    const failureDialogue = dialogueManager.get(WELDING_FAILURE_DIALOGUE_ID);
+    if (failureDialogue) {
+      void dialogueManager.playUnique(
+        WELDING_FAILURE_DIALOGUE_ID,
+        failureDialogue,
+        failureDialogueContext,
+      );
+    } else {
+      console.warn(`找不到焊接失敗對話：${WELDING_FAILURE_DIALOGUE_ID}`);
+    }
   };
 
-  const openFrequencyCalibrationPuzzle = () => {
+  const openFrequencyCalibrationPuzzle = (
+    interactable?: SceneInteractable,
+    source?: PendingInteraction["source"],
+  ) => {
     dismissTimeElapsedNotice();
     optionsOpenRef.current = false;
     inventoryOpenRef.current = false;
     setOptionsOpen(false);
     setInventoryOpen(false);
-    powerPuzzleSessionRef.current = null;
+    powerPuzzleSessionRef.current = interactable && source
+      ? { interactable, source }
+      : null;
     weldingPuzzleOpenRef.current = false;
     powerPuzzleOpenRef.current = true;
     frequencyPuzzleOpenRef.current = true;
@@ -3497,44 +3747,6 @@ export function MovementLab() {
     powerPuzzleGamepadModeRef.current = "dpad";
     powerPuzzleCursorRearmRequiredRef.current = false;
     setPowerPuzzleOpen(true);
-  };
-
-  const openInteractionPuzzleSelection = (
-    interactable: SceneInteractable,
-    source: PendingInteraction["source"],
-  ) => {
-    dismissTimeElapsedNotice();
-    optionsOpenRef.current = false;
-    inventoryOpenRef.current = false;
-    setOptionsOpen(false);
-    setInventoryOpen(false);
-    powerPuzzleSessionRef.current = { interactable, source };
-    frequencyPuzzleOpenRef.current = false;
-    weldingPuzzleOpenRef.current = false;
-    puzzleSelectionOpenRef.current = true;
-    powerPuzzleOpenRef.current = true;
-    powerPuzzleGamepadModeRef.current = "dpad";
-    powerPuzzleCursorRearmRequiredRef.current = false;
-    setPuzzleSelectionChoiceValue("power");
-    setFrequencyPuzzleOpen(false);
-    setWeldingPuzzleOpen(false);
-    setPuzzleSelectionOpen(true);
-    setPowerPuzzleOpen(true);
-  };
-
-  const chooseInteractionPuzzle = (choice: "power" | "frequency") => {
-    const session = powerPuzzleSessionRef.current;
-    if (!session) {
-      closePowerRoutingPuzzle();
-      return;
-    }
-    puzzleSelectionOpenRef.current = false;
-    setPuzzleSelectionOpen(false);
-    if (choice === "frequency") {
-      openFrequencyCalibrationPuzzle();
-      return;
-    }
-    openPowerRoutingPuzzle(session.interactable, session.source);
   };
 
   useEffect(() => {
@@ -4208,6 +4420,7 @@ export function MovementLab() {
         },
         loadedQuestSave,
       );
+      questRuntimeManagerRef.current.syncCurrentInventory(loadedInventory);
       {
         const clock = getGameClock(loadedSurvivalState.gameMinutes);
         questRuntimeManagerRef.current.startAvailableAutomaticQuests(
@@ -4268,6 +4481,7 @@ export function MovementLab() {
 
   useEffect(() => {
     playerInventoryRef.current = playerInventory;
+    questRuntimeManagerRef.current?.syncCurrentInventory(playerInventory);
     requestStoryTriggerContactCheckRef.current();
     const selectedItem =
       ITEM_DATABASE[selectedInventoryIndexRef.current]?.item;
@@ -4567,7 +4781,12 @@ export function MovementLab() {
   };
 
   const activateHotbarItem = (slotIndex: number) => {
-    if (optionsOpenRef.current || inventoryOpenRef.current || dialoguePlaybackRef.current) return;
+    if (
+      optionsOpenRef.current ||
+      inventoryOpenRef.current ||
+      itemUseConfirmationOpenRef.current ||
+      dialoguePlaybackRef.current
+    ) return;
     const itemId = hotbarAssignmentsRef.current[slotIndex];
     const item = itemId ? ITEM_BY_ID.get(itemId) : undefined;
     if (!item) {
@@ -4629,9 +4848,225 @@ export function MovementLab() {
     useInventoryItem(item.id, -1);
   };
 
+  const publishItemUsedQuestEvent = (itemId: string) => {
+    const questManager = questRuntimeManagerRef.current;
+    if (!questManager) return;
+    questGameEventSequenceRef.current += 1;
+    questManager.handleEvent({
+      type: "itemUsed",
+      targetId: itemId,
+      amount: 1,
+      eventId:
+        `itemUsed:${itemId}:${Date.now()}:` +
+        `${questGameEventSequenceRef.current}`,
+    });
+    saveQuestSaveData(questManager.exportSave());
+  };
+
+  function executeInventoryItemUseAction(
+    itemId: string,
+    feedbackSlotIndex: number,
+  ) {
+    const item = ITEM_BY_ID.get(itemId);
+    const action = item?.useAction;
+    if (!item || !action || action.type !== "grant-items") return;
+
+    const verb = resolveItemUseActionVerb(action.verb);
+    const consumeQuantity = Math.max(
+      1,
+      Math.floor(Number(action.consumeQuantity) || 1),
+    );
+    const currentInventory = playerInventoryRef.current;
+    if ((currentInventory[item.id] ?? 0) < consumeQuantity) {
+      showInventoryFeedback(`「${item.name}」數量不足`, feedbackSlotIndex);
+      return;
+    }
+
+    const resolvedRewards = action.rewards.flatMap((reward) => {
+      const rewardItem = ITEM_BY_ID.get(reward.itemId);
+      const quantity = Math.floor(Number(reward.quantity));
+      if (!rewardItem || !Number.isFinite(quantity) || quantity < 1) return [];
+      return [{
+        item: rewardItem,
+        quantity: Math.min(99, quantity),
+        delivery: reward.delivery === "world" ? "world" as const : "inventory" as const,
+      }];
+    });
+    if (
+      action.rewards.length === 0 ||
+      resolvedRewards.length !== action.rewards.length
+    ) {
+      showInventoryFeedback(
+        `「${item.name}」的使用產物設定不完整，未消耗道具`,
+        feedbackSlotIndex,
+        1800,
+      );
+      return;
+    }
+
+    const spawnOrigin = { ...playerPositionRef.current };
+    const nearbyWorldItems = droppedWorldItemsRef.current.filter(
+      (worldItem) => worldItem.sceneId === SCENE_DATA.sceneId,
+    );
+    const plannedWorldItems: Array<{
+      item: DroppedWorldItem;
+      motion: WorldItemSpawnMotion;
+    }> = [];
+
+    for (const reward of resolvedRewards) {
+      if (reward.delivery !== "world") continue;
+      for (let instanceIndex = 0; instanceIndex < reward.quantity; instanceIndex += 1) {
+        const placement = findSpawnedWorldItemPlacement(
+          spawnOrigin,
+          sizeRef.current * 0.14,
+          [...nearbyWorldItems, ...plannedWorldItems.map((entry) => entry.item)],
+        );
+        if (!placement) {
+          showInventoryFeedback(
+            `角色附近沒有空間生成「${reward.item.name}」，未消耗「${item.name}」`,
+            feedbackSlotIndex,
+            2100,
+          );
+          return;
+        }
+
+        let worldItemId = "";
+        do {
+          droppedWorldItemSequenceRef.current += 1;
+          worldItemId =
+            `item-use:${SCENE_DATA.sceneId}:${item.id}:` +
+            `${droppedWorldItemSequenceRef.current}`;
+        } while (
+          droppedWorldItemsRef.current.some(
+            (worldItem) => worldItem.id === worldItemId,
+          ) ||
+          plannedWorldItems.some((entry) => entry.item.id === worldItemId)
+        );
+
+        const worldItem: DroppedWorldItem = {
+          id: worldItemId,
+          sceneId: SCENE_DATA.sceneId,
+          itemId: reward.item.id,
+          quantity: 1,
+          position: placement.position,
+          interactionPoint: placement.interactionPoint,
+          pickRadius: 26,
+          activationDistance: 48,
+          createdFromInventory: false,
+        };
+        plannedWorldItems.push({
+          item: worldItem,
+          motion: createWorldItemSpawnMotion(
+            performance.now(),
+            spawnOrigin,
+            placement.landing,
+            placement.position,
+          ),
+        });
+      }
+    }
+
+    let nextInventory = removeInventoryItem(
+      currentInventory,
+      item.id,
+      consumeQuantity,
+    );
+    for (const reward of resolvedRewards) {
+      if (reward.delivery !== "inventory") continue;
+      nextInventory = grantInventoryItem(
+        nextInventory,
+        reward.item.id,
+        reward.quantity,
+      );
+    }
+
+    playerInventoryRef.current = nextInventory;
+    setPlayerInventory(nextInventory);
+    try {
+      savePlayerInventory(nextInventory);
+    } catch {
+      // localStorage 不可用時仍保留本次記憶體狀態。
+    }
+
+    for (const reward of resolvedRewards) {
+      if (reward.delivery === "inventory") {
+        showPlayerItemGain(reward.item.name, reward.quantity);
+      }
+    }
+
+    if (plannedWorldItems.length > 0) {
+      for (const entry of plannedWorldItems) {
+        worldItemSpawnMotionsRef.current.set(entry.item.id, entry.motion);
+        worldItemLandingAudioPlayedRef.current.delete(entry.item.id);
+      }
+      const nextDroppedWorldItems = [
+        ...droppedWorldItemsRef.current,
+        ...plannedWorldItems.map((entry) => entry.item),
+      ];
+      applyDroppedWorldItems(nextDroppedWorldItems);
+      try {
+        saveDroppedWorldItems(nextDroppedWorldItems);
+      } catch {
+        // localStorage 不可用時仍保留本次記憶體狀態。
+      }
+      setInventoryPanelOpen(false);
+    }
+
+    publishItemUsedQuestEvent(item.id);
+    const resultDescription = resolvedRewards
+      .map((reward) =>
+        reward.delivery === "world"
+          ? `附近生成「${reward.item.name}」×${reward.quantity}`
+          : `取得「${reward.item.name}」×${reward.quantity}`,
+      )
+      .join("、");
+    showInventoryFeedback(
+      `已${verb}「${item.name}」· ${resultDescription}`,
+      feedbackSlotIndex,
+      2200,
+    );
+  }
+
+  function openItemUseConfirmation(
+    itemId: string,
+    feedbackSlotIndex: number,
+  ) {
+    const item = ITEM_BY_ID.get(itemId);
+    if (!item?.useAction || itemUseConfirmationOpenRef.current) return;
+    if ((playerInventoryRef.current[item.id] ?? 0) <= 0) {
+      showInventoryFeedback(`尚未持有「${item.name}」`, feedbackSlotIndex);
+      return;
+    }
+    const pending = { itemId: item.id, feedbackSlotIndex };
+    itemUseConfirmationTriggerRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    pendingItemUseConfirmationRef.current = pending;
+    itemUseConfirmationOpenRef.current = true;
+    itemUseConfirmationGamepadModeRef.current = "dpad";
+    itemUseConfirmationCursorRearmRequiredRef.current = false;
+    setItemUseConfirmationChoiceValue("cancel");
+    setItemUseConfirmation(pending);
+    setInventoryContextMenu(null);
+    confirmItemUseActionRef.current = () => {
+      const currentPending = pendingItemUseConfirmationRef.current;
+      if (!currentPending) return;
+      closeItemUseConfirmation();
+      executeInventoryItemUseAction(
+        currentPending.itemId,
+        currentPending.feedbackSlotIndex,
+      );
+    };
+  }
+
   function useInventoryItem(itemId: string, feedbackSlotIndex: number) {
     const item = ITEM_BY_ID.get(itemId);
     if (!item) return;
+    if (item.useAction) {
+      openItemUseConfirmation(item.id, feedbackSlotIndex);
+      return;
+    }
     const previousSurvivalValues = { ...survivalStateRef.current.values };
     const result = useSurvivalInventoryItem(
       playerInventoryRef.current,
@@ -4663,18 +5098,14 @@ export function MovementLab() {
       } catch {
         // 無法使用本機儲存時，本次工作階段仍保留使用結果。
       }
-      const questManager = questRuntimeManagerRef.current;
-      if (questManager) {
-        questGameEventSequenceRef.current += 1;
-        questManager.handleEvent({
-          type: "itemUsed",
-          targetId: item.id,
-          amount: 1,
-          eventId:
-            `itemUsed:${item.id}:${Date.now()}:` +
-            `${questGameEventSequenceRef.current}`,
-        });
-        saveQuestSaveData(questManager.exportSave());
+      publishItemUsedQuestEvent(item.id);
+      const successfulUseAudioEvent = getSuccessfulItemUseAudioEvent(item.id);
+      if (successfulUseAudioEvent) {
+        void audioEventManagerRef.current
+          ?.play(successfulUseAudioEvent, { restart: true })
+          .catch(() => {
+            // 瀏覽器暫時阻擋音訊時，不影響已成功結算的道具使用。
+          });
       }
       message = `已使用「${item.name}」· ${formatSurvivalEffects(item.survivalEffects)}`;
     }
@@ -6621,6 +7052,10 @@ export function MovementLab() {
       reason: "general" | "survival" = "general",
     ) => {
       if (source === "pointer") pointerGestureConsumed = true;
+      const questManager = questRuntimeManagerRef.current;
+      if (questManager) {
+        recordWeldingToolHintInteractionFailure(questManager, interactable.id);
+      }
       const survivalFailures = reason === "survival"
         ? getInteractionRequirementFailures(interactable)
         : [];
@@ -6715,8 +7150,10 @@ export function MovementLab() {
     const activateWeldingPuzzleDpadMode = () => {
       powerPuzzleGamepadModeRef.current = "dpad";
       powerPuzzleCursorRearmRequiredRef.current = true;
-      virtualCursorVisible = false;
-      deactivateGamepadCursor();
+      // Directional selection owns A, while the virtual cursor remains
+      // available and visible for an intentional right-stick takeover.
+      virtualCursorVisible = true;
+      activateGamepadCursor();
       const focusedElement = document.activeElement;
       if (
         focusedElement instanceof HTMLElement &&
@@ -6731,6 +7168,20 @@ export function MovementLab() {
         activateFrequencyPuzzleControlMode();
       } else {
         activatePowerPuzzleDpadMode();
+      }
+    };
+
+    const activateItemUseConfirmationDpadMode = () => {
+      itemUseConfirmationGamepadModeRef.current = "dpad";
+      itemUseConfirmationCursorRearmRequiredRef.current = true;
+      virtualCursorVisible = true;
+      activateGamepadCursor();
+      const focusedElement = document.activeElement;
+      if (
+        focusedElement instanceof HTMLElement &&
+        focusedElement.closest(".item-use-confirmation")
+      ) {
+        focusedElement.blur();
       }
     };
 
@@ -7145,6 +7596,46 @@ export function MovementLab() {
     resizeObserver.observe(canvas);
     resize();
 
+    const isWorldInteractionBlockedByUi = () =>
+      storyInputLockedRef.current ||
+      timePassInputLockedRef.current ||
+      optionsOpenRef.current ||
+      inventoryOpenRef.current ||
+      dialoguePlaybackRef.current ||
+      debugItemSpawnerOpenRef.current ||
+      restartConfirmationOpenRef.current ||
+      itemUseConfirmationOpenRef.current ||
+      sceneConnectionConfirmationOpenRef.current ||
+      campPowerConfirmationOpenRef.current ||
+      powerPuzzleOpenRef.current ||
+      frequencyPuzzleOpenRef.current ||
+      weldingPuzzleOpenRef.current ||
+      Boolean(survivalStateRef.current.gameOverReason);
+
+    const canUseQuestSkipHotkey = () =>
+      !timePassInputLockedRef.current &&
+      !storyInputLockedRef.current &&
+      !storyFlowActiveRef.current &&
+      !optionsOpenRef.current &&
+      !inventoryOpenRef.current &&
+      !dialoguePlaybackRef.current &&
+      !debugItemSpawnerOpenRef.current &&
+      !restartConfirmationOpenRef.current &&
+      !itemUseConfirmationOpenRef.current &&
+      !sceneConnectionConfirmationOpenRef.current &&
+      !campPowerConfirmationOpenRef.current &&
+      !powerPuzzleOpenRef.current &&
+      !frequencyPuzzleOpenRef.current &&
+      !weldingPuzzleOpenRef.current;
+
+    const questSkipKeyController = createQuestSkipKeyController({
+      canTrigger: canUseQuestSkipHotkey,
+      onStageNext: () => debugItemSpawnHandlerRef.current("Quest Stage Next"),
+      onQuestNext: () => debugItemSpawnHandlerRef.current("Quest Next"),
+      setTimer: (callback, delayMs) => window.setTimeout(callback, delayMs),
+      clearTimer: (timerId) => window.clearTimeout(timerId),
+    });
+
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
       const eventTarget = event.target;
@@ -7160,6 +7651,38 @@ export function MovementLab() {
       activateQuestPromptInputMode("keyboard-mouse");
       if (timePassInputLockedRef.current) {
         event.preventDefault();
+        return;
+      }
+      if (itemUseConfirmationOpenRef.current) {
+        event.preventDefault();
+        if (key === "escape" && !event.repeat) {
+          playOneShotAudio("uiInput");
+          closeItemUseConfirmation();
+        } else if (
+          (key === "arrowleft" ||
+            key === "arrowup" ||
+            key === "arrowright" ||
+            key === "arrowdown") &&
+          !event.repeat
+        ) {
+          playOneShotAudio("uiInput");
+          setItemUseConfirmationChoiceValue(
+            moveItemUseConfirmationChoice(
+              itemUseConfirmationChoiceRef.current,
+              key === "arrowright" || key === "arrowdown" ? 1 : -1,
+            ),
+          );
+        } else if (
+          (key === "enter" || key === " " || key === keyboardInteractionKey) &&
+          !event.repeat
+        ) {
+          playOneShotAudio("uiInput");
+          if (itemUseConfirmationChoiceRef.current === "confirm") {
+            confirmItemUseAction();
+          } else {
+            closeItemUseConfirmation();
+          }
+        }
         return;
       }
       if (sceneConnectionConfirmationOpenRef.current) {
@@ -7195,6 +7718,7 @@ export function MovementLab() {
       }
       if (campPowerConfirmationOpenRef.current) {
         event.preventDefault();
+        if (questItemSubmissionCompletingRef.current) return;
         if (key === "escape" && !event.repeat) {
           playOneShotAudio("uiInput");
           closeCampPowerConfirmation();
@@ -7217,30 +7741,6 @@ export function MovementLab() {
         return;
       }
       if (powerPuzzleOpenRef.current) {
-        if (puzzleSelectionOpenRef.current) {
-          event.preventDefault();
-          if (key === "escape" && !event.repeat) {
-            playOneShotAudio("uiInput");
-            closePowerRoutingPuzzle();
-          } else if (
-            (key === "arrowleft" ||
-              key === "arrowup" ||
-              key === "arrowright" ||
-              key === "arrowdown") &&
-            !event.repeat
-          ) {
-            playOneShotAudio("uiInput");
-            setPuzzleSelectionChoiceValue(
-              key === "arrowright" || key === "arrowdown"
-                ? "frequency"
-                : "power",
-            );
-          } else if ((key === "enter" || key === " ") && !event.repeat) {
-            playOneShotAudio("uiInput");
-            chooseInteractionPuzzle(puzzleSelectionChoiceRef.current);
-          }
-          return;
-        }
         if (
           eventTarget instanceof HTMLButtonElement &&
           (event.code === "Enter" || event.code === "Space")
@@ -7249,6 +7749,11 @@ export function MovementLab() {
         }
         event.preventDefault();
         if (key === "escape" && !event.repeat) closePowerRoutingPuzzle();
+        return;
+      }
+      if (event.code === "BracketRight" && canUseQuestSkipHotkey()) {
+        event.preventDefault();
+        if (!event.repeat) questSkipKeyController.begin();
         return;
       }
       if (
@@ -7366,6 +7871,12 @@ export function MovementLab() {
 
     const onKeyUp = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
+      if (event.code === "BracketRight") {
+        if (!questSkipKeyController.isHolding()) return;
+        event.preventDefault();
+        questSkipKeyController.release();
+        return;
+      }
       if (
         key === "escape" &&
         storySkipHoldRef.current?.source === "keyboard"
@@ -7385,6 +7896,7 @@ export function MovementLab() {
     };
 
     const onWindowBlur = () => {
+      questSkipKeyController.cancel();
       pressedKeys.clear();
       setActiveKeyboardKeys([]);
       deactivateGamepadCursor();
@@ -7397,6 +7909,7 @@ export function MovementLab() {
 
     const onVisibilityChange = () => {
       if (document.hidden) {
+        questSkipKeyController.cancel();
         stopFootsteps();
         audioEvents.stop("bgm", { reset: false });
         audioEvents.stop("dialogueTyping", { reset: false });
@@ -7433,6 +7946,233 @@ export function MovementLab() {
     };
 
     debugItemSpawnHandlerRef.current = (command: string) => {
+      const questCommand = parseQuestDebugCommand(command);
+      if (questCommand) {
+        const manager = questRuntimeManagerRef.current;
+        if (!manager) {
+          showInteractionItemFeedback("Debug Scenario：任務系統尚未完成載入");
+          return false;
+        }
+
+        const fixedProgress = questCommand.kind === "goto"
+          ? createNewGameProgress()
+          : null;
+        const sourceState = fixedProgress
+          ? {
+              questSave: undefined,
+              inventory: fixedProgress.inventory,
+              survival: fixedProgress.survival,
+              story: fixedProgress.story,
+              interactionUsage: fixedProgress.interactionUsage,
+              campPowerCurrent: fixedProgress.campPower.current,
+            }
+          : {
+              questSave: manager.exportSave(),
+              inventory: playerInventoryRef.current,
+              survival: survivalStateRef.current,
+              story: storyProgressRef.current,
+              interactionUsage: interactionUsageRef.current,
+              campPowerCurrent: campPowerStateRef.current.current,
+            };
+
+        try {
+          const plan = buildQuestDebugScenarioPlan(
+            QUEST_DOCUMENT,
+            questCommand,
+            sourceState,
+            { itemSurvivalEffects: QUEST_DEBUG_ITEM_SURVIVAL_EFFECTS },
+          );
+          const validationIssues = validateQuestDebugConfiguration(
+            QUEST_DOCUMENT,
+            undefined,
+            {
+              itemIds: new Set(ITEM_DEFINITIONS.map((item) => item.id)),
+              interactionIds: new Set(
+                [...SCENE_REGISTRY.values()].flatMap((scene) =>
+                  (scene.interactables ?? []).map((interactable) => interactable.id),
+                ),
+              ),
+              teleportPointIds: new Set(
+                [...SCENE_REGISTRY.values()].flatMap((scene) => [
+                  ...(scene.teleportPoints ?? []).map((point) => point.id),
+                  ...(scene.entryPoints ?? []).map((point) => point.id),
+                ]),
+              ),
+            },
+          );
+          if (validationIssues.length > 0) {
+            console.warn("[QuestDebugScenario] validation", validationIssues);
+          }
+          const completedQuestIds = new Set(plan.completedQuestIds);
+          const blockingIssue = validationIssues.find((issue) =>
+            issue.severity === "error" &&
+            (
+              completedQuestIds.has(issue.questId ?? "") ||
+              (
+                issue.questId === plan.targetQuestId &&
+                (!issue.stageId || issue.stageId === plan.targetStageId)
+              )
+            )
+          );
+          if (blockingIssue) {
+            showInteractionItemFeedback(
+              `Debug Scenario 驗證失敗：${blockingIssue.message}`,
+            );
+            return false;
+          }
+
+          const scenarioDroppedWorldItems: DroppedWorldItem[] = [
+            ...(fixedProgress?.droppedWorldItems ?? droppedWorldItemsRef.current),
+          ];
+          if (fixedProgress) droppedWorldItemSequenceRef.current = 0;
+          for (const spawn of plan.worldSpawns) {
+            const item = ITEM_BY_ID.get(spawn.itemId);
+            if (!item) throw new Error(`生成設定引用了未知道具：${spawn.itemId}`);
+            for (let index = 0; index < spawn.quantity; index += 1) {
+              const placement = findDroppedWorldItemPlacement(
+                player,
+                currentFacing,
+                sizeRef.current * 0.14,
+                scenarioDroppedWorldItems.filter(
+                  (worldItem) => worldItem.sceneId === SCENE_DATA.sceneId,
+                ),
+              );
+              if (!placement) {
+                throw new Error(`角色附近沒有足夠空間生成「${item.name}」`);
+              }
+              let worldItemId = "";
+              do {
+                droppedWorldItemSequenceRef.current += 1;
+                worldItemId =
+                  `debug-scenario:${SCENE_DATA.sceneId}:` +
+                  `${droppedWorldItemSequenceRef.current}`;
+              } while (
+                scenarioDroppedWorldItems.some((worldItem) => worldItem.id === worldItemId)
+              );
+              scenarioDroppedWorldItems.push({
+                id: worldItemId,
+                sceneId: SCENE_DATA.sceneId,
+                itemId: item.id,
+                quantity: 1,
+                position: placement.position,
+                interactionPoint: placement.interactionPoint,
+                pickRadius: 26,
+                activationDistance: 48,
+                createdFromInventory: false,
+              });
+            }
+          }
+
+          if (fixedProgress) {
+            collectedWorldItemIdsRef.current = fixedProgress.collectedWorldItemIds;
+            droppedWorldItemsRef.current = scenarioDroppedWorldItems;
+            itemPointProgressRef.current = fixedProgress.itemPointProgress;
+            hotbarAssignmentsRef.current = fixedProgress.hotbarAssignments;
+            sceneEntryCollectedItemPointIdsRef.current.clear();
+            worldItemSpawnMotionsRef.current.clear();
+            worldItemLandingAudioPlayedRef.current.clear();
+            activeHotbarSlotRef.current = 0;
+            selectedInventoryIndexRef.current = DEFAULT_SELECTED_INVENTORY_INDEX;
+            setCollectedWorldItemIds(fixedProgress.collectedWorldItemIds);
+            setHotbarAssignments(fixedProgress.hotbarAssignments);
+            setActiveHotbarSlot(0);
+            setSelectedInventoryIndex(DEFAULT_SELECTED_INVENTORY_INDEX);
+            setInventoryPage(0);
+            setInventoryCategory("all");
+            saveCollectedWorldItemIds(fixedProgress.collectedWorldItemIds);
+            saveDroppedWorldItems(scenarioDroppedWorldItems);
+            saveItemPointProgress(fixedProgress.itemPointProgress);
+            saveHotbarAssignments(fixedProgress.hotbarAssignments);
+          } else if (plan.worldSpawns.length > 0) {
+            droppedWorldItemsRef.current = scenarioDroppedWorldItems;
+            saveDroppedWorldItems(scenarioDroppedWorldItems);
+          }
+
+          playerInventoryRef.current = plan.inventory;
+          survivalStateRef.current = plan.survival;
+          interactionUsageRef.current = plan.interactionUsage;
+          storyProgressRef.current = plan.story;
+          currentStoryChapterRef.current = plan.story.currentChapter;
+          const baseCampPower = fixedProgress?.campPower ?? campPowerStateRef.current;
+          const nextCampPower = activateCampPowerDailyConsumptionAfterQuest(
+            {
+              ...baseCampPower,
+              current: Math.min(CAMP_POWER_CAPACITY, plan.campPowerCurrent),
+            },
+            plan.questSave.quests[CAMP_POWER_DAILY_CONSUMPTION_QUEST_ID]?.state ===
+              "completed",
+            plan.survival.gameMinutes,
+          );
+
+          setPlayerInventory(plan.inventory);
+          setSurvivalState(plan.survival);
+          applyCampPowerState(nextCampPower);
+          savePlayerInventory(plan.inventory);
+          saveSurvivalState(plan.survival);
+          saveInteractionUsageState(plan.interactionUsage);
+          saveStoryProgress(plan.story);
+
+          questHudStageTransitionPresentationRef.current = null;
+          for (const timer of questPresentationTimerRefs.current) {
+            window.clearTimeout(timer);
+          }
+          questPresentationTimerRefs.current = [];
+          for (const timerRef of [
+            questHudEventTimerRef,
+            questObjectiveTweenTimerRef,
+            questObjectiveUnlockTweenTimerRef,
+            questStageTransitionTimerRef,
+            questStageEnteringTimerRef,
+          ]) {
+            if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+            timerRef.current = null;
+          }
+          setQuestHudEvent(null);
+          setQuestObjectiveTween(null);
+          setQuestObjectiveUnlockTween(null);
+          setQuestStageEntering(false);
+
+          manager.replaceSaveData(plan.questSave, false);
+          manager.syncCurrentInventory(plan.inventory);
+          saveQuestSaveData(manager.exportSave());
+          applyDroppedWorldItems(droppedWorldItemsRef.current);
+          requestStoryTriggerContactCheckRef.current();
+          setActiveQuestHud(
+            buildQuestHudView(
+              plan.targetQuestId,
+              plan.questSave.quests[plan.targetQuestId],
+            ),
+          );
+          setCompletedQuestHistory(getCompletedQuestHistory());
+          setQuestCollapsed(false);
+          setQuestMobileMode("expanded");
+          if (plan.teleportPointId) {
+            const teleportPoint = SCENE_TELEPORT_POINTS.find(
+              (point) => point.id === plan.teleportPointId,
+            );
+            if (teleportPoint && !playerTeleportHandlerRef.current(teleportPoint)) {
+              pendingTeleportPointsRef.current.push(teleportPoint);
+            }
+          }
+          showInteractionItemFeedback(
+            `Debug Scenario：${plan.targetQuestName}／${plan.targetStageName}`,
+          );
+          console.info("[QuestDebugScenario] applied", plan);
+          return true;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          showInteractionItemFeedback(`Debug Scenario：${message}`);
+          return false;
+        }
+      }
+
+      if (isQuestDebugCommand(command)) {
+        showInteractionItemFeedback(
+          "格式錯誤 · 請輸入：Quest Stage Next、Quest Next 或 Quest Goto 5 Stage 3",
+        );
+        return false;
+      }
+
       const gameCommand = parseDebugGameCommand(command);
       if (gameCommand) {
         if (gameCommand.gameNumber === 1) {
@@ -7880,6 +8620,7 @@ export function MovementLab() {
     const completeInteraction = (
       interactable: SceneInteractable,
       source: PendingInteraction["source"],
+      onCompletionDialogueComplete?: () => void,
     ) => {
       if (isInteractableLocked(interactable)) {
         return openInteractionFailureDialogue(interactable, source);
@@ -7892,6 +8633,15 @@ export function MovementLab() {
         !grantInteractionItemRewards(interactable)
       ) {
         return false;
+      }
+      const successfulInteractionAudioEvent =
+        getSuccessfulInteractionAudioEvent(interactable.id);
+      if (successfulInteractionAudioEvent) {
+        void audioEvents
+          .play(successfulInteractionAudioEvent, { restart: true })
+          .catch(() => {
+            // 音訊播放失敗不回滾已成功建立的互動獎勵。
+          });
       }
 
       const elapsedGameMinutes = Math.max(
@@ -8082,24 +8832,18 @@ export function MovementLab() {
         "completion",
       );
       if (completionDialogue) {
-        openDialogue(interactable, undefined, completionDialogue);
+        openDialogue(
+          interactable,
+          onCompletionDialogueComplete,
+          completionDialogue,
+        );
+      } else {
+        onCompletionDialogueComplete?.();
       }
       return true;
     };
 
-    completePowerPuzzleInteractionRef.current = () => {
-      const session = powerPuzzleSessionRef.current;
-      closePowerRoutingPuzzle();
-      if (!session) return;
-      completeInteraction(session.interactable, session.source);
-    };
-
-    completeWeldingPuzzleInteractionRef.current = () => {
-      const session = powerPuzzleSessionRef.current;
-      closePowerRoutingPuzzle();
-      if (!session) return;
-      if (!completeInteraction(session.interactable, session.source)) return;
-
+    const publishPuzzleCompleted = (session: PowerPuzzleSession) => {
       questGameEventSequenceRef.current += 1;
       const questManager = questRuntimeManagerRef.current;
       if (!questManager) return;
@@ -8111,6 +8855,34 @@ export function MovementLab() {
           `${Date.now()}:${questGameEventSequenceRef.current}`,
       });
       saveQuestSaveData(questManager.exportSave());
+    };
+
+    completePowerPuzzleInteractionRef.current = () => {
+      const session = powerPuzzleSessionRef.current;
+      closePowerRoutingPuzzle();
+      if (!session) return;
+      completeInteraction(session.interactable, session.source);
+    };
+
+    completeFrequencyPuzzleInteractionRef.current = () => {
+      const session = powerPuzzleSessionRef.current;
+      if (session?.interactable.id !== FREQUENCY_CALIBRATION_INTERACTION_ID) return;
+      completeInteraction(
+        session.interactable,
+        session.source,
+        () => publishPuzzleCompleted(session),
+      );
+    };
+
+    completeWeldingPuzzleInteractionRef.current = () => {
+      const session = powerPuzzleSessionRef.current;
+      closePowerRoutingPuzzle();
+      if (!session) return;
+      completeInteraction(
+        session.interactable,
+        session.source,
+        () => publishPuzzleCompleted(session),
+      );
     };
 
     const openCampPowerRefillConfirmation = (
@@ -8215,6 +8987,27 @@ export function MovementLab() {
           (playerInventoryRef.current[requirement.itemId] ?? 0) < requirement.requiredAmount
         ) continue;
         const item = ITEM_BY_ID.get(requirement.itemId);
+        const requirements = questManager
+          .getCurrentItemSubmissionObjectives(interactable.id)
+          .filter(
+            (candidate) =>
+              candidate.questId === entry.questId && candidate.stageId === entry.stageId,
+          )
+          .flatMap((candidate): QuestItemSubmissionRequirement[] => {
+            const candidateRequirement = candidate.objective.itemRequirements?.[0];
+            if (
+              !candidateRequirement?.itemId ||
+              candidateRequirement.requiredAmount <= 0
+            ) return [];
+            const candidateItem = ITEM_BY_ID.get(candidateRequirement.itemId);
+            return [{
+              objectiveId: candidate.objective.id,
+              itemId: candidateRequirement.itemId,
+              itemName: candidateItem?.name ?? candidateRequirement.itemId,
+              quantity: candidateRequirement.requiredAmount,
+              completed: candidate.progress.completed,
+            }];
+          });
         return {
           interactable,
           source,
@@ -8224,8 +9017,7 @@ export function MovementLab() {
           itemId: requirement.itemId,
           itemName: item?.name ?? requirement.itemId,
           quantity: requirement.requiredAmount,
-          order: index + 1,
-          total: objectives.length,
+          requirements,
         };
       }
       return null;
@@ -8234,6 +9026,8 @@ export function MovementLab() {
     const showQuestItemSubmissionPrompt = (
       prompt: QuestItemSubmissionPrompt,
     ): void => {
+      questItemSubmissionCompletingRef.current = false;
+      setQuestItemSubmissionCompleting(false);
       setQuestItemSubmissionPrompt(prompt);
       campPowerConfirmationOpenRef.current = true;
       campPowerConfirmationGamepadModeRef.current = "dpad";
@@ -8242,22 +9036,20 @@ export function MovementLab() {
       setCampPowerConfirmationOpen(true);
 
       confirmCampPowerRefillRef.current = () => {
+        if (questItemSubmissionCompletingRef.current) return;
         const questManager = questRuntimeManagerRef.current;
         const activeObjective = questManager
           ?.getActiveItemSubmissionObjectives(prompt.interactable.id)
           .find((entry) => entry.objective.id === prompt.objective.id);
         const currentInventory = playerInventoryRef.current;
-        if (
-          !questManager ||
-          !activeObjective ||
-          (currentInventory[prompt.itemId] ?? 0) < prompt.quantity
-        ) {
+        if (!questManager || !activeObjective) {
           closeCampPowerConfirmation();
-          showInteractionItemFeedback(
-            (currentInventory[prompt.itemId] ?? 0) < prompt.quantity
-              ? `「${prompt.itemName}」數量不足。`
-              : "這項安裝目標目前已無法投入。",
-          );
+          showInteractionItemFeedback("這項安裝目標目前已無法投入。");
+          return;
+        }
+        if ((currentInventory[prompt.itemId] ?? 0) < prompt.quantity) {
+          setCampPowerConfirmationChoiceValue("cancel");
+          showInteractionItemFeedback(`「${prompt.itemName}」數量不足。`);
           return;
         }
 
@@ -8287,23 +9079,57 @@ export function MovementLab() {
         saveQuestSaveData(questManager.exportSave());
         showInteractionItemFeedback(`已投入「${prompt.itemName}」×${prompt.quantity}`);
 
-        const nextPrompt = getQuestItemSubmissionPrompt(
-          prompt.interactable,
-          prompt.source,
-          true,
-        );
-        if (nextPrompt) {
-          showQuestItemSubmissionPrompt(nextPrompt);
+        const refreshedRequirements = prompt.requirements.map((entry) => ({
+          ...entry,
+          completed: questManager.getObjectiveProgress(
+            prompt.questId,
+            entry.objectiveId,
+          ).completed,
+        }));
+        const remaining = questManager
+          .getActiveItemSubmissionObjectives(prompt.interactable.id)
+          .filter(
+            (entry) =>
+              entry.questId === prompt.questId && entry.stageId === prompt.stageId,
+          );
+        if (remaining.length === 0) {
+          setQuestItemSubmissionPrompt({
+            ...prompt,
+            requirements: refreshedRequirements,
+          });
+          questItemSubmissionCompletingRef.current = true;
+          setQuestItemSubmissionCompleting(true);
+          questItemSubmissionCompletionTimerRef.current = window.setTimeout(() => {
+            questItemSubmissionCompletionTimerRef.current = null;
+            questItemSubmissionCompletingRef.current = false;
+            closeCampPowerConfirmation(true);
+            completeInteraction(prompt.interactable, prompt.source);
+          }, QUEST_ITEM_SUBMISSION_COMPLETION_PREVIEW_MS);
           return;
         }
 
-        const remaining = questManager.getActiveItemSubmissionObjectives(
-          prompt.interactable.id,
-        );
-        closeCampPowerConfirmation();
-        if (remaining.length === 0) {
-          completeInteraction(prompt.interactable, prompt.source);
+        const nextEntry =
+          remaining.find((entry) => {
+            const requirement = entry.objective.itemRequirements?.[0];
+            return Boolean(
+              requirement?.itemId &&
+              (nextInventory[requirement.itemId] ?? 0) >= requirement.requiredAmount,
+            );
+          }) ?? remaining[0];
+        const nextRequirement = nextEntry.objective.itemRequirements?.[0];
+        if (!nextRequirement?.itemId || nextRequirement.requiredAmount <= 0) {
+          closeCampPowerConfirmation();
+          return;
         }
+        const nextItem = ITEM_BY_ID.get(nextRequirement.itemId);
+        showQuestItemSubmissionPrompt({
+          ...prompt,
+          objective: nextEntry.objective,
+          itemId: nextRequirement.itemId,
+          itemName: nextItem?.name ?? nextRequirement.itemId,
+          quantity: nextRequirement.requiredAmount,
+          requirements: refreshedRequirements,
+        });
       };
     };
 
@@ -8353,7 +9179,26 @@ export function MovementLab() {
         return openCampPowerRefillConfirmation(interactable, source);
       }
       if (interactable.id === POWER_ROUTING_INTERACTION_ID) {
-        openInteractionPuzzleSelection(interactable, source);
+        openPowerRoutingPuzzle(interactable, source);
+        if (source === "pointer") {
+          pointerInteractionTriggeredId = interactable.id;
+        }
+        return true;
+      }
+      if (interactable.id === FREQUENCY_CALIBRATION_INTERACTION_ID) {
+        const startFrequencyCalibrationPuzzle = () => {
+          openFrequencyCalibrationPuzzle(interactable, source);
+        };
+        const availableDialogue = selectInteractionDialogue(interactable, "success");
+        if (availableDialogue) {
+          openDialogue(
+            interactable,
+            startFrequencyCalibrationPuzzle,
+            availableDialogue,
+          );
+        } else {
+          startFrequencyCalibrationPuzzle();
+        }
         if (source === "pointer") {
           pointerInteractionTriggeredId = interactable.id;
         }
@@ -8689,11 +9534,11 @@ export function MovementLab() {
     };
 
     const activateBestInteraction = (source: PendingInteraction["source"]) => {
-      if (powerPuzzleOpenRef.current) return;
       if (dialoguePlaybackRef.current) {
         advanceDialogue();
         return;
       }
+      if (isWorldInteractionBlockedByUi()) return;
       if (blackScreenOpacityRef.current > 0) return;
 
       const canUseCursorForSource =
@@ -8784,6 +9629,7 @@ export function MovementLab() {
         advanceDialogue();
         return;
       }
+      if (isWorldInteractionBlockedByUi()) return;
 
       const target = findInteractableTouching(
         player,
@@ -10294,6 +11140,13 @@ export function MovementLab() {
       target.label.trim();
 
     const drawInteractionPrompts = () => {
+      if (isWorldInteractionBlockedByUi()) {
+        activePromptOwner = null;
+        activePromptTargetId = null;
+        previousPlayerPromptTargetId = null;
+        previousCursorPromptTargetId = null;
+        return;
+      }
       const radius = sizeRef.current * 0.14;
       const foundPlayerTarget = findInteractableTouching(
         player,
@@ -10592,6 +11445,20 @@ export function MovementLab() {
         gamepadInput.cursorY,
       );
       if (
+        itemUseConfirmationOpenRef.current &&
+        itemUseConfirmationCursorRearmRequiredRef.current &&
+        cursorInputLength <= 0.1
+      ) {
+        itemUseConfirmationCursorRearmRequiredRef.current = false;
+      }
+      const itemUseConfirmationDirectionalInputActive =
+        itemUseConfirmationOpenRef.current &&
+        (Math.abs(gamepadInput.dpadX) > 0 ||
+          Math.abs(gamepadInput.stickX) >= 0.65);
+      if (itemUseConfirmationDirectionalInputActive) {
+        activateItemUseConfirmationDpadMode();
+      }
+      if (
         powerPuzzleOpenRef.current &&
         powerPuzzleCursorRearmRequiredRef.current &&
         cursorInputLength <= 0.1
@@ -10666,6 +11533,11 @@ export function MovementLab() {
               !powerPuzzleCursorRearmRequiredRef.current &&
               (powerPuzzleGamepadModeRef.current === "cursor" ||
                 cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD))) &&
+        (!itemUseConfirmationOpenRef.current ||
+          (!itemUseConfirmationDirectionalInputActive &&
+            !itemUseConfirmationCursorRearmRequiredRef.current &&
+            (itemUseConfirmationGamepadModeRef.current === "cursor" ||
+              cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD))) &&
         (!campPowerConfirmationOpenRef.current ||
           (!campPowerConfirmationDirectionalInputActive &&
             !campPowerConfirmationCursorRearmRequiredRef.current &&
@@ -10682,7 +11554,9 @@ export function MovementLab() {
         cursorInputLength > 0 &&
         menuCursorCanTakeControl
       ) {
-        if (optionsOpenRef.current) {
+        if (itemUseConfirmationOpenRef.current) {
+          itemUseConfirmationGamepadModeRef.current = "cursor";
+        } else if (optionsOpenRef.current) {
           optionsGamepadModeRef.current = "cursor";
         } else if (inventoryOpenRef.current) {
           inventoryGamepadModeRef.current = "cursor";
@@ -10718,6 +11592,7 @@ export function MovementLab() {
         startJustPressed &&
         !timePassInputLockedRef.current &&
         !powerPuzzleOpenRef.current &&
+        !itemUseConfirmationOpenRef.current &&
         !campPowerConfirmationOpenRef.current &&
         !sceneConnectionConfirmationOpenRef.current
       ) {
@@ -10734,7 +11609,9 @@ export function MovementLab() {
         storyFlowActiveRef.current &&
         !timePassInputLockedRef.current &&
         !optionsOpenRef.current &&
+        !inventoryOpenRef.current &&
         !powerPuzzleOpenRef.current &&
+        !itemUseConfirmationOpenRef.current &&
         !campPowerConfirmationOpenRef.current &&
         !sceneConnectionConfirmationOpenRef.current
       ) {
@@ -10763,24 +11640,31 @@ export function MovementLab() {
         gamepadInput.connected &&
         gamepadInput.rightTriggerPressed &&
         !wasGamepadRightTriggerPressed;
+      let itemUseConfirmationMenuOpen = itemUseConfirmationOpenRef.current;
       let sceneConnectionConfirmationMenuOpen =
         sceneConnectionConfirmationOpenRef.current;
       let campPowerConfirmationMenuOpen = campPowerConfirmationOpenRef.current;
       let powerPuzzleMenuOpen = powerPuzzleOpenRef.current;
       let optionsMenuOpen = optionsOpenRef.current;
-      if (sceneConnectionConfirmationMenuOpen && backJustPressed) {
+      if (itemUseConfirmationMenuOpen && backJustPressed) {
+        playOneShotAudio("uiInput");
+        closeItemUseConfirmation();
+        itemUseConfirmationMenuOpen = false;
+      } else if (inventoryOpenRef.current && backJustPressed) {
+        playOneShotAudio("uiInput");
+        setInventoryPanelOpen(false);
+      } else if (sceneConnectionConfirmationMenuOpen && backJustPressed) {
         playOneShotAudio("uiInput");
         closeSceneConnectionConfirmation();
         sceneConnectionConfirmationMenuOpen = false;
       } else if (campPowerConfirmationMenuOpen && backJustPressed) {
-        playOneShotAudio("uiInput");
-        closeCampPowerConfirmation();
-        campPowerConfirmationMenuOpen = false;
-      } else if (powerPuzzleMenuOpen && backJustPressed) {
-        if (puzzleSelectionOpenRef.current) {
+        if (!questItemSubmissionCompletingRef.current) {
           playOneShotAudio("uiInput");
-          closePowerRoutingPuzzle();
-        } else if (weldingPuzzleOpenRef.current) {
+          closeCampPowerConfirmation();
+          campPowerConfirmationMenuOpen = false;
+        }
+      } else if (powerPuzzleMenuOpen && backJustPressed) {
+        if (weldingPuzzleOpenRef.current) {
           closePowerRoutingPuzzle();
         } else if (frequencyPuzzleOpenRef.current) {
           frequencyPuzzleControllerRef.current?.cancel();
@@ -10806,6 +11690,7 @@ export function MovementLab() {
       const inventoryMenuOpen = inventoryOpenRef.current;
 
       if (
+        !itemUseConfirmationMenuOpen &&
         !sceneConnectionConfirmationMenuOpen &&
         !campPowerConfirmationMenuOpen &&
         !powerPuzzleMenuOpen &&
@@ -10817,7 +11702,44 @@ export function MovementLab() {
         gamepadDpadXRepeatSeconds = 0;
         gamepadDpadYRepeatSeconds = 0;
       }
-      if (sceneConnectionConfirmationMenuOpen) {
+      if (itemUseConfirmationMenuOpen) {
+        gameplayHotbarDpadX = 0;
+        const horizontalInput =
+          Math.abs(gamepadInput.dpadX) > 0
+            ? gamepadInput.dpadX
+            : Math.abs(gamepadInput.stickX) >= 0.65
+              ? gamepadInput.stickX
+              : 0;
+        const menuHorizontal = Math.sign(horizontalInput);
+        if (menuHorizontal === 0) {
+          heldGamepadDpadX = 0;
+          gamepadDpadXRepeatSeconds = 0;
+        } else if (menuHorizontal !== heldGamepadDpadX) {
+          activateItemUseConfirmationDpadMode();
+          heldGamepadDpadX = menuHorizontal;
+          gamepadDpadXRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
+          playOneShotAudio("uiInput");
+          setItemUseConfirmationChoiceValue(
+            moveItemUseConfirmationChoice(
+              itemUseConfirmationChoiceRef.current,
+              menuHorizontal,
+            ),
+          );
+        }
+
+        if (gamepadInput.confirmPressed && !wasGamepadConfirmPressed) {
+          if (itemUseConfirmationGamepadModeRef.current === "cursor") {
+            activateVirtualCursorUi();
+          } else {
+            playOneShotAudio("uiInput");
+            if (itemUseConfirmationChoiceRef.current === "confirm") {
+              confirmItemUseAction();
+            } else {
+              closeItemUseConfirmation();
+            }
+          }
+        }
+      } else if (sceneConnectionConfirmationMenuOpen) {
         gameplayHotbarDpadX = 0;
         const horizontalInput =
           Math.abs(gamepadInput.dpadX) > 0
@@ -10854,7 +11776,9 @@ export function MovementLab() {
       } else if (campPowerConfirmationMenuOpen) {
         gameplayHotbarDpadX = 0;
         const horizontalInput =
-          Math.abs(gamepadInput.dpadX) > 0
+          questItemSubmissionCompletingRef.current
+            ? 0
+            : Math.abs(gamepadInput.dpadX) > 0
             ? gamepadInput.dpadX
             : Math.abs(gamepadInput.stickX) >= 0.65
               ? gamepadInput.stickX
@@ -10874,6 +11798,7 @@ export function MovementLab() {
         }
 
         if (
+          !questItemSubmissionCompletingRef.current &&
           gamepadInput.confirmPressed &&
           !wasGamepadConfirmPressed
         ) {
@@ -10902,6 +11827,8 @@ export function MovementLab() {
             rightX: gamepadInput.cursorX,
             deltaTime,
           });
+        } else if (!weldingPuzzleOpenRef.current && rightTriggerJustPressed) {
+          powerPuzzleControllerRef.current?.applyPower();
         }
         const verticalInput =
           weldingPuzzleOpenRef.current
@@ -10920,12 +11847,7 @@ export function MovementLab() {
           activateCurrentPuzzleControlMode();
           heldGamepadDpadY = dpadVertical;
           gamepadDpadYRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
-          if (puzzleSelectionOpenRef.current) {
-            playOneShotAudio("uiInput");
-            setPuzzleSelectionChoiceValue(
-              dpadVertical > 0 ? "frequency" : "power",
-            );
-          } else if (frequencyPuzzleOpenRef.current) {
+          if (frequencyPuzzleOpenRef.current) {
             frequencyPuzzleControllerRef.current?.moveSelection(dpadVertical);
           } else {
             powerPuzzleControllerRef.current?.moveSelection(dpadVertical);
@@ -10934,11 +11856,7 @@ export function MovementLab() {
           gamepadDpadYRepeatSeconds -= deltaTime;
           if (gamepadDpadYRepeatSeconds <= 0) {
             activateCurrentPuzzleControlMode();
-            if (puzzleSelectionOpenRef.current) {
-              setPuzzleSelectionChoiceValue(
-                dpadVertical > 0 ? "frequency" : "power",
-              );
-            } else if (frequencyPuzzleOpenRef.current) {
+            if (frequencyPuzzleOpenRef.current) {
               frequencyPuzzleControllerRef.current?.moveSelection(dpadVertical);
             } else {
               powerPuzzleControllerRef.current?.moveSelection(dpadVertical);
@@ -10964,12 +11882,7 @@ export function MovementLab() {
           activateCurrentPuzzleControlMode();
           heldGamepadDpadX = dpadHorizontal;
           gamepadDpadXRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
-          if (puzzleSelectionOpenRef.current) {
-            playOneShotAudio("uiInput");
-            setPuzzleSelectionChoiceValue(
-              dpadHorizontal > 0 ? "frequency" : "power",
-            );
-          } else if (frequencyPuzzleOpenRef.current) {
+          if (frequencyPuzzleOpenRef.current) {
             frequencyPuzzleControllerRef.current?.setSelectedDeviceActive(
               dpadHorizontal > 0,
             );
@@ -10982,11 +11895,7 @@ export function MovementLab() {
           gamepadDpadXRepeatSeconds -= deltaTime;
           if (gamepadDpadXRepeatSeconds <= 0) {
             activateCurrentPuzzleControlMode();
-            if (puzzleSelectionOpenRef.current) {
-              setPuzzleSelectionChoiceValue(
-                dpadHorizontal > 0 ? "frequency" : "power",
-              );
-            } else if (frequencyPuzzleOpenRef.current) {
+            if (frequencyPuzzleOpenRef.current) {
               frequencyPuzzleControllerRef.current?.setSelectedDeviceActive(
                 dpadHorizontal > 0,
               );
@@ -11014,9 +11923,6 @@ export function MovementLab() {
             // component after the interaction-opening A press is released.
           } else if (powerPuzzleGamepadModeRef.current === "cursor") {
             activateVirtualCursorUi();
-          } else if (puzzleSelectionOpenRef.current) {
-            playOneShotAudio("uiInput");
-            chooseInteractionPuzzle(puzzleSelectionChoiceRef.current);
           } else if (frequencyPuzzleOpenRef.current) {
             frequencyPuzzleControllerRef.current?.activateSelection();
           } else {
@@ -11147,7 +12053,15 @@ export function MovementLab() {
           if (inventoryGamepadModeRef.current === "cursor") {
             const hoveredInventoryIndex = getVirtualCursorInventoryIndex();
             if (hoveredInventoryIndex !== null) {
-              activateInventoryItem(hoveredInventoryIndex);
+              const cursorAction = getVirtualCursorInventoryItemAction(
+                selectedInventoryIndexRef.current,
+                hoveredInventoryIndex,
+              );
+              if (cursorAction === "select") {
+                selectInventoryItem(hoveredInventoryIndex);
+              } else {
+                activateInventoryItem(hoveredInventoryIndex);
+              }
             } else {
               activateVirtualCursorUi();
             }
@@ -11252,6 +12166,7 @@ export function MovementLab() {
         dialoguePlaybackRef.current ||
         inventoryOpenRef.current ||
         powerPuzzleOpenRef.current ||
+        itemUseConfirmationOpenRef.current ||
         campPowerConfirmationOpenRef.current ||
         sceneConnectionConfirmationOpenRef.current ||
         debugItemSpawnerOpenRef.current ||
@@ -11607,6 +12522,7 @@ export function MovementLab() {
         optionsOpenRef.current ||
         inventoryOpenRef.current ||
         powerPuzzleOpenRef.current ||
+        itemUseConfirmationOpenRef.current ||
         campPowerConfirmationOpenRef.current ||
         sceneConnectionConfirmationOpenRef.current ||
         debugItemSpawnerOpenRef.current ||
@@ -11699,6 +12615,7 @@ export function MovementLab() {
         !optionsOpenRef.current &&
         !inventoryOpenRef.current &&
         !powerPuzzleOpenRef.current &&
+        !itemUseConfirmationOpenRef.current &&
         !dialoguePlaybackRef.current &&
         !sceneConnectionConfirmationOpenRef.current &&
         !sceneTransitioningRef.current
@@ -11868,6 +12785,7 @@ export function MovementLab() {
     animationFrame = requestAnimationFrame(frame);
 
     return () => {
+      questSkipKeyController.cancel();
       saveSurvivalState(survivalStateRef.current);
       saveInteractionUsageState(interactionUsageRef.current);
       cancelAnimationFrame(animationFrame);
@@ -12203,6 +13121,91 @@ export function MovementLab() {
   const contextHotbarItem = contextHotbarItemId
     ? ITEM_BY_ID.get(contextHotbarItemId) ?? null
     : null;
+  const itemUseConfirmationItem = itemUseConfirmation
+    ? ITEM_BY_ID.get(itemUseConfirmation.itemId) ?? null
+    : null;
+  const itemUseConfirmationAction = itemUseConfirmationItem?.useAction ?? null;
+  const itemUseConfirmationVerb =
+    resolveItemUseActionVerb(itemUseConfirmationAction?.verb);
+  const itemUseConfirmationRewardText = itemUseConfirmationAction
+    ? itemUseConfirmationAction.rewards
+        .map((reward) => {
+          const rewardItem = ITEM_BY_ID.get(reward.itemId);
+          return `「${rewardItem?.name ?? reward.itemId}」×${reward.quantity}`;
+        })
+        .join("、")
+    : "";
+  const itemUseConfirmationDeliveryText = itemUseConfirmationAction
+    ? (() => {
+        const deliveries = new Set(
+          itemUseConfirmationAction.rewards.map((reward) => reward.delivery),
+        );
+        if (deliveries.size > 1) return "取得的道具將依設定放入背包或生成於角色附近。";
+        return deliveries.has("world")
+          ? "取得的道具將生成於角色附近。"
+          : "取得的道具將直接放入背包。";
+      })()
+    : "";
+  const itemUseConfirmationSources: ItemChangeVisualEntry[] =
+    itemUseConfirmationItem && itemUseConfirmationAction
+      ? [{
+          item: itemUseConfirmationItem,
+          label: itemUseConfirmationItem.name,
+          quantity: Math.max(
+            1,
+            Math.floor(Number(itemUseConfirmationAction.consumeQuantity) || 1),
+          ),
+          state: "available",
+        }]
+      : [];
+  const itemUseConfirmationTargets: ItemChangeVisualEntry[] =
+    itemUseConfirmationAction
+      ? itemUseConfirmationAction.rewards.map((reward) => {
+          const item = ITEM_BY_ID.get(reward.itemId) ?? null;
+          return {
+            item,
+            label: item?.name ?? reward.itemId,
+            quantity: reward.quantity,
+            state: "result" as const,
+          };
+        })
+      : [];
+  const questItemSubmissionSources: ItemChangeVisualEntry[] =
+    questItemSubmissionPrompt?.requirements.map((requirement) => ({
+      item: ITEM_BY_ID.get(requirement.itemId) ?? null,
+      label: requirement.itemName,
+      quantity: requirement.quantity,
+      state: requirement.completed
+        ? "submitted"
+        : (playerInventory[requirement.itemId] ?? 0) >= requirement.quantity
+          ? "available"
+          : "missing",
+    })) ?? [];
+  const questItemSubmissionTargets: ItemChangeVisualEntry[] = questItemSubmissionPrompt
+    ? [{
+        label:
+          questItemSubmissionPrompt.interactable.id === COMMUNICATION_ARRAY_INTERACTION_ID
+            ? "通訊陣列"
+            : "互動目標",
+        state: "result",
+        imageSrc:
+          questItemSubmissionPrompt.interactable.id === COMMUNICATION_ARRAY_INTERACTION_ID
+            ? COMMUNICATION_ARRAY_TARGET_ICON_SRC
+            : undefined,
+      }]
+    : [];
+  const canConfirmQuestItemSubmission = questItemSubmissionPrompt
+    ? (playerInventory[questItemSubmissionPrompt.itemId] ?? 0) >=
+      questItemSubmissionPrompt.quantity
+    : true;
+  const questItemSubmissionInventoryText = questItemSubmissionPrompt
+    ? questItemSubmissionPrompt.requirements
+        .map(
+          (requirement) =>
+            `${requirement.itemName} ×${playerInventory[requirement.itemId] ?? 0}`,
+        )
+        .join("　／　")
+    : "";
   const timeElapsedClockMotion = timeElapsedNotice
     ? getElapsedClockHandMotion(
         timeElapsedNotice.startGameMinutes,
@@ -12375,7 +13378,7 @@ export function MovementLab() {
                 }, 0);
               }
             }}
-            placeholder="Game 3／Time 2000／Item All／道具ID 數量"
+            placeholder="Quest Stage Next／Quest Next／Quest Goto 5 Stage 3／Game 3／Item All"
             aria-label="輸入 Debug 指令"
             autoComplete="off"
             spellCheck={false}
@@ -12848,8 +13851,8 @@ export function MovementLab() {
                       <h3>{selectedInventoryItem.name}</h3>
                       <strong>{selectedInventoryItem.category === "main" ? "♔ 主線道具" : selectedInventoryItem.category === "quest" ? "⚑ 任務道具" : selectedInventoryItem.category === "tool" ? "⌘ 工具" : "♣ 資源"}</strong>
                       <p>{selectedInventoryItem.description}</p>
-                      <p className={`inventory-survival-effects${hasConfiguredSurvivalEffects(selectedInventoryItem.survivalEffects) ? " is-configured" : ""}`}>
-                        生存影響　{formatSurvivalEffects(selectedInventoryItem.survivalEffects)}
+                      <p className={`inventory-survival-effects${hasConfiguredInventoryItemInformationEffect(selectedInventoryItem) ? " is-configured" : ""}`}>
+                        {formatInventoryItemInformationEffect(selectedInventoryItem)}
                       </p>
                       <output>重量　{selectedInventoryItem.weight.toFixed(2)} kg　　持有 ×{selectedInventoryItem.count}</output>
                     </section>
@@ -12915,8 +13918,8 @@ export function MovementLab() {
                       key={item.id}
                       data-inventory-index={index}
                       data-inventory-item-id={item.id}
-                      aria-label={`${item.name}，持有 ${item.count}，生存影響：${formatSurvivalEffects(item.survivalEffects)}`}
-                      title={`生存影響：${formatSurvivalEffects(item.survivalEffects)}`}
+                      aria-label={`${item.name}，持有 ${item.count}，${formatInventoryItemInformationEffect(item)}`}
+                      title={formatInventoryItemInformationEffect(item)}
                       onPointerDown={(event) => beginInventoryDrag(event, item.id)}
                       onPointerMove={moveInventoryDrag}
                       onPointerUp={finishInventoryDrag}
@@ -13032,65 +14035,11 @@ export function MovementLab() {
         </menu>
       ) : null}
 
-      {puzzleSelectionOpen ? (
-        <div
-          className="interaction-puzzle-selection-overlay"
-          onMouseDown={(event) => {
-            if (event.target !== event.currentTarget) return;
-            playOneShotAudio("uiInput");
-            closePowerRoutingPuzzle();
-          }}
-        >
-          <section
-            className="interaction-puzzle-selection"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="interaction-puzzle-selection-title"
-          >
-            <header>
-              <small>TEMPORARY PUZZLE SELECT</small>
-              <h3 id="interaction-puzzle-selection-title">選擇要進行的小遊戲</h3>
-              <p>這是 interaction-012 測試用的暫代選項視窗。</p>
-            </header>
-            <div className="interaction-puzzle-selection-options">
-              <button
-                type="button"
-                data-selected={puzzleSelectionChoice === "power"}
-                onFocus={() => setPuzzleSelectionChoiceValue("power")}
-                onMouseEnter={() => setPuzzleSelectionChoiceValue("power")}
-                onClick={() => {
-                  playOneShotAudio("uiInput");
-                  chooseInteractionPuzzle("power");
-                }}
-              >
-                <span aria-hidden="true">⚡</span>
-                <strong>電力分配小遊戲</strong>
-                <small>EMERGENCY POWER MANAGEMENT</small>
-              </button>
-              <button
-                type="button"
-                data-selected={puzzleSelectionChoice === "frequency"}
-                onFocus={() => setPuzzleSelectionChoiceValue("frequency")}
-                onMouseEnter={() => setPuzzleSelectionChoiceValue("frequency")}
-                onClick={() => {
-                  playOneShotAudio("uiInput");
-                  chooseInteractionPuzzle("frequency");
-                }}
-              >
-                <span aria-hidden="true">⌁</span>
-                <strong>調頻小遊戲</strong>
-                <small>FREQUENCY CALIBRATION</small>
-              </button>
-            </div>
-            <footer>方向鍵／左搖桿選擇 · Enter／A 確認 · Esc／B 返回</footer>
-          </section>
-        </div>
-      ) : null}
-
-      {powerPuzzleOpen && !frequencyPuzzleOpen && !puzzleSelectionOpen && !weldingPuzzleOpen ? (
+      {powerPuzzleOpen && !frequencyPuzzleOpen && !weldingPuzzleOpen ? (
         <PowerRoutingPuzzle
           ref={powerPuzzleControllerRef}
           availablePower={campPowerState.current}
+          gamepadMode={questPromptInputMode === "gamepad"}
           onCancel={closePowerRoutingPuzzle}
           onComplete={() => completePowerPuzzleInteractionRef.current()}
           onInput={() => playOneShotAudio("uiInput")}
@@ -13110,6 +14059,7 @@ export function MovementLab() {
           onCoarseStep={() => playOneShotAudio("frequencyCoarseTick")}
           onComplete={() => {
             setStoryFlag(FREQUENCY_CALIBRATION_COMPLETION_FLAG, true);
+            completeFrequencyPuzzleInteractionRef.current();
           }}
           onFineTuning={continueFrequencyFineTuningAudio}
           onFineTuningStop={() => stopFrequencyFineTuningAudio(false)}
@@ -13125,10 +14075,9 @@ export function MovementLab() {
           key={weldingPuzzleSessionKey}
           onCancel={closePowerRoutingPuzzle}
           onComplete={() => completeWeldingPuzzleInteractionRef.current()}
-          onFail={() => {
-            closePowerRoutingPuzzle();
-            showWeldingResultFeedback("金屬碎片 -1");
-          }}
+          onFail={handleWeldingPuzzleFailure}
+          onFailureShown={() => playOneShotAudio("weldingFailed")}
+          onSuccessShown={() => playOneShotAudio("weldingSucceeded")}
           onRequestNextStage={() => false}
           onSparkActivityChange={setWeldingSparkAudioActive}
           onVirtualCursorAvailabilityChange={
@@ -13136,6 +14085,76 @@ export function MovementLab() {
           }
           shouldHandleGamepadConfirm={shouldWeldingPuzzleHandleGamepadConfirm}
         />
+      ) : null}
+
+      {itemUseConfirmation && itemUseConfirmationItem && itemUseConfirmationAction ? (
+        <div
+          className="scene-connection-confirmation-overlay item-use-confirmation-overlay"
+          onMouseDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            playOneShotAudio("uiInput");
+            closeItemUseConfirmation();
+          }}
+        >
+          <section
+            className="scene-connection-confirmation item-use-confirmation"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="item-use-confirmation-title"
+            aria-describedby="item-use-confirmation-consumption"
+          >
+            <small>ITEM USE CONFIRMATION</small>
+            <h3 id="item-use-confirmation-title">
+              確認{itemUseConfirmationVerb}「{itemUseConfirmationItem.name}」，以取得
+              <span>{itemUseConfirmationRewardText}嗎？</span>
+            </h3>
+            <ItemChangeVisualization
+              className="item-use-change-visualization"
+              sources={itemUseConfirmationSources}
+              targets={itemUseConfirmationTargets}
+              quantityPlacement="outside"
+            />
+            <p
+              className="item-use-confirmation-consumption"
+              id="item-use-confirmation-consumption"
+            >
+              {itemUseConfirmationVerb}「{itemUseConfirmationItem.name}」後將會消耗該物件。
+            </p>
+            <p className="item-use-confirmation-delivery">
+              {itemUseConfirmationDeliveryText}
+            </p>
+            <div className="scene-connection-confirmation-actions item-use-confirmation-actions">
+              <button
+                autoFocus
+                className={itemUseConfirmationChoice === "cancel" ? "is-selected" : undefined}
+                type="button"
+                data-gamepad-selected={itemUseConfirmationChoice === "cancel" || undefined}
+                onFocus={() => setItemUseConfirmationChoiceValue("cancel")}
+                onMouseEnter={() => setItemUseConfirmationChoiceValue("cancel")}
+                onClick={() => {
+                  playOneShotAudio("uiInput");
+                  closeItemUseConfirmation();
+                }}
+              >
+                取消
+              </button>
+              <button
+                className={`is-confirm${itemUseConfirmationChoice === "confirm" ? " is-selected" : ""}`}
+                type="button"
+                data-gamepad-selected={itemUseConfirmationChoice === "confirm" || undefined}
+                onFocus={() => setItemUseConfirmationChoiceValue("confirm")}
+                onMouseEnter={() => setItemUseConfirmationChoiceValue("confirm")}
+                onClick={() => {
+                  playOneShotAudio("uiInput");
+                  confirmItemUseAction();
+                }}
+              >
+                確認{itemUseConfirmationVerb}
+              </button>
+            </div>
+            <footer>左搖桿／方向鍵：選擇　A／Enter：確認　B／Esc：取消</footer>
+          </section>
+        </div>
       ) : null}
 
       {sceneConnectionConfirmation ? (
@@ -13196,12 +14215,15 @@ export function MovementLab() {
           className="camp-power-confirmation-overlay"
           onMouseDown={(event) => {
             if (event.target !== event.currentTarget) return;
+            if (questItemSubmissionCompleting) return;
             playOneShotAudio("uiInput");
             closeCampPowerConfirmation();
           }}
         >
           <section
-            className="camp-power-confirmation"
+            className={`camp-power-confirmation${
+              questItemSubmissionPrompt ? " quest-item-submission-confirmation" : ""
+            }`}
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="camp-power-confirmation-title"
@@ -13213,15 +14235,21 @@ export function MovementLab() {
             </small>
             <h3 id="camp-power-confirmation-title">
               {questItemSubmissionPrompt
-                ? `安裝${questItemSubmissionPrompt.itemName}？`
+                ? questItemSubmissionCompleting
+                  ? "所有元件已投入"
+                  : `安裝${questItemSubmissionPrompt.itemName}？`
                 : "灌入藍色晶體碎片？"}
             </h3>
             <p>
               {questItemSubmissionPrompt ? (
-                <>
-                  是否消耗「{questItemSubmissionPrompt.itemName}」×
-                  {questItemSubmissionPrompt.quantity}，安裝至通訊陣列？
-                </>
+                questItemSubmissionCompleting ? (
+                  <>通訊陣列組裝需求已完成。</>
+                ) : (
+                  <>
+                    是否消耗「{questItemSubmissionPrompt.itemName}」×
+                    {questItemSubmissionPrompt.quantity}，安裝至通訊陣列？
+                  </>
+                )
               ) : (
                 <>
                   是否消耗「藍色晶體碎片」×{CAMP_POWER_REFILL_ITEM_QUANTITY}，
@@ -13229,17 +14257,14 @@ export function MovementLab() {
                 </>
               )}
             </p>
-            <div className="camp-power-confirmation-preview" aria-live="polite">
-              {questItemSubmissionPrompt ? (
-                <>
-                  <span>本次安裝</span>
-                  <strong>{questItemSubmissionPrompt.itemName}</strong>
-                  <i aria-hidden="true">·</i>
-                  <strong className="is-next">
-                    尚有 {questItemSubmissionPrompt.total} 項
-                  </strong>
-                </>
-              ) : (
+            {questItemSubmissionPrompt ? (
+              <ItemChangeVisualization
+                className="quest-item-submission-visualization"
+                sources={questItemSubmissionSources}
+                targets={questItemSubmissionTargets}
+              />
+            ) : (
+              <div className="camp-power-confirmation-preview" aria-live="polite">
                 <>
                   <span>目前電力</span>
                   <strong>{campPowerState.current}/{CAMP_POWER_CAPACITY}</strong>
@@ -13251,17 +14276,20 @@ export function MovementLab() {
                     )}/{CAMP_POWER_CAPACITY}
                   </strong>
                 </>
-              )}
-            </div>
+              </div>
+            )}
             <p className="camp-power-confirmation-owned">
               {questItemSubmissionPrompt
-                ? `目前持有：${questItemSubmissionPrompt.itemName} ×${playerInventory[questItemSubmissionPrompt.itemId] ?? 0}`
+                ? questItemSubmissionCompleting
+                  ? "所有需求道具均已成功投入"
+                  : `目前持有：${questItemSubmissionInventoryText}`
                 : `目前持有：藍色晶體碎片 ×${playerInventory[CAMP_POWER_REFILL_ITEM_ID] ?? 0}`}
             </p>
             <div className="camp-power-confirmation-actions">
               <button
                 className={campPowerConfirmationChoice === "cancel" ? "is-selected" : undefined}
                 type="button"
+                disabled={questItemSubmissionCompleting}
                 data-gamepad-selected={campPowerConfirmationChoice === "cancel" || undefined}
                 onFocus={() => setCampPowerConfirmationChoiceValue("cancel")}
                 onClick={() => {
@@ -13274,6 +14302,10 @@ export function MovementLab() {
               <button
                 className={`is-confirm${campPowerConfirmationChoice === "confirm" ? " is-selected" : ""}`}
                 type="button"
+                disabled={Boolean(
+                  questItemSubmissionPrompt &&
+                    (questItemSubmissionCompleting || !canConfirmQuestItemSubmission),
+                )}
                 data-gamepad-selected={campPowerConfirmationChoice === "confirm" || undefined}
                 onFocus={() => setCampPowerConfirmationChoiceValue("confirm")}
                 onClick={() => {
@@ -13649,7 +14681,7 @@ export function MovementLab() {
       ) : null}
 
       <p className="controls-subtitle" aria-label="操作提示">
-        <span className="controls-subtitle-desktop">WASD／方向鍵、滑鼠點擊、左搖桿移動 · Shift／LT：加速行走 · 右搖桿游標 · Q／RB：任務 · R／LB：生存 · ESC／START：選項</span>
+        <span className="controls-subtitle-desktop">WASD／方向鍵、滑鼠點擊、左搖桿移動 · Shift／LT：加速行走 · ] 短按：下一 Stage／長按：下一任務 · Q／RB：任務 · R／LB：生存 · ESC／START：選項</span>
         <span className="controls-subtitle-touch">上半部點擊前往 · 下半部按住移動 · START：選項</span>
       </p>
 
@@ -13717,6 +14749,7 @@ export function MovementLab() {
           !optionsOpen &&
           !inventoryOpen &&
           !powerPuzzleOpen &&
+          !itemUseConfirmation &&
           !sceneConnectionConfirmation &&
           !dialogueView
             ? " is-visible"
@@ -13733,6 +14766,7 @@ export function MovementLab() {
           optionsOpen ||
           inventoryOpen ||
           powerPuzzleOpen ||
+          Boolean(itemUseConfirmation) ||
           Boolean(sceneConnectionConfirmation) ||
           Boolean(dialogueView)
         }
@@ -13750,7 +14784,7 @@ export function MovementLab() {
         </svg>
       </button>
 
-      {!optionsOpen && !inventoryOpen && !powerPuzzleOpen && !dialogueView ? (
+      {!optionsOpen && !inventoryOpen && !powerPuzzleOpen && !itemUseConfirmation && !dialogueView ? (
         <button
           className="fullscreen-trigger"
           type="button"
@@ -13779,7 +14813,7 @@ export function MovementLab() {
 
       <canvas
         ref={cursorCanvasRef}
-        className={`cursor-layer${powerPuzzleOpen || campPowerConfirmationOpen || sceneConnectionConfirmation ? " is-over-modal" : ""}${weldingPuzzleOpen && !weldingPuzzleVirtualCursorAvailable ? " is-hidden-for-welding" : ""}`}
+        className={`cursor-layer${powerPuzzleOpen || itemUseConfirmation || campPowerConfirmationOpen || sceneConnectionConfirmation ? " is-over-modal" : ""}${weldingPuzzleOpen && !weldingPuzzleVirtualCursorAvailable ? " is-hidden-for-welding" : ""}`}
         aria-hidden="true"
       />
       </main>
