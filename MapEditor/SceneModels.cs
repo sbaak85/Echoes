@@ -305,6 +305,12 @@ public sealed class SurvivalEffects
     public float Spirit { get; set; }
     public float TimeMinutes { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? JumpToTimeMinutes { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int JumpDayOffset { get; set; }
+
     public SurvivalEffects Clone() => new()
     {
         Stamina = Stamina,
@@ -312,6 +318,8 @@ public sealed class SurvivalEffects
         Thirst = Thirst,
         Spirit = Spirit,
         TimeMinutes = TimeMinutes,
+        JumpToTimeMinutes = JumpToTimeMinutes,
+        JumpDayOffset = JumpDayOffset,
     };
 }
 
@@ -903,6 +911,7 @@ public static class SceneJson
                 interactable.SurvivalEffects.TimeMinutes,
                 0,
                 7 * 24 * 60);
+            NormalizeCompletionTimeJump(interactable.SurvivalEffects);
             interactable.InteractionLimitMode = "once".Equals(
                 interactable.InteractionLimitMode,
                 StringComparison.OrdinalIgnoreCase)
@@ -1395,6 +1404,18 @@ public static class SceneJson
         rule.Value = Math.Clamp(rule.Value, 0, 100);
     }
 
+    private static void NormalizeCompletionTimeJump(SurvivalEffects effects)
+    {
+        if (effects.JumpToTimeMinutes is int targetMinutes)
+        {
+            effects.JumpToTimeMinutes = Math.Clamp(targetMinutes, 0, 24 * 60 - 1);
+            effects.JumpDayOffset = Math.Clamp(effects.JumpDayOffset, 0, 30);
+            return;
+        }
+
+        effects.JumpDayOffset = 0;
+    }
+
     private static void NormalizeTriggerConfiguration(
         ITriggerConfiguration trigger,
         string ownerLabel)
@@ -1414,6 +1435,7 @@ public static class SceneJson
             trigger.SurvivalEffects.TimeMinutes,
             0,
             7 * 24 * 60);
+        NormalizeCompletionTimeJump(trigger.SurvivalEffects);
         trigger.InteractionLimitMode = "once".Equals(
             trigger.InteractionLimitMode,
             StringComparison.OrdinalIgnoreCase)

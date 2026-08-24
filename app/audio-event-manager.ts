@@ -84,7 +84,23 @@ export const AUDIO_EVENT_CONFIG = (
         "./audio/interaction-success-1.mp3"
       ],
       "volume": 1,
-      "delaySeconds": 0
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "interactionDenied": {
+      "label": "互動操作否定",
+      "trigger": "玩家的互動操作失敗，且場上操作提示第一次實際繪製紅色失敗圈時播放一次；需求不足、互動鎖定或無法抵達皆共用此事件，成功的藍綠提示圈不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/互動否定.mp3"
+      ],
+      "sources": [
+        "./audio/interaction-denied.mp3"
+      ],
+      "volume": 0.4,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "dialogueOpened": {
       "label": "對話視窗展開",
@@ -267,6 +283,32 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 1,
       "delaySeconds": 0
+    },
+    "questObjectiveAdded": {
+      "label": "任務途中新增目標",
+      "trigger": "目前 Stage 進行途中，原本鎖定的事件型 OBJ 首次啟用並開始顯示解鎖 Tween 時播放一次；Stage 開始時立即列出的 OBJ、讀檔還原與重複事件不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/任務新增.mp3"
+      ],
+      "sources": [
+        "./audio/quest-objective-added.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0
+    },
+    "questObjectiveCompleted": {
+      "label": "任務 OBJ 核取完成",
+      "trigger": "任務 OBJ 真正開始播放核取方塊打勾與完成 Pop Tween 時播放一次；讀檔恢復已完成狀態、沒有顯示完成 Tween，或延遲期間已切換至其他 Stage 時不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/任務OBJ過關.mp3"
+      ],
+      "sources": [
+        "./audio/quest-objective-complete.mp3"
+      ],
+      "volume": 0.4,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "generatorStartup1": {
       "label": "發電機成功啟動－第一段",

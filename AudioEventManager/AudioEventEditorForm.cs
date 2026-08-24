@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -18,6 +19,8 @@ internal sealed class AudioEventEditorForm : Form
     private readonly TextBox _triggerText = CreateMultilineTextBox();
     private readonly TextBox _sourceAssetPathsText = CreateMultilineTextBox();
     private readonly TextBox _sourcesText = CreateMultilineTextBox();
+    private readonly Button _sourceOpenFolderButton = CreateButton("📂", 40);
+    private readonly Button _openFolderButton = CreateButton("📂", 40);
     private readonly Button _sourcePreviewButton = CreateButton("▶", 44);
     private readonly Button _previewButton = CreateButton("▶", 44);
     private readonly NumericUpDown _volumeInput = new()
@@ -85,11 +88,21 @@ internal sealed class AudioEventEditorForm : Form
         _triggerText.MinimumSize = new Size(100, 76);
         _sourceAssetPathsText.MinimumSize = new Size(100, 92);
         _sourcesText.MinimumSize = new Size(100, 92);
+        ConfigurePathButton(
+            _sourceOpenFolderButton,
+            "在檔案總管中選取第一個原始素材 MP3");
+        _sourceOpenFolderButton.Enabled = false;
+        _sourceOpenFolderButton.Click += (_, _) => OpenInFileExplorer(useOriginalSource: true);
         ConfigurePreviewButton(
             _sourcePreviewButton,
             "預覽第一個原始素材 MP3");
         _sourcePreviewButton.Enabled = false;
         _sourcePreviewButton.Click += (_, _) => TogglePreview(useOriginalSource: true);
+        ConfigurePathButton(
+            _openFolderButton,
+            "在檔案總管中選取第一個遊戲 MP3");
+        _openFolderButton.Enabled = false;
+        _openFolderButton.Click += (_, _) => OpenInFileExplorer(useOriginalSource: false);
         ConfigurePreviewButton(
             _previewButton,
             "立即預覽第一個遊戲 MP3；播放中再按一次可停止");
@@ -214,29 +227,33 @@ internal sealed class AudioEventEditorForm : Form
         var sourceAssetsPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
+            ColumnCount = 3,
             RowCount = 1,
             Margin = Padding.Empty,
         };
         sourceAssetsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        sourceAssetsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
         sourceAssetsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 52));
         _sourceAssetPathsText.Margin = new Padding(0, 0, 0, 7);
         sourceAssetsPanel.Controls.Add(_sourceAssetPathsText, 0, 0);
-        sourceAssetsPanel.Controls.Add(_sourcePreviewButton, 1, 0);
+        sourceAssetsPanel.Controls.Add(_sourceOpenFolderButton, 1, 0);
+        sourceAssetsPanel.Controls.Add(_sourcePreviewButton, 2, 0);
         AddField(fields, 3, "原始素材（選填）", sourceAssetsPanel, 112);
 
         var sourcesPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
+            ColumnCount = 3,
             RowCount = 1,
             Margin = Padding.Empty,
         };
         sourcesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        sourcesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
         sourcesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 52));
         _sourcesText.Margin = new Padding(0, 0, 0, 7);
         sourcesPanel.Controls.Add(_sourcesText, 0, 0);
-        sourcesPanel.Controls.Add(_previewButton, 1, 0);
+        sourcesPanel.Controls.Add(_openFolderButton, 1, 0);
+        sourcesPanel.Controls.Add(_previewButton, 2, 0);
         AddField(fields, 4, "遊戲 MP3 路徑", sourcesPanel, 112);
 
         var volumePanel = new FlowLayoutPanel
@@ -352,13 +369,15 @@ internal sealed class AudioEventEditorForm : Form
         _sourceAssetPathsText.TextChanged += (_, _) =>
         {
             StopPreview();
-            _sourcePreviewButton.Enabled =
-                SplitLines(_sourceAssetPathsText.Text).Count > 0;
+            var hasSourceAsset = SplitLines(_sourceAssetPathsText.Text).Count > 0;
+            _sourceOpenFolderButton.Enabled = hasSourceAsset;
+            _sourcePreviewButton.Enabled = hasSourceAsset;
             MarkDirty();
         };
         _sourcesText.TextChanged += (_, _) =>
         {
             StopPreview();
+            _openFolderButton.Enabled = SplitLines(_sourcesText.Text).Count > 0;
             MarkDirty();
         };
         _volumeInput.ValueChanged += (_, _) =>
@@ -538,8 +557,65 @@ internal sealed class AudioEventEditorForm : Form
         }
     }
 
+    private void OpenInFileExplorer(bool useOriginalSource)
+    {
+        var sourceText = useOriginalSource
+            ? _sourceAssetPathsText.Text
+            : _sourcesText.Text;
+        var source = SplitLines(sourceText).FirstOrDefault();
+        if (source is null)
+        {
+            MessageBox.Show(
+                this,
+                useOriginalSource
+                    ? "這個 Event 沒有填寫原始素材路徑。"
+                    : "請先在「遊戲 MP3 路徑」填入至少一個檔案。",
+                "沒有可開啟的 MP3",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        try
+        {
+            var audioPath = useOriginalSource
+                ? ResolveOriginalPreviewPath(_projectRoot, source)
+                : ResolvePreviewPath(_projectRoot, source);
+            if (!File.Exists(audioPath))
+            {
+                throw new FileNotFoundException(
+                    useOriginalSource
+                        ? "找不到原始素材 MP3。它可能已被刪除或路徑已變更。"
+                        : "找不到遊戲 MP3。請確認它已放入 public 資料夾，且路徑拼寫正確。",
+                    audioPath);
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = $"/select,\"{audioPath}\"",
+                UseShellExecute = true,
+            });
+            _statusLabel.Text = $"已在檔案總管中選取：{Path.GetFileName(audioPath)}";
+            _statusLabel.ForeColor = Color.FromArgb(150, 211, 199);
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                this,
+                exception.Message,
+                "無法開啟檔案位置",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+    }
+
     internal void RunPreviewSmokeTest()
     {
+        if (!_sourceOpenFolderButton.Enabled || !_openFolderButton.Enabled)
+        {
+            throw new InvalidOperationException("音檔路徑的檔案總管按鈕未正確啟用。");
+        }
         TogglePreview(useOriginalSource: true);
         if (!_previewPlaying)
         {
@@ -679,6 +755,15 @@ internal sealed class AudioEventEditorForm : Form
     {
         button.Margin = new Padding(8, 3, 0, 7);
         button.Dock = DockStyle.Fill;
+        button.AccessibleName = toolTip;
+        _toolTip.SetToolTip(button, toolTip);
+    }
+
+    private void ConfigurePathButton(Button button, string toolTip)
+    {
+        button.Margin = new Padding(8, 3, 0, 7);
+        button.Dock = DockStyle.Fill;
+        button.BackColor = Color.FromArgb(62, 70, 82);
         button.AccessibleName = toolTip;
         _toolTip.SetToolTip(button, toolTip);
     }

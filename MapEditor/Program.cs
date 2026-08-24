@@ -548,6 +548,8 @@ internal static class EditorSelfTest
             Stamina = 10,
             Hunger = -5,
             TimeMinutes = 120,
+            JumpToTimeMinutes = 6 * 60,
+            JumpDayOffset = 1,
         };
         configuredStoryTrigger.DailyInteractionLimit = 2;
         configuredStoryTrigger.InteractionLimitMode = null;
@@ -600,7 +602,14 @@ internal static class EditorSelfTest
                         Mode: "any",
                         Stamina: { Comparison: "atMost", Value: 60 },
                     },
-                    SurvivalEffects: { Stamina: 10, Hunger: -5, TimeMinutes: 120 },
+                    SurvivalEffects:
+                    {
+                        Stamina: 10,
+                        Hunger: -5,
+                        TimeMinutes: 120,
+                        JumpToTimeMinutes: 360,
+                        JumpDayOffset: 1,
+                    },
                 } storyRoundTripTrigger ||
             storyRoundTripTrigger.StartQuestIds is not { Count: 1 } ||
             storyRoundTripTrigger.StartQuestIds[0] != "QUEST_STORY_NEXT" ||

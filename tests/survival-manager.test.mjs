@@ -10,6 +10,7 @@ import {
   ensureInteractionUsageCycle,
   formatElapsedGameHours,
   getElapsedClockHandMotion,
+  getInteractionCompletionElapsedMinutes,
   getTimePassTransitionHoldMs,
   getCharacterStatuses,
   getGameClock,
@@ -32,9 +33,43 @@ test("time-passing interaction blackout hold scales with the configured hours", 
   assert.equal(getTimePassTransitionHoldMs(59), 0);
   assert.equal(getTimePassTransitionHoldMs(60), 100);
   assert.equal(getTimePassTransitionHoldMs(4 * 60), 200);
-  assert.equal(getTimePassTransitionHoldMs(8 * 60), 400);
-  assert.equal(getTimePassTransitionHoldMs(16 * 60), 400);
+  assert.equal(getTimePassTransitionHoldMs(8 * 60 - 1), 200);
+  assert.equal(getTimePassTransitionHoldMs(8 * 60), 800);
+  assert.equal(getTimePassTransitionHoldMs(16 * 60), 800);
+  assert.equal(getTimePassTransitionHoldMs(24 * 60 - 1), 800);
   assert.equal(getTimePassTransitionHoldMs(24 * 60), 800);
+});
+
+test("interaction completion can jump to a configured day and clock time", () => {
+  const dayStart = 3 * 24 * 60;
+  assert.equal(
+    getInteractionCompletionElapsedMinutes(dayStart + 18 * 60, {
+      timeMinutes: 30,
+      jumpToTimeMinutes: 6 * 60,
+      jumpDayOffset: 1,
+    }),
+    12 * 60,
+  );
+  assert.equal(
+    getInteractionCompletionElapsedMinutes(dayStart + 4 * 60, {
+      jumpToTimeMinutes: 6 * 60,
+      jumpDayOffset: 1,
+    }),
+    26 * 60,
+  );
+  assert.equal(
+    getInteractionCompletionElapsedMinutes(dayStart + 18 * 60, {
+      jumpToTimeMinutes: 6 * 60,
+      jumpDayOffset: 0,
+    }),
+    0,
+  );
+  assert.equal(
+    getInteractionCompletionElapsedMinutes(dayStart + 18 * 60, {
+      timeMinutes: 90,
+    }),
+    90,
+  );
 });
 
 test("elapsed clock hands start at the prior time and rotate by actual elapsed minutes", () => {

@@ -140,7 +140,7 @@ test("五種新音效只接在成功的互動與道具結算路徑", async () =>
   );
 });
 
-test("任務 COMPLETE 與 NEXT 事件使用集中管理的單次音效", () => {
+test("任務 COMPLETE、NEXT、新增 OBJ 與 OBJ 過關使用集中管理的單次音效", () => {
   const completed = AUDIO_EVENT_CONFIG.questCompleted;
   assert.deepEqual(completed.sourceAssetPaths, ["Assets/Audio/任務成功.mp3"]);
   assert.deepEqual(completed.sources, ["./audio/quest-complete.mp3"]);
@@ -152,6 +152,47 @@ test("任務 COMPLETE 與 NEXT 事件使用集中管理的單次音效", () => {
   assert.deepEqual(started.sources, ["./audio/quest-start.mp3"]);
   assert.equal(started.delaySeconds, 0);
   assert.equal(started.loop, undefined);
+
+  const objectiveAdded = AUDIO_EVENT_CONFIG.questObjectiveAdded;
+  assert.deepEqual(objectiveAdded.sourceAssetPaths, ["Assets/Audio/任務新增.mp3"]);
+  assert.deepEqual(objectiveAdded.sources, ["./audio/quest-objective-added.mp3"]);
+  assert.equal(objectiveAdded.delaySeconds, 0);
+  assert.equal(objectiveAdded.loop, undefined);
+  assert.match(objectiveAdded.trigger, /事件型 OBJ/);
+  assert.match(objectiveAdded.trigger, /Stage 開始時立即列出的 OBJ.*不播放/);
+
+  const objectiveCompleted = AUDIO_EVENT_CONFIG.questObjectiveCompleted;
+  assert.deepEqual(objectiveCompleted.sourceAssetPaths, ["Assets/Audio/任務OBJ過關.mp3"]);
+  assert.deepEqual(objectiveCompleted.sources, ["./audio/quest-objective-complete.mp3"]);
+  assert.equal(objectiveCompleted.delaySeconds, 0);
+  assert.equal(objectiveCompleted.loop, undefined);
+  assert.match(objectiveCompleted.trigger, /核取方塊打勾/);
+  assert.match(objectiveCompleted.trigger, /讀檔恢復已完成狀態.*不播放/);
+});
+
+test("互動失敗紅圈第一次繪製時統一播放否定音效", async () => {
+  const event = AUDIO_EVENT_CONFIG.interactionDenied;
+  assert.deepEqual(event.sourceAssetPaths, ["Assets/Audio/互動否定.mp3"]);
+  assert.deepEqual(event.sources, ["./audio/interaction-denied.mp3"]);
+  assert.equal(event.volume, 0.4);
+  assert.equal(event.delaySeconds, 0);
+  assert.equal(event.loop, undefined);
+
+  const [sourceBytes, publicBytes, movementLabSource] = await Promise.all([
+    readFile(new URL("../Assets/Audio/互動否定.mp3", import.meta.url)),
+    readFile(new URL("../public/audio/interaction-denied.mp3", import.meta.url)),
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.deepEqual(publicBytes, sourceBytes);
+
+  const drawTouchEffect = movementLabSource.slice(
+    movementLabSource.indexOf("const drawTouchEffect ="),
+    movementLabSource.indexOf("const drawTouchJoystick ="),
+  );
+  assert.match(
+    drawTouchEffect,
+    /!touchEffect\.reachable && !touchEffect\.denialAudioPlayed[\s\S]*touchEffect\.denialAudioPlayed = true;[\s\S]*playOneShotAudio\("interactionDenied"\)/,
+  );
 });
 
 test("任務提示音效的遊戲載入檔案已存在", async () => {
@@ -161,8 +202,27 @@ test("任務提示音效的遊戲載入檔案已存在", async () => {
   const startAudio = await stat(
     new URL("../public/audio/quest-start.mp3", import.meta.url),
   );
+  const objectiveAddedAudio = await stat(
+    new URL("../public/audio/quest-objective-added.mp3", import.meta.url),
+  );
+  const objectiveCompletedAudio = await stat(
+    new URL("../public/audio/quest-objective-complete.mp3", import.meta.url),
+  );
+  const [objectiveAddedSourceBytes, objectiveAddedPublicBytes] = await Promise.all([
+    readFile(new URL("../Assets/Audio/任務新增.mp3", import.meta.url)),
+    readFile(new URL("../public/audio/quest-objective-added.mp3", import.meta.url)),
+  ]);
   assert.ok(completeAudio.size > 0);
   assert.ok(startAudio.size > 0);
+  assert.ok(objectiveAddedAudio.size > 0);
+  assert.ok(objectiveCompletedAudio.size > 0);
+  assert.deepEqual(objectiveAddedPublicBytes, objectiveAddedSourceBytes);
+
+  const [objectiveCompletedSourceBytes, objectiveCompletedPublicBytes] = await Promise.all([
+    readFile(new URL("../Assets/Audio/任務OBJ過關.mp3", import.meta.url)),
+    readFile(new URL("../public/audio/quest-objective-complete.mp3", import.meta.url)),
+  ]);
+  assert.deepEqual(objectiveCompletedPublicBytes, objectiveCompletedSourceBytes);
 });
 
 test("電力分配成功後三段發電機音效依序播放並在末段 15% 自然淡出", async () => {

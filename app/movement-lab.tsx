@@ -147,6 +147,7 @@ import {
   getElapsedClockHandMotion,
   getCharacterStatuses,
   getGameClock,
+  getInteractionCompletionElapsedMinutes,
   getInteractionCycle,
   getTimePassTransitionHoldMs,
   getUnmetSurvivalRequirements,
@@ -160,6 +161,7 @@ import {
   saveSurvivalState,
   shouldShowLockedInteractionHint,
   type InteractionUsageState,
+  type InteractionTimeEffects,
   type SurvivalEffects,
   type SurvivalGameState,
   type SurvivalRequirements,
@@ -349,6 +351,7 @@ type TouchEffect = {
   point: Point;
   reachable: boolean;
   startedAt: number;
+  denialAudioPlayed?: boolean;
 };
 type PolygonCollider = {
   kind: "polygon";
@@ -390,7 +393,7 @@ type SceneInteractable = {
     | "pickup";
   verb?: string;
   survivalRequirements?: SurvivalRequirements;
-  survivalEffects?: SurvivalEffects & { timeMinutes?: number };
+  survivalEffects?: SurvivalEffects & InteractionTimeEffects;
   dailyInteractionLimit?: number | null;
   interactionLimitMode?: "once" | null;
   itemRewards?: InteractionItemReward[];
@@ -595,7 +598,7 @@ type StoryTriggerZone = {
   startQuestIds?: string[];
   activateObjectiveIds?: string[];
   survivalRequirements?: SurvivalRequirements;
-  survivalEffects?: SurvivalEffects & { timeMinutes?: number };
+  survivalEffects?: SurvivalEffects & InteractionTimeEffects;
   dailyInteractionLimit?: number | null;
   interactionLimitMode?: "once" | null;
   itemRewards?: InteractionItemReward[];
@@ -4003,6 +4006,7 @@ export function MovementLab() {
       // play its delayed visual; the NEXT presentation owns that transition.
       return;
     }
+    playOneShotAudio("questObjectiveCompleted");
     if (questObjectiveTweenTimerRef.current !== null) {
       window.clearTimeout(questObjectiveTweenTimerRef.current);
     }
@@ -4030,6 +4034,9 @@ export function MovementLab() {
   ) => {
     const currentView = getFirstActiveQuestHud();
     if (currentView?.id === view.id && currentView.stageId !== view.stageId) return;
+    if (questObjectiveUnlockTweenTimerRef.current !== null) {
+      window.clearTimeout(questObjectiveUnlockTweenTimerRef.current);
+    }
     questHudEventSequenceRef.current += 1;
     setActiveQuestHud(view);
     setQuestCollapsed(false);
@@ -4042,7 +4049,7 @@ export function MovementLab() {
     questObjectiveUnlockTweenTimerRef.current = window.setTimeout(() => {
       questObjectiveUnlockTweenTimerRef.current = null;
       setQuestObjectiveUnlockTween(null);
-    }, 700);
+    }, 1000);
   };
 
   const triggerQuestStageTransition = (
@@ -4361,9 +4368,10 @@ export function MovementLab() {
               ?.stages.flatMap((stage) => stage.objectives)
               .find((candidate) => candidate.id === objectiveId);
             if (view) {
-              scheduleQuestPresentation(objective?.startPresentationDelaySeconds, () =>
-                triggerQuestObjectiveUnlockTween(view, objectiveId),
-              );
+              scheduleQuestPresentation(objective?.startPresentationDelaySeconds, () => {
+                playOneShotAudio("questObjectiveAdded");
+                triggerQuestObjectiveUnlockTween(view, objectiveId);
+              });
             }
           },
           onStageTransitionStarted: (
@@ -8570,9 +8578,9 @@ export function MovementLab() {
         return false;
       }
 
-      const elapsedGameMinutes = Math.max(
-        0,
-        Number(trigger.survivalEffects?.timeMinutes ?? 0),
+      const elapsedGameMinutes = getInteractionCompletionElapsedMinutes(
+        survivalStateRef.current.gameMinutes,
+        trigger.survivalEffects,
       );
       if (elapsedGameMinutes > 0 || trigger.survivalEffects) {
         const interactionStartGameMinutes = survivalStateRef.current.gameMinutes;
@@ -8644,9 +8652,9 @@ export function MovementLab() {
           });
       }
 
-      const elapsedGameMinutes = Math.max(
-        0,
-        Number(interactable.survivalEffects?.timeMinutes ?? 0),
+      const elapsedGameMinutes = getInteractionCompletionElapsedMinutes(
+        survivalStateRef.current.gameMinutes,
+        interactable.survivalEffects,
       );
       if (elapsedGameMinutes > 0 || interactable.survivalEffects) {
         const interactionStartGameMinutes =
@@ -10725,6 +10733,11 @@ export function MovementLab() {
       if (elapsed >= TOUCH_EFFECT_DURATION_MS) {
         touchEffect = null;
         return;
+      }
+
+      if (!touchEffect.reachable && !touchEffect.denialAudioPlayed) {
+        touchEffect.denialAudioPlayed = true;
+        playOneShotAudio("interactionDenied");
       }
 
       const progress = clamp(elapsed / TOUCH_EFFECT_DURATION_MS, 0, 1);

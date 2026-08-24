@@ -4,6 +4,12 @@ export type SurvivalValues = Record<SurvivalMetric, number>;
 
 export type SurvivalEffects = Partial<Record<SurvivalMetric, number>>;
 
+export type InteractionTimeEffects = {
+  timeMinutes?: number;
+  jumpToTimeMinutes?: number | null;
+  jumpDayOffset?: number;
+};
+
 export type SurvivalRequirementComparison = "atLeast" | "below" | "atMost";
 
 export type SurvivalRequirementMatchMode = "all" | "any";
@@ -83,9 +89,40 @@ export function getTimePassTransitionHoldMs(gameMinutes: number) {
     : 0;
   if (normalizedMinutes < 60) return 0;
   if (normalizedMinutes >= 24 * 60) return 800;
-  if (normalizedMinutes >= 8 * 60) return 400;
+  if (normalizedMinutes >= 8 * 60) return 800;
   if (normalizedMinutes >= 4 * 60) return 200;
   return 100;
+}
+
+export function getInteractionCompletionElapsedMinutes(
+  currentGameMinutes: number,
+  effects?: InteractionTimeEffects,
+) {
+  const configuredTargetMinutes = effects?.jumpToTimeMinutes;
+  if (
+    configuredTargetMinutes !== null &&
+    configuredTargetMinutes !== undefined &&
+    Number.isFinite(Number(configuredTargetMinutes))
+  ) {
+    const normalizedCurrentMinutes = Number.isFinite(currentGameMinutes)
+      ? Math.max(0, currentGameMinutes)
+      : 0;
+    const targetMinuteOfDay = Math.max(
+      0,
+      Math.min(24 * 60 - 1, Math.floor(Number(configuredTargetMinutes))),
+    );
+    const dayOffset = Math.max(
+      0,
+      Math.min(30, Math.floor(Number(effects?.jumpDayOffset) || 0)),
+    );
+    const currentDayStart =
+      Math.floor(normalizedCurrentMinutes / (24 * 60)) * 24 * 60;
+    const targetGameMinutes =
+      currentDayStart + dayOffset * 24 * 60 + targetMinuteOfDay;
+    return Math.max(0, targetGameMinutes - normalizedCurrentMinutes);
+  }
+
+  return Math.max(0, Number(effects?.timeMinutes) || 0);
 }
 
 export function getElapsedClockHandMotion(

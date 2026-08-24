@@ -1566,10 +1566,14 @@ public sealed class MainForm : Form
                     : interactable.DailyInteractionLimit is int dailyLimitValue
                         ? $"每日 {dailyLimitValue} 次"
                         : "無限";
+                var timeEffect = effects.JumpToTimeMinutes is int targetTimeMinutes
+                    ? $"跳到 {effects.JumpDayOffset} 天後 " +
+                      $"{targetTimeMinutes / 60:00}:{targetTimeMinutes % 60:00}"
+                    : $"時{effects.TimeMinutes / 60:0.#}h";
                 _survivalSummaryLabel.Text =
                     $"需求 {FormatRequirements(interactable.SurvivalRequirements)} · 物/章/任務 {interactable.UseRequirements?.Count ?? 0}" +
                     $" · 未達可嘗試 {(interactable.AllowAttemptWhenRequirementsUnmet ? "是" : "否")}\r\n" +
-                    $"效果 體{effects.Stamina:+0.#;-0.#;0} 餓{effects.Hunger:+0.#;-0.#;0} 渴{effects.Thirst:+0.#;-0.#;0} 精{effects.Spirit:+0.#;-0.#;0} 時{effects.TimeMinutes / 60:0.#}h · {limit} · 獎勵 {interactable.ItemRewards?.Count ?? (interactable.ItemReward is null ? 0 : 1)} 種";
+                    $"效果 體{effects.Stamina:+0.#;-0.#;0} 餓{effects.Hunger:+0.#;-0.#;0} 渴{effects.Thirst:+0.#;-0.#;0} 精{effects.Spirit:+0.#;-0.#;0} {timeEffect} · {limit} · 獎勵 {interactable.ItemRewards?.Count ?? (interactable.ItemReward is null ? 0 : 1)} 種";
                 _dialogueMoreButton.Enabled = true;
             }
             else if (_canvas.Selection.Kind == SceneLayerKind.StoryTrigger && _canvas.Selection.Index >= 0)

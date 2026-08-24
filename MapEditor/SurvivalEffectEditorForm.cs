@@ -79,6 +79,29 @@ public sealed class SurvivalEffectEditorForm : Form
         Increment = 0.5m,
         TextAlign = HorizontalAlignment.Right,
     };
+    private readonly CheckBox _jumpToTimeEnabled = new()
+    {
+        Text = "啟用",
+        AutoSize = false,
+    };
+    private readonly NumericUpDown _jumpDayOffset = new()
+    {
+        Minimum = 0,
+        Maximum = 30,
+        TextAlign = HorizontalAlignment.Right,
+    };
+    private readonly NumericUpDown _jumpTargetHour = new()
+    {
+        Minimum = 0,
+        Maximum = 23,
+        TextAlign = HorizontalAlignment.Right,
+    };
+    private readonly NumericUpDown _jumpTargetMinute = new()
+    {
+        Minimum = 0,
+        Maximum = 59,
+        TextAlign = HorizontalAlignment.Right,
+    };
     private readonly ComboBox _dailyLimit = new()
     {
         DropDownStyle = ComboBoxStyle.DropDownList,
@@ -153,6 +176,12 @@ public sealed class SurvivalEffectEditorForm : Form
         Thirst = (float)_thirst.Value,
         Spirit = (float)_spirit.Value,
         TimeMinutes = (float)_timeHours.Value * 60,
+        JumpToTimeMinutes = _jumpToTimeEnabled.Checked
+            ? (int)_jumpTargetHour.Value * 60 + (int)_jumpTargetMinute.Value
+            : null,
+        JumpDayOffset = _jumpToTimeEnabled.Checked
+            ? (int)_jumpDayOffset.Value
+            : 0,
     };
 
     public string? InteractionLimitMode => _dailyLimit.SelectedIndex == 1
@@ -292,6 +321,8 @@ public sealed class SurvivalEffectEditorForm : Form
         };
         var requirementPage = CreateTab("使用需求");
         var effectPage = CreateTab("完成效果");
+        effectPage.AutoScroll = true;
+        effectPage.AutoScrollMinSize = new Size(0, 690);
         var questStartPage = showQuestStartOptions
             ? CreateTab("任務啟動")
             : null;
@@ -768,9 +799,50 @@ public sealed class SurvivalEffectEditorForm : Form
             _timeHours.Maximum);
         page.Controls.Add(_timeHours);
 
-        AddFieldLabel(page, "每日允許互動次數", 290);
+        AddFieldLabel(page, "直接跳到幾點", 290);
+        _jumpToTimeEnabled.SetBounds(186, 287, 54, 28);
+        _jumpToTimeEnabled.Checked = effects.JumpToTimeMinutes.HasValue;
+        page.Controls.Add(_jumpToTimeEnabled);
+
+        _jumpDayOffset.SetBounds(244, 287, 48, 28);
+        _jumpDayOffset.Value = effects.JumpToTimeMinutes.HasValue
+            ? Math.Clamp(
+                effects.JumpDayOffset,
+                (int)_jumpDayOffset.Minimum,
+                (int)_jumpDayOffset.Maximum)
+            : 1;
+        page.Controls.Add(_jumpDayOffset);
+        AddInlineLabel(page, "天後", 296, 291, 34);
+
+        var targetTimeMinutes = effects.JumpToTimeMinutes ?? 6 * 60;
+        _jumpTargetHour.SetBounds(330, 287, 42, 28);
+        _jumpTargetHour.Value = Math.Clamp(
+            targetTimeMinutes / 60,
+            (int)_jumpTargetHour.Minimum,
+            (int)_jumpTargetHour.Maximum);
+        page.Controls.Add(_jumpTargetHour);
+        AddInlineLabel(page, ":", 373, 291, 10);
+        _jumpTargetMinute.SetBounds(382, 287, 42, 28);
+        _jumpTargetMinute.Value = Math.Clamp(
+            targetTimeMinutes % 60,
+            (int)_jumpTargetMinute.Minimum,
+            (int)_jumpTargetMinute.Maximum);
+        page.Controls.Add(_jumpTargetMinute);
+
+        void RefreshCompletionTimeMode()
+        {
+            var jumpEnabled = _jumpToTimeEnabled.Checked;
+            _timeHours.Enabled = !jumpEnabled;
+            _jumpDayOffset.Enabled = jumpEnabled;
+            _jumpTargetHour.Enabled = jumpEnabled;
+            _jumpTargetMinute.Enabled = jumpEnabled;
+        }
+        _jumpToTimeEnabled.CheckedChanged += (_, _) => RefreshCompletionTimeMode();
+        RefreshCompletionTimeMode();
+
+        AddFieldLabel(page, "每日允許互動次數", 334);
         page.Controls.OfType<Label>().Last().Text = "互動次數限制";
-        _dailyLimit.SetBounds(186, 287, 236, 28);
+        _dailyLimit.SetBounds(186, 331, 236, 28);
         _dailyLimit.Items.Add("無限");
         _dailyLimit.Items.Add("唯一一次（不重置）");
         for (var value = 1; value <= 10; value++)
@@ -792,7 +864,7 @@ public sealed class SurvivalEffectEditorForm : Form
             AutoSize = false,
             ForeColor = Color.FromArgb(129, 222, 211),
         };
-        resetTime.SetBounds(186, 320, 236, 40);
+        resetTime.SetBounds(186, 364, 236, 40);
         void RefreshLimitHint()
         {
             resetTime.Text = _dailyLimit.SelectedIndex switch
@@ -806,11 +878,11 @@ public sealed class SurvivalEffectEditorForm : Form
         RefreshLimitHint();
         page.Controls.Add(resetTime);
 
-        var nextSectionTop = 370;
+        var nextSectionTop = 414;
         if (showCompletionTeleportOption)
         {
-            AddFieldLabel(page, "完成後傳送 Point", 370);
-            _completionTeleportPoint.SetBounds(186, 367, 236, 28);
+            AddFieldLabel(page, "完成後傳送 Point", 414);
+            _completionTeleportPoint.SetBounds(186, 411, 236, 28);
             _completionTeleportPoint.Items.Add(new TeleportPointChoice("", "無"));
             _completionTeleportPoint.Items.AddRange(
                 teleportPoints
@@ -829,8 +901,8 @@ public sealed class SurvivalEffectEditorForm : Form
                     ?.index ?? 0);
             page.Controls.Add(_completionTeleportPoint);
 
-            AddFieldLabel(page, "傳送延遲（秒）", 410);
-            _completionTeleportDelay.SetBounds(186, 407, 236, 28);
+            AddFieldLabel(page, "傳送延遲（秒）", 454);
+            _completionTeleportDelay.SetBounds(186, 451, 236, 28);
             _completionTeleportDelay.Value = Math.Clamp(
                 (decimal)completionTeleportDelaySeconds,
                 _completionTeleportDelay.Minimum,
@@ -841,7 +913,7 @@ public sealed class SurvivalEffectEditorForm : Form
                 _completionTeleportDelay.Enabled =
                     _completionTeleportPoint.SelectedIndex > 0;
             page.Controls.Add(_completionTeleportDelay);
-            nextSectionTop = 454;
+            nextSectionTop = 498;
         }
 
         var defaultsButton = CreateButton(
@@ -1151,6 +1223,25 @@ public sealed class SurvivalEffectEditorForm : Form
         return label;
     }
 
+    private static Label AddInlineLabel(
+        Control page,
+        string text,
+        int left,
+        int top,
+        int width)
+    {
+        var label = new Label
+        {
+            Text = text,
+            AutoSize = false,
+            ForeColor = Color.FromArgb(185, 193, 201),
+            TextAlign = ContentAlignment.MiddleLeft,
+        };
+        label.SetBounds(left, top, width, 22);
+        page.Controls.Add(label);
+        return label;
+    }
+
     private void ApplyDefaults()
     {
         _stamina.Value = (decimal)_defaults.Effects.Stamina;
@@ -1158,6 +1249,10 @@ public sealed class SurvivalEffectEditorForm : Form
         _thirst.Value = (decimal)_defaults.Effects.Thirst;
         _spirit.Value = (decimal)_defaults.Effects.Spirit;
         _timeHours.Value = (decimal)_defaults.Effects.TimeMinutes / 60;
+        _jumpToTimeEnabled.Checked = false;
+        _jumpDayOffset.Value = 1;
+        _jumpTargetHour.Value = 6;
+        _jumpTargetMinute.Value = 0;
         _dailyLimit.SelectedIndex = _defaults.DailyLimit is null
             ? 0
             : Math.Clamp(_defaults.DailyLimit.Value + 1, 2, 11);

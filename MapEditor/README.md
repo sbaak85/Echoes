@@ -102,6 +102,10 @@ Included in version 1:
   player remains inside an ineligible zone there is no polling; inventory,
   survival, chapter, quest-stage, or usage state changes request one contact
   recheck, and the story starts if that single check finds the player inside.
+- `完成效果` can either advance a fixed number of hours or jump directly to a
+  configured clock time after 0-30 days. A direct jump takes priority while it
+  is enabled, but the fixed-hour value is preserved for later reuse. For
+  example, 18:00 with `1 天後 06:00` advances the game clock by 12 hours.
 - 劇情觸發區主設定提供 `觸發延遲（秒）`，預設為 0；「需求與完成效果」
   視窗可設定指定任務必須處於已完成、進行中、可啟動等狀態，並在
   `任務啟動` 頁籤複選對話完整結束後要提出啟動的任務。這一階段僅建立

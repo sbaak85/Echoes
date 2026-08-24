@@ -843,7 +843,7 @@
       "grantSourceId": "chapter03-section-7",
       "grantCondition": "",
       "prerequisiteQuestIds": [],
-      "startDelaySeconds": 0.75,
+      "startDelaySeconds": 2.5,
       "startPresentationDelaySeconds": 0,
       "canAbandon": false,
       "canReaccept": false,

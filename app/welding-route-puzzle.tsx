@@ -190,16 +190,6 @@ function WeldingBriefingDemo() {
           </g>
         </g>
 
-        <g className="welding-briefing-demo-static" transform="translate(360 94)">
-          <image
-            href={WELDING_TORCH_URL}
-            x="0"
-            y="-50"
-            width="176"
-            height="100"
-            preserveAspectRatio="xMinYMid meet"
-          />
-        </g>
       </svg>
       <i className="welding-briefing-demo-direction" aria-hidden="true" />
     </div>

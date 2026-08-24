@@ -206,6 +206,7 @@ test("story trigger activates an event objective and persists its runtime state"
     onObjectiveActivated: (_questId, objectiveId) => activated.push(objectiveId),
   });
   manager.startQuest("QUEST_TEST");
+  assert.deepEqual(activated, [], "Stage 開始時的 immediate OBJ 不得觸發額外 OBJ 啟用事件");
   assert.equal(manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_EVENT").state, "locked");
   manager.handleEvent({ type: "interactionSucceeded", targetId: "interaction-ready" });
   assert.equal(manager.getQuestState("QUEST_TEST"), "active");
@@ -214,7 +215,10 @@ test("story trigger activates an event objective and persists its runtime state"
   assert.deepEqual(activated, ["QUEST_TEST_OBJ_EVENT"]);
   assert.equal(manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_EVENT").state, "active");
 
-  const restored = new QuestRuntimeManager(eventDocument, {}, manager.exportSave());
+  const restored = new QuestRuntimeManager(eventDocument, {
+    onObjectiveActivated: () => activated.push("replayed-after-load"),
+  }, manager.exportSave());
+  assert.deepEqual(activated, ["QUEST_TEST_OBJ_EVENT"], "讀檔不得重播 OBJ 啟用事件");
   assert.equal(restored.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_EVENT").state, "active");
   restored.handleEvent({ type: "itemCollected", targetId: "T0008", amount: 1 });
   assert.equal(restored.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_EVENT").state, "completed");

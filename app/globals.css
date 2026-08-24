@@ -1471,6 +1471,16 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   animation: quest-objective-unlock-enter 0.7s cubic-bezier(0.2, 0.82, 0.24, 1) both;
 }
 
+.quest-objective.is-unlock-enter .quest-objective-check,
+.quest-objective.is-unlock-enter .quest-objective-label {
+  transform-origin: left center;
+  animation: quest-objective-completion-pop 1s cubic-bezier(0.2, 0.82, 0.24, 1) both;
+}
+
+.quest-objective.is-unlock-enter .quest-objective-check {
+  transform-origin: center;
+}
+
 .quest-objective-label {
   color: #d7e1de;
   font-size: 18px;
@@ -7424,8 +7434,7 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   content: "";
 }
 
-.welding-briefing-demo-torch,
-.welding-briefing-demo-static image {
+.welding-briefing-demo-torch {
   filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.72));
 }
 
@@ -7446,10 +7455,6 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   stroke-linecap: round;
   animation: welding-briefing-ray-flicker 260ms ease-in-out infinite alternate;
   animation-delay: calc(var(--briefing-ray-index) * -23ms);
-}
-
-.welding-briefing-demo-static {
-  display: none;
 }
 
 @keyframes welding-briefing-seam-replay {
@@ -7601,11 +7606,4 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   .welding-puzzle-header > p.welding-start-instruction,
   .welding-start-callout,
   .welding-start-beacon-glow { animation: none; }
-  .welding-briefing-demo-motion { display: none; }
-  .welding-briefing-demo-static { display: block; }
-  .welding-briefing-demo-seam {
-    stroke-dashoffset: 0;
-    animation: none;
-  }
-  .welding-briefing-demo-direction { animation: none; }
 }

@@ -505,6 +505,11 @@ test("welding opens with an explicit route preview before player control", () =>
   assert.match(styles, /@keyframes welding-briefing-seam-replay/);
   assert.match(styles, /@keyframes welding-briefing-spark-replay/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.doesNotMatch(component, /welding-briefing-demo-static/);
+  const reducedMotionBlock = styles.slice(
+    styles.lastIndexOf("@media (prefers-reduced-motion: reduce)"),
+  );
+  assert.doesNotMatch(reducedMotionBlock, /welding-briefing-demo/);
 });
 
 test("gamepad-opened briefing keeps A on the selected action while retaining virtual cursor takeover", () => {

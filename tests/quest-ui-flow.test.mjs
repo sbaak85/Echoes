@@ -54,6 +54,10 @@ test("objective completion and delayed next-stage visuals are wired", () => {
   assert.match(source, /}, 3000\);/);
   assert.match(source, /is-completion-pop/);
   assert.match(styles, /quest-objective-completion-pop/);
+  assert.match(
+    styles,
+    /\.quest-objective\.is-unlock-enter \.quest-objective-check,[\s\S]*?\.quest-objective\.is-unlock-enter \.quest-objective-label\s*{[\s\S]*?animation:\s*quest-objective-completion-pop 1s/,
+  );
   assert.match(styles, /quest-header-next-glow/);
   assert.match(
     source,
@@ -232,6 +236,34 @@ test("quest HUD result animations start their managed audio once", () => {
     source.indexOf("const scheduleQuestTeleport"),
   );
   assert.match(stageTransition, /playOneShotAudio\("questStarted"\)/);
+
+  const objectiveCompletion = source.slice(
+    source.indexOf("const triggerQuestObjectiveTween"),
+    source.indexOf("const triggerQuestObjectiveUnlockTween"),
+  );
+  assert.match(
+    objectiveCompletion,
+    /currentView\?\.id === view\.id && currentView\.stageId !== view\.stageId[\s\S]*?return;[\s\S]*?playOneShotAudio\("questObjectiveCompleted"\)[\s\S]*?setQuestObjectiveTween/,
+  );
+
+  const objectiveActivation = source.slice(
+    source.indexOf("onObjectiveActivated:"),
+    source.indexOf("onStageTransitionStarted:"),
+  );
+  assert.match(
+    objectiveActivation,
+    /scheduleQuestPresentation\(objective\?\.startPresentationDelaySeconds,[\s\S]*?playOneShotAudio\("questObjectiveAdded"\)[\s\S]*?triggerQuestObjectiveUnlockTween\(view, objectiveId\)/,
+  );
+
+  const objectiveUnlockTween = source.slice(
+    source.indexOf("const triggerQuestObjectiveUnlockTween"),
+    source.indexOf("const triggerQuestStageTransition"),
+  );
+  assert.match(
+    objectiveUnlockTween,
+    /questObjectiveUnlockTweenTimerRef\.current !== null[\s\S]*?window\.clearTimeout\(questObjectiveUnlockTweenTimerRef\.current\)/,
+  );
+  assert.match(objectiveUnlockTween, /setQuestObjectiveUnlockTween\(null\);[\s\S]*?}, 1000\);/);
 });
 
 test("stage completion presentation keeps the completed Stage HUD until NEXT finishes", () => {
