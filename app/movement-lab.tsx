@@ -3454,6 +3454,7 @@ export function MovementLab() {
     sequence: number;
   } | null>(null);
   const [questStageEntering, setQuestStageEntering] = useState(false);
+  const [questStageEntryPending, setQuestStageEntryPending] = useState(false);
   const [questEventNotice, setQuestEventNotice] = useState<{
     kind: "accepted" | "completed";
     sequence: number;
@@ -4057,6 +4058,7 @@ export function MovementLab() {
     completionPresentationDelaySeconds = 0,
     startPresentationDelaySeconds = 0,
   ) => {
+    setQuestStageEntryPending(false);
     questHudStageTransitionPresentationRef.current = {
       questId: view.id,
       stageId: view.stageId,
@@ -4073,7 +4075,32 @@ export function MovementLab() {
     }
     if (questStageTransitionTimerRef.current !== null) {
       window.clearTimeout(questStageTransitionTimerRef.current);
+      questStageTransitionTimerRef.current = null;
     }
+    const startEffectDelay = Number.isFinite(startPresentationDelaySeconds)
+      ? Math.max(0, startPresentationDelaySeconds * 1000)
+      : 0;
+    const showStageEntering = () => {
+      setQuestStageEntering(true);
+      if (questStageEnteringTimerRef.current !== null) {
+        window.clearTimeout(questStageEnteringTimerRef.current);
+      }
+      questStageEnteringTimerRef.current = window.setTimeout(() => {
+        questStageEnteringTimerRef.current = null;
+        setQuestStageEntering(false);
+      }, 340);
+    };
+    const finishStageEntry = () => {
+      setQuestStageEntryPending(false);
+      const presentation = questHudStageTransitionPresentationRef.current;
+      if (presentation?.questId === view.id && presentation.stageId === view.stageId) {
+        questHudStageTransitionPresentationRef.current = null;
+        // Runtime 已先進入下一 Stage，但新 OBJ 必須到效果延遲結束的
+        // 同一刻才第一次顯示，避免先露出再重播一次進場 Tween。
+        setActiveQuestHud(getFirstActiveQuestHud());
+        showStageEntering();
+      }
+    };
     const presentTransition = () => {
       questHudEventSequenceRef.current += 1;
       setQuestCollapsed(false);
@@ -4089,39 +4116,17 @@ export function MovementLab() {
         setQuestHudEvent((current) =>
           current?.kind === "next" && current.questId === view.id ? null : current,
         );
-        const presentation = questHudStageTransitionPresentationRef.current;
-        if (presentation?.questId === view.id && presentation.stageId === view.stageId) {
-          questHudStageTransitionPresentationRef.current = null;
-          // Only after the old Stage's completion wait and NEXT presentation have
-          // finished may the HUD redraw from the already-advanced runtime state.
-          setActiveQuestHud(getFirstActiveQuestHud());
+        if (startEffectDelay <= 0) {
+          finishStageEntry();
+          return;
         }
-      }, 3000);
-      questStageTransitionTimerRef.current = window.setTimeout(() => {
-        questStageTransitionTimerRef.current = null;
-        const startEffectDelay = Number.isFinite(startPresentationDelaySeconds)
-          ? Math.max(0, startPresentationDelaySeconds * 1000)
-          : 0;
-        const showStageEntering = () => {
-          setQuestStageEntering(true);
-          if (questStageEnteringTimerRef.current !== null) {
-            window.clearTimeout(questStageEnteringTimerRef.current);
-          }
-          questStageEnteringTimerRef.current = window.setTimeout(() => {
-            questStageEnteringTimerRef.current = null;
-            setQuestStageEntering(false);
-          }, 340);
-        };
-        if (startEffectDelay <= 0) showStageEntering();
-        else {
-          const timer = window.setTimeout(() => {
-            questPresentationTimerRefs.current = questPresentationTimerRefs.current.filter(
-              (candidate) => candidate !== timer,
-            );
-            showStageEntering();
-          }, startEffectDelay);
-          questPresentationTimerRefs.current.push(timer);
-        }
+        // NEXT 已結束，但仍在等待純視覺效果延遲；保持舊 Stage 快照，
+        // 並隱藏其 OBJ 區，直到新 Stage 能連同 Tween 一次出現。
+        setQuestStageEntryPending(true);
+        questStageTransitionTimerRef.current = window.setTimeout(() => {
+          questStageTransitionTimerRef.current = null;
+          finishStageEntry();
+        }, startEffectDelay);
       }, 3000);
     };
     const completionEffectDelay = Number.isFinite(completionPresentationDelaySeconds)
@@ -7032,8 +7037,8 @@ export function MovementLab() {
     const showSurvivalRequirementFloats = (
       interactable: SceneInteractable,
       failures: UnmetSurvivalRequirement[],
+      startedAt: number,
     ) => {
-      const now = window.performance.now();
       let entries: PlayerInfoFloatEntry[] = [];
       for (const failure of failures) {
         playerInfoFloatSequenceRef.current += 1;
@@ -7041,17 +7046,12 @@ export function MovementLab() {
           entries,
           buildSurvivalRequirementFloatSegments(failure),
           playerInfoFloatSequenceRef.current,
-          now,
+          startedAt,
         );
       }
       interactionRequirementFloatsRef.current = entries;
       interactionRequirementFloatAnchorRef.current =
         getInteractionTweenPoint(interactable);
-      touchEffect = {
-        point: getInteractionTweenPoint(interactable),
-        reachable: false,
-        startedAt: now,
-      };
     };
 
     const openInteractionFailureDialogue = (
@@ -7059,6 +7059,7 @@ export function MovementLab() {
       source: PendingInteraction["source"],
       reason: "general" | "survival" = "general",
     ) => {
+      const failureStartedAt = window.performance.now();
       if (source === "pointer") pointerGestureConsumed = true;
       const questManager = questRuntimeManagerRef.current;
       if (questManager) {
@@ -7076,11 +7077,20 @@ export function MovementLab() {
         hasNonSurvivalFailure,
       );
       if (isSurvivalOnlyFailure) {
-        showSurvivalRequirementFloats(interactable, survivalFailures);
+        showSurvivalRequirementFloats(
+          interactable,
+          survivalFailures,
+          failureStartedAt,
+        );
       } else {
         interactionRequirementFloatsRef.current = [];
         interactionRequirementFloatAnchorRef.current = null;
       }
+      touchEffect = {
+        point: getInteractionTweenPoint(interactable),
+        reachable: false,
+        startedAt: failureStartedAt,
+      };
       const failureDialogue = selectInteractionDialogue(
         interactable,
         isSurvivalOnlyFailure ? "survivalFailure" : "failure",
@@ -8139,6 +8149,7 @@ export function MovementLab() {
           setQuestObjectiveTween(null);
           setQuestObjectiveUnlockTween(null);
           setQuestStageEntering(false);
+          setQuestStageEntryPending(false);
 
           manager.replaceSaveData(plan.questSave, false);
           manager.syncCurrentInventory(plan.inventory);
@@ -8541,6 +8552,7 @@ export function MovementLab() {
       startGameMinutes: number,
       elapsedGameMinutes: number,
       effects: SurvivalEffects | undefined,
+      onComplete?: () => void,
     ) => {
       clearTimePassTransition();
       timePassInputLockedRef.current = true;
@@ -8549,11 +8561,19 @@ export function MovementLab() {
       fadeBlackScreen(255, 500);
 
       const holdMs = getTimePassTransitionHoldMs(elapsedGameMinutes);
+      let transitionFinished = false;
+      const finishTimePassTransition = () => {
+        if (transitionFinished) return;
+        transitionFinished = true;
+        clearTimePassTransition();
+        timePassInputLockedRef.current = false;
+        onComplete?.();
+      };
       timePassTransitionWatchdogRef.current = window.setTimeout(() => {
         timePassTransitionWatchdogRef.current = null;
         cancelBlackScreenFade();
         setBlackScreenOpacity(0);
-        timePassInputLockedRef.current = false;
+        finishTimePassTransition();
       }, 500 + holdMs + 500 + 250);
 
       scheduleTimePassStep(() => {
@@ -8564,8 +8584,7 @@ export function MovementLab() {
         } finally {
           scheduleTimePassStep(() => {
             fadeBlackScreen(0, 500, () => {
-              clearTimePassTransition();
-              timePassInputLockedRef.current = false;
+              finishTimePassTransition();
             });
           }, holdMs);
         }
@@ -8656,14 +8675,18 @@ export function MovementLab() {
         survivalStateRef.current.gameMinutes,
         interactable.survivalEffects,
       );
+      let waitsForTimePassTransition = false;
+      let deferredTimePassCompletion: (() => void) | null = null;
       if (elapsedGameMinutes > 0 || interactable.survivalEffects) {
         const interactionStartGameMinutes =
           survivalStateRef.current.gameMinutes;
         if (elapsedGameMinutes >= 60) {
+          waitsForTimePassTransition = true;
           runTimePassTransition(
             interactionStartGameMinutes,
             elapsedGameMinutes,
             interactable.survivalEffects,
+            () => deferredTimePassCompletion?.(),
           );
         } else {
           settleInteractionSurvival(
@@ -8839,14 +8862,23 @@ export function MovementLab() {
         interactable,
         "completion",
       );
-      if (completionDialogue) {
-        openDialogue(
-          interactable,
-          onCompletionDialogueComplete,
-          completionDialogue,
-        );
+      const finishInteractionCompletionFlow = () => {
+        if (completionDialogue) {
+          openDialogue(
+            interactable,
+            onCompletionDialogueComplete,
+            completionDialogue,
+          );
+        } else {
+          onCompletionDialogueComplete?.();
+        }
+      };
+      if (waitsForTimePassTransition) {
+        // 一小時以上的完成效果會顯示阻擋黑幕；成功完成後的對話與
+        // 後續回呼必須等到黑幕完全淡出，不能在黑幕下方提前播放。
+        deferredTimePassCompletion = finishInteractionCompletionFlow;
       } else {
-        onCompletionDialogueComplete?.();
+        finishInteractionCompletionFlow();
       }
       return true;
     };
@@ -9375,13 +9407,6 @@ export function MovementLab() {
         autoDestination = null;
         pendingInteraction = null;
         openInteractionFailureDialogue(interactable, source);
-        if (showTouchEffect) {
-          touchEffect = {
-            point: getInteractionTweenPoint(interactable),
-            reachable: false,
-            startedAt: performance.now(),
-          };
-        }
         return;
       }
       if (interactable && getInteractionUseRequirementFailure(interactable)) {
@@ -9389,13 +9414,6 @@ export function MovementLab() {
         autoDestination = null;
         pendingInteraction = null;
         openInteractionFailureDialogue(interactable, source);
-        if (showTouchEffect) {
-          touchEffect = {
-            point: getInteractionTweenPoint(interactable),
-            reachable: false,
-            startedAt: performance.now(),
-          };
-        }
         return;
       }
       if (interactable && getInteractionRequirementFailure(interactable)) {
@@ -9403,13 +9421,6 @@ export function MovementLab() {
         autoDestination = null;
         pendingInteraction = null;
         openInteractionFailureDialogue(interactable, source, "survival");
-        if (showTouchEffect) {
-          touchEffect = {
-            point: getInteractionTweenPoint(interactable),
-            reachable: false,
-            startedAt: performance.now(),
-          };
-        }
         return;
       }
       if (
@@ -13137,6 +13148,15 @@ export function MovementLab() {
   const itemUseConfirmationItem = itemUseConfirmation
     ? ITEM_BY_ID.get(itemUseConfirmation.itemId) ?? null
     : null;
+  const campPowerRefillItem = ITEM_BY_ID.get(CAMP_POWER_REFILL_ITEM_ID) ?? null;
+  const campPowerPreviewCurrent = Math.max(
+    0,
+    Math.min(CAMP_POWER_CAPACITY, Math.floor(campPowerState.current)),
+  );
+  const campPowerPreviewNext = Math.min(
+    CAMP_POWER_CAPACITY,
+    campPowerPreviewCurrent + CAMP_POWER_REFILL_AMOUNT,
+  );
   const itemUseConfirmationAction = itemUseConfirmationItem?.useAction ?? null;
   const itemUseConfirmationVerb =
     resolveItemUseActionVerb(itemUseConfirmationAction?.verb);
@@ -13582,6 +13602,7 @@ export function MovementLab() {
           hasActiveQuest ? "" : " is-history"
         }${activeQuestHudEvent ? ` is-event-${activeQuestHudEvent.kind}` : ""}${
           questStageEntering ? " is-stage-entering" : ""
+        }${questStageEntryPending ? " is-stage-entry-pending" : ""
         }`}
         aria-label={hasActiveQuest ? activeQuestHud!.title : EMPTY_QUEST_TITLE}
         data-quest-hud-event={activeQuestHudEvent?.kind ?? "idle"}
@@ -14235,7 +14256,9 @@ export function MovementLab() {
         >
           <section
             className={`camp-power-confirmation${
-              questItemSubmissionPrompt ? " quest-item-submission-confirmation" : ""
+              questItemSubmissionPrompt
+                ? " quest-item-submission-confirmation"
+                : " is-resonator-refill"
             }`}
             role="alertdialog"
             aria-modal="true"
@@ -14277,18 +14300,43 @@ export function MovementLab() {
                 targets={questItemSubmissionTargets}
               />
             ) : (
-              <div className="camp-power-confirmation-preview" aria-live="polite">
-                <>
-                  <span>目前電力</span>
-                  <strong>{campPowerState.current}/{CAMP_POWER_CAPACITY}</strong>
-                  <i aria-hidden="true">→</i>
-                  <strong className="is-next">
-                    {Math.min(
-                      CAMP_POWER_CAPACITY,
-                      campPowerState.current + CAMP_POWER_REFILL_AMOUNT,
-                    )}/{CAMP_POWER_CAPACITY}
-                  </strong>
-                </>
+              <div
+                className="camp-power-refill-visualization"
+                aria-label={`藍色晶體碎片一個，灌入後營地電力將由 ${campPowerPreviewCurrent} 提升至 ${campPowerPreviewNext}，上限 ${CAMP_POWER_CAPACITY}`}
+              >
+                <div className="camp-power-refill-item">
+                  <span className="camp-power-refill-item-icon" aria-hidden="true">
+                    {campPowerRefillItem?.symbol ?? "◆"}
+                  </span>
+                  <strong>{campPowerRefillItem?.name ?? "藍色晶體碎片"}</strong>
+                </div>
+                <span className="camp-power-refill-arrow" aria-hidden="true">
+                  <i />
+                </span>
+                <div className="camp-power-refill-target">
+                  <div className="camp-power-refill-grid" aria-hidden="true">
+                    {Array.from({ length: CAMP_POWER_CAPACITY }, (_, index) => (
+                      <i
+                        key={`camp-power-preview-cell-${index}`}
+                        className={
+                          index < campPowerPreviewCurrent
+                            ? "is-current"
+                            : index < campPowerPreviewNext
+                              ? "is-projected"
+                              : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                  <div className="camp-power-refill-value" aria-hidden="true">
+                    <span>營地電力</span>
+                    <strong className="camp-power-refill-value-cycle">
+                      <i className="is-current">{campPowerPreviewCurrent}</i>
+                      <i className="is-next">{campPowerPreviewNext}</i>
+                      <em> / {CAMP_POWER_CAPACITY}</em>
+                    </strong>
+                  </div>
+                </div>
               </div>
             )}
             <p className="camp-power-confirmation-owned">
@@ -14305,6 +14353,7 @@ export function MovementLab() {
                 disabled={questItemSubmissionCompleting}
                 data-gamepad-selected={campPowerConfirmationChoice === "cancel" || undefined}
                 onFocus={() => setCampPowerConfirmationChoiceValue("cancel")}
+                onMouseEnter={() => setCampPowerConfirmationChoiceValue("cancel")}
                 onClick={() => {
                   playOneShotAudio("uiInput");
                   closeCampPowerConfirmation();
@@ -14321,6 +14370,7 @@ export function MovementLab() {
                 )}
                 data-gamepad-selected={campPowerConfirmationChoice === "confirm" || undefined}
                 onFocus={() => setCampPowerConfirmationChoiceValue("confirm")}
+                onMouseEnter={() => setCampPowerConfirmationChoiceValue("confirm")}
                 onClick={() => {
                   playOneShotAudio("uiInput");
                   confirmCampPowerRefill();

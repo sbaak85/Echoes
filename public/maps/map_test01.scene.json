@@ -3205,7 +3205,7 @@
       "interactionLimitMode": "once",
       "itemRewards": [
         {
-          "itemId": "R0011",
+          "itemId": "T0006",
           "quantity": 1,
           "delivery": "world"
         }

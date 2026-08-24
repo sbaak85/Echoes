@@ -208,6 +208,14 @@ test("道具轉換數量置於框外，任務投入放大框內數量與自適�
     styles,
     /\.item-use-change-visualization \.item-change-visual-card > small[\s\S]*font-size:\s*16px/,
   );
+  assert.match(
+    styles,
+    /\.item-change-visual-card\.has-outside-quantity\s*\{[\s\S]*?"icon quantity"[\s\S]*?"label \."/,
+  );
+  assert.match(
+    styles,
+    /\.item-use-change-visualization \.item-change-visual-card > small\s*\{[\s\S]*?width:\s*max-content;/,
+  );
 });
 
 test("任務投入目前持有列出全部需求道具及各自背包數量", () => {

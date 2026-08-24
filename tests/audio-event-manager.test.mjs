@@ -174,7 +174,7 @@ test("互動失敗紅圈第一次繪製時統一播放否定音效", async () =>
   const event = AUDIO_EVENT_CONFIG.interactionDenied;
   assert.deepEqual(event.sourceAssetPaths, ["Assets/Audio/互動否定.mp3"]);
   assert.deepEqual(event.sources, ["./audio/interaction-denied.mp3"]);
-  assert.equal(event.volume, 0.4);
+  assert.equal(event.volume, 0.3);
   assert.equal(event.delaySeconds, 0);
   assert.equal(event.loop, undefined);
 

@@ -102,6 +102,10 @@ test("遊戲場景包含 10 x 5 的營地電力格與灌入確認視窗", () => 
     new URL("../app/movement-lab.tsx", import.meta.url),
     "utf8",
   );
+  const styles = readFileSync(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
   assert.match(source, /const columns = 10;/);
   assert.match(source, /const rows = 5;/);
   assert.match(source, /const powerUiScale = 1\.2;/);
@@ -110,4 +114,21 @@ test("遊戲場景包含 10 x 5 的營地電力格與灌入確認視窗", () => 
   assert.doesNotMatch(source, /isPowerInspectionObjectiveActive/);
   assert.match(source, /camp-power-confirmation-overlay/);
   assert.match(source, /灌入藍色晶體碎片？/);
+  assert.match(source, /className="camp-power-refill-visualization"/);
+  assert.match(source, /campPowerRefillItem\?\.symbol/);
+  assert.match(source, /Array\.from\(\{ length: CAMP_POWER_CAPACITY \}/);
+  assert.match(source, /index < campPowerPreviewCurrent[\s\S]*?"is-current"/);
+  assert.match(source, /index < campPowerPreviewNext[\s\S]*?"is-projected"/);
+  assert.match(
+    source,
+    /camp-power-refill-value-cycle[\s\S]*?campPowerPreviewCurrent[\s\S]*?campPowerPreviewNext/,
+  );
+  assert.match(
+    styles,
+    /\.camp-power-refill-arrow\s*\{[\s\S]*?transform:\s*translate\(-14px, -20px\)/,
+  );
+  assert.match(
+    styles,
+    /\.camp-power-refill-value-cycle\s*\{[\s\S]*?grid-template-columns:\s*36px 1fr;[\s\S]*?column-gap:\s*10px;/,
+  );
 });

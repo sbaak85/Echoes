@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -343,6 +344,25 @@ test("互動 Tween 優先使用互動提示點，未設定時才回到多邊形�
   assert.equal(selectInteractionFeedbackPoint(undefined, center), center);
 });
 
+test("所有互動失敗都由失敗對話入口統一建立紅圈 Tween", () => {
+  const source = readFileSync(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  const failureStart = source.indexOf("const openInteractionFailureDialogue");
+  const failureEnd = source.indexOf("const onControlBindingsChanged", failureStart);
+  const failureBlock = source.slice(failureStart, failureEnd);
+  assert.match(
+    failureBlock,
+    /touchEffect = \{[\s\S]*?point: getInteractionTweenPoint\(interactable\),[\s\S]*?reachable: false,[\s\S]*?startedAt: failureStartedAt/,
+  );
+
+  const routingStart = source.indexOf("const assignWorldAction");
+  const routingEnd = source.indexOf("const interactionPoint = interactable", routingStart);
+  const rejectedRoutingBlock = source.slice(routingStart, routingEnd);
+  assert.doesNotMatch(rejectedRoutingBlock, /reachable: false/);
+});
+
 test("複數道具與章節需求採 AND 判定，任一不足即回報失敗", () => {
   const itemIds = new Map([
     ["ruin-key", "Q0004"],
@@ -429,6 +449,46 @@ test("互動完成後只播放明確設定且含有效句子的第三套腳本",
       "completion",
     ),
     null,
+  );
+});
+
+test("一小時以上的互動完成對話要等黑幕淡出後才播放", () => {
+  const source = readFileSync(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  const transitionStart = source.indexOf("const runTimePassTransition");
+  const transitionEnd = source.indexOf(
+    "completeStoryTriggerRef.current",
+    transitionStart,
+  );
+  const transitionBlock = source.slice(transitionStart, transitionEnd);
+  assert.match(
+    transitionBlock,
+    /const finishTimePassTransition[\s\S]*?clearTimePassTransition\(\)[\s\S]*?timePassInputLockedRef\.current = false[\s\S]*?onComplete\?\.\(\)/,
+  );
+  assert.match(
+    transitionBlock,
+    /fadeBlackScreen\(0, 500, \(\) => \{[\s\S]*?finishTimePassTransition\(\)/,
+  );
+
+  const completionStart = source.indexOf("const completeInteraction");
+  const completionEnd = source.indexOf(
+    "const publishPuzzleCompleted",
+    completionStart,
+  );
+  const completionBlock = source.slice(completionStart, completionEnd);
+  assert.match(
+    completionBlock,
+    /if \(elapsedGameMinutes >= 60\)[\s\S]*?waitsForTimePassTransition = true[\s\S]*?runTimePassTransition\([\s\S]*?deferredTimePassCompletion\?\.\(\)/,
+  );
+  assert.match(
+    completionBlock,
+    /const finishInteractionCompletionFlow[\s\S]*?openDialogue\([\s\S]*?completionDialogue/,
+  );
+  assert.match(
+    completionBlock,
+    /if \(waitsForTimePassTransition\)[\s\S]*?deferredTimePassCompletion = finishInteractionCompletionFlow[\s\S]*?else \{[\s\S]*?finishInteractionCompletionFlow\(\)/,
   );
 });
 

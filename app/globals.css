@@ -1454,6 +1454,12 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   animation: quest-stage-objectives-leave 0.3s ease 2.7s both;
 }
 
+.quest-hud.is-stage-entry-pending .quest-objectives {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .quest-hud.is-stage-entering .quest-objectives {
   animation: quest-stage-objectives-enter 0.3s cubic-bezier(0.2, 0.76, 0.24, 1) both;
 }
@@ -3525,6 +3531,10 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   text-align: center;
 }
 
+.camp-power-confirmation.is-resonator-refill {
+  width: min(640px, calc(100% - 24px));
+}
+
 .camp-power-confirmation > small {
   display: block;
   padding: 15px 20px 8px;
@@ -3548,37 +3558,205 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   line-height: 1.65;
 }
 
-.camp-power-confirmation-preview {
+.camp-power-refill-visualization {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.72fr) clamp(54px, 9vw, 82px) minmax(250px, 1.35fr);
+  align-items: center;
+  gap: 18px;
+  min-height: 208px;
+  margin: 18px 24px 12px;
+  padding: 22px 24px;
+  border: 1px solid rgba(119, 237, 234, 0.7);
+  background:
+    linear-gradient(90deg, rgba(31, 121, 119, 0.06), transparent 34%, transparent 70%, rgba(31, 121, 119, 0.05)),
+    rgba(2, 17, 21, 0.82);
+}
+
+.camp-power-refill-item {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.camp-power-refill-item-icon {
+  display: grid;
+  width: 96px;
+  height: 96px;
+  place-items: center;
+  border: 2px solid rgba(132, 224, 218, 0.8);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(71, 236, 224, 0.24), transparent 66%),
+    rgba(14, 48, 50, 0.96);
+  box-shadow: inset 0 0 22px rgba(92, 237, 225, 0.09), 0 0 16px rgba(68, 225, 216, 0.08);
+  color: #83ece4;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 52px;
+  line-height: 1;
+  text-shadow: 0 0 16px rgba(91, 245, 234, 0.4);
+}
+
+.camp-power-refill-item > strong {
+  overflow: hidden;
+  max-width: 150px;
+  color: #d3eeec;
+  font-size: 16px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.camp-power-refill-arrow {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 32px;
+  transform: translate(-14px, -20px);
+}
+
+.camp-power-refill-arrow::before {
+  content: "";
+  position: absolute;
+  top: 13px;
+  right: 12px;
+  left: 0;
+  height: 6px;
+  border-radius: 5px 0 0 5px;
+  background: #bce5e1;
+  box-shadow: 0 0 10px rgba(159, 238, 232, 0.24);
+}
+
+.camp-power-refill-arrow::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 0;
+  border-top: 12px solid transparent;
+  border-bottom: 12px solid transparent;
+  border-left: 18px solid #bce5e1;
+}
+
+.camp-power-refill-target {
+  display: grid;
+  justify-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+
+.camp-power-refill-grid {
+  display: grid;
+  width: min(100%, 286px);
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 5px;
+  padding: 9px;
+  border: 1px solid rgba(178, 241, 237, 0.86);
+  background: rgba(3, 21, 25, 0.94);
+  box-shadow: inset 0 0 16px rgba(46, 192, 187, 0.06);
+}
+
+.camp-power-refill-grid > i {
+  aspect-ratio: 1.7;
+  border: 1px solid rgba(117, 169, 169, 0.68);
+  background: rgba(65, 85, 86, 0.72);
+  font-style: normal;
+}
+
+.camp-power-refill-grid > i.is-current {
+  border-color: rgba(194, 255, 251, 0.96);
+  background: #4cebe7;
+  box-shadow: 0 0 7px rgba(68, 242, 237, 0.38);
+}
+
+.camp-power-refill-grid > i.is-projected {
+  border-color: rgba(185, 252, 248, 0.78);
+  background: rgba(91, 231, 224, 0.62);
+  animation: camp-power-refill-projected-cell 2.2s ease-in-out infinite;
+}
+
+.camp-power-refill-value {
   display: flex;
+  min-height: 34px;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  margin: 18px 22px 9px;
-  padding: 16px;
-  border: 1px solid rgba(73, 216, 217, 0.26);
-  background: rgba(3, 18, 22, 0.72);
+  gap: 18px;
+  color: #d5eeee;
+  font-size: 18px;
 }
 
-.camp-power-confirmation-preview span {
-  color: #52dddc;
-  font-size: 14px;
-}
-
-.camp-power-confirmation-preview strong {
-  color: #d9ffff;
+.camp-power-refill-value-cycle {
+  display: grid;
+  min-width: 96px;
+  grid-template-columns: 36px 1fr;
+  column-gap: 10px;
+  align-items: baseline;
+  color: #e8ffff;
   font-family: Consolas, "SFMono-Regular", monospace;
-  font-size: 23px;
+  font-size: 24px;
+  font-weight: 600;
 }
 
-.camp-power-confirmation-preview strong.is-next {
-  color: #6df5aa;
-  text-shadow: 0 0 12px rgba(83, 237, 156, 0.32);
-}
-
-.camp-power-confirmation-preview i {
-  color: #4ccfd0;
-  font-size: 20px;
+.camp-power-refill-value-cycle > i {
+  grid-area: 1 / 1;
+  justify-self: end;
+  color: #e8ffff;
   font-style: normal;
+}
+
+.camp-power-refill-value-cycle > i.is-current {
+  animation: camp-power-refill-current-value 2.2s ease-in-out infinite;
+}
+
+.camp-power-refill-value-cycle > i.is-next {
+  color: #6ff5ee;
+  opacity: 0;
+  text-shadow: 0 0 10px rgba(87, 242, 235, 0.38);
+  animation: camp-power-refill-next-value 2.2s ease-in-out infinite;
+}
+
+.camp-power-refill-value-cycle > em {
+  grid-area: 1 / 2;
+  justify-self: start;
+  color: #d4e7e6;
+  font-style: normal;
+}
+
+@keyframes camp-power-refill-projected-cell {
+  0%, 42%, 100% { opacity: 0.18; filter: saturate(0.65); }
+  52%, 90% { opacity: 0.9; filter: saturate(1.15) brightness(1.12); }
+}
+
+@keyframes camp-power-refill-current-value {
+  0%, 42%, 100% { opacity: 1; transform: translateY(0); }
+  52%, 90% { opacity: 0; transform: translateY(-3px); }
+}
+
+@keyframes camp-power-refill-next-value {
+  0%, 42%, 100% { opacity: 0; transform: translateY(3px); }
+  52%, 90% { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .camp-power-refill-visualization {
+    grid-template-columns: minmax(76px, 0.7fr) 38px minmax(150px, 1.35fr);
+    gap: 8px;
+    min-height: 174px;
+    margin-right: 12px;
+    margin-left: 12px;
+    padding: 16px 12px;
+  }
+
+  .camp-power-refill-item-icon {
+    width: 74px;
+    height: 74px;
+    font-size: 40px;
+  }
+
+  .camp-power-refill-item > strong { max-width: 96px; font-size: 13px; }
+  .camp-power-refill-arrow { transform: translate(-8px, -14px); }
+  .camp-power-refill-grid { gap: 3px; padding: 6px; }
+  .camp-power-refill-value { flex-direction: column; gap: 1px; font-size: 14px; }
+  .camp-power-refill-value-cycle { font-size: 20px; }
 }
 
 .camp-power-confirmation .camp-power-confirmation-owned {
@@ -3811,7 +3989,7 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
 .item-change-visual-card.has-outside-quantity {
   grid-template-areas:
     "icon quantity"
-    "label label";
+    "label .";
   grid-template-columns: 68px minmax(34px, auto);
   column-gap: 10px;
 }
@@ -4002,7 +4180,7 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
 }
 
 .item-use-change-visualization .item-change-visual-card > small {
-  width: 100%;
+  width: max-content;
   max-width: 150px;
   font-size: 16px;
   font-weight: 600;
@@ -4056,10 +4234,18 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
     font-size: 9px;
   }
 
+  .item-use-change-visualization .item-change-visual-card > small {
+    width: max-content;
+    max-width: 90px;
+  }
+
   .item-use-change-visualization .item-change-visual-card > small,
   .quest-item-submission-visualization .item-change-visual-card > small {
-    max-width: 100%;
     font-size: clamp(9px, 14cqi, 13px);
+  }
+
+  .quest-item-submission-visualization .item-change-visual-card > small {
+    max-width: 100%;
   }
 }
 
@@ -7606,4 +7792,11 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   .welding-puzzle-header > p.welding-start-instruction,
   .welding-start-callout,
   .welding-start-beacon-glow { animation: none; }
+
+  .camp-power-refill-grid > i.is-projected,
+  .camp-power-refill-value-cycle > i { animation: none; }
+
+  .camp-power-refill-grid > i.is-projected { opacity: 0.58; }
+  .camp-power-refill-value-cycle > i.is-current { opacity: 0; }
+  .camp-power-refill-value-cycle > i.is-next { opacity: 1; }
 }

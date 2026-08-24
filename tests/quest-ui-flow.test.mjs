@@ -64,6 +64,7 @@ test("objective completion and delayed next-stage visuals are wired", () => {
     /\[questPanelCollapsed, activeQuestHud\?\.stageId, completedQuestHistory\.length\]/,
   );
   assert.match(source, /questStageEntering\s*\?\s*" is-stage-entering"/);
+  assert.match(source, /questStageEntryPending\s*\?\s*" is-stage-entry-pending"/);
   assert.match(source, /key=\{activeQuestHud!\.stageId\}/);
   assert.match(
     styles,
@@ -266,7 +267,7 @@ test("quest HUD result animations start their managed audio once", () => {
   assert.match(objectiveUnlockTween, /setQuestObjectiveUnlockTween\(null\);[\s\S]*?}, 1000\);/);
 });
 
-test("stage completion presentation keeps the completed Stage HUD until NEXT finishes", () => {
+test("stage completion presentation keeps the completed HUD and reveals delayed Stage OBJ only once", () => {
   const stageTransition = source.slice(
     source.indexOf("const triggerQuestStageTransition"),
     source.indexOf("const scheduleQuestTeleport"),
@@ -274,6 +275,18 @@ test("stage completion presentation keeps the completed Stage HUD until NEXT fin
   assert.match(stageTransition, /questHudStageTransitionPresentationRef\.current = \{[\s\S]*?questId: view\.id,[\s\S]*?stageId: view\.stageId/);
   assert.match(stageTransition, /setActiveQuestHud\(view\)/);
   assert.match(stageTransition, /setActiveQuestHud\(getFirstActiveQuestHud\(\)\)/);
+  assert.match(
+    stageTransition,
+    /const finishStageEntry[\s\S]*?setQuestStageEntryPending\(false\)[\s\S]*?setActiveQuestHud\(getFirstActiveQuestHud\(\)\)[\s\S]*?showStageEntering\(\)/,
+  );
+  assert.match(
+    stageTransition,
+    /if \(startEffectDelay <= 0\)[\s\S]*?finishStageEntry\(\)[\s\S]*?setQuestStageEntryPending\(true\)[\s\S]*?window\.setTimeout\([\s\S]*?finishStageEntry\(\)[\s\S]*?startEffectDelay/,
+  );
+  assert.match(
+    styles,
+    /\.quest-hud\.is-stage-entry-pending \.quest-objectives\s*\{[\s\S]*?visibility:\s*hidden;[\s\S]*?pointer-events:\s*none;/,
+  );
   assert.match(
     source,
     /const isHoldingCompletedStage = presentation\?\.questId === questId[\s\S]*?presentation\.stageId !== view\?\.stageId[\s\S]*?if \(view && !isHoldingCompletedStage\) setActiveQuestHud\(view\)/,

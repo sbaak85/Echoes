@@ -97,7 +97,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/interaction-denied.mp3"
       ],
-      "volume": 0.4,
+      "volume": 0.3,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
@@ -305,7 +305,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/quest-objective-complete.mp3"
       ],
-      "volume": 0.4,
+      "volume": 0.35,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
@@ -319,7 +319,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/generator-startup-1.mp3"
       ],
-      "volume": 0.9,
+      "volume": 0.4,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 15
@@ -333,7 +333,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/generator-startup-2.mp3"
       ],
-      "volume": 0.7,
+      "volume": 0.3,
       "delaySeconds": 1,
       "fadeInPercent": 0,
       "fadeOutPercent": 15
@@ -347,7 +347,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/generator-running.mp3"
       ],
-      "volume": 0.7,
+      "volume": 0.5,
       "delaySeconds": 1.5,
       "fadeInPercent": 0,
       "fadeOutPercent": 15
