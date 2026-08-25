@@ -3019,6 +3019,7 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   font-size: clamp(84px, 8vw, 140px);
   line-height: 1;
   text-shadow: 0 0 12px #288bd4, 0 0 38px rgba(35, 144, 224, 0.75);
+  transform: translateY(-0.08em);
 }
 
 .inventory-selected-copy {
@@ -3370,6 +3371,7 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   color: #9bcfd2;
   font-size: clamp(22px, 1.8vw, 32px);
   text-shadow: 0 0 13px rgba(62, 174, 193, 0.42);
+  transform: translateY(-0.08em);
 }
 
 .inventory-item strong {

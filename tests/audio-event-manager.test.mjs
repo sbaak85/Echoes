@@ -4,12 +4,180 @@ import { readFile, stat } from "node:fs/promises";
 
 import {
   AUDIO_EVENT_CONFIG,
+  BGM_CONTROL_RULES,
+  BGM_TRACK_CONFIG,
+  DEFAULT_BGM_USER_VOLUME,
   WELDING_SPARK_MIX_CONFIG,
   getAudioFadeDurationMilliseconds,
   getFrequencyFineAudioMix,
   getSuccessfulInteractionAudioEvent,
   getSuccessfulItemUseAudioEvent,
 } from "../app/audio-event-manager.ts";
+import {
+  applyBgmRuleExitPolicy,
+  doesBgmRuleMatch,
+  resolveBgmControlPlan,
+} from "../app/bgm-director.ts";
+
+test("BGM 素材庫保留目前預設曲目並登記 MAIN_001 到 MAIN_002 音量區段", () => {
+  assert.deepEqual(BGM_TRACK_CONFIG.default.sources, [
+    "./audio/alien-night-1.mp3",
+    "./audio/alien-night-2.mp3",
+  ]);
+  assert.equal(BGM_TRACK_CONFIG.default.volume, 1);
+  assert.equal(BGM_TRACK_CONFIG.default.loop, true);
+  assert.equal(BGM_TRACK_CONFIG.default.rememberPosition, true);
+  assert.equal(DEFAULT_BGM_USER_VOLUME, 0.35);
+  assert.equal("bgm" in AUDIO_EVENT_CONFIG, false);
+  const main1Rule = BGM_CONTROL_RULES.find(
+    (rule) => rule.id === "quest-ch03-main-001-bgm-half",
+  );
+  const main2Rule = BGM_CONTROL_RULES.find(
+    (rule) => rule.id === "quest-ch03-main-002-bgm-full",
+  );
+  assert.ok(
+    typeof main1Rule?.targetVolume === "number" &&
+    main1Rule.targetVolume >= 0 &&
+    main1Rule.targetVolume <= 1,
+  );
+  assert.equal(main1Rule?.fadeOutSeconds, 1);
+  assert.equal(main1Rule?.state, "active|completed");
+  assert.equal(main2Rule?.targetVolume, 1);
+  assert.equal(main2Rule?.fadeInSeconds, 1);
+  assert.ok(main1Rule && main2Rule);
+  assert.ok(main2Rule.priority > main1Rule.priority);
+
+  const makeQuestLookup = (main1State, main2State) =>
+    (triggerType, targetId) => {
+      if (triggerType !== "quest") return null;
+      if (targetId === "QUEST_CH03_MAIN_001") return main1State;
+      if (targetId === "QUEST_CH03_MAIN_002") return main2State;
+      return null;
+    };
+  assert.equal(
+    resolveBgmControlPlan(
+      BGM_CONTROL_RULES,
+      makeQuestLookup("active", "locked"),
+    ).volumeMultiplier,
+    main1Rule.targetVolume,
+  );
+  assert.equal(
+    resolveBgmControlPlan(
+      BGM_CONTROL_RULES,
+      makeQuestLookup("completed", "locked"),
+    ).volumeMultiplier,
+    main1Rule.targetVolume,
+  );
+  assert.equal(
+    resolveBgmControlPlan(
+      BGM_CONTROL_RULES,
+      makeQuestLookup("completed", "active"),
+    ).volumeMultiplier,
+    1,
+  );
+});
+
+test("BGM 規則以狀態事件與優先權組成換曲、音量與靜音計畫", () => {
+  const states = new Map([
+    ["questStage:STAGE_02", "active"],
+    ["minigame:welding-route", "playing"],
+  ]);
+  const lookup = (triggerType, targetId) =>
+    states.get(`${triggerType}:${targetId}`) ?? null;
+  const rules = [
+    {
+      id: "stage-track",
+      label: "Stage 換曲",
+      enabled: true,
+      triggerType: "questStage",
+      targetId: "STAGE_02",
+      state: "active",
+      action: "switch",
+      trackId: "danger",
+      targetVolume: 0.8,
+      fadeOutSeconds: 2,
+      fadeInSeconds: 3,
+      priority: 10,
+      durationSeconds: 0,
+      restoreMode: "resume",
+    },
+    {
+      id: "minigame-duck",
+      label: "小遊戲壓低 BGM",
+      enabled: true,
+      triggerType: "minigame",
+      targetId: "welding-route",
+      state: "*",
+      action: "volume",
+      targetVolume: 0.35,
+      fadeOutSeconds: 0.4,
+      fadeInSeconds: 0.6,
+      priority: 20,
+      durationSeconds: 0,
+      restoreMode: "resume",
+    },
+  ];
+
+  assert.equal(doesBgmRuleMatch(rules[0], lookup), true);
+  const plan = resolveBgmControlPlan(rules, lookup);
+  assert.equal(plan.trackId, "danger");
+  assert.equal(plan.volumeMultiplier, 0.35);
+  assert.deepEqual(plan.activeRuleIds, ["minigame-duck", "stage-track"]);
+  assert.equal(plan.fadeOutSeconds, 0.4);
+  assert.equal(plan.fadeInSeconds, 0.6);
+
+  const mutePlan = resolveBgmControlPlan([
+    ...rules,
+    {
+      ...rules[1],
+      id: "event-mute",
+      triggerType: "event",
+      targetId: "cutscene",
+      state: "triggered",
+      action: "mute",
+      priority: 50,
+    },
+  ], (triggerType, targetId) =>
+    triggerType === "event" && targetId === "cutscene"
+      ? "triggered"
+      : lookup(triggerType, targetId));
+  assert.equal(mutePlan.trackId, "danger");
+  assert.equal(mutePlan.volumeMultiplier, 0);
+
+  const restoredPlan = applyBgmRuleExitPolicy(
+    plan,
+    resolveBgmControlPlan([], () => null),
+    [{ ...rules[1], restoreMode: "default" }],
+  );
+  assert.equal(restoredPlan.trackId, "default");
+  assert.equal(restoredPlan.fadeOutSeconds, 0.4);
+  assert.equal(restoredPlan.fadeInSeconds, 0.6);
+  assert.equal(restoredPlan.restoreMode, "default");
+});
+
+test("BGM Director 由任務、章節、場景、小遊戲與特殊事件入口驅動", async () => {
+  const movementLabSource = await readFile(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(movementLabSource, /new BgmDirector\(\)/);
+  assert.match(movementLabSource, /syncQuestState\(/);
+  assert.match(movementLabSource, /syncQuestSnapshot\(/);
+  assert.match(
+    movementLabSource,
+    /onQuestStarted:\s*\(questId, entry\)\s*=>\s*\{[\s\S]{0,500}?bgmDirectorRef\.current\?\.syncQuestState\(/,
+  );
+  assert.match(movementLabSource, /setChapter\(chapter\)/);
+  assert.match(movementLabSource, /setScene\(SCENE_DATA\.sceneId\)/);
+  assert.match(
+    movementLabSource,
+    /setMinigameState\("welding-route", "playing"\)/,
+  );
+  assert.match(
+    movementLabSource,
+    /addEventListener\("echoes:bgm-control", onBgmControlEvent\)/,
+  );
+});
 
 test("介面點擊音效集中登記 InPut.mp3 與完整觸發時機", () => {
   const event = AUDIO_EVENT_CONFIG.uiInput;

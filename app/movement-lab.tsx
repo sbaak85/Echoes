@@ -17,11 +17,13 @@ import questDocumentSource from "../public/quests/quest-data.json";
 import {
   AUDIO_EVENT_CONFIG,
   AudioEventManager,
+  DEFAULT_BGM_USER_VOLUME,
   getFrequencyFineAudioMix,
   getSuccessfulInteractionAudioEvent,
   getSuccessfulItemUseAudioEvent,
   type AudioEventName,
 } from "./audio-event-manager";
+import { BgmDirector } from "./bgm-director";
 import {
   getDayNightCssVariables,
   isDebugTimeCommand,
@@ -1376,7 +1378,9 @@ const MOVEMENT_KEYS = new Set([
 ]);
 const GAMEPAD_DEAD_ZONE = 0.18;
 const GAMEPAD_TRIGGER_ACTIVE_THRESHOLD = 0.35;
-const NATIVE_GAMEPAD_BRIDGE_URL = "http://127.0.0.1:3001/state";
+const NATIVE_GAMEPAD_BRIDGE_URL = "/api/native-gamepad";
+const NATIVE_GAMEPAD_POLL_INTERVAL_MS = 25;
+const NATIVE_GAMEPAD_RETRY_INTERVAL_MS = 2000;
 const PATHFINDING_GRID_SIZE = 18;
 const TOUCH_EFFECT_DURATION_MS = 900;
 const GAMEPAD_CURSOR_SPEED = 720;
@@ -1762,6 +1766,7 @@ type GamepadInput = {
 };
 
 type NativeGamepadState = {
+  bridgeAvailable: boolean;
   buttons: number;
   connected: boolean;
   index: number;
@@ -1776,6 +1781,7 @@ type NativeGamepadState = {
 };
 
 const EMPTY_NATIVE_GAMEPAD_STATE: NativeGamepadState = {
+  bridgeAvailable: false,
   buttons: 0,
   connected: false,
   index: 0,
@@ -3145,10 +3151,11 @@ export function MovementLab() {
   const showSceneCollisionRef = useRef(false);
   const dayNightEffectEnabledRef = useRef(false);
   const bgmEnabledRef = useRef(true);
-  const bgmVolumeRef = useRef<number>(AUDIO_EVENT_CONFIG.bgm.volume);
+  const bgmVolumeRef = useRef<number>(DEFAULT_BGM_USER_VOLUME);
   const virtualCursorControlsEnabledRef = useRef(true);
   const questPromptInputModeRef = useRef<QuestPromptInputMode>("keyboard-mouse");
   const audioEventManagerRef = useRef<AudioEventManager | null>(null);
+  const bgmDirectorRef = useRef<BgmDirector | null>(null);
   const setWeldingSparkAudioActive = useCallback((active: boolean) => {
     audioEventManagerRef.current?.setWeldingSparksActive(active);
   }, []);
@@ -3389,7 +3396,7 @@ export function MovementLab() {
   const [collisionSlideTolerance, setCollisionSlideTolerance] = useState(55);
   const [bgmEnabled, setBgmEnabled] = useState(true);
   const [bgmVolume, setBgmVolume] = useState(
-    Math.round(AUDIO_EVENT_CONFIG.bgm.volume * 100),
+    Math.round(DEFAULT_BGM_USER_VOLUME * 100),
   );
   const [virtualCursorControlsEnabled, setVirtualCursorControlsEnabled] =
     useState(true);
@@ -3586,6 +3593,9 @@ export function MovementLab() {
 
   const closePowerRoutingPuzzle = () => {
     stopFrequencyFineTuningAudio(true);
+    bgmDirectorRef.current?.setMinigameState("power-routing", null);
+    bgmDirectorRef.current?.setMinigameState("frequency-calibration", null);
+    bgmDirectorRef.current?.setMinigameState("welding-route", null);
     powerPuzzleOpenRef.current = false;
     frequencyPuzzleOpenRef.current = false;
     weldingPuzzleOpenRef.current = false;
@@ -3610,6 +3620,9 @@ export function MovementLab() {
     weldingPuzzleOpenRef.current = true;
     weldingPuzzleVirtualCursorAvailableRef.current = true;
     powerPuzzleOpenRef.current = true;
+    bgmDirectorRef.current?.setMinigameState("power-routing", null);
+    bgmDirectorRef.current?.setMinigameState("frequency-calibration", null);
+    bgmDirectorRef.current?.setMinigameState("welding-route", "playing");
     // Keep the virtual cursor available, but let the same control scheme that
     // opened the interaction retain ownership. A gamepad player can release
     // the opening A press and press A again on the selected briefing action;
@@ -3726,6 +3739,9 @@ export function MovementLab() {
     weldingPuzzleOpenRef.current = false;
     powerPuzzleOpenRef.current = true;
     frequencyPuzzleOpenRef.current = true;
+    bgmDirectorRef.current?.setMinigameState("power-routing", null);
+    bgmDirectorRef.current?.setMinigameState("welding-route", null);
+    bgmDirectorRef.current?.setMinigameState("frequency-calibration", "playing");
     powerPuzzleGamepadModeRef.current = "dpad";
     powerPuzzleCursorRearmRequiredRef.current = false;
     setFrequencyPuzzleOpen(true);
@@ -3748,6 +3764,9 @@ export function MovementLab() {
     setWeldingPuzzleOpen(false);
     powerPuzzleSessionRef.current = { interactable, source };
     powerPuzzleOpenRef.current = true;
+    bgmDirectorRef.current?.setMinigameState("frequency-calibration", null);
+    bgmDirectorRef.current?.setMinigameState("welding-route", null);
+    bgmDirectorRef.current?.setMinigameState("power-routing", "playing");
     powerPuzzleGamepadModeRef.current = "dpad";
     powerPuzzleCursorRearmRequiredRef.current = false;
     setPowerPuzzleOpen(true);
@@ -4299,6 +4318,19 @@ export function MovementLab() {
             scheduleQuestTeleport(pointId, delayMilliseconds);
           },
           onStateChanged: (questId, entry) => {
+            const bgmQuestManager = questRuntimeManagerRef.current;
+            if (bgmQuestManager) {
+              bgmDirectorRef.current?.syncQuestSnapshot(
+                bgmQuestManager.exportSave().quests,
+              );
+            } else {
+              bgmDirectorRef.current?.syncQuestState(
+                questId,
+                entry.state,
+                entry.currentStageId,
+                entry.objectives,
+              );
+            }
             if (
               questId === CAMP_POWER_DAILY_CONSUMPTION_QUEST_ID &&
               entry.state === "completed" &&
@@ -4331,6 +4363,22 @@ export function MovementLab() {
             setCompletedQuestHistory(getCompletedQuestHistory());
           },
           onQuestStarted: (questId, entry) => {
+            // Quest start is the authoritative moment for quest-scoped BGM
+            // rules. Sync here as well as in the shared state-change callback
+            // so presentation scheduling cannot leave audio one quest behind.
+            const manager = questRuntimeManagerRef.current;
+            if (manager) {
+              bgmDirectorRef.current?.syncQuestSnapshot(
+                manager.exportSave().quests,
+              );
+            } else {
+              bgmDirectorRef.current?.syncQuestState(
+                questId,
+                entry.state,
+                entry.currentStageId,
+                entry.objectives,
+              );
+            }
             const view = buildQuestHudView(questId, entry);
             const presentationDelay = QUEST_DOCUMENT.quests.find(
               (quest) => quest.id === questId,
@@ -4440,7 +4488,9 @@ export function MovementLab() {
           clock.day,
           clock.hour * 60 + clock.minute,
         );
-        saveQuestSaveData(questRuntimeManagerRef.current.exportSave());
+        const currentQuestSave = questRuntimeManagerRef.current.exportSave();
+        saveQuestSaveData(currentQuestSave);
+        bgmDirectorRef.current?.syncQuestSnapshot(currentQuestSave.quests);
       }
       const initialQuestHud = getFirstActiveQuestHud();
       setActiveQuestHud(initialQuestHud);
@@ -5845,6 +5895,7 @@ export function MovementLab() {
     events.on("gameReady", ({ currentChapter }) =>
       events.emit("chapterStarted", { chapter: currentChapter }));
     events.on("chapterStarted", async ({ chapter }) => {
+      bgmDirectorRef.current?.setChapter(chapter);
       requestStoryTriggerContactCheckRef.current();
       if (chapter !== 3) {
         fadeBlackScreen(0, 1000);
@@ -6202,14 +6253,14 @@ export function MovementLab() {
   const setBgmEnabledValue = (enabled: boolean) => {
     bgmEnabledRef.current = enabled;
     setBgmEnabled(enabled);
+    bgmDirectorRef.current?.setEnabled(enabled);
     if (enabled) requestBgmPlaybackRef.current();
-    else audioEventManagerRef.current?.stop("bgm", { reset: false });
   };
 
   const setBgmVolumeValue = (value: number) => {
     const nextValue = clamp(Math.round(value / 5) * 5, 0, 100);
     bgmVolumeRef.current = nextValue / 100;
-    audioEventManagerRef.current?.setVolume("bgm", bgmVolumeRef.current);
+    bgmDirectorRef.current?.setUserVolume(bgmVolumeRef.current);
     setBgmVolume(nextValue);
   };
 
@@ -6476,10 +6527,19 @@ export function MovementLab() {
 
     let disposed = false;
     let requestPending = false;
+    let pollTimer: number | null = null;
+
+    const scheduleNextPoll = (delayMs: number) => {
+      if (disposed) return;
+      pollTimer = window.setTimeout(() => {
+        void pollNativeGamepad();
+      }, delayMs);
+    };
 
     const pollNativeGamepad = async () => {
       if (disposed || requestPending) return;
       requestPending = true;
+      let nextPollDelay = NATIVE_GAMEPAD_RETRY_INTERVAL_MS;
 
       try {
         const response = await fetch(NATIVE_GAMEPAD_BRIDGE_URL, {
@@ -6488,24 +6548,27 @@ export function MovementLab() {
         if (!response.ok) throw new Error("Gamepad bridge unavailable");
 
         const state = (await response.json()) as NativeGamepadState;
-        if (!disposed) nativeGamepadRef.current = state;
+        if (!disposed) {
+          nativeGamepadRef.current = state;
+          nextPollDelay = state.bridgeAvailable
+            ? NATIVE_GAMEPAD_POLL_INTERVAL_MS
+            : NATIVE_GAMEPAD_RETRY_INTERVAL_MS;
+        }
       } catch {
         if (!disposed) {
           nativeGamepadRef.current = EMPTY_NATIVE_GAMEPAD_STATE;
         }
       } finally {
         requestPending = false;
+        scheduleNextPoll(nextPollDelay);
       }
     };
 
     void pollNativeGamepad();
-    const pollTimer = window.setInterval(() => {
-      void pollNativeGamepad();
-    }, 25);
 
     return () => {
       disposed = true;
-      window.clearInterval(pollTimer);
+      if (pollTimer !== null) window.clearTimeout(pollTimer);
     };
   }, []);
 
@@ -6576,16 +6639,13 @@ export function MovementLab() {
 
   useEffect(() => {
     bgmEnabledRef.current = bgmEnabled;
-    const audioEvents = audioEventManagerRef.current;
-    if (!audioEvents) return;
-
+    bgmDirectorRef.current?.setEnabled(bgmEnabled);
     if (bgmEnabled) requestBgmPlaybackRef.current();
-    else audioEvents.stop("bgm", { reset: false });
   }, [bgmEnabled]);
 
   useEffect(() => {
     bgmVolumeRef.current = bgmVolume / 100;
-    audioEventManagerRef.current?.setVolume("bgm", bgmVolumeRef.current);
+    bgmDirectorRef.current?.setUserVolume(bgmVolumeRef.current);
   }, [bgmVolume]);
 
   useEffect(() => {
@@ -6651,9 +6711,22 @@ export function MovementLab() {
     }
     const audioEvents = new AudioEventManager();
     audioEventManagerRef.current = audioEvents;
-    audioEvents.setVolume("bgm", bgmVolumeRef.current);
+    const bgmDirector = new BgmDirector();
+    bgmDirectorRef.current = bgmDirector;
+    bgmDirector.setUserVolume(bgmVolumeRef.current);
+    bgmDirector.setEnabled(bgmEnabledRef.current);
+    bgmDirector.setScene(SCENE_DATA.sceneId);
+    bgmDirector.setChapter(currentStoryChapterRef.current);
+    const currentQuestSave = questRuntimeManagerRef.current?.exportSave();
+    bgmDirector.syncQuestSnapshot(currentQuestSave?.quests ?? {});
+    if (weldingPuzzleOpenRef.current) {
+      bgmDirector.setMinigameState("welding-route", "playing");
+    } else if (frequencyPuzzleOpenRef.current) {
+      bgmDirector.setMinigameState("frequency-calibration", "playing");
+    } else if (powerPuzzleOpenRef.current) {
+      bgmDirector.setMinigameState("power-routing", "playing");
+    }
     const footstepAudio = audioEvents.getAudio("footsteps");
-    const bgmAudio = audioEvents.getAudio("bgm");
 
     let currentFacing: Direction = playerFacingRef.current;
     let wasMoving = false;
@@ -6715,6 +6788,7 @@ export function MovementLab() {
     let sceneArrivalLockOrigin: Point | null = null;
 
     const refreshActiveSceneRuntime = () => {
+      bgmDirector.setScene(SCENE_DATA.sceneId);
       activeSceneImage =
         SCENE_IMAGE_CACHE.get(SCENE_DATA.sceneId) ?? new Image();
       if (!activeSceneImage.src) {
@@ -7266,7 +7340,7 @@ export function MovementLab() {
         bgmDisposed ||
         !bgmEnabledRef.current ||
         document.hidden ||
-        !bgmAudio.paused ||
+        bgmDirector.isPlaying() ||
         bgmPlayPending ||
         bgmPlayBlocked
       ) {
@@ -7274,15 +7348,15 @@ export function MovementLab() {
       }
 
       bgmPlayPending = true;
-      void audioEvents
-        .play("bgm")
+      void bgmDirector
+        .play()
         .catch(() => {
           bgmPlayBlocked = true;
         })
         .finally(() => {
           bgmPlayPending = false;
           if (bgmDisposed || !bgmEnabledRef.current || document.hidden) {
-            audioEvents.stop("bgm", { reset: false });
+            bgmDirector.pause();
           }
         });
     };
@@ -7929,7 +8003,7 @@ export function MovementLab() {
       if (document.hidden) {
         questSkipKeyController.cancel();
         stopFootsteps();
-        audioEvents.stop("bgm", { reset: false });
+        bgmDirector.pause();
         audioEvents.stop("dialogueTyping", { reset: false });
         stopFrequencyFineTuningAudio(false);
       } else {
@@ -7937,6 +8011,23 @@ export function MovementLab() {
         requestBgmPlayback();
         requestDialogueTypingAudioPlayback(false);
       }
+    };
+
+    const onBgmControlEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        eventId?: string;
+        state?: string;
+        active?: boolean;
+        durationSeconds?: number;
+      }>).detail;
+      const eventId = detail?.eventId?.trim();
+      if (!eventId) return;
+      if (detail.active === false) bgmDirector.clearEvent(eventId);
+      else bgmDirector.triggerEvent(
+        eventId,
+        detail.state?.trim() || "triggered",
+        detail.durationSeconds,
+      );
     };
 
     const screenToWorld = (screenPoint: Point) => {
@@ -8111,6 +8202,7 @@ export function MovementLab() {
           interactionUsageRef.current = plan.interactionUsage;
           storyProgressRef.current = plan.story;
           currentStoryChapterRef.current = plan.story.currentChapter;
+          bgmDirector.setChapter(plan.story.currentChapter);
           const baseCampPower = fixedProgress?.campPower ?? campPowerStateRef.current;
           const nextCampPower = activateCampPowerDailyConsumptionAfterQuest(
             {
@@ -8153,7 +8245,9 @@ export function MovementLab() {
 
           manager.replaceSaveData(plan.questSave, false);
           manager.syncCurrentInventory(plan.inventory);
-          saveQuestSaveData(manager.exportSave());
+          const appliedQuestSave = manager.exportSave();
+          bgmDirector.syncQuestSnapshot(appliedQuestSave.quests);
+          saveQuestSaveData(appliedQuestSave);
           applyDroppedWorldItems(droppedWorldItemsRef.current);
           requestStoryTriggerContactCheckRef.current();
           setActiveQuestHud(
@@ -10054,6 +10148,7 @@ export function MovementLab() {
     window.addEventListener("gamepadconnected", onGamepadConnected);
     window.addEventListener("gamepaddisconnected", onGamepadDisconnected);
     window.addEventListener("echoes:control-bindings-changed", onControlBindingsChanged);
+    window.addEventListener("echoes:bgm-control", onBgmControlEvent);
     document.addEventListener("visibilitychange", onVisibilityChange);
     canvas.addEventListener("pointerdown", onPointerDown, { passive: false });
     canvas.addEventListener("pointermove", onPointerMove, { passive: false });
@@ -12824,6 +12919,7 @@ export function MovementLab() {
       window.removeEventListener("gamepadconnected", onGamepadConnected);
       window.removeEventListener("gamepaddisconnected", onGamepadDisconnected);
       window.removeEventListener("echoes:control-bindings-changed", onControlBindingsChanged);
+      window.removeEventListener("echoes:bgm-control", onBgmControlEvent);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
@@ -12848,6 +12944,10 @@ export function MovementLab() {
         window.clearTimeout(interactionFeedbackTimer);
       }
       setInteractionJustTriggered(false);
+      bgmDirector.dispose();
+      if (bgmDirectorRef.current === bgmDirector) {
+        bgmDirectorRef.current = null;
+      }
       audioEvents.dispose();
       if (audioEventManagerRef.current === audioEvents) {
         audioEventManagerRef.current = null;
@@ -13025,6 +13125,7 @@ export function MovementLab() {
     collectedWorldItemIdsRef.current = progress.collectedWorldItemIds;
     hotbarAssignmentsRef.current = progress.hotbarAssignments;
     currentStoryChapterRef.current = progress.story.currentChapter;
+    bgmDirectorRef.current?.setChapter(progress.story.currentChapter);
     storyProgressRef.current = progress.story;
     campPowerStateRef.current = progress.campPower;
     droppedWorldItemSequenceRef.current = 0;

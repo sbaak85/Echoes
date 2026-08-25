@@ -11,6 +11,7 @@ internal sealed class AudioEventEditorForm : Form
 {
     private readonly string _projectRoot;
     private readonly AudioEventConfigDocument _document;
+    private readonly BgmConfigEditorControl _bgmConfigEditor;
     private readonly System.Windows.Media.MediaPlayer _previewPlayer = new();
     private readonly ToolTip _toolTip = new();
     private readonly ListBox _eventList = new();
@@ -73,6 +74,7 @@ internal sealed class AudioEventEditorForm : Form
             "runtime",
             "audio-event-manager.ts.bak");
         _document = AudioEventConfigDocument.Load(configPath, backupPath);
+        _bgmConfigEditor = new BgmConfigEditorControl(_document, MarkDirty);
 
         Text = "Audio Event 音效管理";
         StartPosition = FormStartPosition.CenterParent;
@@ -183,7 +185,28 @@ internal sealed class AudioEventEditorForm : Form
         _eventList.HorizontalScrollbar = true;
         split.Panel1.Controls.Add(_eventList);
         split.Panel2.Controls.Add(BuildEditorFields());
-        root.Controls.Add(split, 0, 1);
+        var tabs = new TabControl
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Point(18, 6),
+        };
+        var audioEventsPage = new TabPage("Audio Event")
+        {
+            BackColor = Color.FromArgb(25, 28, 34),
+            ForeColor = ForeColor,
+            Padding = new Padding(8),
+        };
+        audioEventsPage.Controls.Add(split);
+        var bgmPage = new TabPage("BGM 管理")
+        {
+            BackColor = Color.FromArgb(25, 28, 34),
+            ForeColor = ForeColor,
+            Padding = new Padding(8),
+        };
+        bgmPage.Controls.Add(_bgmConfigEditor);
+        tabs.TabPages.Add(audioEventsPage);
+        tabs.TabPages.Add(bgmPage);
+        root.Controls.Add(tabs, 0, 1);
 
         var footer = new TableLayoutPanel
         {
@@ -464,6 +487,7 @@ internal sealed class AudioEventEditorForm : Form
         try
         {
             CommitCurrentEditor();
+            _bgmConfigEditor.Commit();
             _document.Save();
             _dirty = false;
             _statusLabel.Text = "已儲存。遊戲下次重新整理時會套用新設定。";
@@ -790,6 +814,10 @@ internal sealed class AudioEventConfigDocument
 {
     internal const string StartMarker = "/* AUDIO_EVENT_CONFIG_START */";
     internal const string EndMarker = "/* AUDIO_EVENT_CONFIG_END */";
+    internal const string BgmTrackStartMarker = "/* BGM_TRACK_CONFIG_START */";
+    internal const string BgmTrackEndMarker = "/* BGM_TRACK_CONFIG_END */";
+    internal const string BgmRuleStartMarker = "/* BGM_CONTROL_RULES_START */";
+    internal const string BgmRuleEndMarker = "/* BGM_CONTROL_RULES_END */";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -806,17 +834,23 @@ internal sealed class AudioEventConfigDocument
         string configPath,
         string backupPath,
         string sourceText,
-        Dictionary<string, AudioEventEditableDefinition> events)
+        Dictionary<string, AudioEventEditableDefinition> events,
+        Dictionary<string, BgmTrackEditableDefinition> bgmTracks,
+        List<BgmControlRuleEditableDefinition> bgmRules)
     {
         ConfigPath = configPath;
         BackupPath = backupPath;
         _sourceText = sourceText;
         Events = events;
+        BgmTracks = bgmTracks;
+        BgmRules = bgmRules;
     }
 
     public string ConfigPath { get; }
     public string BackupPath { get; }
     public Dictionary<string, AudioEventEditableDefinition> Events { get; }
+    public Dictionary<string, BgmTrackEditableDefinition> BgmTracks { get; }
+    public List<BgmControlRuleEditableDefinition> BgmRules { get; }
 
     public static AudioEventConfigDocument Load(string configPath, string backupPath)
     {
@@ -827,13 +861,22 @@ internal sealed class AudioEventConfigDocument
 
         var sourceText = File.ReadAllText(configPath, Encoding.UTF8);
         var events = ParseEvents(sourceText);
-        return new AudioEventConfigDocument(configPath, backupPath, sourceText, events);
+        var bgmTracks = ParseBgmTracks(sourceText);
+        var bgmRules = ParseBgmRules(sourceText);
+        ValidateBgmConfiguration(bgmTracks, bgmRules);
+        return new AudioEventConfigDocument(
+            configPath,
+            backupPath,
+            sourceText,
+            events,
+            bgmTracks,
+            bgmRules);
     }
 
     internal static Dictionary<string, AudioEventEditableDefinition> ParseEvents(
         string sourceText)
     {
-        var configJson = ExtractConfigJson(sourceText);
+        var configJson = ExtractConfigJson(sourceText, StartMarker, EndMarker);
         var events = JsonSerializer.Deserialize<
             Dictionary<string, AudioEventEditableDefinition>>(configJson, JsonOptions);
         if (events is null || events.Count == 0)
@@ -845,20 +888,83 @@ internal sealed class AudioEventConfigDocument
         return events;
     }
 
+    internal static Dictionary<string, BgmTrackEditableDefinition> ParseBgmTracks(
+        string sourceText)
+    {
+        var json = ExtractConfigJson(
+            sourceText,
+            BgmTrackStartMarker,
+            BgmTrackEndMarker);
+        var tracks = JsonSerializer.Deserialize<
+            Dictionary<string, BgmTrackEditableDefinition>>(json, JsonOptions);
+        if (tracks is null || tracks.Count == 0)
+        {
+            throw new InvalidDataException("BGM 素材庫至少需要 default Track。");
+        }
+        ValidateBgmTracks(tracks);
+        return tracks;
+    }
+
+    internal static List<BgmControlRuleEditableDefinition> ParseBgmRules(
+        string sourceText)
+    {
+        var json = ExtractConfigJson(
+            sourceText,
+            BgmRuleStartMarker,
+            BgmRuleEndMarker);
+        var rules = JsonSerializer.Deserialize<List<BgmControlRuleEditableDefinition>>(
+            json,
+            JsonOptions) ?? new List<BgmControlRuleEditableDefinition>();
+        return rules;
+    }
+
     internal static string RewriteSource(
         string sourceText,
         Dictionary<string, AudioEventEditableDefinition> events)
     {
         Validate(events);
-        var startIndex = FindMarker(sourceText, StartMarker);
-        var contentStart = startIndex + StartMarker.Length;
-        var endIndex = FindMarker(sourceText, EndMarker);
+        var json = JsonSerializer.Serialize(events, JsonOptions);
+        return ReplaceMarkedJson(sourceText, StartMarker, EndMarker, json);
+    }
+
+    internal static string RewriteSource(
+        string sourceText,
+        Dictionary<string, AudioEventEditableDefinition> events,
+        Dictionary<string, BgmTrackEditableDefinition> bgmTracks,
+        List<BgmControlRuleEditableDefinition> bgmRules)
+    {
+        Validate(events);
+        ValidateBgmConfiguration(bgmTracks, bgmRules);
+        var rewritten = ReplaceMarkedJson(
+            sourceText,
+            StartMarker,
+            EndMarker,
+            JsonSerializer.Serialize(events, JsonOptions));
+        rewritten = ReplaceMarkedJson(
+            rewritten,
+            BgmTrackStartMarker,
+            BgmTrackEndMarker,
+            JsonSerializer.Serialize(bgmTracks, JsonOptions));
+        return ReplaceMarkedJson(
+            rewritten,
+            BgmRuleStartMarker,
+            BgmRuleEndMarker,
+            JsonSerializer.Serialize(bgmRules, JsonOptions));
+    }
+
+    private static string ReplaceMarkedJson(
+        string sourceText,
+        string startMarker,
+        string endMarker,
+        string json)
+    {
+        var startIndex = FindMarker(sourceText, startMarker);
+        var contentStart = startIndex + startMarker.Length;
+        var endIndex = FindMarker(sourceText, endMarker);
         if (endIndex <= contentStart)
         {
-            throw new InvalidDataException("Audio Event 設定標記順序不正確。");
+            throw new InvalidDataException($"設定標記順序不正確：{startMarker}");
         }
-
-        var json = JsonSerializer.Serialize(events, JsonOptions);
         return sourceText[..contentStart] +
             Environment.NewLine +
             Indent(json, 2) +
@@ -870,6 +976,7 @@ internal sealed class AudioEventConfigDocument
     public void Save()
     {
         Validate(Events);
+        ValidateBgmConfiguration(BgmTracks, BgmRules);
         var currentSourceText = File.ReadAllText(ConfigPath, Encoding.UTF8);
         if (!string.Equals(currentSourceText, _sourceText, StringComparison.Ordinal))
         {
@@ -877,7 +984,11 @@ internal sealed class AudioEventConfigDocument
                 "audio-event-manager.ts 已在視窗開啟後被其他程式修改。請關閉本視窗後重新開啟，以免覆蓋較新的內容。");
         }
 
-        var rewrittenSource = RewriteSource(_sourceText, Events);
+        var rewrittenSource = RewriteSource(
+            _sourceText,
+            Events,
+            BgmTracks,
+            BgmRules);
         Directory.CreateDirectory(Path.GetDirectoryName(BackupPath)!);
         File.Copy(ConfigPath, BackupPath, overwrite: true);
 
@@ -895,13 +1006,16 @@ internal sealed class AudioEventConfigDocument
         _sourceText = rewrittenSource;
     }
 
-    private static string ExtractConfigJson(string sourceText)
+    private static string ExtractConfigJson(
+        string sourceText,
+        string startMarker,
+        string endMarker)
     {
-        var startIndex = FindMarker(sourceText, StartMarker) + StartMarker.Length;
-        var endIndex = FindMarker(sourceText, EndMarker);
+        var startIndex = FindMarker(sourceText, startMarker) + startMarker.Length;
+        var endIndex = FindMarker(sourceText, endMarker);
         if (endIndex <= startIndex)
         {
-            throw new InvalidDataException("Audio Event 設定標記順序不正確。");
+            throw new InvalidDataException($"設定標記順序不正確：{startMarker}");
         }
         return sourceText[startIndex..endIndex].Trim();
     }
@@ -967,6 +1081,80 @@ internal sealed class AudioEventConfigDocument
         }
     }
 
+    private static void ValidateBgmConfiguration(
+        Dictionary<string, BgmTrackEditableDefinition> tracks,
+        List<BgmControlRuleEditableDefinition> rules)
+    {
+        ValidateBgmTracks(tracks);
+        var ruleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rule in rules)
+        {
+            rule.Id = rule.Id.Trim();
+            rule.Label = rule.Label.Trim();
+            rule.TargetId = rule.TargetId.Trim();
+            rule.State = rule.State.Trim();
+            rule.TrackId = string.IsNullOrWhiteSpace(rule.TrackId)
+                ? null
+                : rule.TrackId.Trim();
+            if (rule.Id.Length == 0 || !ruleIds.Add(rule.Id))
+            {
+                throw new InvalidDataException("BGM 規則 ID 不可空白或重複。");
+            }
+            if (rule.Label.Length == 0 || rule.TargetId.Length == 0 || rule.State.Length == 0)
+            {
+                throw new InvalidDataException($"{rule.Id}：名稱、目標 ID 與狀態不可空白。");
+            }
+            if (!BgmControlRuleEditableDefinition.TriggerTypes.Contains(rule.TriggerType))
+            {
+                throw new InvalidDataException($"{rule.Id}：未知的觸發類型 {rule.TriggerType}。");
+            }
+            if (!BgmControlRuleEditableDefinition.Actions.Contains(rule.Action))
+            {
+                throw new InvalidDataException($"{rule.Id}：未知的 BGM 操作 {rule.Action}。");
+            }
+            if (!BgmControlRuleEditableDefinition.RestoreModes.Contains(rule.RestoreMode))
+            {
+                throw new InvalidDataException($"{rule.Id}：未知的恢復方式 {rule.RestoreMode}。");
+            }
+            if (rule.Action == "switch" &&
+                (rule.TrackId is null || !tracks.ContainsKey(rule.TrackId)))
+            {
+                throw new InvalidDataException($"{rule.Id}：換歌操作必須指定有效 Track ID。");
+            }
+            if (rule.TargetVolume is < 0 or > 1 ||
+                rule.FadeOutSeconds is < 0 or > 60 ||
+                rule.FadeInSeconds is < 0 or > 60 ||
+                rule.DurationSeconds is < 0 or > 86400)
+            {
+                throw new InvalidDataException($"{rule.Id}：音量或時間欄位超出允許範圍。");
+            }
+        }
+    }
+
+    private static void ValidateBgmTracks(
+        Dictionary<string, BgmTrackEditableDefinition> tracks)
+    {
+        if (!tracks.ContainsKey("default"))
+        {
+            throw new InvalidDataException("BGM 素材庫必須保留 default Track。");
+        }
+        foreach (var pair in tracks)
+        {
+            if (string.IsNullOrWhiteSpace(pair.Key) || string.IsNullOrWhiteSpace(pair.Value.Label))
+            {
+                throw new InvalidDataException("BGM Track ID 與名稱不可空白。");
+            }
+            if (pair.Value.Sources.Count == 0)
+            {
+                throw new InvalidDataException($"{pair.Key}：至少需要一個遊戲 MP3 路徑。");
+            }
+            if (pair.Value.Volume is < 0 or > 1)
+            {
+                throw new InvalidDataException($"{pair.Key}：基礎音量必須介於 0～100%。");
+            }
+        }
+    }
+
     private static string Indent(string text, int spaces)
     {
         var indentation = new string(' ', spaces);
@@ -991,4 +1179,46 @@ internal sealed class AudioEventEditableDefinition
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? AdditionalProperties { get; set; }
+}
+
+internal sealed class BgmTrackEditableDefinition
+{
+    public string Label { get; set; } = "";
+    public List<string> SourceAssetPaths { get; set; } = new();
+    public List<string> Sources { get; set; } = new();
+    public double Volume { get; set; } = 1;
+    public bool Loop { get; set; } = true;
+    public bool RememberPosition { get; set; } = true;
+}
+
+internal sealed class BgmControlRuleEditableDefinition
+{
+    internal static readonly string[] TriggerTypes =
+    {
+        "quest",
+        "questStage",
+        "objective",
+        "minigame",
+        "chapter",
+        "scene",
+        "event",
+    };
+
+    internal static readonly string[] Actions = { "volume", "mute", "switch" };
+    internal static readonly string[] RestoreModes = { "resume", "restart", "default" };
+
+    public string Id { get; set; } = "";
+    public string Label { get; set; } = "";
+    public bool Enabled { get; set; } = true;
+    public string TriggerType { get; set; } = "event";
+    public string TargetId { get; set; } = "";
+    public string State { get; set; } = "active";
+    public string Action { get; set; } = "volume";
+    public string? TrackId { get; set; }
+    public double TargetVolume { get; set; } = 1;
+    public double FadeOutSeconds { get; set; } = 1;
+    public double FadeInSeconds { get; set; } = 1;
+    public int Priority { get; set; }
+    public double DurationSeconds { get; set; }
+    public string RestoreMode { get; set; } = "resume";
 }

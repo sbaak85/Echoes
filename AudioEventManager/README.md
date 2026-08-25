@@ -3,13 +3,33 @@
 `AudioEventManager.exe` 是獨立的遊戲音效事件設定工具，不需要先啟動
 MapEditor。
 
-它會讀寫專案根目錄下的 `app/audio-event-manager.ts`，可調整事件名稱、
+它會讀寫專案根目錄下的 `app/audio-event-manager.ts`。最上層分為
+「Audio Event」與「BGM 管理」頁籤；Audio Event 可調整事件名稱、
 觸發說明、原始素材路徑、遊戲 MP3 路徑、音量、延遲、Loop，以及
 FadeIn／FadeOut。FadeIn／FadeOut 皆以個別 MP3 總長的百分比計算；例如
 3 秒音檔設定 FadeOut 15%，會在最後 0.45 秒由設定音量淡出至靜音。原始素材
 路徑是選填資料，可完全留空；原始素材與遊戲 MP3 欄位右側的 `📂` 可在
 Windows 檔案總管中選取第一個檔案，`▶` 則可立即預覽。原始素材欄空白時，
 其檔案總管與預覽按鈕都會停用。
+
+「BGM 管理」內另分為：
+
+- `BGM 素材庫`：登記 Track ID、多首 MP3 播放清單、基礎音量、Loop，
+  以及換回該 Track 時是否記住先前進度。`default` 是一般場景預設曲目。
+- `BGM 控制規則`：依 Quest、Stage、OBJ、小遊戲、章節、場景或特殊事件
+  的狀態調整音量、暫時靜音或換 Track。優先權數字愈大愈優先；FadeOut／
+  FadeIn 以秒計算。多個狀態可用 `|` 分隔，例如 `active|completed`；規則
+  解除後可選擇續播、重播或回到預設 Track。
+
+規則是收到狀態變更事件時才重算，不會在遊戲每一幀反覆掃描。特殊事件可用：
+
+```ts
+window.dispatchEvent(new CustomEvent("echoes:bgm-control", {
+  detail: { eventId: "event-id", state: "triggered" },
+}));
+```
+
+若事件要明確結束，傳入 `active: false`；也可在規則的「持續秒數」設定自動解除。
 
 儲存時只會替換 TypeScript 內有標記的設定區塊。上一版檔案會備份到
 `AudioEventManager/runtime/audio-event-manager.ts.bak`。

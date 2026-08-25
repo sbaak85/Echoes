@@ -29,23 +29,6 @@ export type AudioEventDefinition = {
 export const AUDIO_EVENT_CONFIG = (
   /* AUDIO_EVENT_CONFIG_START */
   {
-    "bgm": {
-      "label": "場景背景音樂",
-      "trigger": "遊戲畫面初始化後立即請求播放；若瀏覽器尚未允許音訊，首次鍵盤／左鍵輸入時重試；頁面切回前景時恢復；每首結束後自動切換下一首。",
-      "sourceAssetPaths": [
-        "Assets/Audio/異星長夜 (1).mp3",
-        "Assets/Audio/異星長夜.mp3"
-      ],
-      "sources": [
-        "./audio/alien-night-1.mp3",
-        "./audio/alien-night-2.mp3"
-      ],
-      "volume": 0.35,
-      "delaySeconds": 0,
-      "loop": true,
-      "fadeInPercent": 0,
-      "fadeOutPercent": 0
-    },
     "footsteps": {
       "label": "草地腳步",
       "trigger": "角色產生實際移動速度時開始；角色停止、視窗失焦或頁面進入背景時暫停。",
@@ -415,6 +398,102 @@ export const AUDIO_EVENT_CONFIG = (
 ) as const satisfies Record<string, AudioEventDefinition>;
 
 export type AudioEventName = keyof typeof AUDIO_EVENT_CONFIG;
+
+export type BgmTrackDefinition = {
+  label: string;
+  sourceAssetPaths: readonly string[];
+  sources: readonly string[];
+  /** 與玩家 Options BGM 音量相乘的素材基礎音量。 */
+  volume: number;
+  loop: boolean;
+  /** 離開此曲後保留播放位置；再次切回時可從原位置繼續。 */
+  rememberPosition: boolean;
+};
+
+export type BgmRuleTriggerType =
+  | "quest"
+  | "questStage"
+  | "objective"
+  | "minigame"
+  | "chapter"
+  | "scene"
+  | "event";
+
+export type BgmRuleAction = "volume" | "mute" | "switch";
+export type BgmRestoreMode = "resume" | "restart" | "default";
+
+/** 玩家未修改 Options 前的全域 BGM 音量。 */
+export const DEFAULT_BGM_USER_VOLUME = 0.35;
+
+export type BgmControlRuleDefinition = {
+  id: string;
+  label: string;
+  enabled: boolean;
+  triggerType: BgmRuleTriggerType;
+  /** Quest、Stage、OBJ、Game、Scene 或特殊事件 ID；chapter 則填章節數字。 */
+  targetId: string;
+  /** active、completed、playing、success 等；* 代表該 ID 的任何有效狀態。 */
+  state: string;
+  action: BgmRuleAction;
+  /** switch 時指定素材庫 Track ID；其他操作可留空。 */
+  trackId?: string;
+  /** 0～1；與玩家音量及 Track 基礎音量相乘。mute 固定視為 0。 */
+  targetVolume: number;
+  fadeOutSeconds: number;
+  fadeInSeconds: number;
+  priority: number;
+  /** 特殊 event 可在觸發後自動解除；0 表示等候明確結束事件。 */
+  durationSeconds: number;
+  restoreMode: BgmRestoreMode;
+};
+
+/** BGM 素材庫。default 保留原本兩首曲目的循序播放行為。 */
+export const BGM_TRACK_CONFIG = (
+  /* BGM_TRACK_CONFIG_START */
+  {
+    "default": {
+      "label": "預設場景背景音樂",
+      "sourceAssetPaths": [
+        "Assets/Audio/異星長夜 (1).mp3",
+        "Assets/Audio/異星長夜.mp3"
+      ],
+      "sources": [
+        "./audio/alien-night-1.mp3",
+        "./audio/alien-night-2.mp3"
+      ],
+      "volume": 1,
+      "loop": true,
+      "rememberPosition": true
+    }
+  }
+  /* BGM_TRACK_CONFIG_END */
+) as const satisfies Record<string, BgmTrackDefinition>;
+
+/**
+ * BGM 條件規則。由 Quest、Stage、OBJ、小遊戲、章節、場景或特殊事件
+ * 狀態改變時重算；不在遊戲每幀掃描。
+ */
+export const BGM_CONTROL_RULES = (
+  /* BGM_CONTROL_RULES_START */
+  [
+    {
+      "id": "quest-ch03-main-001-bgm-half",
+      "label": "MAIN_001 起至 MAIN_002 前：BGM 50%",
+      "enabled": true,
+      "triggerType": "quest",
+      "targetId": "QUEST_CH03_MAIN_001",
+      "state": "active|completed",
+      "action": "volume",
+      "targetVolume": 0.7,
+      "fadeOutSeconds": 1,
+      "fadeInSeconds": 1,
+      "priority": 100,
+      "durationSeconds": 0,
+      "restoreMode": "resume"
+    }
+  ]
+  /* BGM_CONTROL_RULES_END */
+) as const satisfies readonly BgmControlRuleDefinition[];
 
 const SUCCESSFUL_ITEM_USE_AUDIO_EVENT_BY_ITEM_ID = {
   R0004: "purifiedWaterConsumed",

@@ -64,9 +64,33 @@ internal static class Program
             "audio-event-manager.ts");
         var source = File.ReadAllText(sourcePath, Encoding.UTF8);
         var events = AudioEventConfigDocument.ParseEvents(source);
+        var bgmTracks = AudioEventConfigDocument.ParseBgmTracks(source);
+        var bgmRules = AudioEventConfigDocument.ParseBgmRules(source);
         events.Values.First().SourceAssetPaths.Clear();
-        var rewrittenSource = AudioEventConfigDocument.RewriteSource(source, events);
+        bgmRules.Add(new BgmControlRuleEditableDefinition
+        {
+            Id = "self-test-rule",
+            Label = "Self test",
+            Enabled = false,
+            TriggerType = "event",
+            TargetId = "self-test",
+            State = "active",
+            Action = "switch",
+            TrackId = "default",
+            TargetVolume = 0.5,
+            FadeOutSeconds = 1,
+            FadeInSeconds = 1.5,
+            Priority = 99,
+            RestoreMode = "resume",
+        });
+        var rewrittenSource = AudioEventConfigDocument.RewriteSource(
+            source,
+            events,
+            bgmTracks,
+            bgmRules);
         var roundTripEvents = AudioEventConfigDocument.ParseEvents(rewrittenSource);
+        var roundTripTracks = AudioEventConfigDocument.ParseBgmTracks(rewrittenSource);
+        var roundTripRules = AudioEventConfigDocument.ParseBgmRules(rewrittenSource);
         var fadeOutPercent = roundTripEvents["generatorRunning"].FadeOutPercent;
         var firstGameSource = roundTripEvents.Values
             .SelectMany(definition => definition.Sources)
@@ -82,6 +106,14 @@ internal static class Program
             firstOriginalSource);
         return events.Count == roundTripEvents.Count &&
             roundTripEvents.Values.First().SourceAssetPaths.Count == 0 &&
+            roundTripTracks.ContainsKey("default") &&
+            roundTripRules.LastOrDefault() is
+                {
+                    Id: "self-test-rule",
+                    Action: "switch",
+                    TrackId: "default",
+                    Priority: 99,
+                } &&
             fadeOutPercent == 15 &&
             File.Exists(previewPath) &&
             File.Exists(originalPreviewPath) &&
