@@ -15,6 +15,8 @@ export type InteractionDialogueScript = {
 };
 
 export type InteractionDialogueLine = {
+  /** Stable editor-generated ID used by precise dialogue-line events such as BGM cues. */
+  lineId?: string;
   speaker?: string;
   text: string;
   randomGroupId?: string;

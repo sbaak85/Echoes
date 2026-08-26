@@ -6,9 +6,19 @@ export type ChapterFlowAction =
   | {
       type: "showCenteredText";
       lines: string[];
+      fontSizesPx?: number[];
       fadeInMs: number;
       holdMs: number;
       fadeOutMs: number;
+    }
+  | {
+      type: "showBlackSubtitle";
+      lines: string[];
+      fontSizesPx?: number[];
+      fadeInMs: number;
+      holdMs: number;
+      fadeOutMs: number;
+      keepBlack: boolean;
     }
   | { type: "playDialogue"; dialogueId: string }
   | { type: "startQuest"; questId: string }
@@ -19,6 +29,7 @@ export type ChapterFlowDefinition = {
   id: string;
   chapter: number;
   once?: boolean;
+  keepBlackAfterComplete?: boolean;
   actions: ChapterFlowAction[];
   skipActions?: ChapterFlowAction[];
 };
@@ -26,8 +37,12 @@ export type ChapterFlowDefinition = {
 export type ChapterFlowHost = {
   setInputLocked: (locked: boolean) => void;
   setBlack: (visible: boolean) => void;
+  fadeToBlack: (durationMs: number) => void;
   fadeFromBlack: (durationMs: number) => void;
-  showCenteredText: (action: Extract<ChapterFlowAction, { type: "showCenteredText" }>) => void;
+  showCenteredText: (action: Extract<
+    ChapterFlowAction,
+    { type: "showCenteredText" | "showBlackSubtitle" }
+  >) => void;
   hideCenteredText: () => void;
   playDialogue: (dialogueId: string) => Promise<unknown>;
   startQuest?: (questId: string) => void | Promise<void>;
@@ -35,7 +50,11 @@ export type ChapterFlowHost = {
   cancelDialogue: () => void;
   markCompleted: (flowId: string) => void;
   isCompleted: (flowId: string) => boolean;
-  onActiveChanged?: (active: boolean, flowId: string | null) => void;
+  onActiveChanged?: (
+    active: boolean,
+    flowId: string | null,
+    keepBlackAfterComplete?: boolean,
+  ) => void;
   onPausedChanged?: (paused: boolean) => void;
 };
 
@@ -123,11 +142,21 @@ export class ChapterFlowManager {
       return true;
     } finally {
       this.host.hideCenteredText();
+      if (flow.keepBlackAfterComplete !== true) {
+        // Every non-persistent blackout flow must end in a lit, interactive
+        // scene even when an action throws before its ordinary cleanup path.
+        this.host.setBlack(false);
+        this.host.setInputLocked(false);
+      }
       this.paused = false;
       this.skipRequested = false;
       this.activeFlow = null;
       this.host.onPausedChanged?.(false);
-      this.host.onActiveChanged?.(false, null);
+      this.host.onActiveChanged?.(
+        false,
+        flow.id,
+        flow.keepBlackAfterComplete === true,
+      );
     }
   }
 
@@ -157,6 +186,25 @@ export class ChapterFlowManager {
             allowSkip,
           );
           this.host.hideCenteredText();
+          break;
+        case "showBlackSubtitle":
+          this.host.showCenteredText(action);
+          this.host.fadeToBlack(action.fadeInMs);
+          await this.wait(action.fadeInMs + action.holdMs, allowSkip);
+          if (allowSkip && this.skipRequested) {
+            this.host.hideCenteredText();
+            return;
+          }
+          if (!action.keepBlack) {
+            this.host.fadeFromBlack(action.fadeOutMs);
+          }
+          await this.wait(action.fadeOutMs, allowSkip);
+          this.host.hideCenteredText();
+          if (!action.keepBlack) {
+            // 動畫影格可能因分頁隱藏、系統暫停或其他 RAF 中斷而未跑到
+            // 最後一格；流程計時完成時仍必須強制回到完全點亮。
+            this.host.setBlack(false);
+          }
           break;
         case "playDialogue":
           await this.host.playDialogue(action.dialogueId);

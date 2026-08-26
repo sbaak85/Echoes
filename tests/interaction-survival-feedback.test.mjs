@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildSurvivalRequirementFloatRows,
   buildSurvivalRequirementFloatSegments,
   INTERACTION_REQUIREMENT_FLOAT_MOTION,
   shouldShowSurvivalRequirementFloats,
@@ -39,6 +40,20 @@ test("生存值需求字幕會使用對應名稱、門檻與顏色", () => {
   assert.equal(getPlayerInfoFloatToneColor("hunger"), "#f0a953");
   assert.equal(getPlayerInfoFloatToneColor("thirst"), "#59c9ed");
   assert.equal(getPlayerInfoFloatToneColor("spirit"), "#b478e6");
+});
+
+test("互動有多項生存條件不足時會逐項列出全部需求字幕", () => {
+  const rows = buildSurvivalRequirementFloatRows([
+    requirement("stamina", "atLeast", 60),
+    requirement("hunger", "atLeast", 50),
+    requirement("thirst", "atLeast", 50),
+    requirement("spirit", "atLeast", 60),
+  ]);
+
+  assert.deepEqual(
+    rows.map((segments) => segments.map((segment) => segment.text).join("")),
+    ["需要：60 體力", "需要：50 飽足", "需要：50 飲水", "需要：60 精神"],
+  );
 });
 
 test("只有純生存值失敗才顯示需求字幕", () => {

@@ -70,6 +70,11 @@ const ZERO_GAME_OVER_MINUTES: Record<SurvivalGameOverReason, number> = {
 
 const clampValue = (value: number) => Math.max(0, Math.min(100, value));
 
+export function getSurvivalDisplayValue(value: number) {
+  const normalized = Number.isFinite(value) ? clampValue(value) : 0;
+  return Math.floor(normalized);
+}
+
 export function formatElapsedGameHours(gameMinutes: number) {
   const normalizedMinutes = Number.isFinite(gameMinutes)
     ? Math.max(0, gameMinutes)

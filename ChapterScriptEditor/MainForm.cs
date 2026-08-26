@@ -494,7 +494,8 @@ public sealed class MainForm : Form
     private DialogueEditorForm CreateDialogueEditor(DialogueSectionDefinition section) => new(
         section.Dialogue,
         section.Name,
-        "本視窗只編輯這個章節段落。每列是一句完整發話；可設定發話者、抽選群組、權重與逐字速度。"
+        "本視窗只編輯這個章節段落。每列是一句完整發話；Line ID 為穩定唯讀識別，可供 BGM 等事件精確觸發。",
+        section.Id
     );
 
     private void RenameDialogueSection(
@@ -524,11 +525,18 @@ public sealed class MainForm : Form
         var index = SelectedIndex(grid, sections.Count);
         if (index < 0) return;
         var source = sections[index];
+        var duplicatedId = UniqueId(source.Id + "-copy");
+        var duplicatedDialogue = source.Dialogue.Clone();
+        for (var lineIndex = 0; lineIndex < duplicatedDialogue.Lines.Count; lineIndex++)
+        {
+            duplicatedDialogue.Lines[lineIndex].LineId =
+                $"{duplicatedId}-line-{lineIndex + 1:000}";
+        }
         sections.Insert(index + 1, new DialogueSectionDefinition
         {
-            Id = UniqueId(source.Id + "-copy"),
+            Id = duplicatedId,
             Name = source.Name + " 複本",
-            Dialogue = source.Dialogue.Clone(),
+            Dialogue = duplicatedDialogue,
         });
         RefreshDialogueGrid(sections, grid, index + 1);
         MarkChanged();

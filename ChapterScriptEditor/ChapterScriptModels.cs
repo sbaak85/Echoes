@@ -4,7 +4,7 @@ namespace Echoes.ChapterScriptEditor;
 
 public sealed class ChapterScriptDocument
 {
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
     public List<ChapterDefinition> Chapters { get; set; } = new();
 }
 
@@ -24,6 +24,7 @@ public sealed class SubtitleEventDefinition
     public string Id { get; set; } = "";
     public string Name { get; set; } = "黑幕字幕";
     public string Text { get; set; } = "";
+    public List<SubtitleLineDefinition> Lines { get; set; } = new();
     public string TriggerType { get; set; } = "chapterStart";
     public string TriggerValue { get; set; } = "";
     public int TriggerCount { get; set; } = 1;
@@ -32,8 +33,14 @@ public sealed class SubtitleEventDefinition
     public int HoldMs { get; set; } = 8000;
     public int FadeOutMs { get; set; } = 1500;
     public int DelayAfterMs { get; set; } = 2000;
-    public bool KeepBlack { get; set; } = true;
+    public bool KeepBlack { get; set; }
     public bool LockInput { get; set; } = true;
+}
+
+public sealed class SubtitleLineDefinition
+{
+    public string Text { get; set; } = "";
+    public int FontSizePx { get; set; } = 34;
 }
 
 public sealed class DialogueSectionDefinition

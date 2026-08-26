@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$gameUrl = "http://localhost:3000/"
+$gameUrl = "http://127.0.0.1:3000/"
 $runtimeDirectory = Join-Path $projectRoot ".runtime"
 $modulesDirectory = Join-Path $projectRoot "node_modules"
 $standardOutputLog = Join-Path $runtimeDirectory "game-server.log"
@@ -50,7 +50,10 @@ function Test-GameReady {
             -UseBasicParsing `
             -TimeoutSec 2
 
-        return $response.StatusCode -ge 200 -and $response.StatusCode -lt 500
+        return `
+            $response.StatusCode -ge 200 -and `
+            $response.StatusCode -lt 500 -and `
+            $response.Content -match "Echoes Beyond the Stars"
     }
     catch {
         return $false
@@ -252,7 +255,7 @@ try {
     $serverArguments = @(
         "`"$vinextCli`"",
         "dev",
-        "--host",
+        "--hostname",
         "127.0.0.1",
         "--port",
         "3000"

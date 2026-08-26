@@ -4,10 +4,11 @@ public sealed class DialogueEditorForm : Form
 {
     private const string AddSpeakerOption = "＋ 新增發話者…";
     private const string DefaultNewLineSpeaker = "Sbaak";
-    private const int SpeakerColumnIndex = 0;
-    private const int TextColumnIndex = 1;
-    private const int GroupColumnIndex = 2;
-    private const int WeightColumnIndex = 3;
+    private const int LineIdColumnIndex = 0;
+    private const int SpeakerColumnIndex = 1;
+    private const int TextColumnIndex = 2;
+    private const int GroupColumnIndex = 3;
+    private const int WeightColumnIndex = 4;
     private readonly TabControl _tabs = new();
     private readonly DataGridView _successGrid = new();
     private readonly DataGridView _failureGrid = new();
@@ -29,6 +30,8 @@ public sealed class DialogueEditorForm : Form
     };
     private readonly List<string> _speakers;
     private readonly Dictionary<DataGridView, HashSet<int>> _selectedRows = new();
+    private readonly Dictionary<DataGridView, string> _lineIdPrefixes = new();
+    private readonly string _lineIdPrefix;
     private bool _handlingSpeakerChoice;
 
     public DialogueScript SuccessDialogue { get; private set; }
@@ -50,7 +53,8 @@ public sealed class DialogueEditorForm : Form
         DialogueScript failureDialogue,
         DialogueScript? survivalFailureDialogue,
         DialogueScript? completionDialogue,
-        bool skipSuccessDialogue = false)
+        bool skipSuccessDialogue = false,
+        string? lineIdPrefix = null)
     {
         Text = "對話腳本編輯器";
         StartPosition = FormStartPosition.CenterParent;
@@ -64,6 +68,7 @@ public sealed class DialogueEditorForm : Form
         SurvivalFailureDialogue = survivalFailureDialogue?.Clone();
         CompletionDialogue = completionDialogue?.Clone();
         SkipSuccessDialogue = skipSuccessDialogue;
+        _lineIdPrefix = NormalizeLineIdPrefix(lineIdPrefix);
         _skipSuccessDialogue.Checked = skipSuccessDialogue;
         var editableSurvivalFailureDialogue = SurvivalFailureDialogue ?? new DialogueScript();
         var editableCompletionDialogue = CompletionDialogue ?? new DialogueScript();
@@ -107,16 +112,26 @@ public sealed class DialogueEditorForm : Form
             0,
             2);
 
-        ConfigureGrid(_successGrid, _successSpeakerColumn, SuccessDialogue.Lines);
-        ConfigureGrid(_failureGrid, _failureSpeakerColumn, FailureDialogue.Lines);
+        ConfigureGrid(
+            _successGrid,
+            _successSpeakerColumn,
+            SuccessDialogue.Lines,
+            $"{_lineIdPrefix}-line");
+        ConfigureGrid(
+            _failureGrid,
+            _failureSpeakerColumn,
+            FailureDialogue.Lines,
+            $"{_lineIdPrefix}-failure-line");
         ConfigureGrid(
             _survivalFailureGrid,
             _survivalFailureSpeakerColumn,
-            editableSurvivalFailureDialogue.Lines);
+            editableSurvivalFailureDialogue.Lines,
+            $"{_lineIdPrefix}-survival-failure-line");
         ConfigureGrid(
             _completionGrid,
             _completionSpeakerColumn,
-            editableCompletionDialogue.Lines);
+            editableCompletionDialogue.Lines,
+            $"{_lineIdPrefix}-completion-line");
 
         _tabs.Dock = DockStyle.Fill;
         _tabs.Padding = new Point(18, 7);
@@ -177,8 +192,9 @@ public sealed class DialogueEditorForm : Form
     public DialogueEditorForm(
         DialogueScript dialogue,
         string sectionName,
-        string hintText)
-        : this(dialogue, DialogueScript.CreateFailureDefault(), null, null)
+        string hintText,
+        string? sectionId = null)
+        : this(dialogue, DialogueScript.CreateFailureDefault(), null, null, false, sectionId)
     {
         Text = $"章節對話腳本編輯器 · {sectionName}";
         _skipSuccessDialogue.Visible = false;
@@ -219,8 +235,12 @@ public sealed class DialogueEditorForm : Form
     private void ConfigureGrid(
         DataGridView grid,
         DataGridViewComboBoxColumn speakerColumn,
-        IEnumerable<DialogueLine> lines)
+        IEnumerable<DialogueLine> lines,
+        string lineIdPrefix)
     {
+        var editableLines = lines.ToList();
+        EnsureLineIds(editableLines, lineIdPrefix);
+        _lineIdPrefixes[grid] = lineIdPrefix;
         grid.Dock = DockStyle.Fill;
         grid.AllowUserToAddRows = false;
         grid.AllowUserToDeleteRows = false;
@@ -243,6 +263,15 @@ public sealed class DialogueEditorForm : Form
         grid.EnableHeadersVisualStyles = false;
         grid.RowTemplate.Height = 58;
 
+        grid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "lineId",
+            HeaderText = "Line ID（唯讀）",
+            Width = 230,
+            ReadOnly = true,
+            SortMode = DataGridViewColumnSortMode.NotSortable,
+        });
+        speakerColumn.Name = "speaker";
         speakerColumn.HeaderText = "發話者（空白＝不顯示發話者）";
         speakerColumn.Width = 215;
         speakerColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
@@ -251,12 +280,14 @@ public sealed class DialogueEditorForm : Form
         grid.Columns.Add(speakerColumn);
         grid.Columns.Add(new DataGridViewTextBoxColumn
         {
+            Name = "text",
             HeaderText = "文案內容",
             AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
             SortMode = DataGridViewColumnSortMode.NotSortable,
         });
         grid.Columns.Add(new DataGridViewTextBoxColumn
         {
+            Name = "randomGroup",
             HeaderText = "抽選群組",
             Width = 112,
             ReadOnly = true,
@@ -264,14 +295,16 @@ public sealed class DialogueEditorForm : Form
         });
         grid.Columns.Add(new DataGridViewTextBoxColumn
         {
+            Name = "weight",
             HeaderText = "權重",
             Width = 68,
             SortMode = DataGridViewColumnSortMode.NotSortable,
         });
 
-        foreach (var line in lines)
+        foreach (var line in editableLines)
         {
             var rowIndex = grid.Rows.Add(
+                line.LineId,
                 string.IsNullOrWhiteSpace(line.Speaker) ? null : line.Speaker,
                 line.Text,
                 GetGroupDisplayName(line.RandomGroupId),
@@ -374,6 +407,62 @@ public sealed class DialogueEditorForm : Form
         }
     }
 
+    private static string NormalizeLineIdPrefix(string? value)
+    {
+        var source = string.IsNullOrWhiteSpace(value) ? "dialogue" : value.Trim();
+        var normalized = new string(source
+            .Where(character => char.IsLetterOrDigit(character) || character is '-' or '_')
+            .ToArray());
+        return string.IsNullOrWhiteSpace(normalized) ? "dialogue" : normalized;
+    }
+
+    private static void EnsureLineIds(IReadOnlyList<DialogueLine> lines, string prefix)
+    {
+        var allIds = lines
+            .Select(line => line.LineId?.Trim() ?? "")
+            .Where(id => id.Length > 0)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var acceptedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var nextSequence = 1;
+        foreach (var line in lines)
+        {
+            var current = line.LineId?.Trim() ?? "";
+            if (current.Length > 0 && acceptedIds.Add(current))
+            {
+                line.LineId = current;
+                continue;
+            }
+            string candidate;
+            do candidate = $"{prefix}-{nextSequence++:000}";
+            while (allIds.Contains(candidate) || acceptedIds.Contains(candidate));
+            line.LineId = candidate;
+            allIds.Add(candidate);
+            acceptedIds.Add(candidate);
+        }
+    }
+
+    private string CreateNextLineId(DataGridView grid)
+    {
+        var prefix = _lineIdPrefixes.TryGetValue(grid, out var configuredPrefix)
+            ? configuredPrefix
+            : $"{_lineIdPrefix}-line";
+        var used = grid.Rows
+            .Cast<DataGridViewRow>()
+            .Select(row => Convert.ToString(row.Cells[LineIdColumnIndex].Value)?.Trim() ?? "")
+            .Where(id => id.Length > 0)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var sequencePrefix = prefix + "-";
+        var sequence = used
+            .Where(id => id.StartsWith(sequencePrefix, StringComparison.OrdinalIgnoreCase))
+            .Select(id => int.TryParse(id[sequencePrefix.Length..], out var parsed) ? parsed : 0)
+            .DefaultIfEmpty(0)
+            .Max() + 1;
+        string candidate;
+        do candidate = $"{prefix}-{sequence++:000}";
+        while (used.Contains(candidate));
+        return candidate;
+    }
+
     private static Button CreateButton(string text, EventHandler click)
     {
         var button = new Button
@@ -394,7 +483,12 @@ public sealed class DialogueEditorForm : Form
     private void AddLine()
     {
         var grid = ActiveGrid;
-        var index = grid.Rows.Add(DefaultNewLineSpeaker, "...", null, null);
+        var index = grid.Rows.Add(
+            CreateNextLineId(grid),
+            DefaultNewLineSpeaker,
+            "...",
+            null,
+            null);
         grid.Rows[index].Tag = null;
         ApplyGridSelection(grid, new[] { index });
         grid.CurrentCell = grid.Rows[index].Cells[TextColumnIndex];
@@ -456,12 +550,14 @@ public sealed class DialogueEditorForm : Form
         if (target < 0 || target >= grid.Rows.Count) return;
 
         var speaker = grid.Rows[source].Cells[SpeakerColumnIndex].Value;
+        var lineId = grid.Rows[source].Cells[LineIdColumnIndex].Value;
         var text = grid.Rows[source].Cells[TextColumnIndex].Value;
         var groupId = grid.Rows[source].Tag as string;
         var weight = grid.Rows[source].Cells[WeightColumnIndex].Value;
         grid.Rows.RemoveAt(source);
         grid.Rows.Insert(
             target,
+            lineId,
             speaker,
             text,
             GetGroupDisplayName(groupId),
@@ -557,6 +653,7 @@ public sealed class DialogueEditorForm : Form
             ? null
             : ((string)row.Tag).Trim();
         return new DialogueRowData(
+            Convert.ToString(row.Cells[LineIdColumnIndex].Value) ?? "",
             row.Cells[SpeakerColumnIndex].Value,
             Convert.ToString(row.Cells[TextColumnIndex].Value) ?? "...",
             groupId,
@@ -580,6 +677,7 @@ public sealed class DialogueEditorForm : Form
         foreach (var row in rows)
         {
             var index = grid.Rows.Add(
+                row.LineId,
                 row.Speaker,
                 row.Text,
                 GetGroupDisplayName(row.RandomGroupId),
@@ -682,6 +780,7 @@ public sealed class DialogueEditorForm : Form
     }
 
     private sealed record DialogueRowData(
+        string LineId,
         object? Speaker,
         string Text,
         string? RandomGroupId,
@@ -827,6 +926,45 @@ public sealed class DialogueEditorForm : Form
         }
     }
 
+    internal void RunLineIdUiSelfTest()
+    {
+        var grid = _successGrid;
+        if (grid.Rows.Count < 10) throw new InvalidOperationException("Line ID test requires ten lines.");
+        var targetLineId = Convert.ToString(grid.Rows[9].Cells[LineIdColumnIndex].Value);
+        var targetText = Convert.ToString(grid.Rows[9].Cells[TextColumnIndex].Value);
+        grid.CurrentCell = grid.Rows[9].Cells[TextColumnIndex];
+        MoveLine(-1);
+        if (Convert.ToString(grid.Rows[8].Cells[LineIdColumnIndex].Value) != targetLineId ||
+            Convert.ToString(grid.Rows[8].Cells[TextColumnIndex].Value) != targetText)
+        {
+            throw new InvalidOperationException("Line ID changed or detached after moving a line upward.");
+        }
+        MoveLine(1);
+        if (Convert.ToString(grid.Rows[9].Cells[LineIdColumnIndex].Value) != targetLineId ||
+            Convert.ToString(grid.Rows[9].Cells[TextColumnIndex].Value) != targetText)
+        {
+            throw new InvalidOperationException("Line ID changed or detached after restoring line order.");
+        }
+
+        var existingIds = grid.Rows.Cast<DataGridViewRow>()
+            .Select(row => Convert.ToString(row.Cells[LineIdColumnIndex].Value) ?? "")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        AddLine();
+        grid.EndEdit();
+        var addedId = Convert.ToString(
+            grid.Rows[grid.Rows.Count - 1].Cells[LineIdColumnIndex].Value) ?? "";
+        if (addedId.Length == 0 || existingIds.Contains(addedId))
+        {
+            throw new InvalidOperationException("New dialogue line did not receive a unique Line ID.");
+        }
+        var savedLines = ReadLines(grid)
+            ?? throw new InvalidOperationException("Line ID test dialogue could not be read.");
+        if (savedLines[9].LineId != targetLineId || savedLines[^1].LineId != addedId)
+        {
+            throw new InvalidOperationException("Line IDs were not preserved by the editor save path.");
+        }
+    }
+
     private void SaveDialogues()
     {
         var successLines = ReadLines(_successGrid);
@@ -886,6 +1024,7 @@ public sealed class DialogueEditorForm : Form
                 : ((string)row.Tag).Trim();
             result.Add(new DialogueLine
             {
+                LineId = Convert.ToString(row.Cells[LineIdColumnIndex].Value)?.Trim() ?? "",
                 Speaker = speaker,
                 Text = text,
                 RandomGroupId = groupId,

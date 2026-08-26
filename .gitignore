@@ -44,6 +44,7 @@ next-env.d.ts
 /outputs/
 /work/
 /.runtime/
+/SaveData/
 /MapEditor/bin/
 /MapEditor/obj/
 /MapEditor/publish/

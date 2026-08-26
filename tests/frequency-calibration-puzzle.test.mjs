@@ -173,4 +173,17 @@ test("校頻成功會記錄旗標、播放世界觀訊息並在末句停留一�
     movementLab,
     /completeFrequencyPuzzleInteractionRef\.current = \(\) => \{[\s\S]*publishPuzzleCompleted\(session\)/,
   );
+  assert.match(
+    movementLab,
+    /FREQUENCY_CALIBRATION_FOLLOWUP_DIALOGUE_ID = "chapter03-section-9"/,
+  );
+  assert.match(
+    movementLab,
+    /FREQUENCY_CALIBRATION_FOLLOWUP_DIALOGUE_DELAY_MS = 1000/,
+  );
+  assert.match(
+    movementLab,
+    /publishPuzzleCompleted\(session\);[\s\S]*scheduleRegisteredStoryDialogue\([\s\S]*FREQUENCY_CALIBRATION_FOLLOWUP_DIALOGUE_ID,[\s\S]*FREQUENCY_CALIBRATION_FOLLOWUP_DIALOGUE_DELAY_MS/,
+  );
+  assert.doesNotMatch(movementLab, /FrequencyEpilogueFlow|frequencyEpilogueFlowRef/);
 });

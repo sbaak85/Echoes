@@ -23,6 +23,10 @@ import {
   getSuccessfulItemUseAudioEvent,
   type AudioEventName,
 } from "./audio-event-manager";
+import {
+  BlackScreenOverlay,
+  type BlackScreenOverlayHandle,
+} from "./black-screen-overlay";
 import { BgmDirector } from "./bgm-director";
 import {
   getDayNightCssVariables,
@@ -151,6 +155,7 @@ import {
   getGameClock,
   getInteractionCompletionElapsedMinutes,
   getInteractionCycle,
+  getSurvivalDisplayValue,
   getTimePassTransitionHoldMs,
   getUnmetSurvivalRequirements,
   getSurvivalSpeedMultiplier,
@@ -199,7 +204,7 @@ import {
   type PlayerInfoFloatSegment,
 } from "./player-info-float";
 import {
-  buildSurvivalRequirementFloatSegments,
+  buildSurvivalRequirementFloatRows,
   INTERACTION_REQUIREMENT_FLOAT_MOTION,
   shouldShowSurvivalRequirementFloats,
 } from "./interaction-survival-feedback";
@@ -220,9 +225,15 @@ import {
 } from "./chapter-flow-manager";
 import {
   CHAPTER_3_START_FLOW,
+  STORY_CHAPTERS,
   STORY_DIALOGUES,
   STORY_EVENT_FLOWS,
 } from "./story-content";
+import {
+  createStorySubtitleFlow,
+  findStorySubtitleEvents,
+  getStorySubtitleCompletedCount,
+} from "./story-subtitle-flow";
 import {
   QuestRuntimeManager,
   loadQuestSaveData,
@@ -239,6 +250,21 @@ import {
   validateQuestDebugConfiguration,
 } from "./quest-debug-scenario";
 import { createQuestSkipKeyController } from "./quest-debug-hotkey";
+import {
+  SAVE_DATA_FORMAT,
+  SAVE_DATA_MANUAL_SLOT_COUNT,
+  SAVE_DATA_SCHEMA_VERSION,
+  applySaveDataToRuntimeStorage,
+  deleteSaveDataSlot,
+  getManualSaveSlotId,
+  listSaveDataSlots,
+  readSaveDataSlot,
+  writeSaveDataSlot,
+  type EchoesSaveData,
+  type SaveDataBackend,
+  type SaveDataSlotId,
+  type SaveDataSlotSummary,
+} from "./save-data";
 
 const QUEST_DOCUMENT = questDocumentSource as QuestDocument;
 const QUEST_DEBUG_ITEM_SURVIVAL_EFFECTS = Object.fromEntries(
@@ -429,6 +455,8 @@ type PendingItemUseConfirmation = {
 };
 const WELDING_ROUTE_INTERACTION_ID = "scene3-interaction-024";
 const FREQUENCY_CALIBRATION_INTERACTION_ID = "scene3-interaction-025";
+const FREQUENCY_CALIBRATION_FOLLOWUP_DIALOGUE_ID = "chapter03-section-9";
+const FREQUENCY_CALIBRATION_FOLLOWUP_DIALOGUE_DELAY_MS = 1000;
 const WELDING_FAILURE_MATERIAL_ITEM_ID = "R0009";
 const WELDING_FAILURE_MATERIAL_QUANTITY = 1;
 const WELDING_FAILURE_DIALOGUE_ID = "chapter03-special-1";
@@ -548,10 +576,12 @@ function ItemChangeVisualization({
   );
 }
 type DialoguePlayback = {
+  dialogueId: string;
   interactable: SceneInteractable;
   lineIndex: number;
   pageIndex: number;
   pages: string[];
+  lastBgmCueLineId?: string;
   onComplete?: () => void;
 };
 type DialogueView = { speaker: string; text: string } | null;
@@ -1461,6 +1491,7 @@ async function writePlayerVisualProjectConfig(
 }
 
 const OPTIONS_MENU_ITEMS = [
+  "save-list",
   "dialogue-text-size",
   "character-size",
   "bgm-enabled",
@@ -1483,10 +1514,20 @@ const OPTIONS_MENU_ITEMS = [
 ] as const;
 
 type OptionsMenuItem = (typeof OPTIONS_MENU_ITEMS)[number];
-type OptionsTab = "display" | "audio" | "controls" | "advanced";
+type OptionsTab = "save" | "display" | "audio" | "controls" | "advanced";
 type DialogueTextSize = "small" | "medium" | "large";
+type SaveDataDialogMode = "save" | "actions" | "load" | "overwrite" | "delete";
+type SaveDataDialog = { slotId: SaveDataSlotId; mode: SaveDataDialogMode };
+type SaveDataDialogChoice = "cancel" | "load" | "overwrite" | "delete" | "confirm";
+
+const SAVE_DATA_SLOT_IDS: SaveDataSlotId[] = [
+  "autosave",
+  ...Array.from({ length: SAVE_DATA_MANUAL_SLOT_COUNT }, (_, index) =>
+    getManualSaveSlotId(index + 1)),
+];
 
 const OPTIONS_TABS: Array<{ id: OptionsTab; label: string }> = [
+  { id: "save", label: "存檔" },
   { id: "display", label: "畫面" },
   { id: "audio", label: "音效" },
   { id: "controls", label: "操作" },
@@ -1494,6 +1535,7 @@ const OPTIONS_TABS: Array<{ id: OptionsTab; label: string }> = [
 ];
 
 const OPTIONS_TAB_ITEMS: Record<OptionsTab, OptionsMenuItem[]> = {
+  save: ["save-list"],
   display: ["dialogue-text-size", "character-size"],
   audio: ["bgm-enabled", "bgm-volume"],
   controls: ["virtual-cursor-controls", "movement-speed"],
@@ -1545,10 +1587,10 @@ function getSurvivalDisplayValues(
   values: SurvivalGameState["values"],
 ): SurvivalDisplayValues {
   return {
-    stamina: Math.round(values.stamina),
-    hunger: Math.round(values.hunger),
-    thirst: Math.round(values.thirst),
-    spirit: Math.round(values.spirit),
+    stamina: getSurvivalDisplayValue(values.stamina),
+    hunger: getSurvivalDisplayValue(values.hunger),
+    thirst: getSurvivalDisplayValue(values.thirst),
+    spirit: getSurvivalDisplayValue(values.spirit),
   };
 }
 
@@ -3123,7 +3165,7 @@ export function MovementLab() {
   const gameShellRef = useRef<HTMLElement>(null);
   const survivalHudRef = useRef<HTMLElement>(null);
   const questHudRef = useRef<HTMLElement>(null);
-  const blackScreenImageRef = useRef<HTMLImageElement>(null);
+  const blackScreenOverlayRef = useRef<BlackScreenOverlayHandle>(null);
   const blackScreenOpacityRef = useRef(255);
   const blackScreenAnimationRef = useRef<number | null>(null);
   const nativeGamepadRef = useRef<NativeGamepadState>(
@@ -3215,10 +3257,19 @@ export function MovementLab() {
   const questItemSubmissionCompletingRef = useRef(false);
   const questItemSubmissionCompletionTimerRef = useRef<number | null>(null);
   const confirmCampPowerRefillRef = useRef<() => void>(() => {});
-  const optionsTabRef = useRef<OptionsTab>("display");
+  const optionsTabRef = useRef<OptionsTab>("save");
   const optionsMenuSelectionRef = useRef<OptionsMenuItem>(
     OPTIONS_MENU_ITEMS[0],
   );
+  const selectedSaveSlotIndexRef = useRef(0);
+  const saveDataDialogRef = useRef<SaveDataDialog | null>(null);
+  const saveDataDialogChoiceRef = useRef<SaveDataDialogChoice>("cancel");
+  const saveDataBusyRef = useRef(false);
+  const portableSaveHydratedRef = useRef(false);
+  const portableSaveWriteRef = useRef(Promise.resolve());
+  const portableAutosaveTimerRef = useRef<number | null>(null);
+  const requestPortableAutosaveRef = useRef<(reason?: string) => void>(() => {});
+  const debugSaveIsolationRef = useRef(false);
   const dialoguePlaybackRef = useRef<DialoguePlayback | null>(null);
   const dialogueTypingRef = useRef<DialogueTyping | null>(null);
   const hotbarFeedbackTimerRef = useRef<number | null>(null);
@@ -3297,6 +3348,7 @@ export function MovementLab() {
   const storyProgressRef = useRef<StoryProgress>(createInitialStoryProgress());
   const questRuntimeManagerRef = useRef<QuestRuntimeManager | null>(null);
   const dialogueManagerRef = useRef<DialogueManager<SceneInteractable> | null>(null);
+  const delayedStoryDialogueTimerRef = useRef<number | null>(null);
   const storyEventManagerRef = useRef<StoryEventManager | null>(null);
   const canActivateStoryTriggerRef = useRef<(zone: StoryTriggerZone) => boolean>(
     () => false,
@@ -3327,6 +3379,7 @@ export function MovementLab() {
   const [storyFlowPaused, setStoryFlowPaused] = useState(false);
   const [storyCenteredText, setStoryCenteredText] = useState<{
     lines: string[];
+    fontSizesPx?: number[];
     fadeInMs: number;
     holdMs: number;
     fadeOutMs: number;
@@ -3373,9 +3426,17 @@ export function MovementLab() {
   const [questItemSubmissionCompleting, setQuestItemSubmissionCompleting] =
     useState(false);
   const [stageFullscreen, setStageFullscreen] = useState(false);
-  const [optionsTab, setOptionsTab] = useState<OptionsTab>("display");
+  const [optionsTab, setOptionsTab] = useState<OptionsTab>("save");
   const [optionsMenuSelection, setOptionsMenuSelection] =
     useState<OptionsMenuItem>(OPTIONS_MENU_ITEMS[0]);
+  const [saveDataSlots, setSaveDataSlots] = useState<SaveDataSlotSummary[]>([]);
+  const [saveDataBackend, setSaveDataBackend] = useState<SaveDataBackend>("local-files");
+  const [selectedSaveSlotIndex, setSelectedSaveSlotIndex] = useState(0);
+  const [saveDataBusy, setSaveDataBusy] = useState(false);
+  const [saveDataStatus, setSaveDataStatus] = useState("正在讀取存檔清單…");
+  const [saveDataDialog, setSaveDataDialog] = useState<SaveDataDialog | null>(null);
+  const [saveDataDialogChoice, setSaveDataDialogChoice] =
+    useState<SaveDataDialogChoice>("cancel");
   const [showPlayerCollision, setShowPlayerCollision] = useState(false);
   const [showSceneCollision, setShowSceneCollision] = useState(false);
   const [dayNightEffectEnabled, setDayNightEffectEnabled] = useState(false);
@@ -3844,11 +3905,7 @@ export function MovementLab() {
   const setBlackScreenOpacity = (opacity255: number) => {
     const next = clamp(Math.round(opacity255), 0, 255);
     blackScreenOpacityRef.current = next;
-    const image = blackScreenImageRef.current;
-    if (!image) return;
-    image.style.opacity = String(next / 255);
-    image.dataset.opacity = String(next);
-    image.dataset.inputBlocking = next > 0 ? "true" : "false";
+    blackScreenOverlayRef.current?.setOpacity(next);
   };
 
   const fadeBlackScreen = (
@@ -4237,7 +4294,20 @@ export function MovementLab() {
   };
 
   useEffect(() => {
-    const hydrationTimer = window.setTimeout(() => {
+    const hydrationTimer = window.setTimeout(async () => {
+      const portableAutosave = await readSaveDataSlot("autosave");
+      if (portableAutosave.save) {
+        applySaveDataToRuntimeStorage(portableAutosave.save);
+        setSaveDataBackend(portableAutosave.backend);
+        const savedScene = SCENE_REGISTRY.get(portableAutosave.save.progress.sceneId);
+        if (savedScene && savedScene.sceneId !== SCENE_DATA.sceneId) {
+          activateSceneRuntime(savedScene);
+          playerPositionRef.current = { ...SPAWN };
+          playerFacingRef.current = SCENE_START_FACING;
+          setFacing(SCENE_START_FACING);
+          setCurrentSceneId(savedScene.sceneId);
+        }
+      }
       const loadedInventory = loadPlayerInventory();
       const loadedCollectedWorldItemIds = loadCollectedWorldItemIds();
       const loadedDroppedWorldItems = loadDroppedWorldItems();
@@ -4350,6 +4420,7 @@ export function MovementLab() {
             {
               saveQuestSaveData(manager.exportSave());
               applyDroppedWorldItems(droppedWorldItemsRef.current);
+              requestPortableAutosaveRef.current("quest-state-changed");
             }
             if (entry.state === "active") {
               const view = buildQuestHudView(questId, entry);
@@ -4531,6 +4602,15 @@ export function MovementLab() {
         mobileHud ? true : initialQuestHud ? getDefaultQuestCollapsed() : true,
       );
       setSurvivalExpanded(mobileHud ? false : getDefaultSurvivalExpanded());
+      portableSaveHydratedRef.current = true;
+      void listSaveDataSlots().then((slots) => {
+        setSaveDataSlots(slots);
+        setSaveDataBackend(slots[0]?.backend ?? portableAutosave.backend);
+        setSaveDataStatus("");
+      }).catch((error) => {
+        console.error("[Echoes SaveData] 無法讀取存檔清單：", error);
+        setSaveDataStatus("無法讀取本機 SaveData，請查看啟動記錄。 ");
+      });
       setStoryReady(true);
     }, 0);
     return () => {
@@ -4540,6 +4620,26 @@ export function MovementLab() {
       }
       teleportTimerIdsRef.current.clear();
     };
+  }, []);
+
+  useEffect(() => {
+    if (!storyReady) return;
+    requestPortableAutosaveRef.current("story-ready");
+    const timer = window.setInterval(() => {
+      requestPortableAutosaveRef.current("periodic-progress");
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [storyReady]);
+
+  useEffect(() => {
+    if (!storyReady) return;
+    requestPortableAutosaveRef.current("inventory-or-world-progress");
+  }, [campPowerState, collectedWorldItemIds, playerInventory, storyReady]);
+
+  useEffect(() => () => {
+    if (portableAutosaveTimerRef.current !== null) {
+      window.clearTimeout(portableAutosaveTimerRef.current);
+    }
   }, []);
 
   useEffect(() => {
@@ -4672,6 +4772,10 @@ export function MovementLab() {
     questPresentationTimerRefs.current = [];
     if (questEventNoticeTimerRef.current !== null) {
       window.clearTimeout(questEventNoticeTimerRef.current);
+    }
+    if (delayedStoryDialogueTimerRef.current !== null) {
+      window.clearTimeout(delayedStoryDialogueTimerRef.current);
+      delayedStoryDialogueTimerRef.current = null;
     }
     cancelBlackScreenFade();
     for (const timerId of timePassTransitionTimersRef.current) {
@@ -5611,6 +5715,11 @@ export function MovementLab() {
       finishDialogue();
       return;
     }
+    const lineId = line.lineId?.trim();
+    if (lineId && playback.lastBgmCueLineId !== lineId) {
+      playback.lastBgmCueLineId = lineId;
+      bgmDirectorRef.current?.triggerDialogueLine(lineId);
+    }
     stopDialogueTyping();
     const speaker = resolveDialogueSpeaker(playback.interactable, playback.lineIndex);
     const characters = splitDialogueRevealUnits(
@@ -5678,6 +5787,7 @@ export function MovementLab() {
   };
 
   const presentDialogue = (
+    dialogueId: string,
     interactable: SceneInteractable,
     onComplete?: () => void,
     dialogue: InteractionDialogueScript | null | undefined = interactable.dialogue,
@@ -5699,6 +5809,7 @@ export function MovementLab() {
       },
     };
     const playback: DialoguePlayback = {
+      dialogueId,
       interactable: normalized,
       lineIndex: 0,
       pageIndex: 0,
@@ -5716,31 +5827,78 @@ export function MovementLab() {
   }
   const dialogueManager = dialogueManagerRef.current;
   dialogueManager.setPresenter((request, complete) => {
-    presentDialogue(request.context, complete, request.script);
+    presentDialogue(request.id, request.context, complete, request.script);
     return closeDialogue;
   });
+  const runAfterDialogueSubtitleEvents = async (dialogueId: string) => {
+    const triggeredEvents = findStorySubtitleEvents(
+      STORY_CHAPTERS,
+      "afterDialogue",
+      dialogueId,
+    );
+    for (const { chapterNumber, event } of triggeredEvents) {
+      const completedCount = getStorySubtitleCompletedCount(
+        storyProgressRef.current.completedEventIds,
+        event.id,
+      );
+      if (completedCount >= Math.max(1, event.triggerCount)) continue;
+      const flow = createStorySubtitleFlow(
+        chapterNumber,
+        event,
+        completedCount + 1,
+      );
+      await chapterFlowManagerRef.current?.run(flow);
+    }
+  };
   dialogueManager.setCompletionListener((request) => {
     const manager = questRuntimeManagerRef.current;
-    if (!manager) return;
-    questGameEventSequenceRef.current += 1;
-    manager.handleEvent({
-      type: "dialogueCompleted",
-      targetId: request.id,
-      eventId:
-        `dialogueCompleted:${SCENE_DATA.sceneId}:${request.id}:` +
-        `${questGameEventSequenceRef.current}`,
-    });
-    const clock = getGameClock(survivalStateRef.current.gameMinutes);
-    manager.startAvailableAfterDialogueQuests(
-      request.id,
-      clock.day,
-      clock.hour * 60 + clock.minute,
-    );
-    saveQuestSaveData(manager.exportSave());
+    if (manager) {
+      questGameEventSequenceRef.current += 1;
+      manager.handleEvent({
+        type: "dialogueCompleted",
+        targetId: request.id,
+        eventId:
+          `dialogueCompleted:${SCENE_DATA.sceneId}:${request.id}:` +
+          `${questGameEventSequenceRef.current}`,
+      });
+      const clock = getGameClock(survivalStateRef.current.gameMinutes);
+      manager.startAvailableAfterDialogueQuests(
+        request.id,
+        clock.day,
+        clock.hour * 60 + clock.minute,
+      );
+      saveQuestSaveData(manager.exportSave());
+    }
+    void runAfterDialogueSubtitleEvents(request.id);
   });
   Object.entries(STORY_DIALOGUES).forEach(([dialogueId, script]) => {
     dialogueManager.register(dialogueId, script);
   });
+
+  const scheduleRegisteredStoryDialogue = (
+    dialogueId: string,
+    delayMilliseconds: number,
+  ) => {
+    if (delayedStoryDialogueTimerRef.current !== null) {
+      window.clearTimeout(delayedStoryDialogueTimerRef.current);
+    }
+    storyInputLockedRef.current = true;
+    setStoryInputLocked(true);
+    setInventoryPanelOpen(false);
+    delayedStoryDialogueTimerRef.current = window.setTimeout(() => {
+      delayedStoryDialogueTimerRef.current = null;
+      storyInputLockedRef.current = false;
+      setStoryInputLocked(false);
+      void dialogueManager.playRegistered(
+        dialogueId,
+        {
+          id: `story:${dialogueId}`,
+          label: dialogueId,
+          type: "dialogue",
+        },
+      );
+    }, Math.max(0, delayMilliseconds));
+  };
 
   const openDialogue = (
     interactable: SceneInteractable,
@@ -5794,6 +5952,7 @@ export function MovementLab() {
     };
     storyProgressRef.current = next;
     saveStoryProgress(next);
+    requestPortableAutosaveRef.current("story-event-completed");
   };
 
   const setStoryFlag = (flagId: string, value: boolean) => {
@@ -5805,6 +5964,7 @@ export function MovementLab() {
     };
     storyProgressRef.current = next;
     saveStoryProgress(next);
+    requestPortableAutosaveRef.current("story-flag-changed");
   };
 
   if (!chapterFlowManagerRef.current) {
@@ -5819,6 +5979,10 @@ export function MovementLab() {
         cancelBlackScreenFade();
         setBlackScreenOpacity(visible ? 255 : 0);
       },
+      fadeToBlack: (durationMs) => {
+        if (storySkipBlackoutGuardRef.current) return;
+        fadeBlackScreen(255, durationMs);
+      },
       fadeFromBlack: (durationMs) => {
         if (storySkipBlackoutGuardRef.current) return;
         fadeBlackScreen(0, durationMs);
@@ -5826,6 +5990,7 @@ export function MovementLab() {
       showCenteredText: (action) => {
         setStoryCenteredText({
           lines: action.lines,
+          fontSizesPx: action.fontSizesPx,
           fadeInMs: action.fadeInMs,
           holdMs: action.holdMs,
           fadeOutMs: action.fadeOutMs,
@@ -5869,10 +6034,11 @@ export function MovementLab() {
       markCompleted: markStoryEventCompleted,
       isCompleted: (flowId) =>
         storyProgressRef.current.completedEventIds.includes(flowId),
-      onActiveChanged: (active) => {
+      onActiveChanged: (active, _flowId, keepBlackAfterComplete) => {
         storyFlowActiveRef.current = active;
         setStoryFlowActive(active);
         if (!active) {
+          if (keepBlackAfterComplete) return;
           // ChapterFlowManager 已結束就不應再留下任何劇情遮罩。
           // 這是 UI 層的最後保險，避免 SKIP 完成與 React 狀態更新
           // 發生競態時，進度已完成但黑幕仍停在畫面上。
@@ -6036,6 +6202,207 @@ export function MovementLab() {
     return true;
   };
 
+  const getPortableSaveSummary = () => {
+    const questSave = questRuntimeManagerRef.current?.exportSave() ?? loadQuestSaveData() ?? {
+      schemaVersion: 1 as const,
+      quests: {},
+    };
+    const entries = Object.entries(questSave.quests);
+    const selectedEntry = entries.find(([, entry]) => entry.state === "active" && entry.tracked) ??
+      entries.find(([, entry]) => entry.state === "active") ??
+      entries.find(([, entry]) => entry.state === "available");
+    const quest = selectedEntry
+      ? QUEST_DOCUMENT.quests.find((candidate) => candidate.id === selectedEntry[0])
+      : undefined;
+    const stage = quest?.stages.find((candidate) => candidate.id === selectedEntry?.[1].currentStageId);
+    const chapter = QUEST_DOCUMENT.chapters.find((candidate) => candidate.id === quest?.chapterId);
+    return {
+      questSave,
+      summary: {
+        chapterId: chapter?.id ?? `chapter-${storyProgressRef.current.currentChapter}`,
+        chapterName: chapter?.name ?? `第 ${storyProgressRef.current.currentChapter} 章`,
+        questId: quest?.id ?? "free-exploration",
+        questName: quest?.name ?? "自由活動",
+        stageId: stage?.id ?? "",
+        stageName: stage?.name ?? "",
+      },
+    };
+  };
+
+  const buildPortableSave = (slotKind: "auto" | "manual"): EchoesSaveData | null => {
+    const manager = questRuntimeManagerRef.current;
+    if (!portableSaveHydratedRef.current || !manager) return null;
+    const { questSave, summary } = getPortableSaveSummary();
+    return {
+      format: SAVE_DATA_FORMAT,
+      schemaVersion: SAVE_DATA_SCHEMA_VERSION,
+      savedAt: new Date().toISOString(),
+      slotKind,
+      summary,
+      progress: {
+        sceneId: SCENE_DATA.sceneId,
+        survival: survivalStateRef.current,
+        inventory: playerInventoryRef.current,
+        quest: questSave,
+        story: storyProgressRef.current,
+        campPower: campPowerStateRef.current,
+        interactionUsage: interactionUsageRef.current,
+        itemPointProgress: itemPointProgressRef.current,
+        collectedWorldItemIds: Array.from(collectedWorldItemIdsRef.current),
+        droppedWorldItems: droppedWorldItemsRef.current,
+      },
+    };
+  };
+
+  const refreshSaveDataSlots = async () => {
+    const slots = await listSaveDataSlots();
+    setSaveDataSlots(slots);
+    setSaveDataBackend(slots[0]?.backend ?? "browser-session");
+    return slots;
+  };
+
+  const queuePortableSaveWrite = (
+    slotId: SaveDataSlotId,
+    slotKind: "auto" | "manual",
+  ) => {
+    const save = buildPortableSave(slotKind);
+    if (!save) return Promise.resolve<SaveDataBackend | null>(null);
+    let result: SaveDataBackend | null = null;
+    const operation = async () => {
+      result = await writeSaveDataSlot(slotId, save);
+      setSaveDataBackend(result);
+    };
+    portableSaveWriteRef.current = portableSaveWriteRef.current.then(operation, operation);
+    return portableSaveWriteRef.current.then(() => result);
+  };
+
+  requestPortableAutosaveRef.current = () => {
+    if (debugSaveIsolationRef.current || !portableSaveHydratedRef.current) return;
+    if (portableAutosaveTimerRef.current !== null) {
+      window.clearTimeout(portableAutosaveTimerRef.current);
+    }
+    portableAutosaveTimerRef.current = window.setTimeout(() => {
+      portableAutosaveTimerRef.current = null;
+      void queuePortableSaveWrite("autosave", "auto").catch((error) => {
+        console.error("[Echoes SaveData] 自動存檔失敗：", error);
+        setSaveDataStatus("自動存檔失敗；原存檔未被覆蓋。 ");
+      });
+    }, 250);
+  };
+
+  const getManualSaveBlockedReason = () => {
+    if (debugSaveIsolationRef.current) return "Debug Scenario 不會寫入正式存檔。";
+    if (storyFlowActiveRef.current || dialoguePlaybackRef.current) return "對話／劇情播放期間無法手動存檔。";
+    if (powerPuzzleOpenRef.current || frequencyPuzzleOpenRef.current || weldingPuzzleOpenRef.current) {
+      return "小遊戲進行期間無法手動存檔。";
+    }
+    if (sceneTransitioningRef.current || timePassInputLockedRef.current || storyInputLockedRef.current) {
+      return "場景或事件轉場期間無法手動存檔。";
+    }
+    if (blackScreenOpacityRef.current > 1) return "黑畫面事件進行期間無法手動存檔。";
+    return "";
+  };
+
+  const setSelectedSaveSlotIndexValue = (index: number) => {
+    const normalized = (index + SAVE_DATA_SLOT_IDS.length) % SAVE_DATA_SLOT_IDS.length;
+    selectedSaveSlotIndexRef.current = normalized;
+    setSelectedSaveSlotIndex(normalized);
+    if (optionsGamepadModeRef.current === "dpad") {
+      window.requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>(
+          `#options-dialog [data-save-slot-index='${normalized}']`,
+        )?.scrollIntoView({ block: "nearest", behavior: "auto" });
+      });
+    }
+  };
+
+  const setSaveDataDialogValue = (dialog: SaveDataDialog | null) => {
+    saveDataDialogRef.current = dialog;
+    setSaveDataDialog(dialog);
+    saveDataDialogChoiceRef.current = "cancel";
+    setSaveDataDialogChoice("cancel");
+  };
+
+  const setSaveDataDialogChoiceValue = (choice: SaveDataDialogChoice) => {
+    saveDataDialogChoiceRef.current = choice;
+    setSaveDataDialogChoice(choice);
+  };
+
+  const openSelectedSaveSlot = () => {
+    if (saveDataBusyRef.current) return;
+    const slotId = SAVE_DATA_SLOT_IDS[selectedSaveSlotIndexRef.current];
+    const slot = saveDataSlots.find((candidate) => candidate.slotId === slotId);
+    if (slot?.corrupted) {
+      setSaveDataStatus("此存檔損毀或版本不相容；原檔與備份均已保留。 ");
+      return;
+    }
+    if (slotId === "autosave") {
+      if (slot?.exists) setSaveDataDialogValue({ slotId, mode: "load" });
+      return;
+    }
+    setSaveDataDialogValue({ slotId, mode: slot?.exists ? "actions" : "save" });
+  };
+
+  const moveSaveDataDialogChoice = (direction: number) => {
+    const dialog = saveDataDialogRef.current;
+    if (!dialog) return;
+    const choices: SaveDataDialogChoice[] = dialog.mode === "actions"
+      ? ["cancel", "load", "overwrite", "delete"]
+      : ["cancel", "confirm"];
+    const current = Math.max(0, choices.indexOf(saveDataDialogChoiceRef.current));
+    const next = (current + Math.sign(direction) + choices.length) % choices.length;
+    setSaveDataDialogChoiceValue(choices[next]);
+  };
+
+  const executeSaveDataDialogChoice = async () => {
+    const dialog = saveDataDialogRef.current;
+    if (!dialog || saveDataBusyRef.current) return;
+    const choice = saveDataDialogChoiceRef.current;
+    if (choice === "cancel") { setSaveDataDialogValue(null); return; }
+    if (dialog.mode === "actions") {
+      if (choice === "load" || choice === "overwrite" || choice === "delete") {
+        setSaveDataDialogValue({ slotId: dialog.slotId, mode: choice });
+      }
+      return;
+    }
+    if (choice !== "confirm") return;
+    saveDataBusyRef.current = true;
+    setSaveDataBusy(true);
+    try {
+      if (dialog.mode === "save" || dialog.mode === "overwrite") {
+        const blocked = getManualSaveBlockedReason();
+        if (blocked) { setSaveDataStatus(blocked); return; }
+        await queuePortableSaveWrite(dialog.slotId, "manual");
+        await refreshSaveDataSlots();
+        setSaveDataStatus(dialog.mode === "overwrite" ? "存檔已覆蓋。" : "存檔完成。 ");
+        setSaveDataDialogValue(null);
+      } else if (dialog.mode === "delete") {
+        await deleteSaveDataSlot(dialog.slotId);
+        await refreshSaveDataSlots();
+        setSaveDataStatus("存檔已刪除；刪除前版本已移至 backups。 ");
+        setSaveDataDialogValue(null);
+      } else if (dialog.mode === "load") {
+        const loaded = await readSaveDataSlot(dialog.slotId);
+        if (!loaded.save) throw new Error("save-slot-empty");
+        const autosaveCopy: EchoesSaveData = {
+          ...loaded.save,
+          savedAt: new Date().toISOString(),
+          slotKind: "auto",
+        };
+        await writeSaveDataSlot("autosave", autosaveCopy);
+        applySaveDataToRuntimeStorage(loaded.save);
+        setSaveDataStatus("讀檔完成，正在重新載入遊戲…");
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error("[Echoes SaveData] 存檔操作失敗：", error);
+      setSaveDataStatus("存檔操作失敗；原存檔未被刪除，請查看啟動記錄。 ");
+    } finally {
+      saveDataBusyRef.current = false;
+      setSaveDataBusy(false);
+    }
+  };
+
   const setOptionsPanelOpen = (open: boolean) => {
     if (open && powerPuzzleOpenRef.current) return;
     if (open && storyFlowActiveRef.current) {
@@ -6057,13 +6424,22 @@ export function MovementLab() {
     if (!open) {
       restartConfirmationOpenRef.current = false;
       setRestartConfirmationOpen(false);
+      setSaveDataDialogValue(null);
     }
 
     if (open) {
       optionsMenuSelectionRef.current = OPTIONS_MENU_ITEMS[0];
       setOptionsMenuSelection(OPTIONS_MENU_ITEMS[0]);
-      optionsTabRef.current = "display";
-      setOptionsTab("display");
+      optionsTabRef.current = "save";
+      setOptionsTab("save");
+      setSelectedSaveSlotIndexValue(0);
+      setSaveDataStatus("正在讀取存檔清單…");
+      void refreshSaveDataSlots()
+        .then(() => setSaveDataStatus(""))
+        .catch((error) => {
+          console.error("[Echoes SaveData] 無法讀取存檔清單：", error);
+          setSaveDataStatus("無法讀取本機 SaveData，請查看啟動記錄。 ");
+        });
     }
   };
 
@@ -6350,7 +6726,15 @@ export function MovementLab() {
   };
 
   const moveOptionsMenuSelection = (direction: number) => {
+    if (saveDataDialogRef.current) {
+      moveSaveDataDialogChoice(direction);
+      return;
+    }
     if (restartConfirmationOpenRef.current) return;
+    if (optionsTabRef.current === "save") {
+      setSelectedSaveSlotIndexValue(selectedSaveSlotIndexRef.current + Math.sign(direction));
+      return;
+    }
     const items = OPTIONS_TAB_ITEMS[optionsTabRef.current];
     const currentIndex = items.indexOf(optionsMenuSelectionRef.current);
     const nextIndex = currentIndex + Math.sign(direction);
@@ -6359,7 +6743,7 @@ export function MovementLab() {
   };
 
   const changeOptionsTab = (direction: number) => {
-    if (restartConfirmationOpenRef.current) return;
+    if (restartConfirmationOpenRef.current || saveDataDialogRef.current) return;
     const currentIndex = OPTIONS_TABS.findIndex(
       (tab) => tab.id === optionsTabRef.current,
     );
@@ -6376,6 +6760,10 @@ export function MovementLab() {
   };
 
   const activateOptionsMenuSelection = () => {
+    if (saveDataDialogRef.current) {
+      void executeSaveDataDialogChoice();
+      return;
+    }
     if (restartConfirmationOpenRef.current) {
       if (restartConfirmationChoiceRef.current === "confirm") {
         confirmRestartNewGame();
@@ -6385,6 +6773,9 @@ export function MovementLab() {
       return;
     }
     switch (optionsMenuSelectionRef.current) {
+      case "save-list":
+        openSelectedSaveSlot();
+        break;
       case "dialogue-text-size":
         setDialogueTextSize((current) =>
           current === "small" ? "medium" : current === "medium" ? "large" : "small",
@@ -6422,6 +6813,10 @@ export function MovementLab() {
   };
 
   const adjustOptionsMenuSelection = (direction: number) => {
+    if (saveDataDialogRef.current) {
+      moveSaveDataDialogChoice(direction);
+      return;
+    }
     if (restartConfirmationOpenRef.current) {
       setRestartConfirmationChoiceValue(direction > 0 ? "confirm" : "cancel");
       return;
@@ -7020,9 +7415,9 @@ export function MovementLab() {
         interactable.survivalRequirements,
       );
 
-    const getInteractionRequirementFailure = (
+    const hasInteractionRequirementFailures = (
       interactable: SceneInteractable,
-    ) => getInteractionRequirementFailures(interactable)[0];
+    ) => getInteractionRequirementFailures(interactable).length > 0;
 
     const getInteractionUseRequirementFailure = (
       interactable: SceneInteractable,
@@ -7093,7 +7488,7 @@ export function MovementLab() {
     canActivateStoryTriggerRef.current = (zone) => {
       const trigger = toStoryTriggerInteractable(zone);
       return !isInteractableLocked(trigger) &&
-        !getInteractionRequirementFailure(trigger) &&
+        !hasInteractionRequirementFailures(trigger) &&
         !getInteractionUseRequirementFailure(trigger, "all");
     };
 
@@ -7114,11 +7509,11 @@ export function MovementLab() {
       startedAt: number,
     ) => {
       let entries: PlayerInfoFloatEntry[] = [];
-      for (const failure of failures) {
+      for (const segments of buildSurvivalRequirementFloatRows(failures)) {
         playerInfoFloatSequenceRef.current += 1;
         entries = appendPlayerInfoFloat(
           entries,
-          buildSurvivalRequirementFloatSegments(failure),
+          segments,
           playerInfoFloatSequenceRef.current,
           startedAt,
         );
@@ -7870,6 +8265,21 @@ export function MovementLab() {
         event.preventDefault();
         return;
       }
+      if (optionsOpenRef.current) {
+        event.preventDefault();
+        if (key === "escape" && !event.repeat) {
+          if (saveDataDialogRef.current) setSaveDataDialogValue(null);
+          else if (restartConfirmationOpenRef.current) closeRestartConfirmation();
+          else setOptionsPanelOpen(false);
+        } else if ((key === "arrowup" || key === "arrowdown") && !event.repeat) {
+          moveOptionsMenuSelection(key === "arrowdown" ? 1 : -1);
+        } else if ((key === "arrowleft" || key === "arrowright") && !event.repeat) {
+          adjustOptionsMenuSelection(key === "arrowright" ? 1 : -1);
+        } else if ((key === "enter" || key === " ") && !event.repeat) {
+          activateOptionsMenuSelection();
+        }
+        return;
+      }
       if (
         key === "tab" &&
         !storyInputLockedRef.current &&
@@ -8057,6 +8467,9 @@ export function MovementLab() {
     debugItemSpawnHandlerRef.current = (command: string) => {
       const questCommand = parseQuestDebugCommand(command);
       if (questCommand) {
+        // Scenario fast-forward runs in an isolated debug state. It must never
+        // overwrite the player's normal portable autosave.
+        debugSaveIsolationRef.current = true;
         const manager = questRuntimeManagerRef.current;
         if (!manager) {
           showInteractionItemFeedback("Debug Scenario：任務系統尚未完成載入");
@@ -9004,7 +9417,13 @@ export function MovementLab() {
       completeInteraction(
         session.interactable,
         session.source,
-        () => publishPuzzleCompleted(session),
+        () => {
+          publishPuzzleCompleted(session);
+          scheduleRegisteredStoryDialogue(
+            FREQUENCY_CALIBRATION_FOLLOWUP_DIALOGUE_ID,
+            FREQUENCY_CALIBRATION_FOLLOWUP_DIALOGUE_DELAY_MS,
+          );
+        },
       );
     };
 
@@ -9305,7 +9724,7 @@ export function MovementLab() {
       if (getInteractionUseRequirementFailure(interactable)) {
         return openInteractionFailureDialogue(interactable, source);
       }
-      if (getInteractionRequirementFailure(interactable)) {
+      if (hasInteractionRequirementFailures(interactable)) {
         return openInteractionFailureDialogue(interactable, source, "survival");
       }
       if (openQuestItemSubmissionConfirmation(interactable, source)) return true;
@@ -9510,7 +9929,7 @@ export function MovementLab() {
         openInteractionFailureDialogue(interactable, source);
         return;
       }
-      if (interactable && getInteractionRequirementFailure(interactable)) {
+      if (interactable && hasInteractionRequirementFailures(interactable)) {
         autoPath = [];
         autoDestination = null;
         pendingInteraction = null;
@@ -11411,6 +11830,7 @@ export function MovementLab() {
           setCurrentSceneId(completedTransition.targetScene.sceneId);
           sceneStreamTransition = null;
           sceneTransitioningRef.current = false;
+          window.setTimeout(() => requestPortableAutosaveRef.current("scene-changed"), 0);
         }
         return;
       }
@@ -12059,7 +12479,11 @@ export function MovementLab() {
           changeOptionsTab(1);
         }
 
-        const dpadVertical = Math.sign(gamepadInput.dpadY);
+        const dpadVertical = Math.sign(
+          gamepadInput.dpadY !== 0
+            ? gamepadInput.dpadY
+            : Math.abs(gamepadInput.y) >= 0.55 ? gamepadInput.y : 0,
+        );
         if (dpadVertical === 0) {
           heldGamepadDpadY = 0;
           gamepadDpadYRepeatSeconds = 0;
@@ -12077,7 +12501,11 @@ export function MovementLab() {
           }
         }
 
-        const dpadHorizontal = Math.sign(gamepadInput.dpadX);
+        const dpadHorizontal = Math.sign(
+          gamepadInput.dpadX !== 0
+            ? gamepadInput.dpadX
+            : Math.abs(gamepadInput.x) >= 0.55 ? gamepadInput.x : 0,
+        );
         if (dpadHorizontal === 0) {
           heldGamepadDpadX = 0;
           gamepadDpadXRepeatSeconds = 0;
@@ -12111,7 +12539,9 @@ export function MovementLab() {
           gamepadInput.secondaryActionPressed &&
           !wasGamepadSecondaryActionPressed
         ) {
-          activateVirtualCursorUi();
+          if (saveDataDialogRef.current) setSaveDataDialogValue(null);
+          else if (restartConfirmationOpenRef.current) closeRestartConfirmation();
+          else setOptionsPanelOpen(false);
         }
       } else if (inventoryMenuOpen) {
         gameplayHotbarDpadX = 0;
@@ -13117,7 +13547,7 @@ export function MovementLab() {
     requestStoryTriggerContactCheckRef.current();
   };
 
-  const confirmRestartNewGame = () => {
+  const confirmRestartNewGame = async () => {
     const progress = resetStoredNewGameProgress();
     survivalStateRef.current = progress.survival;
     interactionUsageRef.current = progress.interactionUsage;
@@ -13148,8 +13578,38 @@ export function MovementLab() {
     setInventoryCategory("all");
     setHotbarFeedback(null);
     setOptionsPanelOpen(false);
-
-    window.setTimeout(() => window.location.reload(), 0);
+    const freshSave: EchoesSaveData = {
+      format: SAVE_DATA_FORMAT,
+      schemaVersion: SAVE_DATA_SCHEMA_VERSION,
+      savedAt: new Date().toISOString(),
+      slotKind: "auto",
+      summary: {
+        chapterId: "chapter-3",
+        chapterName: "第 3 章",
+        questId: "free-exploration",
+        questName: "新遊戲",
+        stageId: "",
+        stageName: "",
+      },
+      progress: {
+        sceneId: DEFAULT_SCENE_ID,
+        survival: progress.survival,
+        inventory: progress.inventory,
+        quest: { schemaVersion: 1, quests: {} },
+        story: progress.story,
+        campPower: progress.campPower,
+        interactionUsage: progress.interactionUsage,
+        itemPointProgress: progress.itemPointProgress,
+        collectedWorldItemIds: [],
+        droppedWorldItems: [],
+      },
+    };
+    try {
+      await writeSaveDataSlot("autosave", freshSave);
+      applySaveDataToRuntimeStorage(freshSave);
+    } finally {
+      window.location.reload();
+    }
   };
 
   const handleStoryPointerDownCapture = (
@@ -13435,17 +13895,9 @@ export function MovementLab() {
         />
       ) : null}
 
-      <img
-        ref={blackScreenImageRef}
-        className="black-screen-image"
-        src="./ui/black-screen.svg?v=3"
-        alt=""
-        data-opacity="255"
-        data-input-blocking="true"
-        data-virtual-cursor-enabled={virtualCursorControlsEnabled ? "true" : "false"}
-        draggable={false}
-        style={{ opacity: 1 }}
-        aria-hidden="true"
+      <BlackScreenOverlay
+        ref={blackScreenOverlayRef}
+        virtualCursorControlsEnabled={virtualCursorControlsEnabled}
       />
 
       {storyCenteredText ? (
@@ -13459,9 +13911,17 @@ export function MovementLab() {
           } as CSSProperties}
           aria-live="polite"
         >
-          {storyCenteredText.lines.map((line, index) => (
-            <p key={`${index}-${line}`}>{line}</p>
-          ))}
+          {storyCenteredText.lines.map((line, index) => {
+            const fontSizePx = storyCenteredText.fontSizesPx?.[index];
+            return (
+              <p
+                key={`${index}-${line}`}
+                style={fontSizePx ? { fontSize: `${fontSizePx}px` } : undefined}
+              >
+                {line}
+              </p>
+            );
+          })}
         </section>
       ) : null}
 
@@ -13652,10 +14112,10 @@ export function MovementLab() {
             const value = survivalState.values[stat.id];
             const critical = value <= 20;
             return (
-            <span className={`survival-mini-stat is-${stat.id}${critical ? " is-critical" : ""}`} key={stat.id} title={`${stat.label} ${Math.round(value)}/100`}>
+            <span className={`survival-mini-stat is-${stat.id}${critical ? " is-critical" : ""}`} key={stat.id} title={`${stat.label} ${getSurvivalDisplayValue(value)}/100`}>
               <i aria-hidden="true">{stat.symbol}</i>
               <b aria-hidden="true"><em style={{ width: `${value}%` }} /></b>
-              <small>{Math.round(value)}</small>
+              <small>{getSurvivalDisplayValue(value)}</small>
             </span>
           )})}
         </div>
@@ -13667,7 +14127,7 @@ export function MovementLab() {
             <div className={`survival-stat is-${stat.id}${critical ? " is-critical" : ""}`} key={stat.id}>
               <span className="survival-stat-icon" aria-hidden="true">{stat.symbol}</span>
               <span className="survival-stat-label">{stat.label}</span>
-              <output>{Math.round(value)}/100</output>
+              <output>{getSurvivalDisplayValue(value)}/100</output>
               <span className="survival-meter" aria-hidden="true">
                 <i style={{ width: `${value}%` }} />
               </span>
@@ -13944,7 +14404,7 @@ export function MovementLab() {
                       <div className={`survival-stat is-${stat.id}${critical ? " is-critical" : ""}`} key={stat.id}>
                         <span className="survival-stat-icon" aria-hidden="true">{stat.symbol}</span>
                         <span className="survival-stat-label">{stat.label}</span>
-                        <output>{Math.round(value)}/100</output>
+                        <output>{getSurvivalDisplayValue(value)}/100</output>
                         <span className="survival-meter" aria-hidden="true">
                           <i style={{ width: `${value}%` }} />
                         </span>
@@ -14536,6 +14996,74 @@ export function MovementLab() {
             </nav>
 
             <div className="options-content">
+              {optionsTab === "save" ? (
+                <>
+                  <div className="options-section-heading save-data-heading">
+                    <span>存檔</span>
+                    <small>
+                      {saveDataBackend === "local-files"
+                        ? "本機可攜式 SaveData · 場景與地面物品位置會保存，角色座標／面向不保存"
+                        : "網頁模式 · 僅保存在這次瀏覽器工作階段"}
+                    </small>
+                  </div>
+                  <div className="save-data-list" role="list" aria-label="存檔清單">
+                    {SAVE_DATA_SLOT_IDS.map((slotId, index) => {
+                      const slot = saveDataSlots.find((candidate) => candidate.slotId === slotId);
+                      const isAuto = slotId === "autosave";
+                      const slotNumber = isAuto ? 0 : Number(slotId.slice(-2));
+                      const dateLabel = slot?.savedAt
+                        ? new Date(slot.savedAt).toLocaleString("zh-TW", {
+                            year: "numeric", month: "2-digit", day: "2-digit",
+                            hour: "2-digit", minute: "2-digit", second: "2-digit",
+                            hour12: false,
+                          })
+                        : "";
+                      return (
+                        <button
+                          key={slotId}
+                          className={`save-data-row${slot?.exists ? " has-save" : " is-empty"}${slot?.corrupted ? " is-corrupted" : ""}`}
+                          type="button"
+                          role="listitem"
+                          data-save-slot-index={index}
+                          data-gamepad-selected={selectedSaveSlotIndex === index || undefined}
+                          onFocus={() => {
+                            setOptionsMenuSelectionValue("save-list");
+                            setSelectedSaveSlotIndexValue(index);
+                          }}
+                          onClick={() => {
+                            setOptionsMenuSelectionValue("save-list");
+                            setSelectedSaveSlotIndexValue(index);
+                            window.setTimeout(openSelectedSaveSlot, 0);
+                          }}
+                        >
+                          <span className="save-data-slot-number">
+                            {isAuto ? "AUTO" : String(slotNumber).padStart(2, "0")}
+                          </span>
+                          <span className="save-data-row-copy">
+                            <strong>
+                              {slot?.corrupted
+                                ? "存檔損毀／版本不相容"
+                                : slot?.exists
+                                  ? `${slot.summary?.chapterName || "未知章節"} · ${slot.summary?.questName || "自由活動"}`
+                                  : isAuto ? "尚無自動存檔" : "空存檔"}
+                            </strong>
+                            <small>
+                              {slot?.exists && !slot.corrupted
+                                ? [slot.summary?.stageName, dateLabel].filter(Boolean).join(" · ")
+                                : isAuto ? "重要進度會自動寫入" : "確認後可儲存到此欄位"}
+                            </small>
+                          </span>
+                          <b>{isAuto ? "讀取" : slot?.exists ? "選項" : "儲存"}</b>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="save-data-status" aria-live="polite">
+                    {saveDataBusy ? "處理中…" : saveDataStatus || getManualSaveBlockedReason()}
+                  </div>
+                </>
+              ) : null}
+
               {optionsTab === "display" ? (
                 <>
                   <div className="options-section-heading">
@@ -14793,6 +15321,74 @@ export function MovementLab() {
               <span>START／齒輪：關閉</span><span>LB／RB：切換頁籤 · 十字鍵：選擇／調整 · A：確認 · B：關閉</span>
             </footer>
           </section>
+          {saveDataDialog ? (
+            <div
+              className="save-data-confirmation-backdrop"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget && !saveDataBusy) setSaveDataDialogValue(null);
+              }}
+            >
+              <section
+                className="save-data-confirmation"
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="save-data-confirmation-title"
+              >
+                <small>SAVE DATA</small>
+                <h3 id="save-data-confirmation-title">
+                  {saveDataDialog.mode === "actions"
+                    ? "選擇存檔操作"
+                    : saveDataDialog.mode === "load"
+                      ? "讀取這筆存檔？"
+                      : saveDataDialog.mode === "overwrite"
+                        ? "覆蓋這筆存檔？"
+                        : saveDataDialog.mode === "delete"
+                          ? "刪除這筆存檔？"
+                          : "儲存到這個空欄位？"}
+                </h3>
+                <p>
+                  {saveDataDialog.mode === "load"
+                    ? "目前尚未另行存檔的進度會被取代；小遊戲與未完成對話會從頭開始。"
+                    : saveDataDialog.mode === "delete"
+                      ? "存檔將從清單移除，刪除前版本會保留在 backups 資料夾。"
+                      : saveDataDialog.mode === "overwrite"
+                        ? "原存檔會先備份，再以目前進度覆蓋。"
+                        : saveDataDialog.mode === "save"
+                          ? "將保存目前場景、地面物品位置、任務 OBJ、生存值與背包。"
+                          : "可讀取、覆蓋或刪除這筆手動存檔。"}
+                </p>
+                <div className="save-data-confirmation-actions">
+                  <button
+                    className={saveDataDialogChoice === "cancel" ? "is-selected" : undefined}
+                    type="button"
+                    disabled={saveDataBusy}
+                    onFocus={() => setSaveDataDialogChoiceValue("cancel")}
+                    onClick={() => setSaveDataDialogValue(null)}
+                  >取消</button>
+                  {saveDataDialog.mode === "actions" ? (
+                    <>
+                      <button className={saveDataDialogChoice === "load" ? "is-selected" : undefined} type="button" onFocus={() => setSaveDataDialogChoiceValue("load")} onClick={() => setSaveDataDialogValue({ ...saveDataDialog, mode: "load" })}>讀檔</button>
+                      <button className={saveDataDialogChoice === "overwrite" ? "is-selected" : undefined} type="button" onFocus={() => setSaveDataDialogChoiceValue("overwrite")} onClick={() => setSaveDataDialogValue({ ...saveDataDialog, mode: "overwrite" })}>覆蓋存檔</button>
+                      <button className={`is-delete${saveDataDialogChoice === "delete" ? " is-selected" : ""}`} type="button" onFocus={() => setSaveDataDialogChoiceValue("delete")} onClick={() => setSaveDataDialogValue({ ...saveDataDialog, mode: "delete" })}>刪除</button>
+                    </>
+                  ) : (
+                    <button
+                      className={`is-confirm${saveDataDialog.mode === "delete" ? " is-delete" : ""}${saveDataDialogChoice === "confirm" ? " is-selected" : ""}`}
+                      type="button"
+                      disabled={saveDataBusy}
+                      onFocus={() => setSaveDataDialogChoiceValue("confirm")}
+                      onClick={() => {
+                        setSaveDataDialogChoiceValue("confirm");
+                        window.setTimeout(() => void executeSaveDataDialogChoice(), 0);
+                      }}
+                    >
+                      {saveDataBusy ? "處理中…" : saveDataDialog.mode === "load" ? "確認讀檔" : saveDataDialog.mode === "delete" ? "確認刪除" : "確認儲存"}
+                    </button>
+                  )}
+                </div>
+              </section>
+            </div>
+          ) : null}
           {restartConfirmationOpen ? (
             <div
               className="restart-confirmation-backdrop"

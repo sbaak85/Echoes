@@ -302,6 +302,22 @@ export class BgmDirector {
     this.setState("scene", sceneId, "active");
   }
 
+  /**
+   * Dialogue-line cues are latched: a configured cue remains active until a
+   * later configured Line ID replaces it. Ordinary lines without a BGM rule do
+   * not cancel the previous cue.
+   */
+  triggerDialogueLine(lineId: string, state = "triggered") {
+    const normalizedLineId = lineId.trim();
+    if (!normalizedLineId || !this.rules.some(
+      (rule) => rule.enabled &&
+        rule.triggerType === "dialogueLine" &&
+        rule.targetId === normalizedLineId,
+    )) return;
+    this.clearType("dialogueLine");
+    this.setState("dialogueLine", normalizedLineId, state);
+  }
+
   triggerEvent(eventId: string, state = "triggered", durationSeconds?: number) {
     this.setState("event", eventId, state);
     const configuredDuration = this.rules

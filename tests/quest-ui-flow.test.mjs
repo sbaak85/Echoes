@@ -4,6 +4,10 @@ import { readFile } from "node:fs/promises";
 
 const source = await readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+const blackScreenOverlaySource = await readFile(
+  new URL("../app/black-screen-overlay.tsx", import.meta.url),
+  "utf8",
+);
 
 test("development-only fake quest HUD triggers are removed", () => {
   assert.equal(source.includes("MOCK_QUEST_HUD"), false);
@@ -369,10 +373,10 @@ test("visible black screen absorbs pointer input and blocks world actions", () =
     /\.black-screen-image\[data-input-blocking="true"\]\s*{[^}]*pointer-events:\s*auto\s*!important/,
   );
   assert.match(
-    source,
-    /image\.dataset\.inputBlocking = next > 0 \? "true" : "false"/,
+    blackScreenOverlaySource,
+    /data-input-blocking=\{opacity255 > 0 \? "true" : "false"\}/,
   );
-  assert.match(source, /data-input-blocking="true"/);
+  assert.match(source, /blackScreenOverlayRef\.current\?\.setOpacity\(next\)/);
 
   const assignWorldActionSource = source.slice(
     source.indexOf("const assignWorldAction"),
@@ -400,6 +404,22 @@ test("visible black screen absorbs pointer input and blocks world actions", () =
     mouseMoveSource,
     /if \(blackScreenOpacityRef\.current > 0\)[\s\S]*?virtualCursorVisible = true/,
   );
-  assert.match(source, /draggable={false}/);
+  assert.match(blackScreenOverlaySource, /draggable=\{false\}/);
   assert.match(styles, /\.black-screen-image\s*{[^}]*-webkit-user-drag:\s*none/);
+});
+
+test("black screen opacity has one React-owned source and survives parent rerenders", () => {
+  assert.match(
+    blackScreenOverlaySource,
+    /const \[opacity255, setOpacity255\] = useState\(255\)/,
+  );
+  assert.match(
+    blackScreenOverlaySource,
+    /style=\{\{ opacity: opacity255 \/ 255 \}\}/,
+  );
+  assert.match(blackScreenOverlaySource, /data-opacity=\{opacity255\}/);
+  assert.doesNotMatch(
+    source,
+    /className="black-screen-image"[\s\S]{0,500}style=\{\{ opacity: 1 \}\}/,
+  );
 });

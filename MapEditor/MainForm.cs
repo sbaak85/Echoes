@@ -2183,7 +2183,8 @@ public sealed class MainForm : Form
             interactable.FailureDialogue,
             interactable.SurvivalFailureDialogue,
             interactable.CompletionDialogue,
-            interactable.SkipSuccessDialogue);
+            interactable.SkipSuccessDialogue,
+            interactable.Id);
         if (editor.ShowDialog(this) != DialogResult.OK) return;
         _canvas.UpdateSelectedDialogues(
             editor.SuccessDialogue,

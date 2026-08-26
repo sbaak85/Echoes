@@ -691,6 +691,7 @@ public sealed class DialogueScript
         Speakers = Speakers.ToList(),
         Lines = Lines.Select(line => new DialogueLine
         {
+            LineId = line.LineId,
             Speaker = line.Speaker,
             Text = line.Text,
             RandomGroupId = line.RandomGroupId,
@@ -701,6 +702,7 @@ public sealed class DialogueScript
 
 public sealed class DialogueLine
 {
+    public string LineId { get; set; } = "";
     public string Speaker { get; set; } = "";
     public string Text { get; set; } = "...";
     public string? RandomGroupId { get; set; }

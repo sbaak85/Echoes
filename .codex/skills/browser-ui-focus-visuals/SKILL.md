@@ -45,6 +45,19 @@ Apply this rule consistently to mouse, touch, keyboard, gamepad buttons, directi
 - Preserve virtual-cursor support when present. Follow the last active input method so the left stick, directional selection, right-stick virtual cursor, mouse, and touch do not simultaneously control or overwrite one another.
 - Use edge detection and intentional repeat timing for held controls so one stick movement does not trigger uncontrolled multi-step navigation or repeated A activations.
 
+## Black-screen fade invariant
+
+Treat restoration from a black screen as a critical game-recovery invariant, not merely a visual effect.
+
+- Unless an event explicitly requests a persistent black screen, its complete sequence is: fade the full-screen black overlay in, hold it, then fade that same overlay out until the game is fully visible again. `FadeOut` means lighting the scene back up; fading only the subtitle text is incorrect.
+- After a non-persistent fade-out finishes, force the overlay to its terminal clear state even if animation rounding or an interrupted transition leaves an intermediate value: opacity `0`, no pointer or hit-test blocking, no black-screen input lock, and no stale modal ownership.
+- Cancellation, exceptions, component unmounting, script replacement, and early exits must run equivalent cleanup. Use a `finally` or another guaranteed teardown path for non-persistent events so a failed callback cannot strand the game behind an opaque overlay.
+- A persistent black state is allowed only when a deliberate setting such as `keepBlack` is enabled and a clearly identified following flow owns responsibility for restoring visibility. Never infer persistence merely because subtitle timing has ended or another event may run later.
+- Keep one authoritative owner for overlay opacity. Do not combine imperative DOM mutation with a parent render that can silently reapply `opacity: 1`; React state, animation state, and DOM attributes must agree on the final value.
+- When one black-screen flow hands off to another, make ownership explicit so cleanup from the older flow cannot fight the newer flow, while the newer flow remains responsible for eventual restoration.
+
+For a configured sequence such as fade-in `0.5 s`, hold `4 s`, and fade-out `2 s` with persistence disabled, the required observable result is a fully black screen after the first phase, a four-second hold, a two-second transition back to the scene, and a fully transparent non-blocking overlay at completion.
+
 ## Verification
 
 Check all relevant paths:
@@ -58,5 +71,7 @@ Check all relevant paths:
 7. A-button activation producing the same result as pointer click, exactly once per press.
 8. Opening every blocking UI over a world interactable: the virtual cursor must operate the UI without showing or triggering the covered world target, including over non-interactive gaps in the panel.
 9. Closing the blocking UI: world prompts and activation resume without restoring a stale cached target.
+10. For every non-persistent black-screen event, sample the overlay during fade-in, hold, fade-out, and after completion. Confirm that fade-out visibly lights the scene, then leaves opacity `0`, releases hit testing and input locks, and remains clear after subsequent renders.
+11. Exercise cancellation and error paths for black-screen events. Confirm that they restore the same clear terminal state unless an explicit persistent handoff owns the black screen.
 
 Confirm that no native focus background or border appears, while custom selection feedback and every input method still work. For every menu or clickable-button UI, confirm that left-stick navigation and A-button activation work without additional feature-specific setup.

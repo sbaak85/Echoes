@@ -8,10 +8,16 @@ import {
   CHAPTER_3_START_DIALOGUE,
   CHAPTER_3_START_FLOW,
   CHAPTER_3_SECTION_1_DIALOGUE_ID,
+  STORY_CHAPTERS,
   STORY_DIALOGUES,
   STORY_EVENT_FLOWS,
 } from "../app/story-content.ts";
 import { StoryEventManager } from "../app/story-event-manager.ts";
+import {
+  createStorySubtitleFlow,
+  findStorySubtitleEvents,
+  getStorySubtitleCompletedCount,
+} from "../app/story-subtitle-flow.ts";
 
 test("ChapterScriptEditor owns chapter-scoped story trigger polygon dialogue", async () => {
   const [editorSource, codecSource, storyContentSource, movementLabSource] =
@@ -36,6 +42,135 @@ test("ChapterScriptEditor owns chapter-scoped story trigger polygon dialogue", a
   assert.match(storyContentSource, /"storyTriggerDialogues": \[/);
   assert.match(storyContentSource, /"chapter03-lower-left-not-ready": \{/);
   assert.doesNotMatch(movementLabSource, /LOWER_LEFT_STORY_ZONE_DIALOGUE/);
+});
+
+test("chapter03-section-9 複製 chapter03-final 的完整人物與腳本", async () => {
+  assert.deepEqual(
+    STORY_DIALOGUES["chapter03-section-9"],
+    STORY_DIALOGUES["chapter03-final"],
+  );
+
+  const source = await readFile(
+    new URL("../app/story-content.ts", import.meta.url),
+    "utf8",
+  );
+  const encoded = source.match(
+    /\/\* CHAPTER_SCRIPT_EDITOR_DATA_BEGIN\s+([A-Za-z0-9+/=\r\n]+?)\s+CHAPTER_SCRIPT_EDITOR_DATA_END \*\//,
+  )?.[1];
+  assert.ok(encoded);
+  const document = JSON.parse(
+    Buffer.from(encoded.replace(/\s/g, ""), "base64").toString("utf8"),
+  );
+  const chapter = document.chapters.find((entry) => entry.id === "chapter03");
+  const sourceDialogue = chapter.storyTriggerDialogues.find(
+    (entry) => entry.id === "chapter03-final",
+  )?.dialogue;
+  const targetDialogue = chapter.dialogueSections.find(
+    (entry) => entry.id === "chapter03-section-9",
+  )?.dialogue;
+  assert.deepEqual(targetDialogue, sourceDialogue);
+});
+
+test("chapter03-End 由章節編輯器在 section-9 後播放黑幕白字幕", async () => {
+  const matches = findStorySubtitleEvents(
+    STORY_CHAPTERS,
+    "afterDialogue",
+    "chapter03-section-9",
+  );
+  assert.equal(matches.length, 1);
+  const { chapterNumber, event } = matches[0];
+  assert.equal(event.id, "chapter03-End");
+  assert.equal(event.text, "第三章結束");
+  assert.deepEqual(event.lines, [{ text: "第三章結束", fontSizePx: 38 }]);
+  assert.equal(event.fadeInMs, 500);
+  assert.equal(event.holdMs, 4000);
+  assert.equal(event.fadeOutMs, 2000);
+  assert.equal(event.keepBlack, false);
+  assert.equal(event.lockInput, true);
+
+  const flow = createStorySubtitleFlow(chapterNumber, event, 1);
+  assert.deepEqual(flow.actions, [
+    { type: "lockInput" },
+    {
+      type: "showBlackSubtitle",
+      lines: ["第三章結束"],
+      fontSizesPx: [38],
+      fadeInMs: 500,
+      holdMs: 4000,
+      fadeOutMs: 2000,
+      keepBlack: false,
+    },
+    { type: "unlockInput" },
+  ]);
+  assert.equal(
+    getStorySubtitleCompletedCount([flow.id], "chapter03-End"),
+    1,
+  );
+
+  const styledFlow = createStorySubtitleFlow(
+    chapterNumber,
+    {
+      ...event,
+      id: "styled-subtitle-test",
+      text: "第一句\n第二句",
+      lines: [
+        { text: "第一句", fontSizePx: 46 },
+        { text: "第二句", fontSizePx: 22 },
+      ],
+    },
+    1,
+  );
+  assert.deepEqual(styledFlow.actions[1], {
+    type: "showBlackSubtitle",
+    lines: ["第一句", "第二句"],
+    fontSizesPx: [46, 22],
+    fadeInMs: 500,
+    holdMs: 4000,
+    fadeOutMs: 2000,
+    keepBlack: false,
+  });
+  const legacyFlow = createStorySubtitleFlow(
+    chapterNumber,
+    {
+      ...event,
+      id: "legacy-subtitle-test",
+      text: "舊第一句\n舊第二句",
+      lines: undefined,
+    },
+    1,
+  );
+  assert.deepEqual(legacyFlow.actions[1], {
+    type: "showBlackSubtitle",
+    lines: ["舊第一句", "舊第二句"],
+    fadeInMs: 500,
+    holdMs: 4000,
+    fadeOutMs: 2000,
+    keepBlack: false,
+  });
+
+  const [storyContentSource, movementLabSource, globalsSource] = await Promise.all([
+    readFile(new URL("../app/story-content.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  const encoded = storyContentSource.match(
+    /\/\* CHAPTER_SCRIPT_EDITOR_DATA_BEGIN\s+([A-Za-z0-9+/=\r\n]+?)\s+CHAPTER_SCRIPT_EDITOR_DATA_END \*\//,
+  )?.[1];
+  assert.ok(encoded);
+  const document = JSON.parse(
+    Buffer.from(encoded.replace(/\s/g, ""), "base64").toString("utf8"),
+  );
+  const embeddedEvent = document.chapters
+    .find((chapter) => chapter.id === "chapter03")
+    ?.subtitleEvents.find((candidate) => candidate.id === "chapter03-End");
+  assert.deepEqual(embeddedEvent, event);
+  assert.match(
+    movementLabSource,
+    /void runAfterDialogueSubtitleEvents\(request\.id\)/,
+  );
+  assert.match(movementLabSource, /storyCenteredText\.fontSizesPx\?\.\[index\]/);
+  assert.match(movementLabSource, /fontSize: `\$\{fontSizePx\}px`/);
+  assert.match(globalsSource, /\.story-centered-text p \{[\s\S]*?white-space: pre-line;/);
 });
 
 test("blank dialogue speaker stays blank instead of inheriting the previous line", async () => {
@@ -71,7 +206,7 @@ test("story trigger zones reuse interaction requirements and completion effects"
     movementLabSource.indexOf("const isInteractableConditionActive"),
   );
   assert.match(storyActivationSource, /isInteractableLocked\(trigger\)/);
-  assert.match(storyActivationSource, /getInteractionRequirementFailure\(trigger\)/);
+  assert.match(storyActivationSource, /hasInteractionRequirementFailures\(trigger\)/);
   assert.match(
     storyActivationSource,
     /getInteractionUseRequirementFailure\(trigger, "all"\)/,
@@ -180,6 +315,14 @@ test("第三章開場腳本與流程符合第一版規格", () => {
     STORY_DIALOGUES["chapter03-lower-left-not-ready"];
   assert.equal(lowerLeftStoryZoneDialogue?.lines[0]?.speaker, "Sbaak");
   assert.equal(lowerLeftStoryZoneDialogue?.lines[0]?.text, "現在我還沒準備好。");
+  const sectionNine = STORY_DIALOGUES["chapter03-section-9"];
+  assert.equal(sectionNine?.lines[9]?.lineId, "chapter03-section-9-line-010");
+  assert.equal(sectionNine?.lines[9]?.text, "警告——偵測到非預期訊號來源。");
+  const storyLineIds = Object.values(STORY_DIALOGUES)
+    .flatMap((dialogue) => dialogue.lines)
+    .map((line) => line.lineId);
+  assert.equal(storyLineIds.every((lineId) => typeof lineId === "string" && lineId.length > 0), true);
+  assert.equal(new Set(storyLineIds).size, storyLineIds.length);
 
   const centeredText = CHAPTER_3_START_FLOW.actions.find(
     (action) => action.type === "showCenteredText",
@@ -320,6 +463,7 @@ test("ChapterFlowManager 可執行並以 skipActions 結束", async () => {
   const manager = new ChapterFlowManager({
     setInputLocked: (locked) => calls.push(`lock:${locked}`),
     setBlack: (visible) => calls.push(`black:${visible}`),
+    fadeToBlack: (durationMs) => calls.push(`fade-to:${durationMs}`),
     fadeFromBlack: (durationMs) => calls.push(`fade:${durationMs}`),
     showCenteredText: () => calls.push("text:show"),
     hideCenteredText: () => calls.push("text:hide"),
@@ -364,6 +508,7 @@ test("ChapterFlowManager 從暫停狀態 SKIP 後仍會關閉黑幕並解鎖", a
   const manager = new ChapterFlowManager({
     setInputLocked: (locked) => { inputLocked = locked; },
     setBlack: (visible) => { blackVisible = visible; },
+    fadeToBlack: () => {},
     fadeFromBlack: () => {},
     showCenteredText: () => {},
     hideCenteredText: () => {},
@@ -395,6 +540,99 @@ test("ChapterFlowManager 從暫停狀態 SKIP 後仍會關閉黑幕並解鎖", a
   assert.equal(manager.requestSkip(), true);
   assert.equal(await run, true);
   assert.equal(paused, false);
+  assert.equal(blackVisible, false);
+  assert.equal(inputLocked, false);
+});
+
+test("黑幕白字幕會同步淡入淡出，結束時強制回到完全點亮", async () => {
+  const calls = [];
+  let blackVisible = false;
+  let inputLocked = false;
+  const manager = new ChapterFlowManager({
+    setInputLocked: (locked) => {
+      inputLocked = locked;
+      calls.push(`lock:${locked}`);
+    },
+    setBlack: (visible) => {
+      blackVisible = visible;
+      calls.push(`black:${visible}`);
+    },
+    fadeToBlack: (durationMs) => {
+      blackVisible = true;
+      calls.push(`fade-to:${durationMs}`);
+    },
+    // 模擬 RAF 動畫被中斷：這裡刻意不把 blackVisible 改回 false。
+    fadeFromBlack: (durationMs) => calls.push(`fade-from:${durationMs}`),
+    showCenteredText: () => calls.push("text:show"),
+    hideCenteredText: () => calls.push("text:hide"),
+    playDialogue: async () => {},
+    cancelDialogue: () => {},
+    markCompleted: () => {},
+    isCompleted: () => false,
+  });
+
+  await manager.run({
+    id: "black-subtitle-test",
+    chapter: 3,
+    actions: [
+      { type: "lockInput" },
+      {
+        type: "showBlackSubtitle",
+        lines: ["第三章結束"],
+        fadeInMs: 2,
+        holdMs: 3,
+        fadeOutMs: 4,
+        keepBlack: false,
+      },
+      { type: "unlockInput" },
+    ],
+  });
+
+  assert.deepEqual(calls, [
+    "lock:true",
+    "text:show",
+    "fade-to:2",
+    "fade-from:4",
+    "text:hide",
+    "black:false",
+    "lock:false",
+    "text:hide",
+    "black:false",
+    "lock:false",
+  ]);
+  assert.equal(blackVisible, false);
+  assert.equal(inputLocked, false);
+});
+
+test("非持續黑幕流程即使中途拋錯也會強制點亮並解除輸入鎖定", async () => {
+  let blackVisible = false;
+  let inputLocked = false;
+  const manager = new ChapterFlowManager({
+    setInputLocked: (locked) => { inputLocked = locked; },
+    setBlack: (visible) => { blackVisible = visible; },
+    fadeToBlack: () => { blackVisible = true; },
+    fadeFromBlack: () => {},
+    showCenteredText: () => {},
+    hideCenteredText: () => {},
+    playDialogue: async () => { throw new Error("dialogue failed"); },
+    cancelDialogue: () => {},
+    markCompleted: () => {},
+    isCompleted: () => false,
+  });
+
+  await assert.rejects(
+    manager.run({
+      id: "blackout-error-failsafe",
+      chapter: 3,
+      actions: [
+        { type: "lockInput" },
+        { type: "setBlack", visible: true },
+        { type: "playDialogue", dialogueId: "broken-dialogue" },
+      ],
+    }),
+    /dialogue failed/,
+  );
+
   assert.equal(blackVisible, false);
   assert.equal(inputLocked, false);
 });

@@ -423,6 +423,7 @@ button {
   font-weight: 650;
   line-height: 1.65;
   letter-spacing: 0.035em;
+  white-space: pre-line;
 }
 
 .story-centered-text p:last-child {
@@ -5715,7 +5716,7 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
 
 .options-tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
   padding: 12px 18px 0;
 }
@@ -5771,6 +5772,115 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   color: #8fa6a8;
   font-size: 15px;
   line-height: 1.5;
+}
+
+.options-dialog button:focus,
+.options-dialog button:focus-visible,
+.options-dialog input:focus,
+.options-dialog input:focus-visible {
+  outline: none;
+}
+
+.save-data-heading {
+  position: sticky;
+  z-index: 2;
+  top: -25px;
+  margin: -25px -26px 4px;
+  padding: 20px 26px 14px;
+  border-bottom: 1px solid rgba(123, 224, 212, 0.12);
+  background: rgba(12, 27, 31, 0.97);
+}
+
+.save-data-list {
+  display: grid;
+  gap: 7px;
+}
+
+.save-data-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 70px;
+  padding: 11px 14px;
+  border: 1px solid rgba(123, 224, 212, 0.16);
+  border-radius: 8px;
+  background: rgba(4, 16, 20, 0.48);
+  color: #dceae8;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.save-data-row:hover,
+.save-data-row[data-gamepad-selected="true"] {
+  border-color: rgba(123, 224, 212, 0.68);
+  background: rgba(45, 125, 117, 0.2);
+  box-shadow: 0 0 0 2px rgba(123, 224, 212, 0.08) inset;
+}
+
+.save-data-row.is-empty {
+  border-color: rgba(154, 166, 168, 0.12);
+  background: rgba(103, 112, 115, 0.08);
+  color: #879294;
+  opacity: 0.56;
+}
+
+.save-data-row.is-empty .save-data-slot-number {
+  border-color: rgba(154, 166, 168, 0.22);
+  color: #8b9799;
+}
+
+.save-data-row.is-empty .save-data-row-copy small,
+.save-data-row.is-empty > b {
+  color: #849092;
+}
+
+.save-data-row.is-empty:hover,
+.save-data-row.is-empty[data-gamepad-selected="true"] {
+  border-color: rgba(123, 224, 212, 0.52);
+  background: rgba(45, 90, 88, 0.2);
+  opacity: 0.9;
+}
+
+.save-data-row.is-corrupted { border-color: rgba(255, 123, 123, 0.42); }
+
+.save-data-slot-number {
+  display: grid;
+  min-height: 40px;
+  place-items: center;
+  border: 1px solid rgba(123, 224, 212, 0.28);
+  border-radius: 6px;
+  color: #8fe9dd;
+  font-family: var(--font-mono, monospace);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.save-data-row-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.save-data-row-copy strong,
+.save-data-row-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.save-data-row-copy strong { font-size: 16px; font-weight: 650; }
+.save-data-row-copy small { color: #8fa6a8; font-size: 13px; }
+.save-data-row > b { color: #91e8dc; font-size: 13px; }
+
+.save-data-status {
+  min-height: 22px;
+  padding: 3px 2px;
+  color: #e0bc69;
+  font-size: 13px;
 }
 
 .shadow-tuning-heading {
@@ -6028,6 +6138,83 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   background: rgba(137, 34, 39, 0.28);
   box-shadow: 0 0 0 2px rgba(255, 123, 123, 0.09) inset;
 }
+
+.save-data-confirmation-backdrop {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(1, 6, 9, 0.76);
+  backdrop-filter: blur(6px);
+}
+
+.save-data-confirmation {
+  width: min(560px, calc(100% - 24px));
+  padding: 28px;
+  border: 1px solid rgba(123, 224, 212, 0.38);
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(18, 42, 44, 0.99), rgba(10, 19, 24, 0.99));
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.68);
+  text-align: center;
+  animation: options-enter 160ms ease-out;
+}
+
+.save-data-confirmation > small {
+  color: #7be0d4;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+}
+
+.save-data-confirmation h3 {
+  margin: 10px 0 8px;
+  color: #f5fbf9;
+  font-size: 24px;
+  font-weight: 650;
+}
+
+.save-data-confirmation p {
+  margin: 0;
+  color: #aab9ba;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.save-data-confirmation-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.save-data-confirmation button {
+  padding: 11px 14px;
+  border: 1px solid rgba(177, 211, 207, 0.2);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.035);
+  color: #dbe8e6;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.save-data-confirmation button:hover,
+.save-data-confirmation button.is-selected {
+  border-color: rgba(123, 224, 212, 0.7);
+  background: rgba(73, 185, 174, 0.2);
+  box-shadow: 0 0 0 2px rgba(123, 224, 212, 0.08) inset;
+}
+
+.save-data-confirmation button.is-delete { color: #ffaaa5; }
+.save-data-confirmation button.is-delete:hover,
+.save-data-confirmation button.is-delete.is-selected {
+  border-color: rgba(255, 123, 123, 0.7);
+  background: rgba(137, 34, 39, 0.28);
+}
+
+.save-data-confirmation button:disabled { cursor: wait; opacity: 0.55; }
 
 .toggle-button {
   display: flex;

@@ -2449,6 +2449,7 @@
         "spirit": -10,
         "timeMinutes": 0
       },
+      "interactionLimitMode": "once",
       "useRequirements": [
         {
           "kind": "questStage",

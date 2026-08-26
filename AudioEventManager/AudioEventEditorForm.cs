@@ -1201,6 +1201,7 @@ internal sealed class BgmControlRuleEditableDefinition
         "minigame",
         "chapter",
         "scene",
+        "dialogueLine",
         "event",
     };
 

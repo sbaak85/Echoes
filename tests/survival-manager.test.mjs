@@ -15,12 +15,20 @@ import {
   getCharacterStatuses,
   getGameClock,
   getMealCurveRate,
+  getSurvivalDisplayValue,
   getUnmetSurvivalRequirements,
   getSurvivalSpeedMultiplier,
   isInteractionLocked,
   recordInteractionUse,
   shouldShowLockedInteractionHint,
 } from "../app/survival-manager.ts";
+
+test("生存計量 UI 一律無條件捨去小數", () => {
+  assert.equal(getSurvivalDisplayValue(59.9), 59);
+  assert.equal(getSurvivalDisplayValue(60), 60);
+  assert.equal(getSurvivalDisplayValue(0.9), 0);
+  assert.equal(getSurvivalDisplayValue(100.9), 100);
+});
 
 test("elapsed interaction time is formatted as compact game hours", () => {
   assert.equal(formatElapsedGameHours(60), "1");

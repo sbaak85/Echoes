@@ -70,3 +70,9 @@ export function buildSurvivalRequirementFloatSegments(
     { text: ` ${label}`, tone: "neutral" },
   ];
 }
+
+export function buildSurvivalRequirementFloatRows(
+  requirements: UnmetSurvivalRequirement[],
+) {
+  return requirements.map(buildSurvivalRequirementFloatSegments);
+}

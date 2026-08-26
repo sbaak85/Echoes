@@ -55,7 +55,9 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 0.5,
       "delaySeconds": 0,
-      "loop": true
+      "loop": true,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "interactionAccepted": {
       "label": "互動指令成立",
@@ -95,7 +97,9 @@ export const AUDIO_EVENT_CONFIG = (
         "./audio/dialogue-open-4.mp3"
       ],
       "volume": 1,
-      "delaySeconds": 0
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "uiInput": {
       "label": "介面輸入點擊",
@@ -107,7 +111,9 @@ export const AUDIO_EVENT_CONFIG = (
         "./audio/ui-input.mp3"
       ],
       "volume": 0.7,
-      "delaySeconds": 0
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "frequencyCoarseTick": {
       "label": "調頻粗調刻度切換",
@@ -119,7 +125,9 @@ export const AUDIO_EVENT_CONFIG = (
         "./audio/frequency-coarse-tick.mp3"
       ],
       "volume": 0.72,
-      "delaySeconds": 0
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "frequencyFineFar": {
       "label": "調頻微調－遠離目標",
@@ -132,7 +140,9 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 0.58,
       "delaySeconds": 0,
-      "loop": true
+      "loop": true,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "frequencyFineNear": {
       "label": "調頻微調－接近目標",
@@ -145,7 +155,9 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 0.78,
       "delaySeconds": 0,
-      "loop": true
+      "loop": true,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "frequencyLocked": {
       "label": "調頻精準命中並鎖定",
@@ -156,8 +168,10 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/frequency-lock-success.mp3"
       ],
-      "volume": 1,
-      "delaySeconds": 0
+      "volume": 0.5,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "worldItemLanded": {
       "label": "場上道具觸地",
@@ -169,7 +183,9 @@ export const AUDIO_EVENT_CONFIG = (
         "./audio/world-item-drop.mp3"
       ],
       "volume": 0.85,
-      "delaySeconds": 0
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "worldItemPickedUp": {
       "label": "場上道具拾取成功",
@@ -253,7 +269,9 @@ export const AUDIO_EVENT_CONFIG = (
         "./audio/quest-complete.mp3"
       ],
       "volume": 1,
-      "delaySeconds": 0
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "questStarted": {
       "label": "任務開始或更新",
@@ -265,7 +283,9 @@ export const AUDIO_EVENT_CONFIG = (
         "./audio/quest-start.mp3"
       ],
       "volume": 1,
-      "delaySeconds": 0
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "questObjectiveAdded": {
       "label": "任務途中新增目標",
@@ -276,8 +296,10 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/quest-objective-added.mp3"
       ],
-      "volume": 1,
-      "delaySeconds": 0
+      "volume": 0.25,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "questObjectiveCompleted": {
       "label": "任務 OBJ 核取完成",
@@ -302,7 +324,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/generator-startup-1.mp3"
       ],
-      "volume": 0.4,
+      "volume": 0.35,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 15
@@ -316,7 +338,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/generator-startup-2.mp3"
       ],
-      "volume": 0.3,
+      "volume": 0.25,
       "delaySeconds": 1,
       "fadeInPercent": 0,
       "fadeOutPercent": 15
@@ -330,10 +352,10 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/generator-running.mp3"
       ],
-      "volume": 0.5,
+      "volume": 0.3,
       "delaySeconds": 1.5,
       "fadeInPercent": 0,
-      "fadeOutPercent": 15
+      "fadeOutPercent": 30
     },
     "weldingSparksLayer1": {
       "label": "焊接火星混音－第一層",
@@ -388,7 +410,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/frequency-lock-success.mp3"
       ],
-      "volume": 1,
+      "volume": 0.4,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
@@ -417,6 +439,7 @@ export type BgmRuleTriggerType =
   | "minigame"
   | "chapter"
   | "scene"
+  | "dialogueLine"
   | "event";
 
 export type BgmRuleAction = "volume" | "mute" | "switch";
@@ -430,7 +453,7 @@ export type BgmControlRuleDefinition = {
   label: string;
   enabled: boolean;
   triggerType: BgmRuleTriggerType;
-  /** Quest、Stage、OBJ、Game、Scene 或特殊事件 ID；chapter 則填章節數字。 */
+  /** Quest、Stage、OBJ、Game、Scene、Line ID 或特殊事件 ID；chapter 則填章節數字。 */
   targetId: string;
   /** active、completed、playing、success 等；* 代表該 ID 的任何有效狀態。 */
   state: string;
@@ -488,6 +511,21 @@ export const BGM_CONTROL_RULES = (
       "fadeOutSeconds": 1,
       "fadeInSeconds": 1,
       "priority": 100,
+      "durationSeconds": 0,
+      "restoreMode": "resume"
+    },
+    {
+      "id": "chapter03-section-9-line-010-bgm-silence",
+      "label": "Section 9 警告台詞：BGM 於 1 秒內淡出",
+      "enabled": true,
+      "triggerType": "dialogueLine",
+      "targetId": "chapter03-section-9-line-010",
+      "state": "triggered",
+      "action": "volume",
+      "targetVolume": 0,
+      "fadeOutSeconds": 1,
+      "fadeInSeconds": 0,
+      "priority": 500,
       "durationSeconds": 0,
       "restoreMode": "resume"
     }

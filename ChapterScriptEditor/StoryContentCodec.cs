@@ -127,6 +127,15 @@ public static class StoryContentCodec
                 {
                     throw new InvalidDataException($"黑幕字幕「{subtitle.Name}」沒有文字內容。");
                 }
+                if (subtitle.Lines.Count == 0 ||
+                    subtitle.Lines.All(line => string.IsNullOrWhiteSpace(line.Text)))
+                {
+                    throw new InvalidDataException($"黑幕字幕「{subtitle.Name}」至少需要一句有效文字。");
+                }
+                if (subtitle.Lines.Any(line => line.FontSizePx is < 8 or > 120))
+                {
+                    throw new InvalidDataException($"黑幕字幕「{subtitle.Name}」的逐句字級必須介於 8～120 px。");
+                }
                 if (subtitle.TriggerCount < 1 || subtitle.TriggerCount > 999)
                 {
                     throw new InvalidDataException($"黑幕字幕「{subtitle.Name}」的觸發次數必須介於 1 到 999。");
@@ -330,7 +339,12 @@ public static class StoryContentCodec
             builder.AppendLine("      type: \"showCenteredText\",");
             builder.Append("      lines: ");
             builder.Append(JsonSerializer.Serialize(
-                Regex.Split(subtitle.Text.Replace("\r\n", "\n"), "\n").ToArray(),
+                subtitle.Lines.Select(line => line.Text).ToArray(),
+                JsonOptions));
+            builder.AppendLine(",");
+            builder.Append("      fontSizesPx: ");
+            builder.Append(JsonSerializer.Serialize(
+                subtitle.Lines.Select(line => line.FontSizePx).ToArray(),
                 JsonOptions));
             builder.AppendLine(",");
             builder.AppendLine($"      fadeInMs: {subtitle.FadeInMs},");
@@ -371,8 +385,9 @@ public static class StoryContentCodec
 
     private static void Normalize(ChapterScriptDocument document)
     {
-        document.SchemaVersion = 2;
+        document.SchemaVersion = 3;
         document.Chapters ??= new List<ChapterDefinition>();
+        var dialogueLineIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var chapter in document.Chapters)
         {
             chapter.Id = chapter.Id?.Trim() ?? "";
@@ -390,12 +405,36 @@ public static class StoryContentCodec
                     : "manual";
                 subtitle.TriggerValue ??= "";
                 subtitle.Text ??= "";
+                subtitle.Lines ??= new List<SubtitleLineDefinition>();
+                if (subtitle.Lines.Count == 0)
+                {
+                    var legacyLines = Regex.Split(
+                        subtitle.Text.Replace("\r\n", "\n"),
+                        "\n");
+                    subtitle.Lines = legacyLines
+                        .Select((text, index) => new SubtitleLineDefinition
+                        {
+                            Text = text,
+                            FontSizePx = index == legacyLines.Length - 1 ? 27 : 34,
+                        })
+                        .ToList();
+                }
+                foreach (var line in subtitle.Lines)
+                {
+                    line.Text ??= "";
+                    line.FontSizePx = Math.Clamp(line.FontSizePx, 8, 120);
+                }
+                subtitle.Text = string.Join("\n", subtitle.Lines.Select(line => line.Text));
             }
             foreach (var section in chapter.DialogueSections)
             {
                 section.Id = section.Id?.Trim() ?? "";
                 section.Name = section.Name?.Trim() ?? "";
                 section.Dialogue ??= DialogueScript.CreateDefault();
+                NormalizeDialogueLineIds(
+                    section.Dialogue,
+                    $"{NormalizeLineIdPrefix(section.Id)}-line",
+                    dialogueLineIds);
                 // Early editor builds incorrectly filled the first blank narration line
                 // of Chapter 3 with the first speaker option (Sbaak). Repair that known
                 // legacy record once; future blank first lines are preserved normally.
@@ -419,7 +458,50 @@ public static class StoryContentCodec
                 section.Id = section.Id?.Trim() ?? "";
                 section.Name = section.Name?.Trim() ?? "";
                 section.Dialogue ??= DialogueScript.CreateDefault();
+                NormalizeDialogueLineIds(
+                    section.Dialogue,
+                    $"{NormalizeLineIdPrefix(section.Id)}-line",
+                    dialogueLineIds);
             }
+        }
+    }
+
+    private static string NormalizeLineIdPrefix(string value)
+    {
+        var normalized = new string((value ?? "")
+            .Where(character => char.IsLetterOrDigit(character) || character is '-' or '_')
+            .ToArray());
+        return string.IsNullOrWhiteSpace(normalized) ? "dialogue" : normalized;
+    }
+
+    private static void NormalizeDialogueLineIds(
+        DialogueScript dialogue,
+        string prefix,
+        HashSet<string> documentLineIds)
+    {
+        dialogue.Speakers ??= new List<string>();
+        dialogue.Lines ??= new List<DialogueLine>();
+        var reservedIds = dialogue.Lines
+            .Select(line => line.LineId?.Trim() ?? "")
+            .Where(id => id.Length > 0)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var sequence = 1;
+        foreach (var line in dialogue.Lines)
+        {
+            line.Speaker ??= "";
+            line.Text ??= "";
+            var lineId = line.LineId?.Trim() ?? "";
+            if (lineId.Length > 0 && documentLineIds.Add(lineId))
+            {
+                line.LineId = lineId;
+                continue;
+            }
+            string candidate;
+            do candidate = $"{prefix}-{sequence++:000}";
+            while (reservedIds.Contains(candidate) || documentLineIds.Contains(candidate));
+            line.LineId = candidate;
+            reservedIds.Add(candidate);
+            documentLineIds.Add(candidate);
         }
     }
 

@@ -155,6 +155,35 @@ test("BGM 規則以狀態事件與優先權組成換曲、音量與靜音計畫"
   assert.equal(restoredPlan.restoreMode, "default");
 });
 
+test("Section 9 指定 Line ID 於台詞開始時用 1 秒將 BGM 淡出至 0", async () => {
+  const cueRule = BGM_CONTROL_RULES.find(
+    (rule) => rule.id === "chapter03-section-9-line-010-bgm-silence",
+  );
+  assert.ok(cueRule);
+  assert.equal(cueRule.triggerType, "dialogueLine");
+  assert.equal(cueRule.targetId, "chapter03-section-9-line-010");
+  assert.equal(cueRule.state, "triggered");
+  assert.equal(cueRule.action, "volume");
+  assert.equal(cueRule.targetVolume, 0);
+  assert.equal(cueRule.fadeOutSeconds, 1);
+  assert.equal(cueRule.durationSeconds, 0);
+
+  const plan = resolveBgmControlPlan(BGM_CONTROL_RULES, (triggerType, targetId) =>
+    triggerType === "dialogueLine" &&
+    targetId === "chapter03-section-9-line-010"
+      ? "triggered"
+      : null);
+  assert.equal(plan.volumeMultiplier, 0);
+  assert.equal(plan.fadeOutSeconds, 1);
+
+  const [movementLabSource, directorSource] = await Promise.all([
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/bgm-director.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(movementLabSource, /line\.lineId[\s\S]{0,300}?triggerDialogueLine\(lineId\)/);
+  assert.match(directorSource, /triggerDialogueLine\(lineId:[\s\S]{0,500}?clearType\("dialogueLine"\)/);
+});
+
 test("BGM Director 由任務、章節、場景、小遊戲與特殊事件入口驅動", async () => {
   const movementLabSource = await readFile(
     new URL("../app/movement-lab.tsx", import.meta.url),
