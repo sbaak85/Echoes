@@ -93,6 +93,15 @@ import {
 } from "./hotbar-assignments";
 import { createNewGameProgress, resetStoredNewGameProgress } from "./new-game-reset";
 import {
+  NewPlayerTutorialOverlay,
+  type NewPlayerTutorialSpotlight,
+} from "./new-player-tutorial-overlay";
+import {
+  getNextNewPlayerTutorialStep,
+  getNewPlayerTutorialStep,
+  type NewPlayerTutorialStepId,
+} from "./new-player-tutorial";
+import {
   evaluateInteractionStageRequirement,
   filterInteractionRequirementsByPurpose,
   getUnmetInteractionUseRequirements,
@@ -274,6 +283,7 @@ import {
 } from "./save-data";
 
 const QUEST_DOCUMENT = questDocumentSource as QuestDocument;
+const FIRST_MAIN_QUEST_ID = "QUEST_CH03_MAIN_001";
 const QUEST_DEBUG_ITEM_SURVIVAL_EFFECTS = Object.fromEntries(
   ITEM_DEFINITIONS.map((item) => [item.id, item.survivalEffects]),
 );
@@ -3391,6 +3401,10 @@ export function MovementLab() {
   const mainObjectiveMarkerTimerRef = useRef<number | null>(null);
   const storySkipBlackoutGuardRef = useRef(false);
   const suppressNextStoryClickRef = useRef(false);
+  const newPlayerTutorialOpenRef = useRef(false);
+  const newPlayerTutorialReadyRef = useRef(false);
+  const newPlayerTutorialStepRef = useRef<NewPlayerTutorialStepId | null>(null);
+  const newPlayerTutorialStartTimerRef = useRef<number | null>(null);
 
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [storyReady, setStoryReady] = useState(false);
@@ -3403,14 +3417,21 @@ export function MovementLab() {
     fadeInMs: number;
     holdMs: number;
     fadeOutMs: number;
+    fadeOnly?: boolean;
     sequence: number;
   } | null>(null);
+  const [centeredTextHoldSkipPromptVisible, setCenteredTextHoldSkipPromptVisible] =
+    useState(false);
   const [storySkipVisible, setStorySkipVisible] = useState(false);
   const [storySkipSequence, setStorySkipSequence] = useState(0);
   const [mainObjectiveMarker, setMainObjectiveMarker] = useState<{
     sequence: number;
     durationMs: number;
   } | null>(null);
+  const [newPlayerTutorialStep, setNewPlayerTutorialStep] =
+    useState<NewPlayerTutorialStepId | null>(null);
+  const [newPlayerTutorialSpotlight, setNewPlayerTutorialSpotlight] =
+    useState<NewPlayerTutorialSpotlight | null>(null);
   const [debugItemSpawnerOpen, setDebugItemSpawnerOpen] = useState(false);
   const [debugItemSpawnCommand, setDebugItemSpawnCommand] = useState("");
   const [survivalFlowPaused, setSurvivalFlowPaused] = useState(false);
@@ -3526,13 +3547,13 @@ export function MovementLab() {
   } | null>(null);
   const gameClock = getGameClock(survivalState.gameMinutes);
   const itemPointRespawnCycle = getInteractionCycle(survivalState.gameMinutes);
-  const [survivalExpanded, setSurvivalExpanded] = useState(true);
-  const [questCollapsed, setQuestCollapsed] = useState(false);
+  const [survivalExpanded, setSurvivalExpanded] = useState(false);
+  const [questCollapsed, setQuestCollapsed] = useState(true);
   const [mobileHudLayout, setMobileHudLayout] = useState(false);
   const [survivalMobileMode, setSurvivalMobileMode] =
-    useState<MobileHudPanelMode>("mini");
+    useState<MobileHudPanelMode>("collapsed");
   const [questMobileMode, setQuestMobileMode] =
-    useState<MobileHudPanelMode>("mini");
+    useState<MobileHudPanelMode>("collapsed");
   const [activeQuestHud, setActiveQuestHud] = useState<QuestHudView | null>(null);
   const [completedQuestHistory, setCompletedQuestHistory] = useState<QuestHistoryView[]>([]);
   const [questHudEvent, setQuestHudEvent] = useState<QuestHudEvent | null>(null);
@@ -3602,6 +3623,67 @@ export function MovementLab() {
     questPromptInputModeRef.current = mode;
     setQuestPromptInputMode(mode);
   };
+  const clearNewPlayerTutorialStartTimer = () => {
+    if (newPlayerTutorialStartTimerRef.current === null) return;
+    window.clearTimeout(newPlayerTutorialStartTimerRef.current);
+    newPlayerTutorialStartTimerRef.current = null;
+  };
+  const dismissNewPlayerTutorial = () => {
+    clearNewPlayerTutorialStartTimer();
+    newPlayerTutorialOpenRef.current = false;
+    newPlayerTutorialReadyRef.current = false;
+    newPlayerTutorialStepRef.current = null;
+    setNewPlayerTutorialStep(null);
+    setNewPlayerTutorialSpotlight(null);
+  };
+  const advanceNewPlayerTutorial = () => {
+    if (
+      !newPlayerTutorialOpenRef.current ||
+      !newPlayerTutorialReadyRef.current ||
+      !newPlayerTutorialStepRef.current
+    ) {
+      return;
+    }
+    const tutorialAudioEvents = audioEventManagerRef.current;
+    if (tutorialAudioEvents) {
+      void tutorialAudioEvents.play("uiInput", { restart: true }).catch(() => {
+        // Browser autoplay policy may block an early tutorial input sound.
+      });
+    }
+    const nextStep = getNextNewPlayerTutorialStep(
+      newPlayerTutorialStepRef.current,
+    );
+    if (!nextStep) {
+      dismissNewPlayerTutorial();
+      return;
+    }
+    newPlayerTutorialStepRef.current = nextStep.id;
+    setNewPlayerTutorialSpotlight(null);
+    setNewPlayerTutorialStep(nextStep.id);
+  };
+  const startNewPlayerQuestTutorial = () => {
+    clearNewPlayerTutorialStartTimer();
+    newPlayerTutorialOpenRef.current = true;
+    newPlayerTutorialReadyRef.current = false;
+    newPlayerTutorialStepRef.current = null;
+    setNewPlayerTutorialSpotlight(null);
+    setNewPlayerTutorialStep(null);
+    newPlayerTutorialStartTimerRef.current = window.setTimeout(() => {
+      newPlayerTutorialStartTimerRef.current = null;
+      if (!newPlayerTutorialOpenRef.current) return;
+      newPlayerTutorialReadyRef.current = true;
+      newPlayerTutorialStepRef.current = "quest";
+      setNewPlayerTutorialStep("quest");
+    }, 1000);
+  };
+  useEffect(
+    () => () => {
+      if (newPlayerTutorialStartTimerRef.current !== null) {
+        window.clearTimeout(newPlayerTutorialStartTimerRef.current);
+      }
+    },
+    [],
+  );
   const [dialogueView, setDialogueView] = useState<DialogueView>(null);
   const powerPuzzlePreviewStartedRef = useRef(false);
   const frequencyPuzzlePreviewStartedRef = useRef(false);
@@ -3900,15 +3982,69 @@ export function MovementLab() {
     );
   }, [questPanelCollapsed, activeQuestHud?.stageId, completedQuestHistory.length]);
 
+  useLayoutEffect(() => {
+    if (!newPlayerTutorialStep) return;
+    const shell = gameShellRef.current;
+    const step = getNewPlayerTutorialStep(newPlayerTutorialStep);
+    const target = shell?.querySelector<HTMLElement>(step.targetSelector) ?? null;
+    if (!shell || !target) return;
+
+    const updateSpotlight = () => {
+      const shellRect = shell.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const padding = step.spotlightPadding;
+      const x = clamp(targetRect.left - shellRect.left - padding, 0, shellRect.width);
+      const y = clamp(targetRect.top - shellRect.top - padding, 0, shellRect.height);
+      const right = clamp(
+        targetRect.right - shellRect.left + padding,
+        x,
+        shellRect.width,
+      );
+      const bottom = clamp(
+        targetRect.bottom - shellRect.top + padding,
+        y,
+        shellRect.height,
+      );
+      setNewPlayerTutorialSpotlight({
+        x,
+        y,
+        width: Math.max(1, right - x),
+        height: Math.max(1, bottom - y),
+        viewportWidth: Math.max(1, shellRect.width),
+        viewportHeight: Math.max(1, shellRect.height),
+      });
+    };
+
+    const frameId = window.requestAnimationFrame(updateSpotlight);
+    const resizeObserver = new ResizeObserver(updateSpotlight);
+    resizeObserver.observe(shell);
+    resizeObserver.observe(target);
+    window.addEventListener("resize", updateSpotlight);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateSpotlight);
+    };
+  }, [newPlayerTutorialStep, questPanelCollapsed, activeQuestHud?.stageId]);
+
   useEffect(() => {
     if (activeQuestHud !== null || questHudEvent !== null) return;
     setQuestCollapsed(true);
-    setQuestMobileMode("mini");
+    setQuestMobileMode("collapsed");
   }, [activeQuestHud, questHudEvent]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(MOBILE_HUD_MEDIA_QUERY);
-    const updateMobileHudLayout = () => setMobileHudLayout(mediaQuery.matches);
+    const updateMobileHudLayout = () => {
+      const nextMobileHudLayout = mediaQuery.matches;
+      setMobileHudLayout(nextMobileHudLayout);
+      if (nextMobileHudLayout) {
+        setQuestCollapsed(true);
+        setQuestMobileMode("collapsed");
+        setSurvivalExpanded(false);
+        setSurvivalMobileMode("collapsed");
+      }
+    };
     updateMobileHudLayout();
 
     if (typeof mediaQuery.addEventListener === "function") {
@@ -4058,6 +4194,11 @@ export function MovementLab() {
     }, 3350);
   };
 
+  const revealQuestHudForAutomaticPresentation = () => {
+    setQuestCollapsed(mobileHudLayout);
+    setQuestMobileMode(mobileHudLayout ? "collapsed" : "expanded");
+  };
+
   const triggerQuestHudVisual = (
     kind: QuestHudEventKind,
     view: QuestHudView,
@@ -4072,8 +4213,7 @@ export function MovementLab() {
     }
     questHudEventSequenceRef.current += 1;
     setActiveQuestHud(view);
-    setQuestCollapsed(false);
-    setQuestMobileMode("expanded");
+    revealQuestHudForAutomaticPresentation();
     setQuestHudEvent({
       kind,
       questId: view.id,
@@ -4117,8 +4257,7 @@ export function MovementLab() {
     }
     questHudEventSequenceRef.current += 1;
     setActiveQuestHud(view);
-    setQuestCollapsed(false);
-    setQuestMobileMode("expanded");
+    revealQuestHudForAutomaticPresentation();
     setQuestObjectiveTween({
       questId: view.id,
       objectiveId,
@@ -4141,8 +4280,7 @@ export function MovementLab() {
     }
     questHudEventSequenceRef.current += 1;
     setActiveQuestHud(view);
-    setQuestCollapsed(false);
-    setQuestMobileMode("expanded");
+    revealQuestHudForAutomaticPresentation();
     setQuestObjectiveUnlockTween({
       questId: view.id,
       objectiveId,
@@ -4204,8 +4342,7 @@ export function MovementLab() {
     };
     const presentTransition = () => {
       questHudEventSequenceRef.current += 1;
-      setQuestCollapsed(false);
-      setQuestMobileMode("expanded");
+      revealQuestHudForAutomaticPresentation();
       setQuestHudEvent({
         kind: "next",
         questId: view.id,
@@ -4480,9 +4617,18 @@ export function MovementLab() {
               (quest) => quest.id === questId,
             )?.startPresentationDelaySeconds;
             if (view) {
-              scheduleQuestPresentation(presentationDelay, () =>
-                triggerQuestHudVisual("accepted", view),
-              );
+              scheduleQuestPresentation(presentationDelay, () => {
+                if (questId === FIRST_MAIN_QUEST_ID) {
+                  setSurvivalExpanded(!mobileHudLayout);
+                  setSurvivalMobileMode(
+                    mobileHudLayout ? "collapsed" : "expanded",
+                  );
+                }
+                triggerQuestHudVisual("accepted", view);
+                if (questId === FIRST_MAIN_QUEST_ID) {
+                  startNewPlayerQuestTutorial();
+                }
+              });
             }
           },
           onObjectiveCompleted: (questId, objectiveId, _stageId, entry, objective) => {
@@ -4578,16 +4724,14 @@ export function MovementLab() {
         loadedQuestSave,
       );
       questRuntimeManagerRef.current.syncCurrentInventory(loadedInventory);
-      {
-        const clock = getGameClock(loadedSurvivalState.gameMinutes);
-        questRuntimeManagerRef.current.startAvailableAutomaticQuests(
-          clock.day,
-          clock.hour * 60 + clock.minute,
-        );
-        const currentQuestSave = questRuntimeManagerRef.current.exportSave();
-        saveQuestSaveData(currentQuestSave);
-        bgmDirectorRef.current?.syncQuestSnapshot(currentQuestSave.quests);
-      }
+      const clock = getGameClock(loadedSurvivalState.gameMinutes);
+      questRuntimeManagerRef.current.startAvailableAutomaticQuests(
+        clock.day,
+        clock.hour * 60 + clock.minute,
+      );
+      const currentQuestSave = questRuntimeManagerRef.current.exportSave();
+      saveQuestSaveData(currentQuestSave);
+      bgmDirectorRef.current?.syncQuestSnapshot(currentQuestSave.quests);
       const initialQuestHud = getFirstActiveQuestHud();
       setActiveQuestHud(initialQuestHud);
       setCompletedQuestHistory(getCompletedQuestHistory());
@@ -4620,13 +4764,35 @@ export function MovementLab() {
       setDayNightEffectEnabled(loadedDayNightEffectEnabled);
       setDialogueTextSize(getDefaultDialogueTextSize());
       const mobileHud = isMobileHudLayout();
+      const firstMainQuestState =
+        currentQuestSave.quests[FIRST_MAIN_QUEST_ID]?.state;
+      const waitingForFirstMainQuest =
+        firstMainQuestState === undefined ||
+        firstMainQuestState === "locked" ||
+        firstMainQuestState === "available";
       setMobileHudLayout(mobileHud);
-      setQuestMobileMode("mini");
-      setSurvivalMobileMode("mini");
-      setQuestCollapsed(
-        mobileHud ? true : initialQuestHud ? getDefaultQuestCollapsed() : true,
+      setQuestMobileMode(
+        mobileHud || waitingForFirstMainQuest ? "collapsed" : "mini",
       );
-      setSurvivalExpanded(mobileHud ? false : getDefaultSurvivalExpanded());
+      setSurvivalMobileMode(
+        mobileHud || waitingForFirstMainQuest ? "collapsed" : "mini",
+      );
+      setQuestCollapsed(
+        waitingForFirstMainQuest
+          ? true
+          : mobileHud
+            ? true
+            : initialQuestHud
+              ? getDefaultQuestCollapsed()
+              : true,
+      );
+      setSurvivalExpanded(
+        waitingForFirstMainQuest
+          ? false
+          : mobileHud
+            ? false
+            : getDefaultSurvivalExpanded(),
+      );
       portableSaveHydratedRef.current = true;
       void listSaveDataSlots().then((slots) => {
         setSaveDataSlots(slots);
@@ -4974,6 +5140,7 @@ export function MovementLab() {
 
   const activateHotbarItem = (slotIndex: number) => {
     if (
+      newPlayerTutorialOpenRef.current ||
       optionsOpenRef.current ||
       inventoryOpenRef.current ||
       itemUseConfirmationOpenRef.current ||
@@ -6019,10 +6186,21 @@ export function MovementLab() {
           fadeInMs: action.fadeInMs,
           holdMs: action.holdMs,
           fadeOutMs: action.fadeOutMs,
+          fadeOnly: action.fadeOnly,
           sequence: Date.now(),
         });
       },
+      restartCenteredTextFadeOut: (durationMs) => {
+        setStoryCenteredText((current) => current ? {
+          ...current,
+          fadeInMs: 0,
+          holdMs: 0,
+          fadeOutMs: Math.max(0, durationMs),
+          sequence: current.sequence + 1,
+        } : null);
+      },
       hideCenteredText: () => setStoryCenteredText(null),
+      setCenteredTextHoldSkipPrompt: setCenteredTextHoldSkipPromptVisible,
       playDialogue: (dialogueId) => dialogueManager.playRegistered(
         dialogueId,
         {
@@ -6065,6 +6243,7 @@ export function MovementLab() {
         storyFlowActiveRef.current = active;
         setStoryFlowActive(active);
         if (!active) {
+          setCenteredTextHoldSkipPromptVisible(false);
           if (keepBlackAfterComplete) return;
           // ChapterFlowManager 已結束就不應再留下任何劇情遮罩。
           // 這是 UI 層的最後保險，避免 SKIP 完成與 React 狀態更新
@@ -6488,10 +6667,12 @@ export function MovementLab() {
     setSaveDataDialogChoiceValue(choices[next]);
   };
 
-  const executeSaveDataDialogChoice = async () => {
+  const executeSaveDataDialogChoice = async (
+    explicitChoice?: SaveDataDialogChoice,
+  ) => {
     const dialog = saveDataDialogRef.current;
     if (!dialog || saveDataBusyRef.current) return;
-    const choice = saveDataDialogChoiceRef.current;
+    const choice = explicitChoice ?? saveDataDialogChoiceRef.current;
     if (choice === "cancel") { setSaveDataDialogValue(null); return; }
     if (dialog.mode === "actions") {
       if (choice === "load" || choice === "overwrite" || choice === "delete") {
@@ -6664,6 +6845,7 @@ export function MovementLab() {
   const setInventoryPanelOpen = (open: boolean) => {
     if (open && powerPuzzleOpenRef.current) return;
     if (open && storyInputLockedRef.current) return;
+    if (open && newPlayerTutorialOpenRef.current) return;
     if (open) dismissTimeElapsedNotice();
     const wasOpen = inventoryOpenRef.current;
     inventoryOpenRef.current = open;
@@ -7751,8 +7933,12 @@ export function MovementLab() {
 
     const activateOptionsDpadMode = () => {
       optionsGamepadModeRef.current = "dpad";
-      virtualCursorVisible = false;
-      deactivateGamepadCursor();
+      // Directional navigation owns the selected row and A-button action, but
+      // the right-stick cursor keeps its last screen position. Hiding it here
+      // would reveal the physical mouse pointer (often parked at screen center)
+      // and look like the virtual cursor snapped back while the list scrolls.
+      virtualCursorVisible = true;
+      activateGamepadCursor();
       const focusedElement = document.activeElement;
       if (
         focusedElement instanceof HTMLElement &&
@@ -7764,8 +7950,18 @@ export function MovementLab() {
 
     const activateInventoryDpadMode = () => {
       inventoryGamepadModeRef.current = "dpad";
-      virtualCursorVisible = false;
-      deactivateGamepadCursor();
+      // Directional navigation only takes ownership of the selected item and
+      // A-button action. Keep the shared virtual cursor at its existing screen
+      // position so the physical mouse cursor cannot reappear.
+      virtualCursorVisible = true;
+      activateGamepadCursor();
+      const focusedElement = document.activeElement;
+      if (
+        focusedElement instanceof HTMLElement &&
+        focusedElement.closest(".inventory-dialog")
+      ) {
+        focusedElement.blur();
+      }
     };
 
     const activatePowerPuzzleDpadMode = () => {
@@ -8261,6 +8457,7 @@ export function MovementLab() {
 
     const isWorldInteractionBlockedByUi = () =>
       storyInputLockedRef.current ||
+      newPlayerTutorialOpenRef.current ||
       timePassInputLockedRef.current ||
       optionsOpenRef.current ||
       inventoryOpenRef.current ||
@@ -8279,6 +8476,7 @@ export function MovementLab() {
     const canUseQuestSkipHotkey = () =>
       !timePassInputLockedRef.current &&
       !storyInputLockedRef.current &&
+      !newPlayerTutorialOpenRef.current &&
       !storyFlowActiveRef.current &&
       !optionsOpenRef.current &&
       !inventoryOpenRef.current &&
@@ -8474,6 +8672,13 @@ export function MovementLab() {
         }
         return;
       }
+      if (newPlayerTutorialOpenRef.current && key !== "escape") {
+        event.preventDefault();
+        if (event.code === "Space" && !event.repeat) {
+          advanceNewPlayerTutorial();
+        }
+        return;
+      }
       if (
         key === "tab" &&
         !storyInputLockedRef.current &&
@@ -8505,6 +8710,14 @@ export function MovementLab() {
       }
       if (key === "escape") {
         event.preventDefault();
+        if (newPlayerTutorialOpenRef.current) {
+          if (!event.repeat) {
+            pressedKeys.clear();
+            setActiveKeyboardKeys([]);
+            setOptionsPanelOpen(!optionsOpenRef.current);
+          }
+          return;
+        }
         if (storyFlowActiveRef.current && !optionsOpenRef.current) {
           if (!event.repeat) beginStorySkipHold("keyboard");
           return;
@@ -10427,7 +10640,7 @@ export function MovementLab() {
       }
 
       return element.closest(
-        ".inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .dialogue-box, .quest-hud",
+        ".new-player-tutorial-overlay, .inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .dialogue-box, .quest-hud",
       )
         ? "blocked"
         : "none";
@@ -12373,6 +12586,7 @@ export function MovementLab() {
       if (
         backJustPressed &&
         storyFlowActiveRef.current &&
+        !newPlayerTutorialOpenRef.current &&
         !timePassInputLockedRef.current &&
         !optionsOpenRef.current &&
         !inventoryOpenRef.current &&
@@ -12414,6 +12628,7 @@ export function MovementLab() {
       let campPowerConfirmationMenuOpen = campPowerConfirmationOpenRef.current;
       let powerPuzzleMenuOpen = powerPuzzleOpenRef.current;
       let optionsMenuOpen = optionsOpenRef.current;
+      const newPlayerTutorialMenuOpen = newPlayerTutorialOpenRef.current;
       if (chapter04SavePromptMenuOpen && backJustPressed) {
         playOneShotAudio("uiInput");
       } else if (itemUseConfirmationMenuOpen && backJustPressed) {
@@ -12453,6 +12668,7 @@ export function MovementLab() {
         backJustPressed &&
         !timePassInputLockedRef.current &&
         !storyInputLockedRef.current &&
+        !newPlayerTutorialOpenRef.current &&
         !dialoguePlaybackRef.current
       ) {
         setInventoryPanelOpen(!inventoryOpenRef.current);
@@ -12466,6 +12682,7 @@ export function MovementLab() {
         !campPowerConfirmationMenuOpen &&
         !powerPuzzleMenuOpen &&
         !optionsMenuOpen &&
+        !newPlayerTutorialMenuOpen &&
         !inventoryMenuOpen
       ) {
         heldGamepadDpadX = 0;
@@ -12792,7 +13009,12 @@ export function MovementLab() {
           gamepadInput.confirmPressed &&
           !wasGamepadConfirmPressed
         ) {
-          if (shouldUseOptionsCursor(optionsGamepadModeRef.current)) {
+          // Blocking Options confirmations own A before the retained virtual
+          // cursor. Otherwise a cursor parked outside the dialog consumes A
+          // even though one of the dialog buttons is visibly selected.
+          if (saveDataDialogRef.current || restartConfirmationOpenRef.current) {
+            activateOptionsMenuSelection();
+          } else if (shouldUseOptionsCursor(optionsGamepadModeRef.current)) {
             activateVirtualCursorUi();
           } else {
             activateOptionsMenuSelection();
@@ -12807,6 +13029,17 @@ export function MovementLab() {
           if (saveDataDialogRef.current) setSaveDataDialogValue(null);
           else if (restartConfirmationOpenRef.current) closeRestartConfirmation();
           else setOptionsPanelOpen(false);
+        }
+      } else if (newPlayerTutorialMenuOpen) {
+        gameplayHotbarDpadX = 0;
+        virtualCursorVisible = false;
+        deactivateGamepadCursor();
+        if (
+          gamepadInput.connected &&
+          gamepadInput.confirmPressed &&
+          !wasGamepadConfirmPressed
+        ) {
+          advanceNewPlayerTutorial();
         }
       } else if (inventoryMenuOpen) {
         gameplayHotbarDpadX = 0;
@@ -12884,6 +13117,13 @@ export function MovementLab() {
           }
         }
       } else {
+        const centeredTextHoldSkipResult =
+          gamepadInput.connected &&
+          gamepadInput.confirmPressed &&
+          !wasGamepadConfirmPressed
+            ? chapterFlowManagerRef.current?.requestActiveCenteredTextHoldSkip()
+              ?? "unavailable"
+            : "unavailable";
         const canToggleGameplayHud =
           !storyInputLockedRef.current &&
           !timePassInputLockedRef.current &&
@@ -12925,7 +13165,8 @@ export function MovementLab() {
           !timePassInputLockedRef.current &&
           gamepadInput.connected &&
           gamepadInput.actionPressed &&
-          !wasGamepadActionPressed
+          !wasGamepadActionPressed &&
+          centeredTextHoldSkipResult === "unavailable"
         ) {
           if (storyInputLockedRef.current) {
             advanceDialogue();
@@ -12976,6 +13217,7 @@ export function MovementLab() {
       );
       if (
         storyInputLockedRef.current ||
+        newPlayerTutorialOpenRef.current ||
         timePassInputLockedRef.current ||
         dialoguePlaybackRef.current ||
         inventoryOpenRef.current ||
@@ -13815,6 +14057,7 @@ export function MovementLab() {
   };
 
   const confirmRestartNewGame = async () => {
+    dismissNewPlayerTutorial();
     const progress = resetStoredNewGameProgress();
     survivalStateRef.current = progress.survival;
     interactionUsageRef.current = progress.interactionUsage;
@@ -13844,6 +14087,10 @@ export function MovementLab() {
     setInventoryPage(0);
     setInventoryCategory("all");
     setHotbarFeedback(null);
+    setQuestCollapsed(true);
+    setQuestMobileMode("collapsed");
+    setSurvivalExpanded(false);
+    setSurvivalMobileMode("collapsed");
     setOptionsPanelOpen(false);
     const freshSave: EchoesSaveData = {
       format: SAVE_DATA_FORMAT,
@@ -13882,6 +14129,7 @@ export function MovementLab() {
   const handleStoryPointerDownCapture = (
     event: ReactPointerEvent<HTMLElement>,
   ) => {
+    if (newPlayerTutorialOpenRef.current) return;
     if (timePassInputLockedRef.current) {
       event.preventDefault();
       event.stopPropagation();
@@ -13894,6 +14142,7 @@ export function MovementLab() {
   const handleStoryPointerUpCapture = (
     event: ReactPointerEvent<HTMLElement>,
   ) => {
+    if (newPlayerTutorialOpenRef.current) return;
     if (timePassInputLockedRef.current) {
       event.preventDefault();
       event.stopPropagation();
@@ -14091,6 +14340,9 @@ export function MovementLab() {
   const activeQuestObjectiveTween = questObjectiveTween?.questId === activeQuestHud?.id
     ? questObjectiveTween
     : null;
+  const activeNewPlayerTutorialStep = newPlayerTutorialStep
+    ? getNewPlayerTutorialStep(newPlayerTutorialStep)
+    : null;
   const mobileInteractionButtonTarget =
     mobileInteractionTarget ?? mobileSceneConnectionTarget;
   const dayNightStyle = getDayNightCssVariables(
@@ -14139,7 +14391,7 @@ export function MovementLab() {
       />
       <main
         ref={gameShellRef}
-        className={`game-shell${stageFullscreen ? " is-fullscreen" : ""}${storyFlowActive ? " is-story-flow" : ""}${storyFlowPaused ? " is-story-flow-paused" : ""}${storyInputLocked ? " is-story-input-locked" : ""}`}
+        className={`game-shell${stageFullscreen ? " is-fullscreen" : ""}${storyFlowActive ? " is-story-flow" : ""}${storyFlowPaused ? " is-story-flow-paused" : ""}${storyInputLocked ? " is-story-input-locked" : ""}${newPlayerTutorialStep ? " is-new-player-tutorial" : ""}`}
         onClickCapture={handleGameShellClickCapture}
         onPointerDownCapture={handleStoryPointerDownCapture}
         onPointerUpCapture={handleStoryPointerUpCapture}
@@ -14170,7 +14422,7 @@ export function MovementLab() {
       {storyCenteredText ? (
         <section
           key={storyCenteredText.sequence}
-          className="story-centered-text"
+          className={`story-centered-text${storyCenteredText.fadeOnly ? " is-fade-only" : ""}`}
           style={{
             "--story-text-fade-in": `${storyCenteredText.fadeInMs}ms`,
             "--story-text-fade-out": `${storyCenteredText.fadeOutMs}ms`,
@@ -14190,6 +14442,16 @@ export function MovementLab() {
             );
           })}
         </section>
+      ) : null}
+
+      {centeredTextHoldSkipPromptVisible ? (
+        <div
+          className="story-centered-text-hold-skip-prompt"
+          role="status"
+          aria-label="再次按 A 略過開場字幕"
+        >
+          <span aria-hidden="true" />
+        </div>
       ) : null}
 
       {chapter04SavePromptOpen ? (
@@ -14575,6 +14837,15 @@ export function MovementLab() {
           <span aria-hidden="true" />
         </button>
       </aside>
+
+      {activeNewPlayerTutorialStep ? (
+        <NewPlayerTutorialOverlay
+          inputMode={questPromptInputMode}
+          spotlight={newPlayerTutorialSpotlight}
+          step={activeNewPlayerTutorialStep}
+          onContinue={advanceNewPlayerTutorial}
+        />
+      ) : null}
 
       <button
         className="survival-pause-trigger"
@@ -15695,10 +15966,7 @@ export function MovementLab() {
                       type="button"
                       disabled={saveDataBusy}
                       onFocus={() => setSaveDataDialogChoiceValue("confirm")}
-                      onClick={() => {
-                        setSaveDataDialogChoiceValue("confirm");
-                        window.setTimeout(() => void executeSaveDataDialogChoice(), 0);
-                      }}
+                      onClick={() => void executeSaveDataDialogChoice("confirm")}
                     >
                       {saveDataBusy ? "處理中…" : saveDataDialog.mode === "load" ? "確認讀檔" : saveDataDialog.mode === "delete" ? "確認刪除" : "確認儲存"}
                     </button>

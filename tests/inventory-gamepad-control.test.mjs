@@ -26,6 +26,23 @@ test("虛擬游標第一次點道具只選定，再點同一道具才使用", ()
   assert.equal(getVirtualCursorInventoryItemAction(5, 2), "select");
 });
 
+test("背包十字鍵選取只移動選定框，不顯示真實游標或重設虛擬游標", () => {
+  const source = readFileSync(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  const start = source.indexOf("const activateInventoryDpadMode =");
+  const end = source.indexOf("const activatePowerPuzzleDpadMode =", start);
+  const inventoryDpadMode = source.slice(start, end);
+
+  assert.ok(start >= 0 && end > start, "應能找到背包方向選取模式");
+  assert.match(inventoryDpadMode, /inventoryGamepadModeRef\.current = "dpad"/);
+  assert.match(inventoryDpadMode, /virtualCursorVisible = true/);
+  assert.match(inventoryDpadMode, /activateGamepadCursor\(\)/);
+  assert.doesNotMatch(inventoryDpadMode, /virtualCursor\.(?:x|y)\s*=/);
+  assert.doesNotMatch(inventoryDpadMode, /deactivateGamepadCursor\(\)/);
+});
+
 test("對話與背包同時開啟時，手把 B 會先關閉背包", () => {
   const source = readFileSync(
     new URL("../app/movement-lab.tsx", import.meta.url),
@@ -71,6 +88,7 @@ test("背包與阻擋型介面開啟時，虛擬游標不會命中後方世界�
 
   assert.ok(guardStart >= 0, "應有統一的世界互動 UI 阻擋條件");
   assert.match(guardSource, /inventoryOpenRef\.current/);
+  assert.match(guardSource, /newPlayerTutorialOpenRef\.current/);
   assert.match(guardSource, /optionsOpenRef\.current/);
   assert.match(guardSource, /itemUseConfirmationOpenRef\.current/);
   assert.match(guardSource, /powerPuzzleOpenRef\.current/);

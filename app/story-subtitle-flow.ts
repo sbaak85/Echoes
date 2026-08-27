@@ -100,7 +100,7 @@ export function createStorySubtitleFlow(
     );
   }
   if (event.id === CHAPTER03_END_SUBTITLE_EVENT_ID) {
-    subtitleAction.beforeFadeOutCheckpointId =
+    subtitleAction.afterSubtitleFadeOutCheckpointId =
       CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID;
   }
   actions.push(subtitleAction);

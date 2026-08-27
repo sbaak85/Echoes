@@ -417,6 +417,12 @@ button {
       var(--story-text-fade-out-delay, 9.5s) forwards;
 }
 
+.story-centered-text.is-fade-only {
+  animation-name:
+    story-centered-text-fade-only-in,
+    story-centered-text-fade-only-out;
+}
+
 .story-centered-text p {
   margin: 0 0 18px;
   font-size: clamp(20px, 2.05vw, 34px);
@@ -440,6 +446,44 @@ button {
 @keyframes story-centered-text-out {
   from { opacity: 1; transform: translate(-50%, -50%); }
   to { opacity: 0; transform: translate(-50%, calc(-50% - 8px)); }
+}
+
+@keyframes story-centered-text-fade-only-in {
+  from { opacity: 0; transform: translate(-50%, -50%); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+@keyframes story-centered-text-fade-only-out {
+  from { opacity: 1; transform: translate(-50%, -50%); }
+  to { opacity: 0; transform: translate(-50%, -50%); }
+}
+
+.story-centered-text-hold-skip-prompt {
+  position: absolute;
+  z-index: 94;
+  right: clamp(28px, 4vw, 72px);
+  bottom: clamp(30px, 5vh, 60px);
+  width: 30px;
+  height: 30px;
+  pointer-events: none;
+  filter: drop-shadow(0 0 8px rgba(255, 196, 54, 0.72));
+  animation: story-centered-text-hold-skip-pulse 0.9s ease-in-out infinite alternate;
+}
+
+.story-centered-text-hold-skip-prompt > span {
+  position: absolute;
+  top: 3px;
+  left: 7px;
+  width: 16px;
+  height: 16px;
+  border-right: 4px solid #ffc63d;
+  border-bottom: 4px solid #ffc63d;
+  transform: rotate(45deg);
+}
+
+@keyframes story-centered-text-hold-skip-pulse {
+  from { opacity: 0.58; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(3px); }
 }
 
 .story-skip-progress {
@@ -486,6 +530,7 @@ button {
 }
 
 .game-shell.is-story-flow-paused .story-centered-text,
+.game-shell.is-story-flow-paused .story-centered-text-hold-skip-prompt,
 .game-shell.is-story-flow-paused .story-skip-progress > i > b {
   animation-play-state: paused;
 }
@@ -1852,6 +1897,152 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   transform: rotate(70deg);
 }
 
+.new-player-tutorial-overlay {
+  position: absolute;
+  z-index: 100;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: auto;
+  animation: new-player-tutorial-overlay-in 300ms ease-out both;
+}
+
+.new-player-tutorial-mask {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.new-player-tutorial-spotlight,
+.new-player-tutorial-spotlight-glow {
+  animation: new-player-tutorial-spotlight-in 240ms ease-out both;
+}
+
+.new-player-tutorial-hint {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  min-height: 116px;
+  padding: 17px 24px 13px;
+  border: 1px solid rgba(94, 218, 209, 0.72);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(11, 39, 43, 0.97), rgba(5, 24, 28, 0.98));
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.46),
+    0 0 20px rgba(80, 223, 211, 0.24),
+    inset 0 0 0 1px rgba(180, 255, 244, 0.06),
+    inset 0 0 22px rgba(61, 190, 183, 0.08);
+  color: #d8ece9;
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+  animation:
+    new-player-tutorial-hint-enter 240ms ease-out both,
+    new-player-tutorial-hint-breathe 1.8s ease-in-out 240ms infinite alternate;
+}
+
+.new-player-tutorial-hint > span {
+  align-self: start;
+  white-space: pre-line;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+}
+
+.new-player-tutorial-hint > strong {
+  align-self: end;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 10px rgba(128, 245, 231, 0.12);
+  transform-origin: center;
+  animation: new-player-tutorial-prompt-breathe 1.25s ease-in-out infinite alternate;
+}
+
+.new-player-tutorial-hint > strong > span {
+  color: #f2fbfa;
+}
+
+.new-player-tutorial-hint > strong b {
+  font: inherit;
+  color: #e2b24f;
+}
+
+.new-player-tutorial-hint > strong i {
+  color: #e2b24f;
+  font-size: 16px;
+  font-style: normal;
+}
+
+.new-player-tutorial-hint:hover {
+  border-color: rgba(111, 239, 226, 0.96);
+  filter: brightness(1.05);
+}
+
+.new-player-tutorial-hint:focus,
+.new-player-tutorial-hint:focus-visible {
+  outline: none;
+}
+
+.game-shell.is-new-player-tutorial .options-trigger {
+  z-index: 121;
+}
+
+@keyframes new-player-tutorial-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes new-player-tutorial-spotlight-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes new-player-tutorial-hint-enter {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes new-player-tutorial-hint-breathe {
+  from {
+    filter: brightness(0.98);
+    box-shadow:
+      0 12px 34px rgba(0, 0, 0, 0.46),
+      0 0 12px rgba(80, 223, 211, 0.18),
+      inset 0 0 0 1px rgba(180, 255, 244, 0.05),
+      inset 0 0 16px rgba(61, 190, 183, 0.06);
+  }
+  to {
+    filter: brightness(1.06);
+    box-shadow:
+      0 12px 34px rgba(0, 0, 0, 0.46),
+      0 0 26px rgba(80, 223, 211, 0.38),
+      inset 0 0 0 1px rgba(180, 255, 244, 0.09),
+      inset 0 0 24px rgba(61, 190, 183, 0.12);
+  }
+}
+
+@keyframes new-player-tutorial-prompt-breathe {
+  from {
+    opacity: 0.78;
+    transform: translateY(1px) scale(0.99);
+    text-shadow: 0 0 5px rgba(242, 251, 250, 0.12);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.015);
+    text-shadow: 0 0 12px rgba(242, 251, 250, 0.3);
+  }
+}
+
 .inventory-hotbar {
   position: absolute;
   z-index: 8;
@@ -2390,7 +2581,9 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   z-index: 2;
   color: rgba(225, 235, 232, 0.77);
   font-family: Consolas, "SFMono-Regular", monospace;
-  font-size: 10px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
   line-height: 1;
   text-shadow: 0 1px 5px #000;
 }
@@ -2402,7 +2595,7 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
 
 .hotbar-count {
   right: 5px;
-  bottom: 6px;
+  bottom: 5px;
   color: #eef8f6;
 }
 
@@ -3762,7 +3955,8 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
     inset 0 0 0 1px rgba(176, 245, 236, 0.05),
     inset 0 0 42px rgba(32, 165, 159, 0.08);
   text-align: center;
-  animation: chapter04-save-confirmation-enter 240ms cubic-bezier(0.22, 0.75, 0.3, 1) both;
+  transform-origin: center center;
+  animation: chapter04-save-confirmation-enter 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .chapter04-save-confirmation::before,
@@ -3909,7 +4103,7 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
 }
 
 @keyframes chapter04-save-confirmation-enter {
-  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  from { opacity: 0; transform: translateY(12px) scale(0.92); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
@@ -5968,13 +6162,10 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
 }
 
 .save-data-heading {
-  position: sticky;
-  z-index: 2;
-  top: -25px;
-  margin: -25px -26px 4px;
-  padding: 20px 26px 14px;
+  position: static;
+  margin: 0 0 4px;
+  padding: 0 0 14px;
   border-bottom: 1px solid rgba(123, 224, 212, 0.12);
-  background: rgba(12, 27, 31, 0.97);
 }
 
 .save-data-list {

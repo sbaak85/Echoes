@@ -15,10 +15,17 @@ export type BgmStateLookup = (
 export type BgmControlPlan = {
   activeRuleIds: string[];
   trackId: string;
+  trackTransition: "switch" | "fade";
   volumeMultiplier: number;
   fadeOutSeconds: number;
   fadeInSeconds: number;
   restoreMode: BgmRestoreMode;
+};
+
+export type BgmTrackTransitionEnvelope = {
+  oldVolumeMultiplier: number;
+  newVolumeMultiplier: number;
+  complete: boolean;
 };
 
 export type BgmQuestSnapshotEntry = {
@@ -29,6 +36,34 @@ export type BgmQuestSnapshotEntry = {
 
 const clampVolume = (value: number) => Math.min(1, Math.max(0, value));
 const clampSeconds = (value: number) => Math.min(60, Math.max(0, value));
+const smoothStep = (progress: number) =>
+  progress * progress * (3 - 2 * progress);
+
+export function getBgmTrackTransitionEnvelope(
+  transition: BgmControlPlan["trackTransition"],
+  elapsedSeconds: number,
+  fadeOutSeconds: number,
+  fadeInSeconds: number,
+): BgmTrackTransitionEnvelope {
+  const elapsed = Math.max(0, elapsedSeconds);
+  const fadeOut = clampSeconds(fadeOutSeconds);
+  const fadeIn = clampSeconds(fadeInSeconds);
+  const outProgress = fadeOut <= 0 ? 1 : Math.min(1, elapsed / fadeOut);
+  const fadeInElapsed = transition === "fade"
+    ? elapsed
+    : Math.max(0, elapsed - fadeOut);
+  const inProgress = fadeIn <= 0 ? 1 : Math.min(1, fadeInElapsed / fadeIn);
+  const totalSeconds = transition === "fade"
+    ? Math.max(fadeOut, fadeIn)
+    : fadeOut + fadeIn;
+  return {
+    oldVolumeMultiplier: clampVolume(1 - smoothStep(outProgress)),
+    newVolumeMultiplier: transition === "switch" && elapsed < fadeOut
+      ? 0
+      : clampVolume(smoothStep(inProgress)),
+    complete: elapsed >= totalSeconds,
+  };
+}
 
 export function doesBgmRuleMatch(
   rule: BgmControlRuleDefinition,
@@ -53,7 +88,9 @@ export function resolveBgmControlPlan(
     .filter((rule) => doesBgmRuleMatch(rule, lookup))
     .sort((left, right) => right.priority - left.priority);
   const trackRule = activeRules.find(
-    (rule) => rule.action === "switch" && Boolean(rule.trackId),
+    (rule) =>
+      (rule.action === "switch" || rule.action === "fade") &&
+      Boolean(rule.trackId),
   );
   const volumeRule = activeRules.find(
     (rule) => rule.action === "mute" || rule.action === "volume",
@@ -63,6 +100,7 @@ export function resolveBgmControlPlan(
   return {
     activeRuleIds: activeRules.map((rule) => rule.id),
     trackId: trackRule?.trackId || defaultTrackId,
+    trackTransition: trackRule?.action === "fade" ? "fade" : "switch",
     volumeMultiplier: volumeRule?.action === "mute"
       ? 0
       : clampVolume(volumeRule?.targetVolume ?? 1),
@@ -89,6 +127,8 @@ export function applyBgmRuleExitPolicy(
     trackId: endedRule.restoreMode === "default"
       ? defaultTrackId
       : nextPlan.trackId,
+    trackTransition: endedRule.action === "fade" ? "fade" :
+      endedRule.action === "switch" ? "switch" : nextPlan.trackTransition,
     fadeOutSeconds: clampSeconds(endedRule.fadeOutSeconds),
     fadeInSeconds: clampSeconds(endedRule.fadeInSeconds),
     restoreMode: endedRule.restoreMode,
@@ -194,12 +234,13 @@ export class BgmDirector {
     return nextDeck.audio.play().then(() => {
       if (this.disposed || requestId !== this.transitionRequestId) return;
       this.activeDeckIndex = nextDeckIndex;
-      this.crossfade(
+      this.transitionTracks(
         currentDeck,
         nextDeck,
         this.getPlanVolume(this.activePlan),
         this.activePlan.fadeOutSeconds,
         this.activePlan.fadeInSeconds,
+        this.activePlan.trackTransition,
       );
     });
   }
@@ -461,6 +502,7 @@ export class BgmDirector {
     );
     const planUnchanged =
       nextPlan.trackId === this.activePlan.trackId &&
+      nextPlan.trackTransition === this.activePlan.trackTransition &&
       nextPlan.volumeMultiplier === this.activePlan.volumeMultiplier &&
       nextPlan.activeRuleIds.join("|") === this.activePlan.activeRuleIds.join("|");
     this.activePlan = nextPlan;
@@ -507,15 +549,16 @@ export class BgmDirector {
     if (!this.loadTrack(nextDeck, plan.trackId, restoreMode)) return;
     nextDeck.audio.volume = 0;
     const requestId = ++this.transitionRequestId;
-    const beginCrossfade = () => {
+    const beginTransition = () => {
       if (this.disposed || requestId !== this.transitionRequestId) return;
       this.activeDeckIndex = nextDeckIndex;
-      this.crossfade(
+      this.transitionTracks(
         currentDeck,
         nextDeck,
         this.getPlanVolume(plan),
         plan.fadeOutSeconds,
         plan.fadeInSeconds,
+        plan.trackTransition,
       );
     };
     if (!this.enabled || document.hidden) {
@@ -523,9 +566,36 @@ export class BgmDirector {
       this.activeDeckIndex = nextDeckIndex;
       return;
     }
-    void nextDeck.audio.play().then(beginCrossfade).catch(() => {
+    void nextDeck.audio.play().then(beginTransition).catch(() => {
       // Autoplay blocked: keep the old deck audible until the next player input retries.
     });
+  }
+
+  private transitionTracks(
+    oldDeck: BgmDeck,
+    newDeck: BgmDeck,
+    targetVolume: number,
+    fadeOutSeconds: number,
+    fadeInSeconds: number,
+    transition: BgmControlPlan["trackTransition"],
+  ) {
+    if (transition === "fade") {
+      this.crossfade(
+        oldDeck,
+        newDeck,
+        targetVolume,
+        fadeOutSeconds,
+        fadeInSeconds,
+      );
+      return;
+    }
+    this.switchTracksSequentially(
+      oldDeck,
+      newDeck,
+      targetVolume,
+      fadeOutSeconds,
+      fadeInSeconds,
+    );
   }
 
   private getPlanVolume(plan: BgmControlPlan) {
@@ -576,25 +646,87 @@ export class BgmDirector {
     this.cancelTransition();
     const oldStartVolume = oldDeck.audio.volume;
     const startedAt = performance.now();
-    const fadeOutMs = clampSeconds(fadeOutSeconds) * 1000;
-    const fadeInMs = clampSeconds(fadeInSeconds) * 1000;
-    const totalMs = Math.max(fadeOutMs, fadeInMs);
     const requestId = ++this.transitionRequestId;
     const update = (time: number) => {
       if (this.disposed || requestId !== this.transitionRequestId) return;
       const elapsed = Math.max(0, time - startedAt);
-      const outProgress = fadeOutMs <= 0 ? 1 : Math.min(1, elapsed / fadeOutMs);
-      const inProgress = fadeInMs <= 0 ? 1 : Math.min(1, elapsed / fadeInMs);
-      const easedOut = outProgress * outProgress * (3 - 2 * outProgress);
-      const easedIn = inProgress * inProgress * (3 - 2 * inProgress);
-      oldDeck.audio.volume = clampVolume(oldStartVolume * (1 - easedOut));
-      newDeck.audio.volume = clampVolume(targetVolume * easedIn);
-      if (elapsed < totalMs) {
+      const envelope = getBgmTrackTransitionEnvelope(
+        "fade",
+        elapsed / 1000,
+        fadeOutSeconds,
+        fadeInSeconds,
+      );
+      oldDeck.audio.volume = clampVolume(
+        oldStartVolume * envelope.oldVolumeMultiplier,
+      );
+      newDeck.audio.volume = clampVolume(
+        targetVolume * envelope.newVolumeMultiplier,
+      );
+      if (!envelope.complete) {
         this.transitionFrameId = requestAnimationFrame(update);
         return;
       }
       this.transitionFrameId = null;
       oldDeck.audio.pause();
+    };
+    this.transitionFrameId = requestAnimationFrame(update);
+  }
+
+  private switchTracksSequentially(
+    oldDeck: BgmDeck,
+    newDeck: BgmDeck,
+    targetVolume: number,
+    fadeOutSeconds: number,
+    fadeInSeconds: number,
+  ) {
+    this.cancelTransition();
+    const oldStartVolume = oldDeck.audio.volume;
+    const newTrackStartTime = Number.isFinite(newDeck.audio.currentTime)
+      ? newDeck.audio.currentTime
+      : 0;
+    const startedAt = performance.now();
+    const fadeOutMs = clampSeconds(fadeOutSeconds) * 1000;
+    const requestId = ++this.transitionRequestId;
+    let oldDeckStopped = false;
+    const stopOldDeck = () => {
+      if (oldDeckStopped) return;
+      oldDeckStopped = true;
+      oldDeck.audio.volume = 0;
+      oldDeck.audio.pause();
+      // The new deck is pre-played at volume 0 to satisfy browser autoplay
+      // rules. Rewind it when its audible fade-in actually begins so switch
+      // does not silently skip the opening while the old track fades out.
+      try {
+        newDeck.audio.currentTime = newTrackStartTime;
+      } catch {
+        // Some browsers briefly expose a non-seekable stream during loading.
+      }
+    };
+    const update = (time: number) => {
+      if (this.disposed || requestId !== this.transitionRequestId) return;
+      const elapsed = Math.max(0, time - startedAt);
+      const envelope = getBgmTrackTransitionEnvelope(
+        "switch",
+        elapsed / 1000,
+        fadeOutSeconds,
+        fadeInSeconds,
+      );
+      oldDeck.audio.volume = clampVolume(
+        oldStartVolume * envelope.oldVolumeMultiplier,
+      );
+      newDeck.audio.volume = clampVolume(
+        targetVolume * envelope.newVolumeMultiplier,
+      );
+      if (elapsed >= fadeOutMs) {
+        stopOldDeck();
+      }
+      if (!envelope.complete) {
+        this.transitionFrameId = requestAnimationFrame(update);
+        return;
+      }
+      stopOldDeck();
+      newDeck.audio.volume = clampVolume(targetVolume);
+      this.transitionFrameId = null;
     };
     this.transitionFrameId = requestAnimationFrame(update);
   }

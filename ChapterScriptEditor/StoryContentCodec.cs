@@ -222,6 +222,24 @@ public static class StoryContentCodec
                     {
                         new()
                         {
+                            Id = "chapter03-Open",
+                            Name = "第三章開場",
+                            Text = "第三章\r\nChapter.3",
+                            Lines = new List<SubtitleLineDefinition>
+                            {
+                                new() { Text = "第三章\r\nChapter.3", FontSizePx = 38 },
+                            },
+                            TriggerType = "chapterStart",
+                            TriggerCount = 1,
+                            FadeInMs = 1000,
+                            HoldMs = 2000,
+                            FadeOutMs = 2000,
+                            DelayAfterMs = 500,
+                            KeepBlack = true,
+                            LockInput = true,
+                        },
+                        new()
+                        {
                             Id = "chapter03-opening-card",
                             Name = "第三章開場字幕",
                             Text =
@@ -329,6 +347,8 @@ public static class StoryContentCodec
         builder.AppendLine("    { type: \"setBlack\", visible: true },");
         foreach (var subtitle in chapterThree?.SubtitleEvents
                      .Where(item => item.TriggerType.Equals("chapterStart", StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(item => item.Id.Equals("chapter03-Open", StringComparison.OrdinalIgnoreCase) ? 0 :
+                         item.Id.Equals("chapter03-opening-card", StringComparison.OrdinalIgnoreCase) ? 1 : 2)
                      ?? Enumerable.Empty<SubtitleEventDefinition>())
         {
             if (subtitle.DelayBeforeMs > 0)
@@ -350,6 +370,11 @@ public static class StoryContentCodec
             builder.AppendLine($"      fadeInMs: {subtitle.FadeInMs},");
             builder.AppendLine($"      holdMs: {subtitle.HoldMs},");
             builder.AppendLine($"      fadeOutMs: {subtitle.FadeOutMs},");
+            if (subtitle.Id.Equals("chapter03-opening-card", StringComparison.OrdinalIgnoreCase))
+            {
+                builder.AppendLine("      fadeOnly: true,");
+                builder.AppendLine("      holdSkipConfirmAfterMs: 2000,");
+            }
             builder.AppendLine("    },");
             if (subtitle.DelayAfterMs > 0)
             {

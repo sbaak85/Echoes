@@ -46,10 +46,16 @@ test("ChapterScriptEditor owns chapter-scoped story trigger polygon dialogue", a
 });
 
 test("chapter03-section-9 複製 chapter03-final 的完整人物與腳本", async () => {
+  const section9 = STORY_DIALOGUES["chapter03-section-9"];
+  const chapterFinal = STORY_DIALOGUES["chapter03-final"];
+  assert.equal(section9.characterDelaySeconds, chapterFinal.characterDelaySeconds);
+  assert.deepEqual(section9.speakers, chapterFinal.speakers);
   assert.deepEqual(
-    STORY_DIALOGUES["chapter03-section-9"],
-    STORY_DIALOGUES["chapter03-final"],
+    section9.lines.map(({ speaker, text }) => ({ speaker, text })),
+    chapterFinal.lines.map(({ speaker, text }) => ({ speaker, text })),
   );
+  assert.ok(section9.lines.every((line) =>
+    line.lineId?.startsWith("chapter03-section-9-line-")));
 
   const source = await readFile(
     new URL("../app/story-content.ts", import.meta.url),
@@ -69,7 +75,14 @@ test("chapter03-section-9 複製 chapter03-final 的完整人物與腳本", asyn
   const targetDialogue = chapter.dialogueSections.find(
     (entry) => entry.id === "chapter03-section-9",
   )?.dialogue;
-  assert.deepEqual(targetDialogue, sourceDialogue);
+  assert.equal(targetDialogue.characterDelaySeconds, sourceDialogue.characterDelaySeconds);
+  assert.deepEqual(targetDialogue.speakers, sourceDialogue.speakers);
+  assert.deepEqual(
+    targetDialogue.lines.map(({ speaker, text }) => ({ speaker, text })),
+    sourceDialogue.lines.map(({ speaker, text }) => ({ speaker, text })),
+  );
+  assert.ok(targetDialogue.lines.every((line) =>
+    line.lineId?.startsWith("chapter03-section-9-line-")));
 });
 
 test("chapter03-End 由章節編輯器在 section-9 後播放黑幕白字幕", async () => {
@@ -100,7 +113,7 @@ test("chapter03-End 由章節編輯器在 section-9 後播放黑幕白字幕", a
       holdMs: 4000,
       fadeOutMs: 2000,
       keepBlack: false,
-      beforeFadeOutCheckpointId: CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID,
+      afterSubtitleFadeOutCheckpointId: CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID,
     },
     { type: "unlockInput" },
   ]);
@@ -175,7 +188,7 @@ test("chapter03-End 由章節編輯器在 section-9 後播放黑幕白字幕", a
   assert.match(globalsSource, /\.story-centered-text p \{[\s\S]*?white-space: pre-line;/);
 });
 
-test("黑幕字幕的存檔 checkpoint 完成前不會開始淡出", async () => {
+test("章末字幕先淡出並保持黑幕，存檔完成後才再次淡出點亮", async () => {
   const calls = [];
   let releaseCheckpoint;
   const checkpoint = new Promise((resolve) => { releaseCheckpoint = resolve; });
@@ -204,14 +217,17 @@ test("黑幕字幕的存檔 checkpoint 完成前不會開始淡出", async () =>
       lines: ["第三章結束"],
       fadeInMs: 0,
       holdMs: 0,
-      fadeOutMs: 0,
+      fadeOutMs: 20,
       keepBlack: false,
-      beforeFadeOutCheckpointId: CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID,
+      afterSubtitleFadeOutCheckpointId: CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID,
     }],
   });
   await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(calls.some((call) => call.startsWith("checkpoint:")), false);
+  await new Promise((resolve) => setTimeout(resolve, 40));
   assert.equal(calls.includes("fade-from"), false);
   assert.match(calls.join("|"), /checkpoint:chapter04-entry-save:story-subtitle:chapter03-End:1/);
+  assert.ok(calls.indexOf("text:hide") < calls.findIndex((call) => call.startsWith("checkpoint:")));
   releaseCheckpoint();
   await running;
   assert.equal(calls.includes("fade-from"), true);
@@ -369,15 +385,32 @@ test("第三章開場腳本與流程符合第一版規格", () => {
   assert.equal(new Set(storyLineIds).size, storyLineIds.length);
 
   const centeredText = CHAPTER_3_START_FLOW.actions.find(
-    (action) => action.type === "showCenteredText",
+    (action) =>
+      action.type === "showCenteredText" &&
+      action.lines.some((line) => line.includes("墜落後第3天")),
   );
   assert.ok(centeredText);
   assert.equal(centeredText.fadeInMs, 1500);
   assert.equal(centeredText.holdMs, 8000);
   assert.equal(centeredText.fadeOutMs, 1500);
+  assert.equal(centeredText.fadeOnly, true);
+  assert.equal(centeredText.holdSkipConfirmAfterMs, 2000);
   assert.equal(CHAPTER_3_START_FLOW.chapter, 3);
   assert.equal(CHAPTER_3_START_FLOW.once, true);
   assert.equal(CHAPTER_3_SECTION_1_DIALOGUE_ID, "chapter03-section-1");
+
+  const chapterOpenIndex = CHAPTER_3_START_FLOW.actions.findIndex(
+    (action) =>
+      action.type === "showCenteredText" &&
+      action.lines.some((line) => line.includes("Chapter.3")),
+  );
+  const openingCardIndex = CHAPTER_3_START_FLOW.actions.findIndex(
+    (action) =>
+      action.type === "showCenteredText" &&
+      action.lines.some((line) => line.includes("墜落後第3天")),
+  );
+  assert.ok(chapterOpenIndex >= 0);
+  assert.ok(openingCardIndex > chapterOpenIndex);
 
   const fadeIndex = CHAPTER_3_START_FLOW.actions.findIndex(
     (action) => action.type === "fadeFromBlack",
@@ -543,6 +576,72 @@ test("ChapterFlowManager 可執行並以 skipActions 結束", async () => {
   assert.equal(calls.includes("quest:QUEST_TEST"), true);
   assert.equal(calls.includes("lock:false"), true);
   assert.equal(await manager.run({ id: "test-flow", chapter: 3, once: true, actions: [] }), false);
+});
+
+test("開場字幕需兩次 A 才略過停留，並保留後續對話", async () => {
+  const calls = [];
+  const completed = new Set();
+  const manager = new ChapterFlowManager({
+    setInputLocked: () => {},
+    setBlack: () => {},
+    fadeToBlack: () => {},
+    fadeFromBlack: () => {},
+    showCenteredText: () => calls.push("text:show"),
+    restartCenteredTextFadeOut: (durationMs) =>
+      calls.push(`text:fade-out:${durationMs}`),
+    hideCenteredText: () => calls.push("text:hide"),
+    setCenteredTextHoldSkipPrompt: (visible) =>
+      calls.push(`prompt:${visible}`),
+    playDialogue: async (dialogueId) => calls.push(`dialogue:${dialogueId}`),
+    cancelDialogue: () => calls.push("dialogue:cancel"),
+    markCompleted: (flowId) => completed.add(flowId),
+    isCompleted: (flowId) => completed.has(flowId),
+  });
+
+  const running = manager.run({
+    id: "opening-card-micro-skip-test",
+    chapter: 3,
+    once: true,
+    actions: [
+      {
+        type: "showCenteredText",
+        lines: ["第三章開場"],
+        fadeInMs: 5,
+        holdMs: 100,
+        fadeOutMs: 10,
+        fadeOnly: true,
+        holdSkipConfirmAfterMs: 8,
+      },
+      { type: "playDialogue", dialogueId: "chapter03-start" },
+    ],
+  });
+
+  assert.equal(manager.requestActiveCenteredTextHoldSkip(), "unavailable");
+  await new Promise((resolve) => setTimeout(resolve, 24));
+  assert.equal(manager.requestActiveCenteredTextHoldSkip(), "armed");
+  assert.equal(calls.includes("prompt:true"), true);
+  assert.equal(manager.requestActiveCenteredTextHoldSkip(), "skipped");
+  assert.equal(await running, true);
+  assert.equal(calls.includes("text:fade-out:10"), true);
+  assert.equal(calls.includes("dialogue:chapter03-start"), true);
+  assert.equal(calls.includes("dialogue:cancel"), false);
+  assert.equal(calls.includes("prompt:false"), true);
+  assert.equal(completed.has("opening-card-micro-skip-test"), true);
+});
+
+test("開場字幕微略過使用純淡入淡出並維持編輯器輸出設定", async () => {
+  const [movementLabSource, globalsSource, editorCodecSource] = await Promise.all([
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../ChapterScriptEditor/StoryContentCodec.cs", import.meta.url), "utf8"),
+  ]);
+  assert.match(movementLabSource, /requestActiveCenteredTextHoldSkip\(\)/);
+  assert.match(movementLabSource, /centeredTextHoldSkipResult === "unavailable"/);
+  assert.match(globalsSource, /story-centered-text\.is-fade-only/);
+  assert.match(globalsSource, /story-centered-text-fade-only-in/);
+  assert.match(globalsSource, /story-centered-text-hold-skip-prompt/);
+  assert.match(editorCodecSource, /chapter03-opening-card/);
+  assert.match(editorCodecSource, /holdSkipConfirmAfterMs: 2000/);
 });
 
 test("ChapterFlowManager 從暫停狀態 SKIP 後仍會關閉黑幕並解鎖", async () => {

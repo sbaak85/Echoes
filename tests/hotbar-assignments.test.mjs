@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 
 import {
   DEFAULT_HOTBAR_ASSIGNMENTS,
@@ -11,6 +12,11 @@ import {
   normalizeHotbarAssignments,
   saveHotbarAssignments,
 } from "../app/hotbar-assignments.ts";
+
+const styles = await readFile(
+  new URL("../app/globals.css", import.meta.url),
+  "utf8",
+);
 
 function installMemoryLocalStorage() {
   const values = new Map();
@@ -73,6 +79,19 @@ test("快捷格沒有庫存時顯示暫無此道具，不顯示Y鍵使用提示"
   assert.equal(getHotbarSelectionHintMode("R0004", 3), "use");
   assert.equal(getHotbarSelectionHintMode("R0004", 0), "unavailable");
   assert.equal(getHotbarSelectionHintMode(null, 0), "unassigned");
+});
+
+test("快捷格編號與數量放大且不使用左上角三角填色底", () => {
+  assert.match(
+    styles,
+    /\.hotbar-key,\s*\.hotbar-count\s*\{[\s\S]*?font-size:\s*14px;[\s\S]*?font-weight:\s*700;/,
+  );
+  assert.doesNotMatch(styles, /\.hotbar-slot\.is-selected \.hotbar-key/);
+  assert.doesNotMatch(styles, /clip-path:\s*polygon\(0 0, 100% 0, 0 100%\)/);
+  assert.match(
+    styles,
+    /\.hotbar-count\s*\{[\s\S]*?right:\s*5px;[\s\S]*?bottom:\s*5px;/,
+  );
 });
 
 test("舊版英文道具 ID 會自動遷移成新版分類流水號", () => {

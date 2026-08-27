@@ -10,6 +10,8 @@ export type ChapterFlowAction =
       fadeInMs: number;
       holdMs: number;
       fadeOutMs: number;
+      fadeOnly?: boolean;
+      holdSkipConfirmAfterMs?: number;
     }
   | {
       type: "showBlackSubtitle";
@@ -19,7 +21,9 @@ export type ChapterFlowAction =
       holdMs: number;
       fadeOutMs: number;
       keepBlack: boolean;
+      fadeOnly?: boolean;
       beforeFadeOutCheckpointId?: string;
+      afterSubtitleFadeOutCheckpointId?: string;
     }
   | { type: "playDialogue"; dialogueId: string }
   | { type: "startQuest"; questId: string }
@@ -44,7 +48,9 @@ export type ChapterFlowHost = {
     ChapterFlowAction,
     { type: "showCenteredText" | "showBlackSubtitle" }
   >) => void;
+  restartCenteredTextFadeOut?: (durationMs: number) => void;
   hideCenteredText: () => void;
+  setCenteredTextHoldSkipPrompt?: (visible: boolean) => void;
   playDialogue: (dialogueId: string) => Promise<unknown>;
   startQuest?: (questId: string) => void | Promise<void>;
   showMainObjectiveMarker?: (durationMs: number) => void;
@@ -65,6 +71,18 @@ export type ChapterFlowHost = {
 
 const now = () => typeof performance === "undefined" ? Date.now() : performance.now();
 
+export type CenteredTextHoldSkipResult =
+  | "unavailable"
+  | "armed"
+  | "skipped";
+
+type ActiveCenteredTextHoldSkip = {
+  armed: boolean;
+  confirmAfterMs: number;
+  elapsedMs: number;
+  skipRequested: boolean;
+};
+
 /** Runs pause-aware, skippable story action sequences. */
 export class ChapterFlowManager {
   private readonly host: ChapterFlowHost;
@@ -72,6 +90,7 @@ export class ChapterFlowManager {
   private paused = false;
   private skipRequested = false;
   private waitWake: (() => void) | null = null;
+  private activeCenteredTextHoldSkip: ActiveCenteredTextHoldSkip | null = null;
 
   constructor(host: ChapterFlowHost) {
     this.host = host;
@@ -120,6 +139,27 @@ export class ChapterFlowManager {
     return true;
   }
 
+  requestActiveCenteredTextHoldSkip(): CenteredTextHoldSkipResult {
+    const state = this.activeCenteredTextHoldSkip;
+    if (
+      !state ||
+      this.paused ||
+      state.skipRequested ||
+      state.elapsedMs < state.confirmAfterMs
+    ) {
+      return "unavailable";
+    }
+    if (!state.armed) {
+      state.armed = true;
+      this.host.setCenteredTextHoldSkipPrompt?.(true);
+      return "armed";
+    }
+    state.skipRequested = true;
+    this.host.setCenteredTextHoldSkipPrompt?.(false);
+    this.waitWake?.();
+    return "skipped";
+  }
+
   async run(flow: ChapterFlowDefinition) {
     if (this.activeFlow) return false;
     if (flow.once && this.host.isCompleted(flow.id)) return false;
@@ -146,6 +186,7 @@ export class ChapterFlowManager {
       if (flow.once) this.host.markCompleted(flow.id);
       return true;
     } finally {
+      this.clearActiveCenteredTextHoldSkip();
       this.host.hideCenteredText();
       if (flow.keepBlackAfterComplete !== true) {
         // Every non-persistent blackout flow must end in a lit, interactive
@@ -186,10 +227,40 @@ export class ChapterFlowManager {
           break;
         case "showCenteredText":
           this.host.showCenteredText(action);
-          await this.wait(
-            action.fadeInMs + action.holdMs + action.fadeOutMs,
-            allowSkip,
-          );
+          if (action.holdSkipConfirmAfterMs === undefined) {
+            await this.wait(
+              action.fadeInMs + action.holdMs + action.fadeOutMs,
+              allowSkip,
+            );
+          } else {
+            const holdSkipState: ActiveCenteredTextHoldSkip = {
+              armed: false,
+              confirmAfterMs: Math.max(0, action.holdSkipConfirmAfterMs),
+              elapsedMs: 0,
+              skipRequested: false,
+            };
+            this.activeCenteredTextHoldSkip = holdSkipState;
+            try {
+              await this.wait(
+                action.fadeInMs + action.holdMs,
+                allowSkip,
+                () => holdSkipState.skipRequested,
+                (elapsedMs) => { holdSkipState.elapsedMs = elapsedMs; },
+              );
+              if (allowSkip && this.skipRequested) {
+                this.host.hideCenteredText();
+                return;
+              }
+              if (holdSkipState.skipRequested) {
+                this.host.restartCenteredTextFadeOut?.(action.fadeOutMs);
+              }
+              await this.wait(action.fadeOutMs, allowSkip);
+            } finally {
+              if (this.activeCenteredTextHoldSkip === holdSkipState) {
+                this.clearActiveCenteredTextHoldSkip();
+              }
+            }
+          }
           this.host.hideCenteredText();
           break;
         case "showBlackSubtitle":
@@ -207,6 +278,26 @@ export class ChapterFlowManager {
               this.activeFlow?.id ?? "",
             );
             if (allowSkip && this.skipRequested) return;
+          }
+          if (action.afterSubtitleFadeOutCheckpointId) {
+            // This is an explicit persistent-black handoff: let the subtitle's
+            // configured fade-out finish first, but keep the blackout opaque
+            // while the checkpoint modal owns input. Once saving succeeds,
+            // reuse the configured fade-out duration to light the scene.
+            await this.wait(action.fadeOutMs, allowSkip);
+            this.host.hideCenteredText();
+            if (allowSkip && this.skipRequested) return;
+            await this.host.runBlackSubtitleCheckpoint?.(
+              action.afterSubtitleFadeOutCheckpointId,
+              this.activeFlow?.id ?? "",
+            );
+            if (allowSkip && this.skipRequested) return;
+            if (!action.keepBlack) {
+              this.host.fadeFromBlack(action.fadeOutMs);
+              await this.wait(action.fadeOutMs, allowSkip);
+              this.host.setBlack(false);
+            }
+            break;
           }
           if (!action.keepBlack) {
             this.host.fadeFromBlack(action.fadeOutMs);
@@ -237,7 +328,17 @@ export class ChapterFlowManager {
     }
   }
 
-  private wait(durationMs: number, allowSkip: boolean) {
+  private clearActiveCenteredTextHoldSkip() {
+    this.activeCenteredTextHoldSkip = null;
+    this.host.setCenteredTextHoldSkipPrompt?.(false);
+  }
+
+  private wait(
+    durationMs: number,
+    allowSkip: boolean,
+    shouldFinish?: () => boolean,
+    onElapsed?: (elapsedMs: number) => void,
+  ) {
     const target = Math.max(0, durationMs);
     return new Promise<void>((resolve) => {
       let elapsed = 0;
@@ -256,8 +357,13 @@ export class ChapterFlowManager {
         if (done) return;
         const current = now();
         if (!this.paused) elapsed += Math.max(0, current - previous);
+        onElapsed?.(elapsed);
         previous = current;
-        if ((allowSkip && this.skipRequested) || elapsed >= target) {
+        if (
+          (allowSkip && this.skipRequested) ||
+          shouldFinish?.() ||
+          elapsed >= target
+        ) {
           finish();
           return;
         }

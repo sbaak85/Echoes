@@ -76,7 +76,7 @@ internal static class Program
             TriggerType = "event",
             TargetId = "self-test",
             State = "active",
-            Action = "switch",
+            Action = "fade",
             TrackId = "default",
             TargetVolume = 0.5,
             FadeOutSeconds = 1,
@@ -111,7 +111,7 @@ internal static class Program
             roundTripRules.LastOrDefault() is
                 {
                     Id: "self-test-rule",
-                    Action: "switch",
+                    Action: "fade",
                     TrackId: "default",
                     Priority: 99,
                 } &&

@@ -9,6 +9,8 @@ description: Enforce browser-game and web UI focus visuals, blocking-overlay hit
 
 Keep browser-native focus backgrounds, outlines, focus rings, and selection rectangles invisible in every UI state.
 
+Maintain exactly one visible pointer cursor. The physical mouse cursor and every game-rendered virtual cursor are mutually exclusive; never let two cursor renderers appear at the same time.
+
 Do not remove keyboard, gamepad, or assistive-technology operability to achieve this. Preserve semantic elements, focusability, input events, and ARIA behavior.
 
 Give every UI containing a menu or clickable button gamepad support by default. Do not wait for a separate user request.
@@ -21,6 +23,20 @@ Give every UI containing a menu or clickable button gamepad support by default. 
 - Follow the last active input method. Mouse, virtual cursor, directional navigation, and analog controls must not display or seize another mode's selection visuals.
 - When an analog control changes a value directly, do not show a directional-navigation selection frame. Blur a hidden native input if it retains an unwanted browser focus state.
 - Restore only the game's custom highlight when directional keyboard or gamepad navigation resumes.
+
+## Cursor ownership and mutual exclusion
+
+Treat pointer visibility, pointer movement, menu selection, and activation-button ownership as separate states. A change in one state must not silently reset or seize the others.
+
+- Keep one authoritative pointer owner: either the physical mouse cursor or one shared virtual cursor. Do not create a feature-local virtual cursor when the shared cursor already exists.
+- When the physical mouse actually moves and takes ownership, stop rendering the virtual cursor before allowing the native pointer to become visible.
+- When the right stick or another virtual-pointer input takes ownership, hide the physical cursor before rendering the virtual cursor. Preserve the virtual cursor's last valid screen position across menus, scrolling, modal transitions, and changes to directional selection.
+- Directional navigation may own the selected row and the A-button action while the virtual cursor remains visible at its last position. A custom selection frame is not a second cursor. Do not deactivate the virtual cursor merely because the D-pad or left stick moved.
+- Never reveal the physical pointer simply because the virtual cursor temporarily stops owning A-button activation. In particular, switching a menu from cursor activation to directional activation must not expose a physical pointer parked at screen center.
+- Do not recenter, snap, teleport, or attach the virtual cursor to the newly selected control unless the user explicitly requested cursor snapping. Scrolling content beneath a stationary cursor must not mutate the cursor coordinates.
+- Opening a dialogue, modal, inventory, minigame, or confirmation must reuse the current pointer owner. If a transition intentionally changes ownership, hide the previous pointer first and transfer the existing virtual cursor position when applicable.
+- Closing an interface must not resurrect a stale physical or virtual cursor. Restore the pointer appropriate to the latest real input, and clear obsolete feature-local visibility flags.
+- Mouse movement, right-stick movement, D-pad movement, and A-button activation must each use explicit takeover thresholds or edge detection so minor analog drift cannot rapidly alternate cursor ownership.
 
 ## Blocking UI and world interaction
 
@@ -71,7 +87,9 @@ Check all relevant paths:
 7. A-button activation producing the same result as pointer click, exactly once per press.
 8. Opening every blocking UI over a world interactable: the virtual cursor must operate the UI without showing or triggering the covered world target, including over non-interactive gaps in the panel.
 9. Closing the blocking UI: world prompts and activation resume without restoring a stale cached target.
-10. For every non-persistent black-screen event, sample the overlay during fade-in, hold, fade-out, and after completion. Confirm that fade-out visibly lights the scene, then leaves opacity `0`, releases hit testing and input locks, and remains clear after subsequent renders.
-11. Exercise cancellation and error paths for black-screen events. Confirm that they restore the same clear terminal state unless an explicit persistent handoff owns the black screen.
+10. Move the virtual cursor away from screen center, then navigate and scroll a menu with the D-pad or left stick. Confirm that its coordinates stay unchanged, the physical pointer remains hidden, and only the custom selection highlight moves.
+11. Alternate real mouse movement, right-stick movement, directional navigation, modal opening, and modal closing. At every frame, confirm that no more than one physical or virtual cursor is visible and that A activates only the current owner’s target.
+12. For every non-persistent black-screen event, sample the overlay during fade-in, hold, fade-out, and after completion. Confirm that fade-out visibly lights the scene, then leaves opacity `0`, releases hit testing and input locks, and remains clear after subsequent renders.
+13. Exercise cancellation and error paths for black-screen events. Confirm that they restore the same clear terminal state unless an explicit persistent handoff owns the black screen.
 
 Confirm that no native focus background or border appears, while custom selection feedback and every input method still work. For every menu or clickable-button UI, confirm that left-stick navigation and A-button activation work without additional feature-specific setup.

@@ -16,6 +16,7 @@ import {
 import {
   applyBgmRuleExitPolicy,
   doesBgmRuleMatch,
+  getBgmTrackTransitionEnvelope,
   resolveBgmControlPlan,
 } from "../app/bgm-director.ts";
 
@@ -121,6 +122,7 @@ test("BGM 規則以狀態事件與優先權組成換曲、音量與靜音計畫"
   assert.equal(doesBgmRuleMatch(rules[0], lookup), true);
   const plan = resolveBgmControlPlan(rules, lookup);
   assert.equal(plan.trackId, "danger");
+  assert.equal(plan.trackTransition, "switch");
   assert.equal(plan.volumeMultiplier, 0.35);
   assert.deepEqual(plan.activeRuleIds, ["minigame-duck", "stage-track"]);
   assert.equal(plan.fadeOutSeconds, 0.4);
@@ -155,7 +157,62 @@ test("BGM 規則以狀態事件與優先權組成換曲、音量與靜音計畫"
   assert.equal(restoredPlan.restoreMode, "default");
 });
 
-test("三個小遊戲 Playing 時交叉淡入專用 BGM，退出後續播原場景 BGM", async () => {
+test("BGM fade 操作會同步交叉淡化，switch 則先淡出再淡入", async () => {
+  const baseRule = {
+    id: "track-transition",
+    label: "換曲轉場",
+    enabled: true,
+    triggerType: "event",
+    targetId: "change-track",
+    state: "triggered",
+    action: "fade",
+    trackId: "danger",
+    targetVolume: 1,
+    fadeOutSeconds: 1,
+    fadeInSeconds: 1,
+    priority: 10,
+    durationSeconds: 0,
+    restoreMode: "resume",
+  };
+  const lookup = (triggerType, targetId) =>
+    triggerType === "event" && targetId === "change-track"
+      ? "triggered"
+      : null;
+  const fadePlan = resolveBgmControlPlan([baseRule], lookup);
+  assert.equal(fadePlan.trackId, "danger");
+  assert.equal(fadePlan.trackTransition, "fade");
+
+  const fadeHalfway = getBgmTrackTransitionEnvelope("fade", 0.5, 1, 1);
+  assert.equal(fadeHalfway.oldVolumeMultiplier, 0.5);
+  assert.equal(fadeHalfway.newVolumeMultiplier, 0.5);
+  assert.equal(fadeHalfway.complete, false);
+
+  const switchHalfway = getBgmTrackTransitionEnvelope("switch", 0.5, 1, 1);
+  assert.equal(switchHalfway.oldVolumeMultiplier, 0.5);
+  assert.equal(switchHalfway.newVolumeMultiplier, 0);
+  assert.equal(switchHalfway.complete, false);
+  const switchFadeInHalfway = getBgmTrackTransitionEnvelope(
+    "switch",
+    1.5,
+    1,
+    1,
+  );
+  assert.equal(switchFadeInHalfway.oldVolumeMultiplier, 0);
+  assert.equal(switchFadeInHalfway.newVolumeMultiplier, 0.5);
+
+  const [editorSource, readme] = await Promise.all([
+    readFile(
+      new URL("../AudioEventManager/AudioEventEditorForm.cs", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../AudioEventManager/README.md", import.meta.url), "utf8"),
+  ]);
+  assert.match(editorSource, /"volume", "mute", "switch", "fade"/);
+  assert.match(editorSource, /rule\.Action == "fade"/);
+  assert.match(readme, /fade.*Crossfade/s);
+});
+
+test("三個小遊戲 Playing 時同步交叉淡化至專用 BGM，退出後續播原場景 BGM", async () => {
   const minigames = [
     ["power-routing", "電力分配"],
     ["frequency-calibration", "調頻"],
@@ -180,7 +237,7 @@ test("三個小遊戲 Playing 時交叉淡入專用 BGM，退出後續播原場�
     );
     assert.ok(rule, `${label}應登記 Playing 規則`);
     assert.equal(rule.state, "playing");
-    assert.equal(rule.action, "switch");
+    assert.equal(rule.action, "fade");
     assert.equal(rule.trackId, id);
     assert.equal(rule.targetVolume, 1);
     assert.equal(rule.fadeOutSeconds, 1);
@@ -193,6 +250,7 @@ test("三個小遊戲 Playing 時交叉淡入專用 BGM，退出後續播原場�
         triggerType === "minigame" && targetId === id ? "playing" : null,
     );
     assert.equal(playingPlan.trackId, id);
+    assert.equal(playingPlan.trackTransition, "fade");
     assert.equal(playingPlan.volumeMultiplier, 1);
 
     const restoredPlan = applyBgmRuleExitPolicy(
@@ -201,6 +259,7 @@ test("三個小遊戲 Playing 時交叉淡入專用 BGM，退出後續播原場�
       BGM_CONTROL_RULES,
     );
     assert.equal(restoredPlan.trackId, "default");
+    assert.equal(restoredPlan.trackTransition, "fade");
     assert.equal(restoredPlan.fadeOutSeconds, 1);
     assert.equal(restoredPlan.fadeInSeconds, 1);
     assert.equal(restoredPlan.restoreMode, "resume");
@@ -271,6 +330,7 @@ test("介面點擊音效集中登記 InPut.mp3 與完整觸發時機", () => {
   assert.match(event.trigger, /生存計量/);
   assert.match(event.trigger, /小地圖/);
   assert.match(event.trigger, /Options/);
+  assert.match(event.trigger, /新手教學每次有效換卡/);
   assert.match(event.trigger, /不要求操作成功/);
 });
 

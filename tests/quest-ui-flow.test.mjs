@@ -328,7 +328,7 @@ test("quest TAB prompt follows the latest keyboard, gamepad, or mobile input", (
   );
 });
 
-test("empty quest HUD expands into a three-item completed history", () => {
+test("empty quest HUD stays collapsed and expands into a three-item completed history on demand", () => {
   assert.match(
     source,
     /const questPanelCollapsed = mobileHudLayout\s*\? questMobileMode !== "expanded"\s*:\s*questCollapsed/,
@@ -337,11 +337,11 @@ test("empty quest HUD expands into a three-item completed history", () => {
   assert.match(source, /const EMPTY_QUEST_TITLE = "這個階段沒有任務"/);
   assert.match(
     source,
-    /if \(activeQuestHud !== null \|\| questHudEvent !== null\) return;\s*setQuestCollapsed\(true\);\s*setQuestMobileMode\("mini"\);/,
+    /if \(activeQuestHud !== null \|\| questHudEvent !== null\) return;\s*setQuestCollapsed\(true\);\s*setQuestMobileMode\("collapsed"\);/,
   );
   assert.match(
     source,
-    /setQuestCollapsed\(\s*mobileHud \? true : initialQuestHud \? getDefaultQuestCollapsed\(\) : true,?\s*\)/,
+    /setQuestCollapsed\(\s*waitingForFirstMainQuest\s*\? true\s*:\s*mobileHud\s*\? true\s*:\s*initialQuestHud\s*\? getDefaultQuestCollapsed\(\)\s*:\s*true,?\s*\)/,
   );
   assert.doesNotMatch(source, /QUEST HISTORY|任務歷程/);
   assert.match(source, /className="quest-history"/);
@@ -353,9 +353,42 @@ test("empty quest HUD expands into a three-item completed history", () => {
   assert.match(styles, /\.quest-history-title\s*{[\s\S]*?rgba\(178, 188, 185, 0\.74\)/);
 });
 
-test("mobile quest and survival HUDs default to mini and cycle through three states", () => {
+test("new-game HUDs start collapsed while mobile controls still cycle through three states", () => {
   assert.match(source, /type MobileHudPanelMode = "mini" \| "collapsed" \| "expanded"/);
-  assert.match(source, /useState<MobileHudPanelMode>\("mini"\)/);
+  assert.match(source, /const \[survivalExpanded, setSurvivalExpanded\] = useState\(false\)/);
+  assert.match(source, /const \[questCollapsed, setQuestCollapsed\] = useState\(true\)/);
+  assert.equal(
+    [...source.matchAll(/useState<MobileHudPanelMode>\("collapsed"\)/g)].length,
+    2,
+  );
+  assert.match(
+    source,
+    /const waitingForFirstMainQuest =\s*firstMainQuestState === undefined \|\|\s*firstMainQuestState === "locked" \|\|\s*firstMainQuestState === "available"/,
+  );
+  assert.match(
+    source,
+    /setSurvivalExpanded\(\s*waitingForFirstMainQuest\s*\? false/,
+  );
+  assert.match(
+    source,
+    /questId === FIRST_MAIN_QUEST_ID[\s\S]*?setSurvivalExpanded\(!mobileHudLayout\);[\s\S]*?mobileHudLayout \? "collapsed" : "expanded"[\s\S]*?triggerQuestHudVisual\("accepted", view\)/,
+  );
+  assert.match(
+    source,
+    /const revealQuestHudForAutomaticPresentation = \(\) => \{\s*setQuestCollapsed\(mobileHudLayout\);\s*setQuestMobileMode\(mobileHudLayout \? "collapsed" : "expanded"\);\s*\}/,
+  );
+  assert.equal(
+    [...source.matchAll(/revealQuestHudForAutomaticPresentation\(\);/g)].length,
+    4,
+  );
+  assert.match(
+    source,
+    /if \(nextMobileHudLayout\) \{\s*setQuestCollapsed\(true\);\s*setQuestMobileMode\("collapsed"\);\s*setSurvivalExpanded\(false\);\s*setSurvivalMobileMode\("collapsed"\);/,
+  );
+  assert.match(
+    source,
+    /setQuestMobileMode\(\s*mobileHud \|\| waitingForFirstMainQuest \? "collapsed" : "mini"/,
+  );
   assert.match(
     source,
     /current === "mini"\s*\? "collapsed"\s*:\s*current === "collapsed"\s*\? "expanded"\s*:\s*"mini"/,

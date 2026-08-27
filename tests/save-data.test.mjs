@@ -105,9 +105,19 @@ test("chapter03-End 儲存確認介面阻擋黑幕淡出並支援手把操作", 
   assert.match(movementLabSource, /queuePortableSaveWrite\("autosave", "auto", nextStory\)/);
   assert.match(movementLabSource, /chapter04ManualSaveActiveRef\.current = true;[\s\S]*setOptionsPanelOpen\(true\)/);
   assert.match(movementLabSource, /chapter04SavePromptMenuOpen[\s\S]*gamepadInput\.confirmPressed[\s\S]*activateChapter04SaveChoice/);
-  assert.match(flowSource, /await this\.host\.runBlackSubtitleCheckpoint/);
+  assert.match(flowSource, /afterSubtitleFadeOutCheckpointId[\s\S]*await this\.wait\(action\.fadeOutMs[\s\S]*await this\.host\.runBlackSubtitleCheckpoint/);
+  assert.match(flowSource, /runBlackSubtitleCheckpoint[\s\S]*fadeFromBlack\(action\.fadeOutMs\)/);
   assert.match(globalsSource, /\.chapter04-save-confirmation-actions button\.is-autosave strong \{[\s\S]*color: #ff91c8/);
   assert.match(globalsSource, /\.chapter04-save-confirmation-actions button \{[\s\S]*outline: 0 !important/);
+  assert.match(globalsSource, /chapter04-save-confirmation-enter[\s\S]*scale\(0\.92\)/);
+});
+
+test("空欄位的確認儲存按鈕直接提交 confirm，不依賴延遲後的焦點狀態", async () => {
+  const source = await readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(source, /executeSaveDataDialogChoice = async \(\s*explicitChoice\?: SaveDataDialogChoice/);
+  assert.match(source, /const choice = explicitChoice \?\? saveDataDialogChoiceRef\.current/);
+  assert.match(source, /onClick=\{\(\) => void executeSaveDataDialogChoice\("confirm"\)\}/);
+  assert.doesNotMatch(source, /setTimeout\(\(\) => void executeSaveDataDialogChoice\(\), 0\)/);
 });
 
 test("portable save preserves scene and exact ground item positions without player transform", () => {
@@ -207,6 +217,8 @@ test("Options exposes Save first with 26 rows, delete confirmation, and gamepad 
   assert.match(css, /\.save-data-row\[data-gamepad-selected="true"\]/);
   assert.match(css, /\.save-data-row\.is-empty[\s\S]*opacity: 0\.56/);
   assert.match(css, /\.save-data-row\.is-empty:hover,[\s\S]*data-gamepad-selected="true"[\s\S]*opacity: 0\.9/);
+  assert.match(css, /\.save-data-heading\s*\{[^}]*position: static;/);
+  assert.doesNotMatch(css, /\.save-data-heading\s*\{[^}]*position: sticky;/);
   assert.match(css, /\.options-dialog button:focus[\s\S]*outline: none/);
   assert.match(ignore, /^\/SaveData\/$/m);
 });

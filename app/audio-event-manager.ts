@@ -103,7 +103,7 @@ export const AUDIO_EVENT_CONFIG = (
     },
     "uiInput": {
       "label": "介面輸入點擊",
-      "trigger": "玩家點擊背包內的操作按鈕、道具頁籤、換頁箭頭、道具格或其右鍵選單；點擊快捷工具格或其右鍵選單；展開／收折任務、生存計量、小地圖；以及開啟／關閉背包或 Options 介面時播放。只要 Click 成立就播放，不要求操作成功。",
+      "trigger": "玩家點擊背包內的操作按鈕、道具頁籤、換頁箭頭、道具格或其右鍵選單；點擊快捷工具格或其右鍵選單；展開／收折任務、生存計量、小地圖；開啟／關閉背包或 Options 介面；以及新手教學每次有效換卡時播放。只要輸入成立就播放，不要求操作成功。",
       "sourceAssetPaths": [
         "Assets/Audio/InPut.mp3"
       ],
@@ -470,7 +470,7 @@ export type BgmRuleTriggerType =
   | "dialogueLine"
   | "event";
 
-export type BgmRuleAction = "volume" | "mute" | "switch";
+export type BgmRuleAction = "volume" | "mute" | "switch" | "fade";
 export type BgmRestoreMode = "resume" | "restart" | "default";
 
 /** 玩家未修改 Options 前的全域 BGM 音量。 */
@@ -600,7 +600,7 @@ export const BGM_CONTROL_RULES = (
       "triggerType": "minigame",
       "targetId": "power-routing",
       "state": "playing",
-      "action": "switch",
+      "action": "fade",
       "trackId": "power-routing",
       "targetVolume": 1,
       "fadeOutSeconds": 1,
@@ -616,7 +616,7 @@ export const BGM_CONTROL_RULES = (
       "triggerType": "minigame",
       "targetId": "frequency-calibration",
       "state": "playing",
-      "action": "switch",
+      "action": "fade",
       "trackId": "frequency-calibration",
       "targetVolume": 1,
       "fadeOutSeconds": 1,
@@ -632,7 +632,7 @@ export const BGM_CONTROL_RULES = (
       "triggerType": "minigame",
       "targetId": "welding-route",
       "state": "playing",
-      "action": "switch",
+      "action": "fade",
       "trackId": "welding-route",
       "targetVolume": 1,
       "fadeOutSeconds": 1,

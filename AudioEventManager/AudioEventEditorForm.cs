@@ -1117,10 +1117,10 @@ internal sealed class AudioEventConfigDocument
             {
                 throw new InvalidDataException($"{rule.Id}：未知的恢復方式 {rule.RestoreMode}。");
             }
-            if (rule.Action == "switch" &&
+            if ((rule.Action == "switch" || rule.Action == "fade") &&
                 (rule.TrackId is null || !tracks.ContainsKey(rule.TrackId)))
             {
-                throw new InvalidDataException($"{rule.Id}：換歌操作必須指定有效 Track ID。");
+                throw new InvalidDataException($"{rule.Id}：換歌或 Fade 操作必須指定有效 Track ID。");
             }
             if (rule.TargetVolume is < 0 or > 1 ||
                 rule.FadeOutSeconds is < 0 or > 60 ||
@@ -1206,7 +1206,7 @@ internal sealed class BgmControlRuleEditableDefinition
         "event",
     };
 
-    internal static readonly string[] Actions = { "volume", "mute", "switch" };
+    internal static readonly string[] Actions = { "volume", "mute", "switch", "fade" };
     internal static readonly string[] RestoreModes = { "resume", "restart", "default" };
 
     public string Id { get; set; } = "";
