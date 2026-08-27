@@ -389,6 +389,39 @@ test("五種新音效只接在成功的互動與道具結算路徑", async () =>
   );
 });
 
+test("interaction-013 成功灌入晶體並增加營地電力後播放一次灌入音效", async () => {
+  const event = AUDIO_EVENT_CONFIG.campPowerCrystalInserted;
+  assert.deepEqual(event.sourceAssetPaths, ["Assets/Audio/灌入晶體1.mp3"]);
+  assert.deepEqual(event.sources, ["./audio/camp-power-crystal-inserted.mp3"]);
+  assert.equal(event.volume, 1);
+  assert.equal(event.delaySeconds, 0);
+  assert.equal(event.loop, undefined);
+  assert.match(event.trigger, /interaction-013/);
+  assert.match(event.trigger, /營地電力確實增加/);
+  assert.match(event.trigger, /不播放/);
+
+  const [sourceBytes, publicBytes, movementLabSource] = await Promise.all([
+    readFile(new URL("../Assets/Audio/灌入晶體1.mp3", import.meta.url)),
+    readFile(new URL("../public/audio/camp-power-crystal-inserted.mp3", import.meta.url)),
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.deepEqual(publicBytes, sourceBytes);
+
+  const refillSuccessFlow = movementLabSource.slice(
+    movementLabSource.indexOf("const previousPower = campPowerStateRef.current.current;"),
+    movementLabSource.indexOf("completeInteraction(interactable, source);", movementLabSource.indexOf("const previousPower = campPowerStateRef.current.current;")),
+  );
+  assert.ok(refillSuccessFlow.length > 0);
+  assert.ok(
+    refillSuccessFlow.indexOf("applyCampPowerState(nextPower);") <
+      refillSuccessFlow.indexOf('playOneShotAudio("campPowerCrystalInserted");'),
+  );
+  assert.match(
+    refillSuccessFlow,
+    /playOneShotAudio\("campPowerCrystalInserted"\)/,
+  );
+});
+
 test("任務 COMPLETE、NEXT、新增 OBJ 與 OBJ 過關使用集中管理的單次音效", () => {
   const completed = AUDIO_EVENT_CONFIG.questCompleted;
   assert.deepEqual(completed.sourceAssetPaths, ["Assets/Audio/任務成功.mp3"]);

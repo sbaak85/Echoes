@@ -247,6 +247,20 @@ export const AUDIO_EVENT_CONFIG = (
       "volume": 1,
       "delaySeconds": 0
     },
+    "campPowerCrystalInserted": {
+      "label": "營地電力灌入晶體成功",
+      "trigger": "interaction-013 的灌入確認流程成功扣除一個藍色晶體碎片，且營地電力確實增加並寫入狀態後播放一次；取消、道具不足或電力已滿時不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/灌入晶體1.mp3"
+      ],
+      "sources": [
+        "./audio/camp-power-crystal-inserted.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
     "generatorPanelOpened": {
       "label": "共振發電機蓋板拆開成功",
       "trigger": "interaction-020 成功完成且其地面 Spawn 獎勵已成功建立後播放一次；需求不足、互動已使用或找不到合法 Spawn 落點時不播放。",

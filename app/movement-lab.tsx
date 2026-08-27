@@ -9495,6 +9495,7 @@ export function MovementLab() {
           }
 
           const actualGain = nextPower.current - previousPower;
+          playOneShotAudio("campPowerCrystalInserted");
           showInteractionItemFeedback(
             `消耗「藍色晶體碎片」×${CAMP_POWER_REFILL_ITEM_QUANTITY} · ` +
               `營地電力 +${actualGain}（${nextPower.current}/${CAMP_POWER_CAPACITY}）`,
