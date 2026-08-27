@@ -230,10 +230,17 @@ import {
   STORY_EVENT_FLOWS,
 } from "./story-content";
 import {
+  CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID,
   createStorySubtitleFlow,
   findStorySubtitleEvents,
   getStorySubtitleCompletedCount,
 } from "./story-subtitle-flow";
+import {
+  CHAPTER04_ID,
+  CHAPTER04_NAME,
+  CHAPTER04_NUMBER,
+  createChapter04EntryStoryProgress,
+} from "./chapter04-transition";
 import {
   QuestRuntimeManager,
   loadQuestSaveData,
@@ -1519,6 +1526,7 @@ type DialogueTextSize = "small" | "medium" | "large";
 type SaveDataDialogMode = "save" | "actions" | "load" | "overwrite" | "delete";
 type SaveDataDialog = { slotId: SaveDataSlotId; mode: SaveDataDialogMode };
 type SaveDataDialogChoice = "cancel" | "load" | "overwrite" | "delete" | "confirm";
+type Chapter04SaveChoice = "manual" | "autosave";
 
 const SAVE_DATA_SLOT_IDS: SaveDataSlotId[] = [
   "autosave",
@@ -3265,6 +3273,18 @@ export function MovementLab() {
   const saveDataDialogRef = useRef<SaveDataDialog | null>(null);
   const saveDataDialogChoiceRef = useRef<SaveDataDialogChoice>("cancel");
   const saveDataBusyRef = useRef(false);
+  const chapter04SavePromptOpenRef = useRef(false);
+  const chapter04SavePromptChoiceRef = useRef<Chapter04SaveChoice>("manual");
+  const chapter04SavePromptGamepadModeRef = useRef<"cursor" | "dpad">("dpad");
+  const chapter04SavePromptCursorRearmRequiredRef = useRef(false);
+  const chapter04SaveCheckpointFlowIdRef = useRef("");
+  const chapter04SaveCheckpointResolveRef = useRef<(() => void) | null>(null);
+  const chapter04ManualSaveActiveRef = useRef(false);
+  const chapter04TransitionCompletingRef = useRef(false);
+  const chapter04TransitionBusyRef = useRef(false);
+  const runChapter04SaveCheckpointRef = useRef<
+    (checkpointId: string, flowId: string) => Promise<void>
+  >(async () => {});
   const portableSaveHydratedRef = useRef(false);
   const portableSaveWriteRef = useRef(Promise.resolve());
   const portableAutosaveTimerRef = useRef<number | null>(null);
@@ -3437,6 +3457,11 @@ export function MovementLab() {
   const [saveDataDialog, setSaveDataDialog] = useState<SaveDataDialog | null>(null);
   const [saveDataDialogChoice, setSaveDataDialogChoice] =
     useState<SaveDataDialogChoice>("cancel");
+  const [chapter04SavePromptOpen, setChapter04SavePromptOpen] = useState(false);
+  const [chapter04SavePromptChoice, setChapter04SavePromptChoice] =
+    useState<Chapter04SaveChoice>("manual");
+  const [chapter04TransitionBusy, setChapter04TransitionBusy] = useState(false);
+  const [chapter04TransitionStatus, setChapter04TransitionStatus] = useState("");
   const [showPlayerCollision, setShowPlayerCollision] = useState(false);
   const [showSceneCollision, setShowSceneCollision] = useState(false);
   const [dayNightEffectEnabled, setDayNightEffectEnabled] = useState(false);
@@ -6031,6 +6056,8 @@ export function MovementLab() {
         }, safeDurationMs);
       },
       cancelDialogue: () => dialogueManager.cancelCurrent(),
+      runBlackSubtitleCheckpoint: (checkpointId, flowId) =>
+        runChapter04SaveCheckpointRef.current(checkpointId, flowId),
       markCompleted: markStoryEventCompleted,
       isCompleted: (flowId) =>
         storyProgressRef.current.completedEventIds.includes(flowId),
@@ -6178,6 +6205,7 @@ export function MovementLab() {
     if (
       !storyFlowActiveRef.current ||
       optionsOpenRef.current ||
+      chapter04SavePromptOpenRef.current ||
       storySkipHoldRef.current
     ) {
       return false;
@@ -6202,7 +6230,9 @@ export function MovementLab() {
     return true;
   };
 
-  const getPortableSaveSummary = () => {
+  const getPortableSaveSummary = (
+    storyProgress: StoryProgress = storyProgressRef.current,
+  ) => {
     const questSave = questRuntimeManagerRef.current?.exportSave() ?? loadQuestSaveData() ?? {
       schemaVersion: 1 as const,
       quests: {},
@@ -6216,11 +6246,16 @@ export function MovementLab() {
       : undefined;
     const stage = quest?.stages.find((candidate) => candidate.id === selectedEntry?.[1].currentStageId);
     const chapter = QUEST_DOCUMENT.chapters.find((candidate) => candidate.id === quest?.chapterId);
+    const enteringChapter04 = storyProgress.currentChapter === CHAPTER04_NUMBER;
     return {
       questSave,
       summary: {
-        chapterId: chapter?.id ?? `chapter-${storyProgressRef.current.currentChapter}`,
-        chapterName: chapter?.name ?? `第 ${storyProgressRef.current.currentChapter} 章`,
+        chapterId: enteringChapter04
+          ? CHAPTER04_ID
+          : chapter?.id ?? `chapter-${storyProgress.currentChapter}`,
+        chapterName: enteringChapter04
+          ? CHAPTER04_NAME
+          : chapter?.name ?? `第 ${storyProgress.currentChapter} 章`,
         questId: quest?.id ?? "free-exploration",
         questName: quest?.name ?? "自由活動",
         stageId: stage?.id ?? "",
@@ -6229,10 +6264,13 @@ export function MovementLab() {
     };
   };
 
-  const buildPortableSave = (slotKind: "auto" | "manual"): EchoesSaveData | null => {
+  const buildPortableSave = (
+    slotKind: "auto" | "manual",
+    storyProgress: StoryProgress = storyProgressRef.current,
+  ): EchoesSaveData | null => {
     const manager = questRuntimeManagerRef.current;
     if (!portableSaveHydratedRef.current || !manager) return null;
-    const { questSave, summary } = getPortableSaveSummary();
+    const { questSave, summary } = getPortableSaveSummary(storyProgress);
     return {
       format: SAVE_DATA_FORMAT,
       schemaVersion: SAVE_DATA_SCHEMA_VERSION,
@@ -6244,7 +6282,7 @@ export function MovementLab() {
         survival: survivalStateRef.current,
         inventory: playerInventoryRef.current,
         quest: questSave,
-        story: storyProgressRef.current,
+        story: storyProgress,
         campPower: campPowerStateRef.current,
         interactionUsage: interactionUsageRef.current,
         itemPointProgress: itemPointProgressRef.current,
@@ -6264,8 +6302,9 @@ export function MovementLab() {
   const queuePortableSaveWrite = (
     slotId: SaveDataSlotId,
     slotKind: "auto" | "manual",
+    storyProgress: StoryProgress = storyProgressRef.current,
   ) => {
-    const save = buildPortableSave(slotKind);
+    const save = buildPortableSave(slotKind, storyProgress);
     if (!save) return Promise.resolve<SaveDataBackend | null>(null);
     let result: SaveDataBackend | null = null;
     const operation = async () => {
@@ -6274,6 +6313,100 @@ export function MovementLab() {
     };
     portableSaveWriteRef.current = portableSaveWriteRef.current.then(operation, operation);
     return portableSaveWriteRef.current.then(() => result);
+  };
+
+  const setChapter04SavePromptChoiceValue = (choice: Chapter04SaveChoice) => {
+    chapter04SavePromptChoiceRef.current = choice;
+    setChapter04SavePromptChoice(choice);
+  };
+
+  const getPendingChapter04StoryProgress = () =>
+    createChapter04EntryStoryProgress(
+      storyProgressRef.current,
+      chapter04SaveCheckpointFlowIdRef.current,
+    );
+
+  const completeChapter04SaveCheckpoint = (nextStory: StoryProgress) => {
+    chapter04TransitionCompletingRef.current = true;
+    chapter04ManualSaveActiveRef.current = false;
+    chapter04SavePromptOpenRef.current = false;
+    setChapter04SavePromptOpen(false);
+    chapter04TransitionBusyRef.current = false;
+    setChapter04TransitionBusy(false);
+    setChapter04TransitionStatus("");
+    currentStoryChapterRef.current = CHAPTER04_NUMBER;
+    storyProgressRef.current = nextStory;
+    saveStoryProgress(nextStory);
+    bgmDirectorRef.current?.setChapter(CHAPTER04_NUMBER);
+    requestStoryTriggerContactCheckRef.current();
+    if (optionsOpenRef.current) setOptionsPanelOpen(false);
+    const resolve = chapter04SaveCheckpointResolveRef.current;
+    chapter04SaveCheckpointResolveRef.current = null;
+    chapter04SaveCheckpointFlowIdRef.current = "";
+    chapter04TransitionCompletingRef.current = false;
+    resolve?.();
+  };
+
+  const chooseChapter04ManualSave = () => {
+    if (chapter04TransitionBusyRef.current) return;
+    playOneShotAudio("uiInput");
+    chapter04SavePromptOpenRef.current = false;
+    chapter04ManualSaveActiveRef.current = true;
+    setChapter04SavePromptOpen(false);
+    setChapter04TransitionStatus("");
+    setOptionsPanelOpen(true);
+  };
+
+  const chooseChapter04Autosave = async () => {
+    if (chapter04TransitionBusyRef.current) return;
+    playOneShotAudio("uiInput");
+    chapter04TransitionBusyRef.current = true;
+    setChapter04TransitionBusy(true);
+    setChapter04TransitionStatus("正在寫入自動存檔…");
+    const nextStory = getPendingChapter04StoryProgress();
+    try {
+      const backend = await queuePortableSaveWrite("autosave", "auto", nextStory);
+      if (!backend) throw new Error("chapter04-autosave-not-ready");
+      void refreshSaveDataSlots().catch((error) => {
+        console.warn("[Echoes SaveData] 第四章自動存檔完成，但清單重新整理失敗：", error);
+      });
+      completeChapter04SaveCheckpoint(nextStory);
+    } catch (error) {
+      console.error("[Echoes SaveData] 第四章自動存檔失敗：", error);
+      chapter04TransitionBusyRef.current = false;
+      setChapter04TransitionBusy(false);
+      setChapter04TransitionStatus("自動存檔失敗，請重試或改用手動存檔。 ");
+    }
+  };
+
+  const activateChapter04SaveChoice = () => {
+    if (chapter04SavePromptChoiceRef.current === "autosave") {
+      void chooseChapter04Autosave();
+    } else {
+      chooseChapter04ManualSave();
+    }
+  };
+
+  runChapter04SaveCheckpointRef.current = (checkpointId, flowId) => {
+    if (
+      checkpointId !== CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID ||
+      storyProgressRef.current.currentChapter >= CHAPTER04_NUMBER
+    ) {
+      return Promise.resolve();
+    }
+    chapter04SaveCheckpointFlowIdRef.current = flowId;
+    chapter04SavePromptOpenRef.current = true;
+    chapter04SavePromptGamepadModeRef.current = "dpad";
+    chapter04SavePromptCursorRearmRequiredRef.current = false;
+    chapter04ManualSaveActiveRef.current = false;
+    setChapter04SavePromptChoiceValue("manual");
+    chapter04TransitionBusyRef.current = false;
+    setChapter04TransitionBusy(false);
+    setChapter04TransitionStatus("");
+    setChapter04SavePromptOpen(true);
+    return new Promise<void>((resolve) => {
+      chapter04SaveCheckpointResolveRef.current = resolve;
+    });
   };
 
   requestPortableAutosaveRef.current = () => {
@@ -6292,6 +6425,7 @@ export function MovementLab() {
 
   const getManualSaveBlockedReason = () => {
     if (debugSaveIsolationRef.current) return "Debug Scenario 不會寫入正式存檔。";
+    if (chapter04ManualSaveActiveRef.current) return "";
     if (storyFlowActiveRef.current || dialoguePlaybackRef.current) return "對話／劇情播放期間無法手動存檔。";
     if (powerPuzzleOpenRef.current || frequencyPuzzleOpenRef.current || weldingPuzzleOpenRef.current) {
       return "小遊戲進行期間無法手動存檔。";
@@ -6372,10 +6506,25 @@ export function MovementLab() {
       if (dialog.mode === "save" || dialog.mode === "overwrite") {
         const blocked = getManualSaveBlockedReason();
         if (blocked) { setSaveDataStatus(blocked); return; }
-        await queuePortableSaveWrite(dialog.slotId, "manual");
-        await refreshSaveDataSlots();
+        const chapter04Story = chapter04ManualSaveActiveRef.current
+          ? getPendingChapter04StoryProgress()
+          : null;
+        const backend = await queuePortableSaveWrite(
+          dialog.slotId,
+          "manual",
+          chapter04Story ?? storyProgressRef.current,
+        );
+        if (!backend) throw new Error("manual-save-not-ready");
         setSaveDataStatus(dialog.mode === "overwrite" ? "存檔已覆蓋。" : "存檔完成。 ");
         setSaveDataDialogValue(null);
+        if (chapter04Story) {
+          void refreshSaveDataSlots().catch((error) => {
+            console.warn("[Echoes SaveData] 第四章手動存檔完成，但清單重新整理失敗：", error);
+          });
+          completeChapter04SaveCheckpoint(chapter04Story);
+        } else {
+          await refreshSaveDataSlots();
+        }
       } else if (dialog.mode === "delete") {
         await deleteSaveDataSlot(dialog.slotId);
         await refreshSaveDataSlots();
@@ -6404,6 +6553,10 @@ export function MovementLab() {
   };
 
   const setOptionsPanelOpen = (open: boolean) => {
+    const returnToChapter04Prompt =
+      !open &&
+      chapter04ManualSaveActiveRef.current &&
+      !chapter04TransitionCompletingRef.current;
     if (open && powerPuzzleOpenRef.current) return;
     if (open && storyFlowActiveRef.current) {
       cancelStorySkipHold();
@@ -6425,6 +6578,7 @@ export function MovementLab() {
       restartConfirmationOpenRef.current = false;
       setRestartConfirmationOpen(false);
       setSaveDataDialogValue(null);
+      chapter04ManualSaveActiveRef.current = false;
     }
 
     if (open) {
@@ -6440,6 +6594,13 @@ export function MovementLab() {
           console.error("[Echoes SaveData] 無法讀取存檔清單：", error);
           setSaveDataStatus("無法讀取本機 SaveData，請查看啟動記錄。 ");
         });
+    }
+    if (returnToChapter04Prompt) {
+      chapter04SavePromptOpenRef.current = true;
+      chapter04SavePromptGamepadModeRef.current = "dpad";
+      setChapter04SavePromptChoiceValue("manual");
+      setChapter04TransitionStatus("尚未完成存檔，請選擇一種儲存方式。 ");
+      setChapter04SavePromptOpen(true);
     }
   };
 
@@ -7317,6 +7478,7 @@ export function MovementLab() {
     let gamepadInputCursorHidden = false;
     let powerPuzzleCursorShownForSession = false;
     let campPowerConfirmationCursorShownForSession = false;
+    let chapter04SavePromptCursorShownForSession = false;
     const touchJoystick = {
       input: { x: 0, y: 0 },
       inputOrigin: { x: 0, y: 0 },
@@ -7681,6 +7843,20 @@ export function MovementLab() {
       if (
         focusedElement instanceof HTMLElement &&
         focusedElement.closest(".camp-power-confirmation")
+      ) {
+        focusedElement.blur();
+      }
+    };
+
+    const activateChapter04SavePromptDpadMode = () => {
+      chapter04SavePromptGamepadModeRef.current = "dpad";
+      chapter04SavePromptCursorRearmRequiredRef.current = true;
+      virtualCursorVisible = true;
+      activateGamepadCursor();
+      const focusedElement = document.activeElement;
+      if (
+        focusedElement instanceof HTMLElement &&
+        focusedElement.closest(".chapter04-save-confirmation")
       ) {
         focusedElement.blur();
       }
@@ -8094,6 +8270,7 @@ export function MovementLab() {
       itemUseConfirmationOpenRef.current ||
       sceneConnectionConfirmationOpenRef.current ||
       campPowerConfirmationOpenRef.current ||
+      chapter04SavePromptOpenRef.current ||
       powerPuzzleOpenRef.current ||
       frequencyPuzzleOpenRef.current ||
       weldingPuzzleOpenRef.current ||
@@ -8111,6 +8288,7 @@ export function MovementLab() {
       !itemUseConfirmationOpenRef.current &&
       !sceneConnectionConfirmationOpenRef.current &&
       !campPowerConfirmationOpenRef.current &&
+      !chapter04SavePromptOpenRef.current &&
       !powerPuzzleOpenRef.current &&
       !frequencyPuzzleOpenRef.current &&
       !weldingPuzzleOpenRef.current;
@@ -8138,6 +8316,22 @@ export function MovementLab() {
       activateQuestPromptInputMode("keyboard-mouse");
       if (timePassInputLockedRef.current) {
         event.preventDefault();
+        return;
+      }
+      if (chapter04SavePromptOpenRef.current) {
+        event.preventDefault();
+        if (
+          (key === "arrowleft" || key === "arrowup" ||
+            key === "arrowright" || key === "arrowdown") &&
+          !event.repeat
+        ) {
+          playOneShotAudio("uiInput");
+          setChapter04SavePromptChoiceValue(
+            key === "arrowright" || key === "arrowdown" ? "autosave" : "manual",
+          );
+        } else if ((key === "enter" || key === " ") && !event.repeat) {
+          activateChapter04SaveChoice();
+        }
         return;
       }
       if (itemUseConfirmationOpenRef.current) {
@@ -11979,6 +12173,16 @@ export function MovementLab() {
         activateGamepadCursor();
         campPowerConfirmationCursorShownForSession = true;
       }
+      if (!chapter04SavePromptOpenRef.current) {
+        chapter04SavePromptCursorShownForSession = false;
+      } else if (
+        gamepadInput.connected &&
+        !chapter04SavePromptCursorShownForSession
+      ) {
+        virtualCursorVisible = true;
+        activateGamepadCursor();
+        chapter04SavePromptCursorShownForSession = true;
+      }
 
       const cursorInputLength = Math.hypot(
         gamepadInput.cursorX,
@@ -12042,6 +12246,20 @@ export function MovementLab() {
         activateCampPowerConfirmationDpadMode();
       }
       if (
+        chapter04SavePromptOpenRef.current &&
+        chapter04SavePromptCursorRearmRequiredRef.current &&
+        cursorInputLength <= 0.1
+      ) {
+        chapter04SavePromptCursorRearmRequiredRef.current = false;
+      }
+      const chapter04SavePromptDirectionalInputActive =
+        chapter04SavePromptOpenRef.current &&
+        (Math.abs(gamepadInput.dpadX) > 0 ||
+          Math.abs(gamepadInput.stickX) >= 0.65);
+      if (chapter04SavePromptDirectionalInputActive) {
+        activateChapter04SavePromptDpadMode();
+      }
+      if (
         sceneConnectionConfirmationOpenRef.current &&
         sceneConnectionConfirmationCursorRearmRequiredRef.current &&
         cursorInputLength <= 0.1
@@ -12083,6 +12301,11 @@ export function MovementLab() {
             !campPowerConfirmationCursorRearmRequiredRef.current &&
             (campPowerConfirmationGamepadModeRef.current === "cursor" ||
               cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD))) &&
+        (!chapter04SavePromptOpenRef.current ||
+          (!chapter04SavePromptDirectionalInputActive &&
+            !chapter04SavePromptCursorRearmRequiredRef.current &&
+            (chapter04SavePromptGamepadModeRef.current === "cursor" ||
+              cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD))) &&
         (!sceneConnectionConfirmationOpenRef.current ||
           (!sceneConnectionConfirmationDirectionalInputActive &&
             !sceneConnectionConfirmationCursorRearmRequiredRef.current &&
@@ -12094,7 +12317,9 @@ export function MovementLab() {
         cursorInputLength > 0 &&
         menuCursorCanTakeControl
       ) {
-        if (itemUseConfirmationOpenRef.current) {
+        if (chapter04SavePromptOpenRef.current) {
+          chapter04SavePromptGamepadModeRef.current = "cursor";
+        } else if (itemUseConfirmationOpenRef.current) {
           itemUseConfirmationGamepadModeRef.current = "cursor";
         } else if (optionsOpenRef.current) {
           optionsGamepadModeRef.current = "cursor";
@@ -12134,6 +12359,7 @@ export function MovementLab() {
         !powerPuzzleOpenRef.current &&
         !itemUseConfirmationOpenRef.current &&
         !campPowerConfirmationOpenRef.current &&
+        !chapter04SavePromptOpenRef.current &&
         !sceneConnectionConfirmationOpenRef.current
       ) {
         toggleOptionsPanel();
@@ -12153,6 +12379,7 @@ export function MovementLab() {
         !powerPuzzleOpenRef.current &&
         !itemUseConfirmationOpenRef.current &&
         !campPowerConfirmationOpenRef.current &&
+        !chapter04SavePromptOpenRef.current &&
         !sceneConnectionConfirmationOpenRef.current
       ) {
         beginStorySkipHold("gamepad");
@@ -12180,13 +12407,16 @@ export function MovementLab() {
         gamepadInput.connected &&
         gamepadInput.rightTriggerPressed &&
         !wasGamepadRightTriggerPressed;
+      let chapter04SavePromptMenuOpen = chapter04SavePromptOpenRef.current;
       let itemUseConfirmationMenuOpen = itemUseConfirmationOpenRef.current;
       let sceneConnectionConfirmationMenuOpen =
         sceneConnectionConfirmationOpenRef.current;
       let campPowerConfirmationMenuOpen = campPowerConfirmationOpenRef.current;
       let powerPuzzleMenuOpen = powerPuzzleOpenRef.current;
       let optionsMenuOpen = optionsOpenRef.current;
-      if (itemUseConfirmationMenuOpen && backJustPressed) {
+      if (chapter04SavePromptMenuOpen && backJustPressed) {
+        playOneShotAudio("uiInput");
+      } else if (itemUseConfirmationMenuOpen && backJustPressed) {
         playOneShotAudio("uiInput");
         closeItemUseConfirmation();
         itemUseConfirmationMenuOpen = false;
@@ -12230,6 +12460,7 @@ export function MovementLab() {
       const inventoryMenuOpen = inventoryOpenRef.current;
 
       if (
+        !chapter04SavePromptMenuOpen &&
         !itemUseConfirmationMenuOpen &&
         !sceneConnectionConfirmationMenuOpen &&
         !campPowerConfirmationMenuOpen &&
@@ -12242,7 +12473,40 @@ export function MovementLab() {
         gamepadDpadXRepeatSeconds = 0;
         gamepadDpadYRepeatSeconds = 0;
       }
-      if (itemUseConfirmationMenuOpen) {
+      if (chapter04SavePromptMenuOpen) {
+        gameplayHotbarDpadX = 0;
+        const horizontalInput =
+          Math.abs(gamepadInput.dpadX) > 0
+            ? gamepadInput.dpadX
+            : Math.abs(gamepadInput.stickX) >= 0.65
+              ? gamepadInput.stickX
+              : 0;
+        const menuHorizontal = Math.sign(horizontalInput);
+        if (menuHorizontal === 0) {
+          heldGamepadDpadX = 0;
+          gamepadDpadXRepeatSeconds = 0;
+        } else if (menuHorizontal !== heldGamepadDpadX) {
+          activateChapter04SavePromptDpadMode();
+          heldGamepadDpadX = menuHorizontal;
+          gamepadDpadXRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
+          playOneShotAudio("uiInput");
+          setChapter04SavePromptChoiceValue(
+            menuHorizontal > 0 ? "autosave" : "manual",
+          );
+        }
+
+        if (
+          !chapter04TransitionBusyRef.current &&
+          gamepadInput.confirmPressed &&
+          !wasGamepadConfirmPressed
+        ) {
+          if (chapter04SavePromptGamepadModeRef.current === "cursor") {
+            activateVirtualCursorUi();
+          } else {
+            activateChapter04SaveChoice();
+          }
+        }
+      } else if (itemUseConfirmationMenuOpen) {
         gameplayHotbarDpadX = 0;
         const horizontalInput =
           Math.abs(gamepadInput.dpadX) > 0
@@ -12718,6 +12982,7 @@ export function MovementLab() {
         powerPuzzleOpenRef.current ||
         itemUseConfirmationOpenRef.current ||
         campPowerConfirmationOpenRef.current ||
+        chapter04SavePromptOpenRef.current ||
         sceneConnectionConfirmationOpenRef.current ||
         debugItemSpawnerOpenRef.current ||
         survivalStateRef.current.gameOverReason
@@ -13074,6 +13339,7 @@ export function MovementLab() {
         powerPuzzleOpenRef.current ||
         itemUseConfirmationOpenRef.current ||
         campPowerConfirmationOpenRef.current ||
+        chapter04SavePromptOpenRef.current ||
         sceneConnectionConfirmationOpenRef.current ||
         debugItemSpawnerOpenRef.current ||
         Boolean(dialoguePlaybackRef.current);
@@ -13924,6 +14190,56 @@ export function MovementLab() {
             );
           })}
         </section>
+      ) : null}
+
+      {chapter04SavePromptOpen ? (
+        <div className="chapter04-save-confirmation-overlay">
+          <section
+            className="chapter04-save-confirmation"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="chapter04-save-confirmation-title"
+          >
+            <div className="chapter04-save-emblem" aria-hidden="true">
+              <i /><b><span>IV</span></b><i />
+            </div>
+            <small>CHAPTER 04 · SAVE CHECKPOINT</small>
+            <h2 id="chapter04-save-confirmation-title">
+              要手動儲存目前的遊戲進度嗎?
+            </h2>
+            <p>儲存完成後，將正式進入第四章。</p>
+            <div className="chapter04-save-confirmation-actions">
+              <button
+                className={chapter04SavePromptChoice === "manual" ? "is-selected" : undefined}
+                type="button"
+                disabled={chapter04TransitionBusy}
+                data-gamepad-selected={chapter04SavePromptChoice === "manual" || undefined}
+                onFocus={() => setChapter04SavePromptChoiceValue("manual")}
+                onMouseEnter={() => setChapter04SavePromptChoiceValue("manual")}
+                onClick={chooseChapter04ManualSave}
+              >
+                <strong>確認</strong>
+                <span>開啟存檔分頁，由玩家選擇欄位</span>
+              </button>
+              <button
+                className={`is-autosave${chapter04SavePromptChoice === "autosave" ? " is-selected" : ""}`}
+                type="button"
+                disabled={chapter04TransitionBusy}
+                data-gamepad-selected={chapter04SavePromptChoice === "autosave" || undefined}
+                onFocus={() => setChapter04SavePromptChoiceValue("autosave")}
+                onMouseEnter={() => setChapter04SavePromptChoiceValue("autosave")}
+                onClick={() => void chooseChapter04Autosave()}
+              >
+                <strong>自動儲存</strong>
+                <span>直接覆寫 AUTO，不再二次確認</span>
+              </button>
+            </div>
+            <div className="chapter04-save-confirmation-status" aria-live="polite">
+              {chapter04TransitionStatus}
+            </div>
+            <footer>十字鍵／左搖桿：選擇　A：確認　右搖桿：虛擬游標</footer>
+          </section>
+        </div>
       ) : null}
 
       {storySkipVisible ? (
@@ -15575,7 +15891,7 @@ export function MovementLab() {
 
       <canvas
         ref={cursorCanvasRef}
-        className={`cursor-layer${powerPuzzleOpen || itemUseConfirmation || campPowerConfirmationOpen || sceneConnectionConfirmation ? " is-over-modal" : ""}${weldingPuzzleOpen && !weldingPuzzleVirtualCursorAvailable ? " is-hidden-for-welding" : ""}`}
+        className={`cursor-layer${powerPuzzleOpen || itemUseConfirmation || campPowerConfirmationOpen || sceneConnectionConfirmation || chapter04SavePromptOpen ? " is-over-modal" : ""}${weldingPuzzleOpen && !weldingPuzzleVirtualCursorAvailable ? " is-hidden-for-welding" : ""}`}
         aria-hidden="true"
       />
       </main>

@@ -10,6 +10,12 @@ import {
   readSaveDataSlot,
   writeSaveDataSlot,
 } from "../app/save-data.ts";
+import {
+  CHAPTER04_ENTERED_FLAG_ID,
+  CHAPTER04_ID,
+  CHAPTER04_NAME,
+  createChapter04EntryStoryProgress,
+} from "../app/chapter04-transition.ts";
 
 function createSave() {
   return {
@@ -70,6 +76,39 @@ function createSave() {
     },
   };
 }
+
+test("第三章章末存檔快照會以 chapter04 命名並包含完成旗標", () => {
+  const next = createChapter04EntryStoryProgress({
+    currentChapter: 3,
+    completedEventIds: ["earlier-event"],
+    storyFlags: { preserved: true },
+  }, "story-subtitle:chapter03-End:1");
+  assert.equal(next.currentChapter, 4);
+  assert.equal(CHAPTER04_ID, "chapter04");
+  assert.equal(CHAPTER04_NAME, "第四章");
+  assert.deepEqual(next.completedEventIds, [
+    "earlier-event",
+    "story-subtitle:chapter03-End:1",
+  ]);
+  assert.equal(next.storyFlags.preserved, true);
+  assert.equal(next.storyFlags[CHAPTER04_ENTERED_FLAG_ID], true);
+});
+
+test("chapter03-End 儲存確認介面阻擋黑幕淡出並支援手把操作", async () => {
+  const [movementLabSource, globalsSource, flowSource] = await Promise.all([
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/chapter-flow-manager.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(movementLabSource, /要手動儲存目前的遊戲進度嗎\?/);
+  assert.match(movementLabSource, />自動儲存</);
+  assert.match(movementLabSource, /queuePortableSaveWrite\("autosave", "auto", nextStory\)/);
+  assert.match(movementLabSource, /chapter04ManualSaveActiveRef\.current = true;[\s\S]*setOptionsPanelOpen\(true\)/);
+  assert.match(movementLabSource, /chapter04SavePromptMenuOpen[\s\S]*gamepadInput\.confirmPressed[\s\S]*activateChapter04SaveChoice/);
+  assert.match(flowSource, /await this\.host\.runBlackSubtitleCheckpoint/);
+  assert.match(globalsSource, /\.chapter04-save-confirmation-actions button\.is-autosave strong \{[\s\S]*color: #ff91c8/);
+  assert.match(globalsSource, /\.chapter04-save-confirmation-actions button \{[\s\S]*outline: 0 !important/);
+});
 
 test("portable save preserves scene and exact ground item positions without player transform", () => {
   const normalized = normalizeEchoesSaveData(createSave());

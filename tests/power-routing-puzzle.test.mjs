@@ -168,7 +168,7 @@ test("interaction-012 直接開啟電力分配，不再出現暫代小遊戲選�
   assert.match(puzzleSource, /event\.stopPropagation\(\)/);
   assert.match(
     movementLabSource,
-    /className={`cursor-layer\$\{powerPuzzleOpen \|\| itemUseConfirmation \|\| campPowerConfirmationOpen \|\| sceneConnectionConfirmation \? " is-over-modal" : ""\}/,
+    /className={`cursor-layer\$\{powerPuzzleOpen \|\| itemUseConfirmation \|\| campPowerConfirmationOpen \|\| sceneConnectionConfirmation \|\| chapter04SavePromptOpen \? " is-over-modal" : ""\}/,
   );
   assert.doesNotMatch(puzzleSource, /power-device-kind/);
   assert.match(puzzleSource, /is-unavailable/);

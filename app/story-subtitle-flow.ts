@@ -37,6 +37,8 @@ export type StorySubtitleChapter = {
 
 export const STORY_SUBTITLE_COMPLETION_PREFIX = "story-subtitle";
 export const STORY_SUBTITLE_SKIP_FADE_MS = 1000;
+export const CHAPTER03_END_SUBTITLE_EVENT_ID = "chapter03-End";
+export const CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID = "chapter04-entry-save";
 
 export function findStorySubtitleEvents(
   chapters: readonly StorySubtitleChapter[],
@@ -96,6 +98,10 @@ export function createStorySubtitleFlow(
     subtitleAction.fontSizesPx = configuredLines.map(
       (line) => line.fontSizePx ?? 34,
     );
+  }
+  if (event.id === CHAPTER03_END_SUBTITLE_EVENT_ID) {
+    subtitleAction.beforeFadeOutCheckpointId =
+      CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID;
   }
   actions.push(subtitleAction);
   if (event.delayAfterMs > 0) {

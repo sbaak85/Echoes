@@ -14,6 +14,7 @@ import {
 } from "../app/story-content.ts";
 import { StoryEventManager } from "../app/story-event-manager.ts";
 import {
+  CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID,
   createStorySubtitleFlow,
   findStorySubtitleEvents,
   getStorySubtitleCompletedCount,
@@ -99,6 +100,7 @@ test("chapter03-End 由章節編輯器在 section-9 後播放黑幕白字幕", a
       holdMs: 4000,
       fadeOutMs: 2000,
       keepBlack: false,
+      beforeFadeOutCheckpointId: CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID,
     },
     { type: "unlockInput" },
   ]);
@@ -171,6 +173,48 @@ test("chapter03-End 由章節編輯器在 section-9 後播放黑幕白字幕", a
   assert.match(movementLabSource, /storyCenteredText\.fontSizesPx\?\.\[index\]/);
   assert.match(movementLabSource, /fontSize: `\$\{fontSizePx\}px`/);
   assert.match(globalsSource, /\.story-centered-text p \{[\s\S]*?white-space: pre-line;/);
+});
+
+test("黑幕字幕的存檔 checkpoint 完成前不會開始淡出", async () => {
+  const calls = [];
+  let releaseCheckpoint;
+  const checkpoint = new Promise((resolve) => { releaseCheckpoint = resolve; });
+  const manager = new ChapterFlowManager({
+    setInputLocked: () => {},
+    setBlack: () => {},
+    fadeToBlack: () => calls.push("fade-to"),
+    fadeFromBlack: () => calls.push("fade-from"),
+    showCenteredText: () => calls.push("text:show"),
+    hideCenteredText: () => calls.push("text:hide"),
+    playDialogue: async () => {},
+    cancelDialogue: () => {},
+    markCompleted: () => {},
+    isCompleted: () => false,
+    runBlackSubtitleCheckpoint: async (checkpointId, flowId) => {
+      calls.push(`checkpoint:${checkpointId}:${flowId}`);
+      await checkpoint;
+    },
+  });
+
+  const running = manager.run({
+    id: "story-subtitle:chapter03-End:1",
+    chapter: 3,
+    actions: [{
+      type: "showBlackSubtitle",
+      lines: ["第三章結束"],
+      fadeInMs: 0,
+      holdMs: 0,
+      fadeOutMs: 0,
+      keepBlack: false,
+      beforeFadeOutCheckpointId: CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID,
+    }],
+  });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(calls.includes("fade-from"), false);
+  assert.match(calls.join("|"), /checkpoint:chapter04-entry-save:story-subtitle:chapter03-End:1/);
+  releaseCheckpoint();
+  await running;
+  assert.equal(calls.includes("fade-from"), true);
 });
 
 test("blank dialogue speaker stays blank instead of inheriting the previous line", async () => {

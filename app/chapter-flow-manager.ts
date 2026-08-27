@@ -19,6 +19,7 @@ export type ChapterFlowAction =
       holdMs: number;
       fadeOutMs: number;
       keepBlack: boolean;
+      beforeFadeOutCheckpointId?: string;
     }
   | { type: "playDialogue"; dialogueId: string }
   | { type: "startQuest"; questId: string }
@@ -48,6 +49,10 @@ export type ChapterFlowHost = {
   startQuest?: (questId: string) => void | Promise<void>;
   showMainObjectiveMarker?: (durationMs: number) => void;
   cancelDialogue: () => void;
+  runBlackSubtitleCheckpoint?: (
+    checkpointId: string,
+    flowId: string,
+  ) => Promise<void>;
   markCompleted: (flowId: string) => void;
   isCompleted: (flowId: string) => boolean;
   onActiveChanged?: (
@@ -194,6 +199,14 @@ export class ChapterFlowManager {
           if (allowSkip && this.skipRequested) {
             this.host.hideCenteredText();
             return;
+          }
+          if (action.beforeFadeOutCheckpointId) {
+            this.host.hideCenteredText();
+            await this.host.runBlackSubtitleCheckpoint?.(
+              action.beforeFadeOutCheckpointId,
+              this.activeFlow?.id ?? "",
+            );
+            if (allowSkip && this.skipRequested) return;
           }
           if (!action.keepBlack) {
             this.host.fadeFromBlack(action.fadeOutMs);
