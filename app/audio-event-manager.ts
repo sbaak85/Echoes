@@ -357,6 +357,20 @@ export const AUDIO_EVENT_CONFIG = (
       "fadeInPercent": 0,
       "fadeOutPercent": 30
     },
+    "weldingPreviewCountdown": {
+      "label": "焊接預覽倒數",
+      "trigger": "焊接小遊戲確認開始預覽後，3、2、1 每個倒數數字實際顯示的當下各播放一次；進入自動預覽後停止。",
+      "sourceAssetPaths": [
+        "Assets/Audio/倒數計時.mp3"
+      ],
+      "sources": [
+        "./audio/welding-preview-countdown.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
     "weldingSparksLayer1": {
       "label": "焊接火星混音－第一層",
       "trigger": "焊接小遊戲實際描繪且火星特效持續播放時，與第二層同時循環混音；火星開始時共同淡入，火星停止時共同淡出。",
@@ -487,6 +501,42 @@ export const BGM_TRACK_CONFIG = (
       "volume": 1,
       "loop": true,
       "rememberPosition": true
+    },
+    "power-routing": {
+      "label": "電力分配小遊戲 BGM",
+      "sourceAssetPaths": [
+        "Assets/Audio/power-routing.mp3"
+      ],
+      "sources": [
+        "./audio/power-routing.mp3"
+      ],
+      "volume": 1,
+      "loop": true,
+      "rememberPosition": false
+    },
+    "frequency-calibration": {
+      "label": "調頻小遊戲 BGM",
+      "sourceAssetPaths": [
+        "Assets/Audio/frequency-calibration.mp3"
+      ],
+      "sources": [
+        "./audio/frequency-calibration.mp3"
+      ],
+      "volume": 1,
+      "loop": true,
+      "rememberPosition": false
+    },
+    "welding-route": {
+      "label": "焊接小遊戲 BGM",
+      "sourceAssetPaths": [
+        "Assets/Audio/welding-route.mp3"
+      ],
+      "sources": [
+        "./audio/welding-route.mp3"
+      ],
+      "volume": 1,
+      "loop": true,
+      "rememberPosition": false
     }
   }
   /* BGM_TRACK_CONFIG_END */
@@ -526,6 +576,54 @@ export const BGM_CONTROL_RULES = (
       "fadeOutSeconds": 1,
       "fadeInSeconds": 0,
       "priority": 500,
+      "durationSeconds": 0,
+      "restoreMode": "resume"
+    },
+    {
+      "id": "minigame-bgm-change-1",
+      "label": "電力分配：切換專用 BGM",
+      "enabled": true,
+      "triggerType": "minigame",
+      "targetId": "power-routing",
+      "state": "playing",
+      "action": "switch",
+      "trackId": "power-routing",
+      "targetVolume": 1,
+      "fadeOutSeconds": 1,
+      "fadeInSeconds": 1,
+      "priority": 1000,
+      "durationSeconds": 0,
+      "restoreMode": "resume"
+    },
+    {
+      "id": "minigame-bgm-change-2",
+      "label": "調頻：切換專用 BGM",
+      "enabled": true,
+      "triggerType": "minigame",
+      "targetId": "frequency-calibration",
+      "state": "playing",
+      "action": "switch",
+      "trackId": "frequency-calibration",
+      "targetVolume": 1,
+      "fadeOutSeconds": 1,
+      "fadeInSeconds": 1,
+      "priority": 1000,
+      "durationSeconds": 0,
+      "restoreMode": "resume"
+    },
+    {
+      "id": "minigame-bgm-change-3",
+      "label": "焊接：切換專用 BGM",
+      "enabled": true,
+      "triggerType": "minigame",
+      "targetId": "welding-route",
+      "state": "playing",
+      "action": "switch",
+      "trackId": "welding-route",
+      "targetVolume": 1,
+      "fadeOutSeconds": 1,
+      "fadeInSeconds": 1,
+      "priority": 1000,
       "durationSeconds": 0,
       "restoreMode": "resume"
     }

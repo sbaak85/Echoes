@@ -66,6 +66,7 @@ internal static class Program
         var events = AudioEventConfigDocument.ParseEvents(source);
         var bgmTracks = AudioEventConfigDocument.ParseBgmTracks(source);
         var bgmRules = AudioEventConfigDocument.ParseBgmRules(source);
+        var expectedGeneratorFadeOutPercent = events["generatorRunning"].FadeOutPercent;
         events.Values.First().SourceAssetPaths.Clear();
         bgmRules.Add(new BgmControlRuleEditableDefinition
         {
@@ -114,7 +115,7 @@ internal static class Program
                     TrackId: "default",
                     Priority: 99,
                 } &&
-            fadeOutPercent == 15 &&
+            fadeOutPercent == expectedGeneratorFadeOutPercent &&
             File.Exists(previewPath) &&
             File.Exists(originalPreviewPath) &&
             rewrittenSource.Contains(

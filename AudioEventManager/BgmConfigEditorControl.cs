@@ -2,6 +2,35 @@ namespace Echoes.AudioEventTools;
 
 internal sealed class BgmConfigEditorControl : UserControl
 {
+    private sealed record GridOption(string Value, string Label);
+
+    private static readonly GridOption[] TriggerTypeOptions =
+    {
+        new("quest", "任務"),
+        new("questStage", "任務階段"),
+        new("objective", "任務 OBJ"),
+        new("minigame", "小遊戲"),
+        new("chapter", "章節"),
+        new("scene", "場景"),
+        new("dialogueLine", "對話行"),
+        new("event", "特殊事件"),
+    };
+
+    private static readonly GridOption[] StandardStateOptions =
+    {
+        new("*", "任意有效狀態"),
+        new("locked", "鎖定"),
+        new("available", "可啟動"),
+        new("active", "進行中"),
+        new("completed", "已完成"),
+        new("failed", "失敗"),
+        new("abandoned", "已放棄"),
+        new("playing", "遊玩中"),
+        new("triggered", "已觸發"),
+        new("success", "成功"),
+        new("active|completed", "進行中或已完成"),
+    };
+
     private readonly AudioEventConfigDocument _document;
     private readonly Action _markDirty;
     private readonly DataGridView _trackGrid = CreateGrid();
@@ -78,6 +107,38 @@ internal sealed class BgmConfigEditorControl : UserControl
         _document.BgmRules.AddRange(rules);
     }
 
+    internal void RunUiSmokeTest()
+    {
+        var stateOptions = BuildStateOptions().ToDictionary(
+            option => option.Value,
+            option => option.Label,
+            StringComparer.OrdinalIgnoreCase);
+        foreach (DataGridViewRow row in _ruleGrid.Rows)
+        {
+            if (row.IsNewRow) continue;
+            var triggerType = CellText(row, "RuleTriggerType");
+            var expectedTriggerLabel = TriggerTypeOptions.FirstOrDefault(
+                option => option.Value.Equals(triggerType, StringComparison.OrdinalIgnoreCase))?.Label;
+            var actualTriggerLabel = Convert.ToString(
+                row.Cells["RuleTriggerType"].FormattedValue)?.Trim();
+            if (expectedTriggerLabel is null || actualTriggerLabel != expectedTriggerLabel)
+            {
+                throw new InvalidOperationException(
+                    $"BGM 觸發類型未正確顯示中文：{triggerType} → {actualTriggerLabel}");
+            }
+
+            var state = CellText(row, "RuleState");
+            var actualStateLabel = Convert.ToString(
+                row.Cells["RuleState"].FormattedValue)?.Trim();
+            if (!stateOptions.TryGetValue(state, out var expectedStateLabel) ||
+                actualStateLabel != expectedStateLabel)
+            {
+                throw new InvalidOperationException(
+                    $"BGM 狀態未正確顯示中文：{state} → {actualStateLabel}");
+            }
+        }
+    }
+
     private Control BuildTabs()
     {
         var tabs = new TabControl
@@ -118,7 +179,7 @@ internal sealed class BgmConfigEditorControl : UserControl
     private Control BuildRulePage()
     {
         return BuildGridPage(
-            "規則只在任務、Stage、OBJ、小遊戲、章節、場景或事件狀態改變時重算。優先權數字愈大愈優先；狀態可填 active、completed、playing、success，以 | 分隔多個狀態，或用 * 接受任何有效狀態。",
+            "規則只在任務、Stage、OBJ、小遊戲、章節、場景或事件狀態改變時重算。優先權數字愈大愈優先；觸發類型與狀態皆以中文選擇，儲存時仍會保留程式使用的內部值。",
             _ruleGrid,
             "新增規則",
             AddRule,
@@ -189,10 +250,14 @@ internal sealed class BgmConfigEditorControl : UserControl
         _ruleGrid.Columns.Add(ComboColumn(
             "RuleTriggerType",
             "觸發類型",
-            BgmControlRuleEditableDefinition.TriggerTypes,
+            TriggerTypeOptions,
             105));
         _ruleGrid.Columns.Add(TextColumn("RuleTargetId", "指定 ID", 190));
-        _ruleGrid.Columns.Add(TextColumn("RuleState", "狀態", 90));
+        _ruleGrid.Columns.Add(ComboColumn(
+            "RuleState",
+            "狀態",
+            BuildStateOptions(),
+            130));
         _ruleGrid.Columns.Add(ComboColumn(
             "RuleAction",
             "操作",
@@ -401,6 +466,51 @@ internal sealed class BgmConfigEditorControl : UserControl
         };
         column.Items.AddRange(values.Cast<object>().ToArray());
         return column;
+    }
+
+    private static DataGridViewComboBoxColumn ComboColumn(
+        string name,
+        string header,
+        IEnumerable<GridOption> values,
+        int width)
+    {
+        return new DataGridViewComboBoxColumn
+        {
+            Name = name,
+            HeaderText = header,
+            Width = width,
+            FlatStyle = FlatStyle.Flat,
+            SortMode = DataGridViewColumnSortMode.NotSortable,
+            DataSource = values.ToArray(),
+            DisplayMember = nameof(GridOption.Label),
+            ValueMember = nameof(GridOption.Value),
+            DisplayStyle = DataGridViewComboBoxDisplayStyle.DropDownButton,
+        };
+    }
+
+    private IEnumerable<GridOption> BuildStateOptions()
+    {
+        var options = StandardStateOptions.ToList();
+        var knownValues = options
+            .Select(option => option.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var state in _document.BgmRules
+            .Select(rule => rule.State.Trim())
+            .Where(state => state.Length > 0 && knownValues.Add(state)))
+        {
+            options.Add(new GridOption(state, BuildStateLabel(state)));
+        }
+        return options;
+    }
+
+    private static string BuildStateLabel(string state)
+    {
+        var labels = state
+            .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => StandardStateOptions.FirstOrDefault(
+                option => option.Value.Equals(value, StringComparison.OrdinalIgnoreCase))?.Label ?? value)
+            .ToArray();
+        return labels.Length > 1 ? string.Join("或", labels) : labels.FirstOrDefault() ?? state;
     }
 
     private static Button CreateButton(string text, int width)

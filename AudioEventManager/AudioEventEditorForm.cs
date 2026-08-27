@@ -636,6 +636,7 @@ internal sealed class AudioEventEditorForm : Form
 
     internal void RunPreviewSmokeTest()
     {
+        _bgmConfigEditor.RunUiSmokeTest();
         if (!_sourceOpenFolderButton.Enabled || !_openFolderButton.Enabled)
         {
             throw new InvalidOperationException("音檔路徑的檔案總管按鈕未正確啟用。");

@@ -14673,6 +14673,7 @@ export function MovementLab() {
           onFail={handleWeldingPuzzleFailure}
           onFailureShown={() => playOneShotAudio("weldingFailed")}
           onSuccessShown={() => playOneShotAudio("weldingSucceeded")}
+          onPreviewCountdownTick={() => playOneShotAudio("weldingPreviewCountdown")}
           onRequestNextStage={() => false}
           onSparkActivityChange={setWeldingSparkAudioActive}
           onVirtualCursorAvailabilityChange={

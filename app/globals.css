@@ -3730,13 +3730,13 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
 }
 
 @keyframes camp-power-refill-current-value {
-  0%, 42%, 100% { opacity: 1; transform: translateY(0); }
-  52%, 90% { opacity: 0; transform: translateY(-3px); }
+  0%, 42%, 100% { opacity: 1; }
+  52%, 90% { opacity: 0; }
 }
 
 @keyframes camp-power-refill-next-value {
-  0%, 42%, 100% { opacity: 0; transform: translateY(3px); }
-  52%, 90% { opacity: 1; transform: translateY(0); }
+  0%, 42%, 100% { opacity: 0; }
+  52%, 90% { opacity: 1; }
 }
 
 @media (max-width: 640px) {
@@ -7981,11 +7981,4 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   .welding-puzzle-header > p.welding-start-instruction,
   .welding-start-callout,
   .welding-start-beacon-glow { animation: none; }
-
-  .camp-power-refill-grid > i.is-projected,
-  .camp-power-refill-value-cycle > i { animation: none; }
-
-  .camp-power-refill-grid > i.is-projected { opacity: 0.58; }
-  .camp-power-refill-value-cycle > i.is-current { opacity: 0; }
-  .camp-power-refill-value-cycle > i.is-next { opacity: 1; }
 }

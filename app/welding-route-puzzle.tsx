@@ -76,6 +76,7 @@ type WeldingRoutePuzzleProps = {
   onFail: () => void;
   onFailureShown?: () => void;
   onSuccessShown?: () => void;
+  onPreviewCountdownTick?: (value: number) => void;
   onRequestNextStage?: () => boolean;
   onSparkActivityChange?: (active: boolean) => void;
   onVirtualCursorAvailabilityChange?: (available: boolean) => void;
@@ -245,6 +246,7 @@ export function WeldingRoutePuzzle({
   onFail,
   onFailureShown,
   onSuccessShown,
+  onPreviewCountdownTick,
   onRequestNextStage,
   onSparkActivityChange,
   onVirtualCursorAvailabilityChange,
@@ -271,6 +273,7 @@ export function WeldingRoutePuzzle({
   const [weldStartedFromStart, setWeldStartedFromStart] = useState(false);
   const failureShownNotifiedRef = useRef(false);
   const successShownNotifiedRef = useRef(false);
+  const onPreviewCountdownTickRef = useRef(onPreviewCountdownTick);
   const boardRef = useRef<HTMLDivElement>(null);
   const phaseRef = useRef<WeldingPuzzlePhase>("intro");
   const gunPointRef = useRef<WeldingPoint>(initialGunPoint);
@@ -308,6 +311,10 @@ export function WeldingRoutePuzzle({
     phaseRef.current = nextPhase;
     setPhase(nextPhase);
   };
+
+  useEffect(() => {
+    onPreviewCountdownTickRef.current = onPreviewCountdownTick;
+  }, [onPreviewCountdownTick]);
 
   const updateGunPoint = (nextPoint: WeldingPoint) => {
     const clamped = clampToBoard(nextPoint);
@@ -640,7 +647,13 @@ export function WeldingRoutePuzzle({
     if (resumedTrail) {
       activeCandidateTrailIdRef.current = resumedTrail.trailId;
       activeWeldPathRef.current = [...resumedTrail.samples];
-      setWeldStartedFromStart(resumedTrail.startValidation.startedFromStart);
+      // Start guidance is session-level onboarding. Once the player has
+      // legitimately begun from an entrance, releasing RT and attaching to a
+      // different/resumed candidate must never make the entrance beacons
+      // appear again during the same puzzle attempt.
+      setWeldStartedFromStart(
+        (started) => started || resumedTrail.startValidation.startedFromStart,
+      );
     } else {
       const trailId = (candidateTrailIdRef.current += 1);
       const startValidation = createWeldingStartValidationState({
@@ -688,7 +701,9 @@ export function WeldingRoutePuzzle({
       });
       activeCandidateTrailIdRef.current = trailId;
       activeWeldPathRef.current = [firstSample];
-      setWeldStartedFromStart(startValidation.startedFromStart);
+      setWeldStartedFromStart(
+        (started) => started || startValidation.startedFromStart,
+      );
     }
     pointerHeldRef.current = true;
     setPointerHeld(true);
@@ -854,13 +869,16 @@ export function WeldingRoutePuzzle({
     setExitSelected(false);
     setWeldStartedFromStart(false);
     updatePhase("countdown");
+    onPreviewCountdownTickRef.current?.(3);
   };
 
   useEffect(() => {
     if (phase !== "countdown") return;
     const timerId = window.setTimeout(() => {
       if (previewCountdown > 1) {
-        setPreviewCountdown((value) => value - 1);
+        const nextCountdown = previewCountdown - 1;
+        setPreviewCountdown(nextCountdown);
+        onPreviewCountdownTickRef.current?.(nextCountdown);
         return;
       }
       setGunVisible(true);

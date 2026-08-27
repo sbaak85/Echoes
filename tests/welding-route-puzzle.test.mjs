@@ -435,6 +435,16 @@ test("gamepad can release RT, move freely, and reattach at the interrupted seam"
     component,
     /!gamepadActivelyWelding[\s\S]*pointerTargetRef\.current = clampToBoard[\s\S]*updateGunPoint\(pointerTargetRef\.current\)/,
   );
+  assert.equal(
+    [...component.matchAll(/setWeldStartedFromStart\(false\)/g)].length,
+    1,
+    "入口提示只可在全新預覽流程重設，RT 放開與續焊不可重設",
+  );
+  assert.equal(
+    [...component.matchAll(/\(started\) => started \|\| [\s\S]{0,100}?\.startedFromStart/g)].length,
+    2,
+    "接回舊線或建立新候選線時，入口開始狀態都必須保持單向成立",
+  );
 });
 
 test("separate welding sessions resume candidate trails and fade only a reclaimed leader", () => {
@@ -1290,4 +1300,17 @@ test("the welding surface stays locked behind the intro and route preview", () =
   assert.match(component, /welding-preview-countdown/);
   assert.match(component, /startPreviewSequence/);
   assert.match(component, /updatePhase\("ready"\)/);
+});
+
+test("welding preview countdown reports each visible 3, 2, 1 tick exactly at its transition", () => {
+  const component = readFileSync(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8");
+  assert.match(component, /onPreviewCountdownTick\?: \(value: number\) => void/);
+  assert.match(
+    component,
+    /updatePhase\("countdown"\);\s*onPreviewCountdownTickRef\.current\?\.\(3\)/,
+  );
+  assert.match(
+    component,
+    /const nextCountdown = previewCountdown - 1;[\s\S]*setPreviewCountdown\(nextCountdown\);[\s\S]*onPreviewCountdownTickRef\.current\?\.\(nextCountdown\)/,
+  );
 });

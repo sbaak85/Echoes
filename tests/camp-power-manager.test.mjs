@@ -131,4 +131,26 @@ test("遊戲場景包含 10 x 5 的營地電力格與灌入確認視窗", () => 
     styles,
     /\.camp-power-refill-value-cycle\s*\{[\s\S]*?grid-template-columns:\s*36px 1fr;[\s\S]*?column-gap:\s*10px;/,
   );
+  assert.match(
+    styles,
+    /\.camp-power-refill-grid\s*>\s*i\.is-projected\s*\{[\s\S]*?animation:\s*camp-power-refill-projected-cell 2\.2s ease-in-out infinite;/,
+  );
+
+  const currentValueKeyframes = styles.match(
+    /@keyframes camp-power-refill-current-value\s*\{[\s\S]*?\n\}/,
+  )?.[0] ?? "";
+  const nextValueKeyframes = styles.match(
+    /@keyframes camp-power-refill-next-value\s*\{[\s\S]*?\n\}/,
+  )?.[0] ?? "";
+  assert.match(currentValueKeyframes, /opacity:\s*1/);
+  assert.match(currentValueKeyframes, /opacity:\s*0/);
+  assert.doesNotMatch(currentValueKeyframes, /translateY|transform/);
+  assert.match(nextValueKeyframes, /opacity:\s*1/);
+  assert.match(nextValueKeyframes, /opacity:\s*0/);
+  assert.doesNotMatch(nextValueKeyframes, /translateY|transform/);
+
+  const reducedMotionStyles = styles.match(
+    /@media \(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\n\}/,
+  )?.[0] ?? "";
+  assert.doesNotMatch(reducedMotionStyles, /camp-power-refill/);
 });

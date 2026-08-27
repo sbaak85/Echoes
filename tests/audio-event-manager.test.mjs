@@ -155,6 +155,58 @@ test("BGM 規則以狀態事件與優先權組成換曲、音量與靜音計畫"
   assert.equal(restoredPlan.restoreMode, "default");
 });
 
+test("三個小遊戲 Playing 時交叉淡入專用 BGM，退出後續播原場景 BGM", async () => {
+  const minigames = [
+    ["power-routing", "電力分配"],
+    ["frequency-calibration", "調頻"],
+    ["welding-route", "焊接"],
+  ];
+
+  for (const [id, label] of minigames) {
+    const track = BGM_TRACK_CONFIG[id];
+    assert.ok(track, `${label}應登記專用 BGM Track`);
+    assert.deepEqual(track.sourceAssetPaths, [`Assets/Audio/${id}.mp3`]);
+    assert.deepEqual(track.sources, [`./audio/${id}.mp3`]);
+    assert.equal(track.loop, true);
+    assert.equal(track.rememberPosition, false);
+    const [originalBytes, publicBytes] = await Promise.all([
+      readFile(new URL(`../Assets/Audio/${id}.mp3`, import.meta.url)),
+      readFile(new URL(`../public/audio/${id}.mp3`, import.meta.url)),
+    ]);
+    assert.deepEqual(publicBytes, originalBytes);
+
+    const rule = BGM_CONTROL_RULES.find(
+      (entry) => entry.triggerType === "minigame" && entry.targetId === id,
+    );
+    assert.ok(rule, `${label}應登記 Playing 規則`);
+    assert.equal(rule.state, "playing");
+    assert.equal(rule.action, "switch");
+    assert.equal(rule.trackId, id);
+    assert.equal(rule.targetVolume, 1);
+    assert.equal(rule.fadeOutSeconds, 1);
+    assert.equal(rule.fadeInSeconds, 1);
+    assert.equal(rule.restoreMode, "resume");
+
+    const playingPlan = resolveBgmControlPlan(
+      BGM_CONTROL_RULES,
+      (triggerType, targetId) =>
+        triggerType === "minigame" && targetId === id ? "playing" : null,
+    );
+    assert.equal(playingPlan.trackId, id);
+    assert.equal(playingPlan.volumeMultiplier, 1);
+
+    const restoredPlan = applyBgmRuleExitPolicy(
+      playingPlan,
+      resolveBgmControlPlan(BGM_CONTROL_RULES, () => null),
+      BGM_CONTROL_RULES,
+    );
+    assert.equal(restoredPlan.trackId, "default");
+    assert.equal(restoredPlan.fadeOutSeconds, 1);
+    assert.equal(restoredPlan.fadeInSeconds, 1);
+    assert.equal(restoredPlan.restoreMode, "resume");
+  }
+});
+
 test("Section 9 指定 Line ID 於台詞開始時用 1 秒將 BGM 淡出至 0", async () => {
   const cueRule = BGM_CONTROL_RULES.find(
     (rule) => rule.id === "chapter03-section-9-line-010-bgm-silence",
@@ -526,6 +578,37 @@ test("焊接失敗紅底出現時透過 AudioEventManager 單次播放失敗音�
   assert.match(
     movementLabSource,
     /onFailureShown=\{\(\) => playOneShotAudio\("weldingFailed"\)\}/,
+  );
+});
+
+test("焊接預覽 3、2、1 每次顯示時透過 AudioEventManager 播放倒數音效", async () => {
+  const event = AUDIO_EVENT_CONFIG.weldingPreviewCountdown;
+  assert.deepEqual(event.sourceAssetPaths, ["Assets/Audio/倒數計時.mp3"]);
+  assert.deepEqual(event.sources, ["./audio/welding-preview-countdown.mp3"]);
+  assert.equal(event.volume, 1);
+  assert.equal(event.delaySeconds, 0);
+  assert.equal(event.loop, undefined);
+  assert.match(event.trigger, /3、2、1/);
+  assert.match(event.trigger, /各播放一次/);
+
+  const [sourceBytes, publicBytes, puzzleSource, movementLabSource] = await Promise.all([
+    readFile(new URL("../Assets/Audio/倒數計時.mp3", import.meta.url)),
+    readFile(new URL("../public/audio/welding-preview-countdown.mp3", import.meta.url)),
+    readFile(new URL("../app/welding-route-puzzle.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.deepEqual(publicBytes, sourceBytes);
+  assert.match(
+    puzzleSource,
+    /updatePhase\("countdown"\);\s*onPreviewCountdownTickRef\.current\?\.\(3\)/,
+  );
+  assert.match(
+    puzzleSource,
+    /const nextCountdown = previewCountdown - 1;[\s\S]*onPreviewCountdownTickRef\.current\?\.\(nextCountdown\)/,
+  );
+  assert.match(
+    movementLabSource,
+    /onPreviewCountdownTick=\{\(\) => playOneShotAudio\("weldingPreviewCountdown"\)\}/,
   );
 });
 
