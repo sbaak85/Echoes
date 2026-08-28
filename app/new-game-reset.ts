@@ -36,6 +36,24 @@ import {
   type CampPowerState,
 } from "./camp-power-manager.ts";
 
+export const NEW_GAME_RESET_PENDING_STORAGE_KEY =
+  "echoes:new-game-reset-pending:v1";
+
+export function markNewGameResetPending(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(NEW_GAME_RESET_PENDING_STORAGE_KEY, "1");
+}
+
+export function isNewGameResetPending(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(NEW_GAME_RESET_PENDING_STORAGE_KEY) === "1";
+}
+
+export function clearNewGameResetPending(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(NEW_GAME_RESET_PENDING_STORAGE_KEY);
+}
+
 export type NewGameProgress = {
   survival: SurvivalGameState;
   interactionUsage: InteractionUsageState;
@@ -64,6 +82,10 @@ export function createNewGameProgress(): NewGameProgress {
 }
 
 export function resetStoredNewGameProgress(): NewGameProgress {
+  // This marker prevents a stale portable autosave from being applied during
+  // the reload that completes New Game. It is cleared only after a fresh
+  // autosave has been written successfully.
+  markNewGameResetPending();
   const progress = createNewGameProgress();
   saveSurvivalState(progress.survival);
   saveInteractionUsageState(progress.interactionUsage);

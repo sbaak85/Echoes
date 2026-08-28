@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   NEW_PLAYER_TUTORIAL_STEPS,
   getNextNewPlayerTutorialStep,
+  getNewPlayerTutorialOperationHint,
   getNewPlayerTutorialStep,
 } from "../app/new-player-tutorial.ts";
 
@@ -51,7 +52,7 @@ test("四個新手指引孔位與提示內容依照示意圖固定記錄", () =>
   );
   assert.equal(
     getNewPlayerTutorialStep("minimap").message,
-    "可以透過小地圖介面了解活動地圖，\n若出現重要道具會以光點標示位置。",
+    "可以透過小地圖介面了解活動區域地形，\n若出現重要道具會以光點標示位置。",
   );
   assert.ok(
     NEW_PLAYER_TUTORIAL_STEPS.every((step) => step.spotlightPadding <= 4),
@@ -91,14 +92,51 @@ test("遮罩為 70% 黑、柔邊開孔，提示框會呼吸發亮", () => {
   assert.match(styles, /new-player-tutorial-overlay-in 300ms/);
   assert.match(styles, /new-player-tutorial-hint-breathe 1\.8s/);
   assert.match(styles, /@keyframes new-player-tutorial-hint-breathe/);
-  assert.match(styles, /\.new-player-tutorial-hint\s*{[\s\S]*?rgba\(11, 39, 43, 0\.97\)/);
-  assert.match(styles, /\.new-player-tutorial-hint > span\s*{[\s\S]*?white-space:\s*pre-line/);
-  assert.match(styles, /\.new-player-tutorial-hint > span\s*{[\s\S]*?font-size:\s*16px/);
-  assert.match(styles, /\.new-player-tutorial-hint > span\s*{[\s\S]*?font-weight:\s*400/);
-  assert.match(styles, /\.new-player-tutorial-hint > strong > span\s*{\s*color:\s*#f2fbfa/);
-  assert.match(styles, /\.new-player-tutorial-hint > strong\s*{[\s\S]*?font-weight:\s*400/);
+  assert.match(styles, /\.new-player-tutorial-hint\s*{[\s\S]*?rgba\(178, 143, 226, 0\.74\)/);
+  assert.match(styles, /\.new-player-tutorial-copy\s*{[\s\S]*?white-space:\s*pre-line/);
+  assert.match(styles, /\.new-player-tutorial-copy\s*{[\s\S]*?font-size:\s*16px/);
+  assert.match(styles, /\.new-player-tutorial-copy\s*{[\s\S]*?font-weight:\s*400/);
+  assert.match(styles, /\.new-player-tutorial-actions\s*{[\s\S]*?border-top:[\s\S]*?backdrop-filter:\s*blur\(10px\)/);
+  assert.match(styles, /\.new-player-tutorial-actions\s*{[\s\S]*?font-weight:\s*400/);
   assert.match(styles, /new-player-tutorial-prompt-breathe 1\.25s/);
   assert.match(styles, /@keyframes new-player-tutorial-prompt-breathe/);
+});
+
+test("四步教學顯示各自操作提示，收折後會改為展開", () => {
+  assert.equal(getNewPlayerTutorialOperationHint("quest"), "按 [RB] 收折介面");
+  assert.equal(getNewPlayerTutorialOperationHint("quest", true), "按 [RB] 展開介面");
+  assert.equal(getNewPlayerTutorialOperationHint("survival"), "按 [LB] 收折介面");
+  assert.equal(getNewPlayerTutorialOperationHint("survival", true), "按 [LB] 展開介面");
+  assert.equal(getNewPlayerTutorialOperationHint("hotbar"), "按 [◀] [▶] 切換選取道具");
+  assert.equal(getNewPlayerTutorialOperationHint("minimap"), "按 [M] 收折介面");
+  assert.equal(getNewPlayerTutorialOperationHint("minimap", true), "按 [M] 展開介面");
+  assert.match(overlaySource, /new-player-tutorial-context-action/);
+  assert.match(overlaySource, /new-player-tutorial-continue/);
+});
+
+test("教學指定的 HUD 操作可用，聚光孔洞跟隨 300ms 高度 Tween", () => {
+  const keyboardGuard = source.slice(
+    source.indexOf("if (newPlayerTutorialOpenRef.current && key !== \"escape\")"),
+    source.indexOf("key === \"tab\"", source.indexOf("if (newPlayerTutorialOpenRef.current && key !== \"escape\")")),
+  );
+  const tutorialGamepadBranch = source.slice(
+    source.indexOf("} else if (newPlayerTutorialMenuOpen)"),
+    source.indexOf("} else if (inventoryMenuOpen)"),
+  );
+  assert.match(tutorialGamepadBranch, /newPlayerTutorialStepRef\.current === "quest"[\s\S]*?rightBumperJustPressed[\s\S]*?toggleQuestPanel\(\)/);
+  assert.match(tutorialGamepadBranch, /newPlayerTutorialStepRef\.current === "survival"[\s\S]*?leftBumperJustPressed[\s\S]*?toggleSurvivalPanel\(\)/);
+  assert.match(tutorialGamepadBranch, /newPlayerTutorialStepRef\.current === "hotbar"[\s\S]*?selectHotbarSlot\(tutorialHotbarDirection\)/);
+  assert.match(keyboardGuard, /newPlayerTutorialStepRef\.current === "minimap"[\s\S]*?key === "m"[\s\S]*?setMinimapCollapsed/);
+  assert.match(source, /HUD_PANEL_TWEEN_FRAME_EVENT/);
+  assert.match(source, /element\.dispatchEvent\(new Event\(HUD_PANEL_TWEEN_FRAME_EVENT\)\)/);
+  assert.match(source, /target\.addEventListener\(HUD_PANEL_TWEEN_FRAME_EVENT, updateSpotlight\)/);
+  const revealTargetSource = source.slice(
+    source.indexOf("const revealNewPlayerTutorialTarget"),
+    source.indexOf("const dismissNewPlayerTutorial"),
+  );
+  assert.match(revealTargetSource, /stepId === "quest"[\s\S]*?setQuestCollapsed\(false\)/);
+  assert.match(revealTargetSource, /stepId === "survival"[\s\S]*?setSurvivalExpanded\(true\)/);
+  assert.match(revealTargetSource, /stepId === "minimap"[\s\S]*?setMinimapCollapsed\(false\)/);
 });
 
 test("教學期間封鎖世界與角色，空白鍵或手把 A 每次只前進一步", () => {

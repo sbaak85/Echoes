@@ -66,6 +66,7 @@ internal static class Program
         var events = AudioEventConfigDocument.ParseEvents(source);
         var bgmTracks = AudioEventConfigDocument.ParseBgmTracks(source);
         var bgmRules = AudioEventConfigDocument.ParseBgmRules(source);
+        var lineSeEntries = AudioEventConfigDocument.ParseLineSeEntries(source);
         var expectedGeneratorFadeOutPercent = events["generatorRunning"].FadeOutPercent;
         events.Values.First().SourceAssetPaths.Clear();
         bgmRules.Add(new BgmControlRuleEditableDefinition
@@ -84,14 +85,29 @@ internal static class Program
             Priority = 99,
             RestoreMode = "resume",
         });
+        lineSeEntries.Add(new LineSeEditableDefinition
+        {
+            LineId = "self-test-line",
+            SourceAssetPath = null,
+            Source = "./audio/self-test.mp3",
+            Volume = 0.75,
+            DelaySeconds = 0.2,
+            FadeInSeconds = 0.1,
+            FadeOutSeconds = 0.3,
+            Loop = true,
+            NextLineBehavior = "finish",
+        });
         var rewrittenSource = AudioEventConfigDocument.RewriteSource(
             source,
             events,
             bgmTracks,
-            bgmRules);
+            bgmRules,
+            lineSeEntries);
         var roundTripEvents = AudioEventConfigDocument.ParseEvents(rewrittenSource);
         var roundTripTracks = AudioEventConfigDocument.ParseBgmTracks(rewrittenSource);
         var roundTripRules = AudioEventConfigDocument.ParseBgmRules(rewrittenSource);
+        var roundTripLineSeEntries =
+            AudioEventConfigDocument.ParseLineSeEntries(rewrittenSource);
         var fadeOutPercent = roundTripEvents["generatorRunning"].FadeOutPercent;
         var firstGameSource = roundTripEvents.Values
             .SelectMany(definition => definition.Sources)
@@ -114,6 +130,12 @@ internal static class Program
                     Action: "fade",
                     TrackId: "default",
                     Priority: 99,
+                } &&
+            roundTripLineSeEntries.LastOrDefault() is
+                {
+                    LineId: "self-test-line",
+                    Loop: true,
+                    NextLineBehavior: "finish",
                 } &&
             fadeOutPercent == expectedGeneratorFadeOutPercent &&
             File.Exists(previewPath) &&

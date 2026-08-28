@@ -7,6 +7,7 @@ import {
   HOTBAR_ASSIGNMENTS_STORAGE_KEY,
   HOTBAR_SLOT_COUNT,
   assignHotbarSlot,
+  createHotbarAssignmentsFromInventory,
   getHotbarSelectionHintMode,
   loadHotbarAssignments,
   normalizeHotbarAssignments,
@@ -33,18 +34,22 @@ function installMemoryLocalStorage() {
   return values;
 }
 
-test("快捷工具列固定七格並保留目前預設指派", () => {
+test("快捷工具列固定七格，新遊戲只依序放入實際持有的道具", () => {
   assert.equal(HOTBAR_SLOT_COUNT, 7);
   assert.equal(DEFAULT_HOTBAR_ASSIGNMENTS.length, 7);
   assert.deepEqual(normalizeHotbarAssignments(undefined), [
-    "T0005",
-    "R0004",
     "R0005",
-    "T0006",
-    "R0001",
-    "T0001",
-    "Q0001",
+    "T0005",
+    null,
+    null,
+    null,
+    null,
+    null,
   ]);
+  assert.deepEqual(
+    createHotbarAssignmentsFromInventory({ R0017: 1, R0005: 2, T0005: 1 }),
+    ["R0005", "T0005", "R0017", null, null, null, null],
+  );
 });
 
 test("道具可指派、覆蓋及移除快捷格，不會改變背包資料", () => {

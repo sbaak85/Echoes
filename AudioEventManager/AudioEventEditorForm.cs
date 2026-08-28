@@ -12,6 +12,7 @@ internal sealed class AudioEventEditorForm : Form
     private readonly string _projectRoot;
     private readonly AudioEventConfigDocument _document;
     private readonly BgmConfigEditorControl _bgmConfigEditor;
+    private readonly LineSeConfigEditorControl _lineSeConfigEditor;
     private readonly System.Windows.Media.MediaPlayer _previewPlayer = new();
     private readonly ToolTip _toolTip = new();
     private readonly ListBox _eventList = new();
@@ -75,6 +76,10 @@ internal sealed class AudioEventEditorForm : Form
             "audio-event-manager.ts.bak");
         _document = AudioEventConfigDocument.Load(configPath, backupPath);
         _bgmConfigEditor = new BgmConfigEditorControl(_document, MarkDirty);
+        _lineSeConfigEditor = new LineSeConfigEditorControl(
+            _document,
+            projectRoot,
+            MarkDirty);
 
         Text = "Audio Event 音效管理";
         StartPosition = FormStartPosition.CenterParent;
@@ -204,8 +209,16 @@ internal sealed class AudioEventEditorForm : Form
             Padding = new Padding(8),
         };
         bgmPage.Controls.Add(_bgmConfigEditor);
+        var lineSePage = new TabPage("Line SE 管理")
+        {
+            BackColor = Color.FromArgb(25, 28, 34),
+            ForeColor = ForeColor,
+            Padding = new Padding(8),
+        };
+        lineSePage.Controls.Add(_lineSeConfigEditor);
         tabs.TabPages.Add(audioEventsPage);
         tabs.TabPages.Add(bgmPage);
+        tabs.TabPages.Add(lineSePage);
         root.Controls.Add(tabs, 0, 1);
 
         var footer = new TableLayoutPanel
@@ -488,6 +501,7 @@ internal sealed class AudioEventEditorForm : Form
         {
             CommitCurrentEditor();
             _bgmConfigEditor.Commit();
+            _lineSeConfigEditor.Commit();
             _document.Save();
             _dirty = false;
             _statusLabel.Text = "已儲存。遊戲下次重新整理時會套用新設定。";
@@ -637,6 +651,7 @@ internal sealed class AudioEventEditorForm : Form
     internal void RunPreviewSmokeTest()
     {
         _bgmConfigEditor.RunUiSmokeTest();
+        _lineSeConfigEditor.RunUiSmokeTest();
         if (!_sourceOpenFolderButton.Enabled || !_openFolderButton.Enabled)
         {
             throw new InvalidOperationException("音檔路徑的檔案總管按鈕未正確啟用。");
@@ -819,6 +834,8 @@ internal sealed class AudioEventConfigDocument
     internal const string BgmTrackEndMarker = "/* BGM_TRACK_CONFIG_END */";
     internal const string BgmRuleStartMarker = "/* BGM_CONTROL_RULES_START */";
     internal const string BgmRuleEndMarker = "/* BGM_CONTROL_RULES_END */";
+    internal const string LineSeStartMarker = "/* LINE_SE_CONFIG_START */";
+    internal const string LineSeEndMarker = "/* LINE_SE_CONFIG_END */";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -837,7 +854,8 @@ internal sealed class AudioEventConfigDocument
         string sourceText,
         Dictionary<string, AudioEventEditableDefinition> events,
         Dictionary<string, BgmTrackEditableDefinition> bgmTracks,
-        List<BgmControlRuleEditableDefinition> bgmRules)
+        List<BgmControlRuleEditableDefinition> bgmRules,
+        List<LineSeEditableDefinition> lineSeEntries)
     {
         ConfigPath = configPath;
         BackupPath = backupPath;
@@ -845,6 +863,7 @@ internal sealed class AudioEventConfigDocument
         Events = events;
         BgmTracks = bgmTracks;
         BgmRules = bgmRules;
+        LineSeEntries = lineSeEntries;
     }
 
     public string ConfigPath { get; }
@@ -852,6 +871,7 @@ internal sealed class AudioEventConfigDocument
     public Dictionary<string, AudioEventEditableDefinition> Events { get; }
     public Dictionary<string, BgmTrackEditableDefinition> BgmTracks { get; }
     public List<BgmControlRuleEditableDefinition> BgmRules { get; }
+    public List<LineSeEditableDefinition> LineSeEntries { get; }
 
     public static AudioEventConfigDocument Load(string configPath, string backupPath)
     {
@@ -864,14 +884,17 @@ internal sealed class AudioEventConfigDocument
         var events = ParseEvents(sourceText);
         var bgmTracks = ParseBgmTracks(sourceText);
         var bgmRules = ParseBgmRules(sourceText);
+        var lineSeEntries = ParseLineSeEntries(sourceText);
         ValidateBgmConfiguration(bgmTracks, bgmRules);
+        ValidateLineSeEntries(lineSeEntries);
         return new AudioEventConfigDocument(
             configPath,
             backupPath,
             sourceText,
             events,
             bgmTracks,
-            bgmRules);
+            bgmRules,
+            lineSeEntries);
     }
 
     internal static Dictionary<string, AudioEventEditableDefinition> ParseEvents(
@@ -919,6 +942,20 @@ internal sealed class AudioEventConfigDocument
         return rules;
     }
 
+    internal static List<LineSeEditableDefinition> ParseLineSeEntries(
+        string sourceText)
+    {
+        var json = ExtractConfigJson(
+            sourceText,
+            LineSeStartMarker,
+            LineSeEndMarker);
+        var entries = JsonSerializer.Deserialize<List<LineSeEditableDefinition>>(
+            json,
+            JsonOptions) ?? new List<LineSeEditableDefinition>();
+        ValidateLineSeEntries(entries);
+        return entries;
+    }
+
     internal static string RewriteSource(
         string sourceText,
         Dictionary<string, AudioEventEditableDefinition> events)
@@ -932,10 +969,12 @@ internal sealed class AudioEventConfigDocument
         string sourceText,
         Dictionary<string, AudioEventEditableDefinition> events,
         Dictionary<string, BgmTrackEditableDefinition> bgmTracks,
-        List<BgmControlRuleEditableDefinition> bgmRules)
+        List<BgmControlRuleEditableDefinition> bgmRules,
+        List<LineSeEditableDefinition> lineSeEntries)
     {
         Validate(events);
         ValidateBgmConfiguration(bgmTracks, bgmRules);
+        ValidateLineSeEntries(lineSeEntries);
         var rewritten = ReplaceMarkedJson(
             sourceText,
             StartMarker,
@@ -946,11 +985,16 @@ internal sealed class AudioEventConfigDocument
             BgmTrackStartMarker,
             BgmTrackEndMarker,
             JsonSerializer.Serialize(bgmTracks, JsonOptions));
-        return ReplaceMarkedJson(
+        rewritten = ReplaceMarkedJson(
             rewritten,
             BgmRuleStartMarker,
             BgmRuleEndMarker,
             JsonSerializer.Serialize(bgmRules, JsonOptions));
+        return ReplaceMarkedJson(
+            rewritten,
+            LineSeStartMarker,
+            LineSeEndMarker,
+            JsonSerializer.Serialize(lineSeEntries, JsonOptions));
     }
 
     private static string ReplaceMarkedJson(
@@ -978,6 +1022,7 @@ internal sealed class AudioEventConfigDocument
     {
         Validate(Events);
         ValidateBgmConfiguration(BgmTracks, BgmRules);
+        ValidateLineSeEntries(LineSeEntries);
         var currentSourceText = File.ReadAllText(ConfigPath, Encoding.UTF8);
         if (!string.Equals(currentSourceText, _sourceText, StringComparison.Ordinal))
         {
@@ -989,7 +1034,8 @@ internal sealed class AudioEventConfigDocument
             _sourceText,
             Events,
             BgmTracks,
-            BgmRules);
+            BgmRules,
+            LineSeEntries);
         Directory.CreateDirectory(Path.GetDirectoryName(BackupPath)!);
         File.Copy(ConfigPath, BackupPath, overwrite: true);
 
@@ -1156,6 +1202,44 @@ internal sealed class AudioEventConfigDocument
         }
     }
 
+    private static void ValidateLineSeEntries(
+        List<LineSeEditableDefinition> entries)
+    {
+        var lineIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in entries)
+        {
+            entry.LineId = entry.LineId.Trim();
+            entry.SourceAssetPath = string.IsNullOrWhiteSpace(entry.SourceAssetPath)
+                ? null
+                : entry.SourceAssetPath.Trim();
+            entry.Source = entry.Source.Trim();
+            entry.NextLineBehavior = string.IsNullOrWhiteSpace(entry.NextLineBehavior)
+                ? "finish"
+                : entry.NextLineBehavior.Trim();
+            if (entry.LineId.Length == 0 || !lineIds.Add(entry.LineId))
+            {
+                throw new InvalidDataException("Line SE 的 Line ID 不可空白或重複。");
+            }
+            if (entry.Source.Length == 0)
+            {
+                throw new InvalidDataException($"{entry.LineId}：遊戲 MP3 路徑不可空白。");
+            }
+            if (entry.Volume is < 0 or > 1 ||
+                entry.DelaySeconds is < 0 or > 3600 ||
+                entry.FadeInSeconds is < 0 or > 3600 ||
+                entry.FadeOutSeconds is < 0 or > 3600)
+            {
+                throw new InvalidDataException(
+                    $"{entry.LineId}：音量或時間欄位超出允許範圍。");
+            }
+            if (entry.NextLineBehavior is not ("finish" or "stop"))
+            {
+                throw new InvalidDataException(
+                    $"{entry.LineId}：切到下一句行為只能是自然播完或停止。");
+            }
+        }
+    }
+
     private static string Indent(string text, int spaces)
     {
         var indentation = new string(' ', spaces);
@@ -1223,4 +1307,17 @@ internal sealed class BgmControlRuleEditableDefinition
     public int Priority { get; set; }
     public double DurationSeconds { get; set; }
     public string RestoreMode { get; set; } = "resume";
+}
+
+internal sealed class LineSeEditableDefinition
+{
+    public string LineId { get; set; } = "";
+    public string? SourceAssetPath { get; set; }
+    public string Source { get; set; } = "";
+    public double Volume { get; set; } = 1;
+    public double DelaySeconds { get; set; }
+    public double FadeInSeconds { get; set; }
+    public double FadeOutSeconds { get; set; }
+    public bool Loop { get; set; }
+    public string NextLineBehavior { get; set; } = "finish";
 }

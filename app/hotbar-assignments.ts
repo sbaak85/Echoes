@@ -1,16 +1,29 @@
-import { resolveItemId } from "./item-database.ts";
+import {
+  INITIAL_PLAYER_INVENTORY,
+  ITEM_DEFINITIONS,
+  resolveItemId,
+  type PlayerInventory,
+} from "./item-database.ts";
 
 export const HOTBAR_SLOT_COUNT = 7;
 export const HOTBAR_ASSIGNMENTS_STORAGE_KEY = "echoes:hotbar-assignments:v1";
-export const DEFAULT_HOTBAR_ASSIGNMENTS: readonly (string | null)[] = [
-  "T0005",
-  "R0004",
-  "R0005",
-  "T0006",
-  "R0001",
-  "T0001",
-  "Q0001",
-];
+export function createHotbarAssignmentsFromInventory(
+  inventory: Readonly<PlayerInventory>,
+): (string | null)[] {
+  const ownedItemIds = ITEM_DEFINITIONS
+    .filter((item) => (inventory[item.id] ?? 0) > 0)
+    .map((item) => item.id)
+    .slice(0, HOTBAR_SLOT_COUNT);
+  return Array.from(
+    { length: HOTBAR_SLOT_COUNT },
+    (_, index) => ownedItemIds[index] ?? null,
+  );
+}
+
+// New Game starts with only the items that actually exist in its inventory.
+// Historical Debug assignments must never leak into a fresh hotbar.
+export const DEFAULT_HOTBAR_ASSIGNMENTS: readonly (string | null)[] =
+  createHotbarAssignmentsFromInventory(INITIAL_PLAYER_INVENTORY);
 
 export type HotbarSelectionHintMode = "use" | "unavailable" | "unassigned";
 

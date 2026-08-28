@@ -68,7 +68,7 @@ export const NEW_PLAYER_TUTORIAL_STEPS: readonly NewPlayerTutorialStep[] = [
     spotlightShape: "circle",
     hintPlacement: "left",
     message:
-      "可以透過小地圖介面了解活動地圖，\n若出現重要道具會以光點標示位置。",
+      "可以透過小地圖介面了解活動區域地形，\n若出現重要道具會以光點標示位置。",
     actionLabel: "結束",
   },
 ];
@@ -84,4 +84,20 @@ export function getNextNewPlayerTutorialStep(id: NewPlayerTutorialStepId) {
     (candidate) => candidate.id === id,
   );
   return index >= 0 ? NEW_PLAYER_TUTORIAL_STEPS[index + 1] ?? null : null;
+}
+
+export function getNewPlayerTutorialOperationHint(
+  stepId: NewPlayerTutorialStepId,
+  targetCollapsed = false,
+) {
+  if (stepId === "quest") {
+    return `按 [RB] ${targetCollapsed ? "展開" : "收折"}介面`;
+  }
+  if (stepId === "survival") {
+    return `按 [LB] ${targetCollapsed ? "展開" : "收折"}介面`;
+  }
+  if (stepId === "hotbar") {
+    return "按 [◀] [▶] 切換選取道具";
+  }
+  return `按 [M] ${targetCollapsed ? "展開" : "收折"}介面`;
 }

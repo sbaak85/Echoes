@@ -370,9 +370,13 @@ public static class StoryContentCodec
             builder.AppendLine($"      fadeInMs: {subtitle.FadeInMs},");
             builder.AppendLine($"      holdMs: {subtitle.HoldMs},");
             builder.AppendLine($"      fadeOutMs: {subtitle.FadeOutMs},");
-            if (subtitle.Id.Equals("chapter03-opening-card", StringComparison.OrdinalIgnoreCase))
+            if (subtitle.Id.Equals("chapter03-Open", StringComparison.OrdinalIgnoreCase) ||
+                subtitle.Id.Equals("chapter03-opening-card", StringComparison.OrdinalIgnoreCase))
             {
                 builder.AppendLine("      fadeOnly: true,");
+            }
+            if (subtitle.Id.Equals("chapter03-opening-card", StringComparison.OrdinalIgnoreCase))
+            {
                 builder.AppendLine("      holdSkipConfirmAfterMs: 2000,");
             }
             builder.AppendLine("    },");

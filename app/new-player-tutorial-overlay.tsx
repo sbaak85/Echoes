@@ -2,6 +2,7 @@
 
 import { useId, type CSSProperties, type PointerEvent } from "react";
 import {
+  getNewPlayerTutorialOperationHint,
   type NewPlayerTutorialStep,
 } from "./new-player-tutorial";
 
@@ -20,6 +21,7 @@ type NewPlayerTutorialOverlayProps = {
   inputMode: TutorialInputMode;
   spotlight: NewPlayerTutorialSpotlight | null;
   step: NewPlayerTutorialStep;
+  targetCollapsed?: boolean;
   onContinue: () => void;
 };
 
@@ -30,7 +32,7 @@ export function getNewPlayerTutorialHintPosition(
   const edge = 18;
   const gap = 34;
   const cardWidth = Math.min(440, Math.max(280, spotlight.viewportWidth - edge * 2));
-  const cardHeight = 116;
+  const cardHeight = 138;
   const clampPosition = (value: number, minimum: number, maximum: number) =>
     Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
 
@@ -64,6 +66,7 @@ export function NewPlayerTutorialOverlay({
   inputMode,
   spotlight,
   step,
+  targetCollapsed = false,
   onContinue,
 }: NewPlayerTutorialOverlayProps) {
   const maskId = `tutorial-mask-${useId().replace(/:/g, "")}`;
@@ -77,6 +80,10 @@ export function NewPlayerTutorialOverlay({
     : inputMode === "mobile"
       ? "點擊"
       : "按 [空白鍵]";
+  const operationHint = getNewPlayerTutorialOperationHint(
+    step.id,
+    targetCollapsed,
+  );
 
   const stopPointerPropagation = (event: PointerEvent<HTMLDivElement>) => {
     event.stopPropagation();
@@ -190,9 +197,14 @@ export function NewPlayerTutorialOverlay({
           } as CSSProperties}
           onClick={onContinue}
         >
-          <span>{step.message}</span>
-          <strong>
-            <span>{prompt} {step.actionLabel}</span>
+          <span className="new-player-tutorial-copy">{step.message}</span>
+          <strong className="new-player-tutorial-actions">
+            <span className="new-player-tutorial-context-action">
+              {operationHint}
+            </span>
+            <span className="new-player-tutorial-continue">
+              {prompt} {step.actionLabel}
+            </span>
             <b>{step.order} / 4</b>
             <i aria-hidden="true">▶</i>
           </strong>

@@ -4,7 +4,7 @@
 MapEditor。
 
 它會讀寫專案根目錄下的 `app/audio-event-manager.ts`。最上層分為
-「Audio Event」與「BGM 管理」頁籤；Audio Event 可調整事件名稱、
+「Audio Event」、「BGM 管理」與「Line SE 管理」頁籤；Audio Event 可調整事件名稱、
 觸發說明、原始素材路徑、遊戲 MP3 路徑、音量、延遲、Loop，以及
 FadeIn／FadeOut。FadeIn／FadeOut 皆以個別 MP3 總長的百分比計算；例如
 3 秒音檔設定 FadeOut 15%，會在最後 0.45 秒由設定音量淡出至靜音。原始素材
@@ -22,7 +22,13 @@ Windows 檔案總管中選取第一個檔案，`▶` 則可立即預覽。原始
   淡入同時進行（Crossfade）。優先權數字愈大愈優先；FadeOut／FadeIn 以秒
   計算。「觸發類型」與「狀態」下拉選單使用中文顯示，儲存時
   仍會寫回程式所需的英文內部值；「進行中或已完成」即對應
-  `active|completed`。規則解除後可選擇續播、重播或回到預設 Track。
+`active|completed`。規則解除後可選擇續播、重播或回到預設 Track。
+
+「Line SE 管理」可用對話腳本的完整 Line ID 綁定單句音效，並設定音量、
+播放延遲、FadeIn／FadeOut 秒數與 Loop。每筆設定可分別選擇切到下一句時
+「自然播完」或「停止」；預設為自然播完。自然播完不會強制切斷單次音效，
+Loop 則會在切句時解除循環並讓當前這一輪播至結尾；選擇停止時，會依該列
+FadeOut 秒數淡出後停止。這些判斷只在 Line ID 真正切換時執行一次。
 
 規則是收到狀態變更事件時才重算，不會在遊戲每一幀反覆掃描。特殊事件可用：
 

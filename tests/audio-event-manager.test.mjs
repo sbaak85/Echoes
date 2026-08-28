@@ -7,9 +7,11 @@ import {
   BGM_CONTROL_RULES,
   BGM_TRACK_CONFIG,
   DEFAULT_BGM_USER_VOLUME,
+  LINE_SE_CONFIG,
   WELDING_SPARK_MIX_CONFIG,
   getAudioFadeDurationMilliseconds,
   getFrequencyFineAudioMix,
+  getLineSeNextLineBehavior,
   getSuccessfulInteractionAudioEvent,
   getSuccessfulItemUseAudioEvent,
 } from "../app/audio-event-manager.ts";
@@ -19,6 +21,46 @@ import {
   getBgmTrackTransitionEnvelope,
   resolveBgmControlPlan,
 } from "../app/bgm-director.ts";
+
+test("Line SE 預設自然播完，並可逐列改成切句停止", async () => {
+  assert.deepEqual(LINE_SE_CONFIG, []);
+  assert.equal(getLineSeNextLineBehavior({}), "finish");
+  assert.equal(
+    getLineSeNextLineBehavior({ nextLineBehavior: "finish" }),
+    "finish",
+  );
+  assert.equal(
+    getLineSeNextLineBehavior({ nextLineBehavior: "stop" }),
+    "stop",
+  );
+
+  const [audioSource, movementSource, editorFormSource, lineEditorSource] =
+    await Promise.all([
+      readFile(new URL("../app/audio-event-manager.ts", import.meta.url), "utf8"),
+      readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+      readFile(
+        new URL("../AudioEventManager/AudioEventEditorForm.cs", import.meta.url),
+        "utf8",
+      ),
+      readFile(
+        new URL(
+          "../AudioEventManager/LineSeConfigEditorControl.cs",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ]);
+  assert.match(audioSource, /LINE_SE_CONFIG_START[\s\S]*LINE_SE_CONFIG_END/);
+  assert.match(audioSource, /triggerDialogueLineSe\(lineId: string\)/);
+  assert.match(audioSource, /runtime\.audio\.loop = false/);
+  assert.match(audioSource, /getLineSeNextLineBehavior\(runtime\.definition\) === "stop"/);
+  assert.match(movementSource, /triggerDialogueLineSe\(lineId\)/);
+  assert.match(movementSource, /clearDialogueLineSe\(\)/);
+  assert.match(editorFormSource, /new TabPage\("Line SE 管理"\)/);
+  assert.match(lineEditorSource, /自然播完（預設）/);
+  assert.match(lineEditorSource, /new\("stop", "停止"\)/);
+  assert.match(lineEditorSource, /FadeOut 秒/);
+});
 
 test("BGM 素材庫保留目前預設曲目並登記 MAIN_001 到 MAIN_002 音量區段", () => {
   assert.deepEqual(BGM_TRACK_CONFIG.default.sources, [
@@ -291,7 +333,7 @@ test("Section 9 指定 Line ID 於台詞開始時用 1 秒將 BGM 淡出至 0", 
     readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/bgm-director.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(movementLabSource, /line\.lineId[\s\S]{0,300}?triggerDialogueLine\(lineId\)/);
+  assert.match(movementLabSource, /line\.lineId[\s\S]{0,600}?triggerDialogueLine\(lineId\)/);
   assert.match(directorSource, /triggerDialogueLine\(lineId:[\s\S]{0,500}?clearType\("dialogueLine"\)/);
 });
 
@@ -332,6 +374,29 @@ test("介面點擊音效集中登記 InPut.mp3 與完整觸發時機", () => {
   assert.match(event.trigger, /Options/);
   assert.match(event.trigger, /新手教學每次有效換卡/);
   assert.match(event.trigger, /不要求操作成功/);
+});
+
+test("任務、生存與小地圖的展開及收折音效分開集中管理", async () => {
+  const expanded = AUDIO_EVENT_CONFIG.hudExpanded;
+  const collapsed = AUDIO_EVENT_CONFIG.hudCollapsed;
+
+  assert.deepEqual(expanded.sourceAssetPaths, ["Assets/Audio/介面展開.mp3"]);
+  assert.deepEqual(expanded.sources, ["./audio/hud-expand.mp3"]);
+  assert.equal(expanded.volume, 1);
+  assert.equal(expanded.delaySeconds, 0);
+  assert.match(expanded.trigger, /任務提示 UI/);
+  assert.match(expanded.trigger, /生存計量 UI/);
+  assert.match(expanded.trigger, /小地圖 UI/);
+
+  assert.deepEqual(collapsed.sourceAssetPaths, [
+    "Assets/Audio/互動操作音_#1-1785307011343.mp3",
+  ]);
+  assert.deepEqual(collapsed.sources, ["./audio/interaction-success-1.mp3"]);
+  assert.equal(collapsed.volume, 1);
+  assert.equal(collapsed.delaySeconds, 0);
+
+  assert.ok((await stat(new URL("../public/audio/hud-expand.mp3", import.meta.url))).size > 0);
+  assert.ok((await stat(new URL("../public/audio/interaction-success-1.mp3", import.meta.url))).size > 0);
 });
 
 test("場上道具觸地音效集中登記 Drop.mp3 且不在飛行途中播放", () => {

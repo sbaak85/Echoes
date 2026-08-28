@@ -78,11 +78,11 @@ test("Item All 會將道具清單中的每種道具各加入背包一個", () =>
   });
 });
 
-test("中央道具資料庫固定保留 100 欄，現有 31 項道具都有分類流水號與英文名稱", () => {
+test("中央道具資料庫固定保留 100 欄，現有 33 項道具都有分類流水號與英文名稱", () => {
   assert.equal(validateItemDatabase(), true);
   assert.equal(ITEM_DATABASE.length, ITEM_DATABASE_CAPACITY);
   assert.equal(ITEM_DATABASE_CAPACITY, 100);
-  assert.equal(ITEM_DEFINITIONS.length, 31);
+  assert.equal(ITEM_DEFINITIONS.length, 33);
   ITEM_DEFINITIONS.forEach((item) => {
     assert.match(item.id, /^[RTQM]\d{4}$/);
     assert.ok(item.englishName.length > 0);
@@ -184,7 +184,7 @@ test("每項道具都有轉移、丟棄與每格堆疊量標籤", () => {
   );
 });
 
-test("每項道具都有生存影響欄位，五種消耗品使用正確設定", () => {
+test("每項道具都有生存影響欄位，七種消耗品使用正確設定", () => {
   ITEM_DEFINITIONS.forEach((item) => {
     assert.equal(typeof item.survivalEffects, "object");
   });
@@ -208,6 +208,42 @@ test("每項道具都有生存影響欄位，五種消耗品使用正確設定",
     ITEM_DEFINITIONS.find((item) => item.id === "R0100")?.survivalEffects,
     { stamina: 100, hunger: 100, thirst: 100, spirit: 100 },
   );
+  assert.deepEqual(
+    ITEM_DEFINITIONS.find((item) => item.id === "R0016")?.survivalEffects,
+    { stamina: 20, spirit: 50 },
+  );
+  assert.deepEqual(
+    ITEM_DEFINITIONS.find((item) => item.id === "R0017")?.survivalEffects,
+    { thirst: 20, spirit: 20 },
+  );
+});
+
+test("精神專注劑與提神補給飲料可直接使用並正確恢復生存值", () => {
+  const focusState = createInitialSurvivalState();
+  focusState.values.stamina = 35;
+  focusState.values.spirit = 20;
+  const focusResult = useSurvivalInventoryItem(
+    { R0016: 1 },
+    focusState,
+    "R0016",
+  );
+  assert.equal(focusResult.status, "success");
+  assert.equal(focusResult.survival.values.stamina, 55);
+  assert.equal(focusResult.survival.values.spirit, 70);
+  assert.equal("R0016" in focusResult.inventory, false);
+
+  const drinkState = createInitialSurvivalState();
+  drinkState.values.thirst = 45;
+  drinkState.values.spirit = 60;
+  const drinkResult = useSurvivalInventoryItem(
+    { R0017: 1 },
+    drinkState,
+    "R0017",
+  );
+  assert.equal(drinkResult.status, "success");
+  assert.equal(drinkResult.survival.values.thirst, 65);
+  assert.equal(drinkResult.survival.values.spirit, 80);
+  assert.equal("R0017" in drinkResult.inventory, false);
 });
 
 test("全回復測試道具會將四項生存計量恢復至100並消耗一個", () => {

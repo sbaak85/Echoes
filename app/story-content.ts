@@ -1802,6 +1802,7 @@ export const CHAPTER_3_START_FLOW: ChapterFlowDefinition = {
       fadeInMs: 1000,
       holdMs: 2000,
       fadeOutMs: 2000,
+      fadeOnly: true,
     },
     { type: "wait", durationMs: 100 },
     { type: "wait", durationMs: 2000 },

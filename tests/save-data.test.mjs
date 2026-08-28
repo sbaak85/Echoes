@@ -120,6 +120,58 @@ test("空欄位的確認儲存按鈕直接提交 confirm，不依賴延遲後的
   assert.doesNotMatch(source, /setTimeout\(\(\) => void executeSaveDataDialogChoice\(\), 0\)/);
 });
 
+test("章節結束的手動存檔在黑幕輸入鎖期間仍可由滑鼠、鍵盤與虛擬游標確認", async () => {
+  const source = await readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+
+  assert.match(
+    source,
+    /timePassInputLockedRef\.current &&\s*!chapter04SavePromptOpenRef\.current &&\s*!optionsOpenRef\.current/,
+  );
+  assert.match(
+    source,
+    /isChapterTransitionUiClick[\s\S]{0,500}\.chapter04-save-confirmation-overlay, \.options-overlay[\s\S]{0,500}timePassInputLockedRef\.current[\s\S]{0,200}!isChapterTransitionUiClick/,
+  );
+  assert.match(
+    source,
+    /Options follows the last active control method[\s\S]{0,500}shouldUseOptionsCursor\(optionsGamepadModeRef\.current\)[\s\S]{0,180}const cursorResult = activateVirtualCursorUi\(\)[\s\S]{0,320}activateOptionsMenuSelection\(\)/,
+  );
+  assert.match(
+    source,
+    /cursorResult !== "activated" &&\s*\(saveDataDialogRef\.current \|\| restartConfirmationOpenRef\.current\)/,
+  );
+  assert.match(
+    source,
+    /optionsGamepadModeRef\.current = chapter04SavePromptGamepadModeRef\.current/,
+  );
+  assert.match(
+    source,
+    /chapter04ManualSaveActiveRef\.current \|\|\s*chapter04SaveCheckpointResolveRef\.current !== null/,
+  );
+});
+
+test("Debug 快進抵達章末時可明確存檔，成功進入第四章後解除存檔隔離", async () => {
+  const source = await readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  const blockedReasonStart = source.indexOf("const getManualSaveBlockedReason = () => {");
+  const blockedReasonEnd = source.indexOf("const setSelectedSaveSlotIndexValue", blockedReasonStart);
+  const blockedReasonSource = source.slice(blockedReasonStart, blockedReasonEnd);
+  const chapterCheckpointBypass = blockedReasonSource.indexOf(
+    'if (chapter04ManualSaveActiveRef.current) return "";',
+  );
+  const debugIsolationGuard = blockedReasonSource.indexOf(
+    'if (debugSaveIsolationRef.current) return "Debug Scenario 不會寫入正式存檔。";',
+  );
+
+  assert.ok(chapterCheckpointBypass >= 0);
+  assert.ok(debugIsolationGuard > chapterCheckpointBypass);
+
+  const completionStart = source.indexOf("const completeChapter04SaveCheckpoint =");
+  const completionEnd = source.indexOf("const chooseChapter04ManualSave", completionStart);
+  assert.match(
+    source.slice(completionStart, completionEnd),
+    /debugSaveIsolationRef\.current = false/,
+  );
+});
+
 test("portable save preserves scene and exact ground item positions without player transform", () => {
   const normalized = normalizeEchoesSaveData(createSave());
   assert.ok(normalized);

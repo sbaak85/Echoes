@@ -463,7 +463,7 @@ button {
   z-index: 94;
   right: clamp(28px, 4vw, 72px);
   bottom: clamp(30px, 5vh, 60px);
-  width: 30px;
+  min-width: 52px;
   height: 30px;
   pointer-events: none;
   filter: drop-shadow(0 0 8px rgba(255, 196, 54, 0.72));
@@ -471,14 +471,14 @@ button {
 }
 
 .story-centered-text-hold-skip-prompt > span {
-  position: absolute;
-  top: 3px;
-  left: 7px;
-  width: 16px;
-  height: 16px;
-  border-right: 4px solid #ffc63d;
-  border-bottom: 4px solid #ffc63d;
-  transform: rotate(45deg);
+  display: block;
+  color: #ffc63d;
+  font-family: "Arial Narrow", "Segoe UI", sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 30px;
+  letter-spacing: 0.14em;
+  text-align: center;
 }
 
 @keyframes story-centered-text-hold-skip-pulse {
@@ -1924,18 +1924,19 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   position: absolute;
   z-index: 1;
   display: grid;
-  min-height: 116px;
-  padding: 17px 24px 13px;
-  border: 1px solid rgba(94, 218, 209, 0.72);
-  border-radius: 8px;
+  grid-template-rows: minmax(78px, auto) minmax(47px, auto);
+  min-height: 138px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(178, 143, 226, 0.74);
+  border-radius: 7px;
   background:
-    linear-gradient(180deg, rgba(11, 39, 43, 0.97), rgba(5, 24, 28, 0.98));
+    linear-gradient(180deg, rgba(36, 34, 49, 0.98), rgba(17, 21, 31, 0.98));
   box-shadow:
     0 12px 34px rgba(0, 0, 0, 0.46),
-    0 0 20px rgba(80, 223, 211, 0.24),
-    inset 0 0 0 1px rgba(180, 255, 244, 0.06),
-    inset 0 0 22px rgba(61, 190, 183, 0.08);
-  color: #d8ece9;
+    0 0 20px rgba(141, 91, 219, 0.24),
+    inset 0 0 0 1px rgba(235, 222, 255, 0.06);
+  color: #ebeaf0;
   text-align: left;
   cursor: pointer;
   pointer-events: auto;
@@ -1944,46 +1945,76 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
     new-player-tutorial-hint-breathe 1.8s ease-in-out 240ms infinite alternate;
 }
 
-.new-player-tutorial-hint > span {
-  align-self: start;
+.new-player-tutorial-copy {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 17px 22px 15px;
   white-space: pre-line;
   font-size: 16px;
   font-weight: 400;
-  line-height: 1.35;
+  line-height: 1.42;
   letter-spacing: 0.02em;
+  background:
+    radial-gradient(circle at 14% 0%, rgba(156, 105, 224, 0.25), transparent 58%),
+    linear-gradient(105deg, rgba(101, 87, 124, 0.44), rgba(38, 38, 51, 0.82) 54%, rgba(24, 27, 37, 0.96));
+  box-shadow: inset 0 -10px 22px rgba(8, 9, 15, 0.16);
 }
 
-.new-player-tutorial-hint > strong {
-  align-self: end;
-  justify-self: end;
-  display: flex;
+.new-player-tutorial-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
-  gap: 10px;
-  font-size: 18px;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px 17px 11px 20px;
+  border-top: 1px solid rgba(203, 175, 240, 0.34);
+  background:
+    radial-gradient(circle at 22% 50%, rgba(175, 105, 246, 0.23), transparent 52%),
+    linear-gradient(100deg, rgba(76, 49, 105, 0.74), rgba(45, 35, 61, 0.88) 50%, rgba(24, 25, 37, 0.94));
+  box-shadow:
+    inset 0 8px 22px rgba(191, 116, 255, 0.08),
+    inset 0 1px 0 rgba(244, 228, 255, 0.05);
+  backdrop-filter: blur(10px);
+  font-size: 16px;
   font-weight: 400;
   letter-spacing: 0.04em;
-  text-shadow: 0 0 10px rgba(128, 245, 231, 0.12);
+  text-shadow: 0 0 10px rgba(208, 173, 255, 0.16);
+}
+
+.new-player-tutorial-context-action,
+.new-player-tutorial-continue {
+  color: #f4effb;
+  white-space: nowrap;
   transform-origin: center;
   animation: new-player-tutorial-prompt-breathe 1.25s ease-in-out infinite alternate;
 }
 
-.new-player-tutorial-hint > strong > span {
-  color: #f2fbfa;
+.new-player-tutorial-context-action {
+  justify-self: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.new-player-tutorial-hint > strong b {
+.new-player-tutorial-continue {
+  justify-self: end;
+  animation-delay: -625ms;
+}
+
+.new-player-tutorial-actions b {
   font: inherit;
-  color: #e2b24f;
+  color: #e5bd62;
+  white-space: nowrap;
 }
 
-.new-player-tutorial-hint > strong i {
-  color: #e2b24f;
+.new-player-tutorial-actions i {
+  color: #e5bd62;
   font-size: 16px;
   font-style: normal;
 }
 
 .new-player-tutorial-hint:hover {
-  border-color: rgba(111, 239, 226, 0.96);
+  border-color: rgba(214, 184, 255, 0.96);
   filter: brightness(1.05);
 }
 
@@ -2016,30 +2047,28 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
     filter: brightness(0.98);
     box-shadow:
       0 12px 34px rgba(0, 0, 0, 0.46),
-      0 0 12px rgba(80, 223, 211, 0.18),
-      inset 0 0 0 1px rgba(180, 255, 244, 0.05),
-      inset 0 0 16px rgba(61, 190, 183, 0.06);
+      0 0 12px rgba(141, 91, 219, 0.18),
+      inset 0 0 0 1px rgba(235, 222, 255, 0.05);
   }
   to {
     filter: brightness(1.06);
     box-shadow:
       0 12px 34px rgba(0, 0, 0, 0.46),
-      0 0 26px rgba(80, 223, 211, 0.38),
-      inset 0 0 0 1px rgba(180, 255, 244, 0.09),
-      inset 0 0 24px rgba(61, 190, 183, 0.12);
+      0 0 26px rgba(162, 104, 237, 0.38),
+      inset 0 0 0 1px rgba(245, 232, 255, 0.09);
   }
 }
 
 @keyframes new-player-tutorial-prompt-breathe {
   from {
-    opacity: 0.78;
-    transform: translateY(1px) scale(0.99);
-    text-shadow: 0 0 5px rgba(242, 251, 250, 0.12);
+    opacity: 0.82;
+    transform: translateZ(0) scale(0.985);
+    text-shadow: 0 0 5px rgba(229, 204, 255, 0.14);
   }
   to {
     opacity: 1;
-    transform: translateY(-1px) scale(1.015);
-    text-shadow: 0 0 12px rgba(242, 251, 250, 0.3);
+    transform: translateZ(0) scale(1.025);
+    text-shadow: 0 0 13px rgba(222, 190, 255, 0.38);
   }
 }
 

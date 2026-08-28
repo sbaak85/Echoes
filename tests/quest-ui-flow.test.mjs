@@ -173,6 +173,19 @@ test("gameplay HUD shortcuts map Q and RB to quest, R and LB to survival", () =>
   assert.match(source, /aria-keyshortcuts="R"/);
 });
 
+test("任務、生存與小地圖只在展開或收折狀態真正改變時播放共用音效", () => {
+  const hudAudioEffect = source.slice(
+    source.indexOf("const previous = hudAudioStateRef.current"),
+    source.indexOf("useLayoutEffect(() => {", source.indexOf("const previous = hudAudioStateRef.current")),
+  );
+  assert.match(hudAudioEffect, /questExpanded:\s*!questPanelCollapsed/);
+  assert.match(hudAudioEffect, /survivalExpanded:\s*survivalPanelExpanded/);
+  assert.match(hudAudioEffect, /minimapExpanded:\s*!minimapCollapsed/);
+  assert.match(hudAudioEffect, /audioEvents\.play\("hudExpanded", \{ restart: true \}\)/);
+  assert.match(hudAudioEffect, /audioEvents\.play\("hudCollapsed", \{ restart: true \}\)/);
+  assert.match(source, /aria-keyshortcuts="M"/);
+});
+
 test("quest completion trigger starts only after the COMPLETE UI finishes", () => {
   const completionHandler = source.slice(
     source.indexOf("onQuestCompleted:"),

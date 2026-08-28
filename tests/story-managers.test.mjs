@@ -411,6 +411,7 @@ test("第三章開場腳本與流程符合第一版規格", () => {
   );
   assert.ok(chapterOpenIndex >= 0);
   assert.ok(openingCardIndex > chapterOpenIndex);
+  assert.equal(CHAPTER_3_START_FLOW.actions[chapterOpenIndex].fadeOnly, true);
 
   const fadeIndex = CHAPTER_3_START_FLOW.actions.findIndex(
     (action) => action.type === "fadeFromBlack",
@@ -640,6 +641,8 @@ test("開場字幕微略過使用純淡入淡出並維持編輯器輸出設定",
   assert.match(globalsSource, /story-centered-text\.is-fade-only/);
   assert.match(globalsSource, /story-centered-text-fade-only-in/);
   assert.match(globalsSource, /story-centered-text-hold-skip-prompt/);
+  assert.match(movementLabSource, /story-centered-text-hold-skip-prompt[\s\S]*?<span aria-hidden="true">SKIP<\/span>/);
+  assert.doesNotMatch(globalsSource, /story-centered-text-hold-skip-prompt > span \{[^}]*border-bottom:/);
   assert.match(editorCodecSource, /chapter03-opening-card/);
   assert.match(editorCodecSource, /holdSkipConfirmAfterMs: 2000/);
 });

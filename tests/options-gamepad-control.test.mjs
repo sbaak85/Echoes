@@ -40,7 +40,7 @@ test("Options 方向捲動保留虛擬游標位置且不露出中央實體游標
   assert.doesNotMatch(optionsDpadMode, /deactivateGamepadCursor\(\)/);
 });
 
-test("Options 阻擋型確認框優先取得 A 鍵，不讓停在框外的虛擬游標吃掉輸入", async () => {
+test("Options 阻擋型確認框遵循最後操作方式，游標未命中時由目前選取項接手 A", async () => {
   const source = await readFile(
     new URL("../app/movement-lab.tsx", import.meta.url),
     "utf8",
@@ -48,10 +48,18 @@ test("Options 阻擋型確認框優先取得 A 鍵，不讓停在框外的虛擬
   const optionsBranchStart = source.indexOf("} else if (optionsMenuOpen) {");
   const optionsBranchEnd = source.indexOf("} else if (newPlayerTutorialMenuOpen) {", optionsBranchStart);
   const optionsBranch = source.slice(optionsBranchStart, optionsBranchEnd);
-  const modalPriority = optionsBranch.indexOf("saveDataDialogRef.current || restartConfirmationOpenRef.current");
-  const cursorFallback = optionsBranch.indexOf("shouldUseOptionsCursor(optionsGamepadModeRef.current)");
-  assert.notEqual(modalPriority, -1);
-  assert.notEqual(cursorFallback, -1);
-  assert.ok(modalPriority < cursorFallback);
-  assert.match(optionsBranch, /saveDataDialogRef\.current \|\| restartConfirmationOpenRef\.current[\s\S]*activateOptionsMenuSelection\(\)/);
+  assert.match(
+    optionsBranch,
+    /shouldUseOptionsCursor\(optionsGamepadModeRef\.current\)[\s\S]*const cursorResult = activateVirtualCursorUi\(\)[\s\S]*cursorResult !== "activated"[\s\S]*saveDataDialogRef\.current \|\| restartConfirmationOpenRef\.current[\s\S]*activateOptionsMenuSelection\(\)/,
+  );
+  assert.match(
+    optionsBranch,
+    /cursorResult !== "activated"/,
+  );
+
+  const cursorActivationStart = source.indexOf("const activateVirtualCursorUi =");
+  const cursorActivationEnd = source.indexOf("const getVirtualCursorInventoryIndex =", cursorActivationStart);
+  const cursorActivation = source.slice(cursorActivationStart, cursorActivationEnd);
+  assert.match(cursorActivation, /\.options-overlay/);
+  assert.match(cursorActivation, /\? "blocked"\s*:\s*"none"/);
 });

@@ -91,7 +91,12 @@ import {
   loadHotbarAssignments,
   saveHotbarAssignments,
 } from "./hotbar-assignments";
-import { createNewGameProgress, resetStoredNewGameProgress } from "./new-game-reset";
+import {
+  clearNewGameResetPending,
+  createNewGameProgress,
+  isNewGameResetPending,
+  resetStoredNewGameProgress,
+} from "./new-game-reset";
 import {
   NewPlayerTutorialOverlay,
   type NewPlayerTutorialSpotlight,
@@ -599,6 +604,7 @@ type DialoguePlayback = {
   pageIndex: number;
   pages: string[];
   lastBgmCueLineId?: string;
+  lastLineSeLineId?: string;
   onComplete?: () => void;
 };
 type DialogueView = { speaker: string; text: string } | null;
@@ -1710,6 +1716,7 @@ function getDefaultQuestCollapsed() {
 
 const SURVIVAL_PANEL_STATE_STORAGE_KEY = "echoes:survival-panel-state";
 const HUD_PANEL_TWEEN_DURATION_MS = 300;
+const HUD_PANEL_TWEEN_FRAME_EVENT = "echoes:hud-panel-tween-frame";
 
 type ActiveHudPanelTween = {
   frameId: number;
@@ -1765,6 +1772,7 @@ function playHudPanelHeightTween(
     const eased = easeInOutCubic(progress);
     tween.height = startHeight + (targetHeight - startHeight) * eased;
     element.style.height = `${tween.height}px`;
+    element.dispatchEvent(new Event(HUD_PANEL_TWEEN_FRAME_EVENT));
 
     if (progress < 1) {
       tween.frameId = window.requestAnimationFrame(updateTween);
@@ -1773,6 +1781,7 @@ function playHudPanelHeightTween(
 
     element.style.removeProperty("height");
     element.style.removeProperty("will-change");
+    element.dispatchEvent(new Event(HUD_PANEL_TWEEN_FRAME_EVENT));
     if (activeHudPanelTweens.get(element) === tween) {
       activeHudPanelTweens.delete(element);
     }
@@ -3583,6 +3592,11 @@ export function MovementLab() {
   const previousSurvivalPanelHeightRef = useRef<number | null>(null);
   const previousQuestPanelHeightRef = useRef<number | null>(null);
   const [minimapCollapsed, setMinimapCollapsed] = useState(false);
+  const hudAudioStateRef = useRef({
+    questExpanded: !questPanelCollapsed,
+    survivalExpanded: survivalPanelExpanded,
+    minimapExpanded: !minimapCollapsed,
+  });
   const [activeMinimapItemPoints, setActiveMinimapItemPoints] = useState<
     SceneItemPoint[]
   >(() => SCENE_ITEM_POINTS.filter((itemPoint) => itemPoint.showOnMinimap));
@@ -3628,6 +3642,17 @@ export function MovementLab() {
     window.clearTimeout(newPlayerTutorialStartTimerRef.current);
     newPlayerTutorialStartTimerRef.current = null;
   };
+  const revealNewPlayerTutorialTarget = (stepId: NewPlayerTutorialStepId) => {
+    if (stepId === "quest") {
+      setQuestCollapsed(false);
+      setQuestMobileMode("expanded");
+    } else if (stepId === "survival") {
+      setSurvivalExpanded(true);
+      setSurvivalMobileMode("expanded");
+    } else if (stepId === "minimap") {
+      setMinimapCollapsed(false);
+    }
+  };
   const dismissNewPlayerTutorial = () => {
     clearNewPlayerTutorialStartTimer();
     newPlayerTutorialOpenRef.current = false;
@@ -3657,6 +3682,7 @@ export function MovementLab() {
       dismissNewPlayerTutorial();
       return;
     }
+    revealNewPlayerTutorialTarget(nextStep.id);
     newPlayerTutorialStepRef.current = nextStep.id;
     setNewPlayerTutorialSpotlight(null);
     setNewPlayerTutorialStep(nextStep.id);
@@ -3672,6 +3698,7 @@ export function MovementLab() {
       newPlayerTutorialStartTimerRef.current = null;
       if (!newPlayerTutorialOpenRef.current) return;
       newPlayerTutorialReadyRef.current = true;
+      revealNewPlayerTutorialTarget("quest");
       newPlayerTutorialStepRef.current = "quest";
       setNewPlayerTutorialStep("quest");
     }, 1000);
@@ -3982,6 +4009,33 @@ export function MovementLab() {
     );
   }, [questPanelCollapsed, activeQuestHud?.stageId, completedQuestHistory.length]);
 
+  useEffect(() => {
+    const previous = hudAudioStateRef.current;
+    const current = {
+      questExpanded: !questPanelCollapsed,
+      survivalExpanded: survivalPanelExpanded,
+      minimapExpanded: !minimapCollapsed,
+    };
+    hudAudioStateRef.current = current;
+
+    const expanded =
+      (!previous.questExpanded && current.questExpanded) ||
+      (!previous.survivalExpanded && current.survivalExpanded) ||
+      (!previous.minimapExpanded && current.minimapExpanded);
+    const collapsed =
+      (previous.questExpanded && !current.questExpanded) ||
+      (previous.survivalExpanded && !current.survivalExpanded) ||
+      (previous.minimapExpanded && !current.minimapExpanded);
+    const audioEvents = audioEventManagerRef.current;
+    if (!audioEvents) return;
+    if (expanded) {
+      void audioEvents.play("hudExpanded", { restart: true }).catch(() => {});
+    }
+    if (collapsed) {
+      void audioEvents.play("hudCollapsed", { restart: true }).catch(() => {});
+    }
+  }, [questPanelCollapsed, survivalPanelExpanded, minimapCollapsed]);
+
   useLayoutEffect(() => {
     if (!newPlayerTutorialStep) return;
     const shell = gameShellRef.current;
@@ -4019,13 +4073,21 @@ export function MovementLab() {
     const resizeObserver = new ResizeObserver(updateSpotlight);
     resizeObserver.observe(shell);
     resizeObserver.observe(target);
+    target.addEventListener(HUD_PANEL_TWEEN_FRAME_EVENT, updateSpotlight);
     window.addEventListener("resize", updateSpotlight);
     return () => {
       window.cancelAnimationFrame(frameId);
       resizeObserver.disconnect();
+      target.removeEventListener(HUD_PANEL_TWEEN_FRAME_EVENT, updateSpotlight);
       window.removeEventListener("resize", updateSpotlight);
     };
-  }, [newPlayerTutorialStep, questPanelCollapsed, activeQuestHud?.stageId]);
+  }, [
+    newPlayerTutorialStep,
+    questPanelCollapsed,
+    survivalPanelExpanded,
+    minimapCollapsed,
+    activeQuestHud?.stageId,
+  ]);
 
   useEffect(() => {
     if (activeQuestHud !== null || questHudEvent !== null) return;
@@ -4457,7 +4519,12 @@ export function MovementLab() {
 
   useEffect(() => {
     const hydrationTimer = window.setTimeout(async () => {
-      const portableAutosave = await readSaveDataSlot("autosave");
+      // A New Game reload must never restore the portable autosave that the
+      // player just replaced. Keep ignoring it until a fresh reset autosave
+      // has been written successfully.
+      const portableAutosave = isNewGameResetPending()
+        ? { save: null, backend: "browser-session" as const }
+        : await readSaveDataSlot("autosave");
       if (portableAutosave.save) {
         applySaveDataToRuntimeStorage(portableAutosave.save);
         setSaveDataBackend(portableAutosave.backend);
@@ -5890,6 +5957,7 @@ export function MovementLab() {
 
   const closeDialogue = () => {
     stopDialogueTyping();
+    audioEventManagerRef.current?.clearDialogueLineSe();
     dialoguePlaybackRef.current = null;
     document.documentElement.classList.remove("dialogue-cursor-active");
     setDialogueView(null);
@@ -5907,7 +5975,11 @@ export function MovementLab() {
       finishDialogue();
       return;
     }
-    const lineId = line.lineId?.trim();
+    const lineId = line.lineId?.trim() ?? "";
+    if (playback.lastLineSeLineId !== lineId) {
+      playback.lastLineSeLineId = lineId;
+      audioEventManagerRef.current?.triggerDialogueLineSe(lineId);
+    }
     if (lineId && playback.lastBgmCueLineId !== lineId) {
       playback.lastBgmCueLineId = lineId;
       bgmDirectorRef.current?.triggerDialogueLine(lineId);
@@ -6507,6 +6579,12 @@ export function MovementLab() {
 
   const completeChapter04SaveCheckpoint = (nextStory: StoryProgress) => {
     chapter04TransitionCompletingRef.current = true;
+    // Quest fast-forward uses an isolated runtime so ordinary background
+    // autosaves cannot overwrite the player's real progress. Reaching this
+    // explicit save checkpoint is different: the player has chosen a save
+    // method and the write already succeeded, so Chapter 4 becomes the new
+    // committed runtime and later manual saves must work normally.
+    debugSaveIsolationRef.current = false;
     chapter04ManualSaveActiveRef.current = false;
     chapter04SavePromptOpenRef.current = false;
     setChapter04SavePromptOpen(false);
@@ -6531,6 +6609,10 @@ export function MovementLab() {
     playOneShotAudio("uiInput");
     chapter04SavePromptOpenRef.current = false;
     chapter04ManualSaveActiveRef.current = true;
+    // Preserve the last gamepad ownership mode while moving from the chapter
+    // checkpoint prompt into Options. Otherwise a visible retained cursor can
+    // still leave A owned by the older D-pad selection mode.
+    optionsGamepadModeRef.current = chapter04SavePromptGamepadModeRef.current;
     setChapter04SavePromptOpen(false);
     setChapter04TransitionStatus("");
     setOptionsPanelOpen(true);
@@ -6595,16 +6677,24 @@ export function MovementLab() {
     }
     portableAutosaveTimerRef.current = window.setTimeout(() => {
       portableAutosaveTimerRef.current = null;
-      void queuePortableSaveWrite("autosave", "auto").catch((error) => {
-        console.error("[Echoes SaveData] 自動存檔失敗：", error);
-        setSaveDataStatus("自動存檔失敗；原存檔未被覆蓋。 ");
-      });
+      void queuePortableSaveWrite("autosave", "auto")
+        .then((backend) => {
+          if (backend) clearNewGameResetPending();
+        })
+        .catch((error) => {
+          console.error("[Echoes SaveData] 自動存檔失敗：", error);
+          setSaveDataStatus("自動存檔失敗；原存檔未被覆蓋。 ");
+        });
     }, 250);
   };
 
   const getManualSaveBlockedReason = () => {
-    if (debugSaveIsolationRef.current) return "Debug Scenario 不會寫入正式存檔。";
+    // The chapter-end prompt is an explicit commit point even when the player
+    // reached it through Quest debug fast-forward. Keep ordinary Debug
+    // Scenario saves isolated, but allow the save that formally enters
+    // Chapter 4; completeChapter04SaveCheckpoint then releases the isolation.
     if (chapter04ManualSaveActiveRef.current) return "";
+    if (debugSaveIsolationRef.current) return "Debug Scenario 不會寫入正式存檔。";
     if (storyFlowActiveRef.current || dialoguePlaybackRef.current) return "對話／劇情播放期間無法手動存檔。";
     if (powerPuzzleOpenRef.current || frequencyPuzzleOpenRef.current || weldingPuzzleOpenRef.current) {
       return "小遊戲進行期間無法手動存檔。";
@@ -6687,9 +6777,13 @@ export function MovementLab() {
       if (dialog.mode === "save" || dialog.mode === "overwrite") {
         const blocked = getManualSaveBlockedReason();
         if (blocked) { setSaveDataStatus(blocked); return; }
-        const chapter04Story = chapter04ManualSaveActiveRef.current
+        const chapter04Story = (
+          chapter04ManualSaveActiveRef.current ||
+          chapter04SaveCheckpointResolveRef.current !== null
+        )
           ? getPendingChapter04StoryProgress()
           : null;
+        setSaveDataStatus("正在儲存…");
         const backend = await queuePortableSaveWrite(
           dialog.slotId,
           "manual",
@@ -8512,7 +8606,11 @@ export function MovementLab() {
       }
       activeInputMode = "keyboard-mouse";
       activateQuestPromptInputMode("keyboard-mouse");
-      if (timePassInputLockedRef.current) {
+      if (
+        timePassInputLockedRef.current &&
+        !chapter04SavePromptOpenRef.current &&
+        !optionsOpenRef.current
+      ) {
         event.preventDefault();
         return;
       }
@@ -8676,6 +8774,18 @@ export function MovementLab() {
         event.preventDefault();
         if (event.code === "Space" && !event.repeat) {
           advanceNewPlayerTutorial();
+        } else if (
+          newPlayerTutorialStepRef.current === "hotbar" &&
+          (key === "arrowleft" || key === "arrowright") &&
+          !event.repeat
+        ) {
+          selectHotbarSlot(key === "arrowright" ? 1 : -1);
+        } else if (
+          newPlayerTutorialStepRef.current === "minimap" &&
+          key === "m" &&
+          !event.repeat
+        ) {
+          setMinimapCollapsed((collapsed) => !collapsed);
         }
         return;
       }
@@ -8727,6 +8837,20 @@ export function MovementLab() {
           setActiveKeyboardKeys([]);
           setOptionsPanelOpen(!optionsOpenRef.current);
         }
+        return;
+      }
+      if (
+        key === "m" &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !storyInputLockedRef.current &&
+        !optionsOpenRef.current &&
+        !inventoryOpenRef.current &&
+        !dialoguePlaybackRef.current
+      ) {
+        event.preventDefault();
+        if (!event.repeat) setMinimapCollapsed((collapsed) => !collapsed);
         return;
       }
       if (
@@ -13009,13 +13133,17 @@ export function MovementLab() {
           gamepadInput.confirmPressed &&
           !wasGamepadConfirmPressed
         ) {
-          // Blocking Options confirmations own A before the retained virtual
-          // cursor. Otherwise a cursor parked outside the dialog consumes A
-          // even though one of the dialog buttons is visibly selected.
-          if (saveDataDialogRef.current || restartConfirmationOpenRef.current) {
-            activateOptionsMenuSelection();
-          } else if (shouldUseOptionsCursor(optionsGamepadModeRef.current)) {
-            activateVirtualCursorUi();
+          // Options follows the last active control method even while a
+          // blocking confirmation is open. In cursor mode A clicks the button
+          // under the cursor; in dpad mode A activates the selected choice.
+          if (shouldUseOptionsCursor(optionsGamepadModeRef.current)) {
+            const cursorResult = activateVirtualCursorUi();
+            if (
+              cursorResult !== "activated" &&
+              (saveDataDialogRef.current || restartConfirmationOpenRef.current)
+            ) {
+              activateOptionsMenuSelection();
+            }
           } else {
             activateOptionsMenuSelection();
           }
@@ -13031,9 +13159,31 @@ export function MovementLab() {
           else setOptionsPanelOpen(false);
         }
       } else if (newPlayerTutorialMenuOpen) {
-        gameplayHotbarDpadX = 0;
         virtualCursorVisible = false;
         deactivateGamepadCursor();
+        if (
+          newPlayerTutorialStepRef.current === "survival" &&
+          leftBumperJustPressed
+        ) {
+          toggleSurvivalPanel();
+        }
+        if (
+          newPlayerTutorialStepRef.current === "quest" &&
+          rightBumperJustPressed
+        ) {
+          toggleQuestPanel();
+        }
+        const tutorialHotbarDirection = Math.sign(gamepadInput.dpadX);
+        if (
+          newPlayerTutorialStepRef.current === "hotbar" &&
+          tutorialHotbarDirection !== 0 &&
+          gameplayHotbarDpadX === 0
+        ) {
+          selectHotbarSlot(tutorialHotbarDirection);
+        }
+        gameplayHotbarDpadX = newPlayerTutorialStepRef.current === "hotbar"
+          ? tutorialHotbarDirection
+          : 0;
         if (
           gamepadInput.connected &&
           gamepadInput.confirmPressed &&
@@ -14058,6 +14208,14 @@ export function MovementLab() {
 
   const confirmRestartNewGame = async () => {
     dismissNewPlayerTutorial();
+    // Stop every older runtime snapshot from being queued after the reset.
+    // Any write already in flight remains ahead of the fresh New Game save in
+    // portableSaveWriteRef, so the reset snapshot is guaranteed to be last.
+    portableSaveHydratedRef.current = false;
+    if (portableAutosaveTimerRef.current !== null) {
+      window.clearTimeout(portableAutosaveTimerRef.current);
+      portableAutosaveTimerRef.current = null;
+    }
     const progress = resetStoredNewGameProgress();
     survivalStateRef.current = progress.survival;
     interactionUsageRef.current = progress.interactionUsage;
@@ -14118,9 +14276,22 @@ export function MovementLab() {
         droppedWorldItems: [],
       },
     };
+    applySaveDataToRuntimeStorage(freshSave);
     try {
-      await writeSaveDataSlot("autosave", freshSave);
-      applySaveDataToRuntimeStorage(freshSave);
+      const writeFreshNewGame = async () => {
+        await writeSaveDataSlot("autosave", freshSave);
+      };
+      portableSaveWriteRef.current = portableSaveWriteRef.current.then(
+        writeFreshNewGame,
+        writeFreshNewGame,
+      );
+      await portableSaveWriteRef.current;
+      clearNewGameResetPending();
+    } catch (error) {
+      // Local runtime storage is already reset. Keep the pending marker so the
+      // next hydration cannot revive the stale autosave; a later successful
+      // autosave will clear it automatically.
+      console.error("[Echoes SaveData] 新遊戲自動存檔寫入失敗：", error);
     } finally {
       window.location.reload();
     }
@@ -14131,6 +14302,14 @@ export function MovementLab() {
   ) => {
     if (newPlayerTutorialOpenRef.current) return;
     if (timePassInputLockedRef.current) {
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          ".chapter04-save-confirmation-overlay, .options-overlay",
+        )
+      ) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       return;
@@ -14144,6 +14323,14 @@ export function MovementLab() {
   ) => {
     if (newPlayerTutorialOpenRef.current) return;
     if (timePassInputLockedRef.current) {
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          ".chapter04-save-confirmation-overlay, .options-overlay",
+        )
+      ) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       return;
@@ -14175,12 +14362,21 @@ export function MovementLab() {
   const handleGameShellClickCapture = (
     event: ReactMouseEvent<HTMLElement>,
   ) => {
+    const isChapterTransitionUiClick =
+      event.target instanceof Element &&
+      Boolean(
+        event.target.closest(
+          ".chapter04-save-confirmation-overlay, .options-overlay",
+        ),
+      );
     if (timePassInputLockedRef.current) {
-      event.preventDefault();
-      event.stopPropagation();
-      return;
+      if (!isChapterTransitionUiClick) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
     }
-    if (suppressNextStoryClickRef.current) {
+    if (suppressNextStoryClickRef.current && !isChapterTransitionUiClick) {
       suppressNextStoryClickRef.current = false;
       event.preventDefault();
       event.stopPropagation();
@@ -14450,7 +14646,7 @@ export function MovementLab() {
           role="status"
           aria-label="再次按 A 略過開場字幕"
         >
-          <span aria-hidden="true" />
+          <span aria-hidden="true">SKIP</span>
         </div>
       ) : null}
 
@@ -14843,6 +15039,15 @@ export function MovementLab() {
           inputMode={questPromptInputMode}
           spotlight={newPlayerTutorialSpotlight}
           step={activeNewPlayerTutorialStep}
+          targetCollapsed={
+            activeNewPlayerTutorialStep.id === "quest"
+              ? questPanelCollapsed
+              : activeNewPlayerTutorialStep.id === "survival"
+                ? !survivalPanelExpanded
+                : activeNewPlayerTutorialStep.id === "minimap"
+                  ? minimapCollapsed
+                  : false
+          }
           onContinue={advanceNewPlayerTutorial}
         />
       ) : null}
@@ -15952,6 +16157,7 @@ export function MovementLab() {
                     type="button"
                     disabled={saveDataBusy}
                     onFocus={() => setSaveDataDialogChoiceValue("cancel")}
+                    onMouseEnter={() => setSaveDataDialogChoiceValue("cancel")}
                     onClick={() => setSaveDataDialogValue(null)}
                   >取消</button>
                   {saveDataDialog.mode === "actions" ? (
@@ -15966,6 +16172,7 @@ export function MovementLab() {
                       type="button"
                       disabled={saveDataBusy}
                       onFocus={() => setSaveDataDialogChoiceValue("confirm")}
+                      onMouseEnter={() => setSaveDataDialogChoiceValue("confirm")}
                       onClick={() => void executeSaveDataDialogChoice("confirm")}
                     >
                       {saveDataBusy ? "處理中…" : saveDataDialog.mode === "load" ? "確認讀檔" : saveDataDialog.mode === "delete" ? "確認刪除" : "確認儲存"}
@@ -16040,6 +16247,7 @@ export function MovementLab() {
         type="button"
         aria-label={minimapCollapsed ? "展開小地圖" : "收折小地圖"}
         aria-expanded={!minimapCollapsed}
+        aria-keyshortcuts="M"
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.stopPropagation();

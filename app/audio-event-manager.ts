@@ -19,6 +19,29 @@ export type AudioEventDefinition = {
   loop?: boolean;
 };
 
+export type LineSeNextLineBehavior = "finish" | "stop";
+
+export type LineSeDefinition = {
+  /** 對話腳本編輯器內的完整 Line ID。 */
+  lineId: string;
+  /** 專案內原始 MP3 素材位置，僅供製作端追查，可留空。 */
+  sourceAssetPath?: string;
+  /** 瀏覽器實際載入的 MP3 路徑。 */
+  source: string;
+  /** 0 到 1。例：0.5 = 50%。 */
+  volume: number;
+  /** 該句 Line 開始後延遲幾秒才播放。 */
+  delaySeconds: number;
+  /** 以秒計算的淡入時間。 */
+  fadeInSeconds: number;
+  /** 以秒計算的淡出時間。 */
+  fadeOutSeconds: number;
+  /** 勾選後會持續循環，直到對話切到下一句 Line。 */
+  loop?: boolean;
+  /** 省略時預設自然播完；stop 會在切到下一句時立即淡出停止。 */
+  nextLineBehavior?: LineSeNextLineBehavior;
+};
+
 /**
  * Echoes 全部 Audio Event 的集中設定。
  *
@@ -103,12 +126,40 @@ export const AUDIO_EVENT_CONFIG = (
     },
     "uiInput": {
       "label": "介面輸入點擊",
-      "trigger": "玩家點擊背包內的操作按鈕、道具頁籤、換頁箭頭、道具格或其右鍵選單；點擊快捷工具格或其右鍵選單；展開／收折任務、生存計量、小地圖；開啟／關閉背包或 Options 介面；以及新手教學每次有效換卡時播放。只要輸入成立就播放，不要求操作成功。",
+      "trigger": "玩家點擊背包內的操作按鈕、道具頁籤、換頁箭頭、道具格或其右鍵選單；點擊快捷工具格或其右鍵選單；開啟／關閉背包或 Options 介面；以及新手教學每次有效換卡時播放。只要輸入成立就播放，不要求操作成功。任務提示、生存計量與小地圖的展開／收折改由 hudExpanded／hudCollapsed 管理。",
       "sourceAssetPaths": [
         "Assets/Audio/InPut.mp3"
       ],
       "sources": [
         "./audio/ui-input.mp3"
+      ],
+      "volume": 0.7,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "hudExpanded": {
+      "label": "HUD 介面展開",
+      "trigger": "任務提示 UI、生存計量 UI 或小地圖 UI 的狀態真正由收折切換為展開時播放一次；滑鼠、鍵盤、手把、教學與系統流程共用。",
+      "sourceAssetPaths": [
+        "Assets/Audio/介面展開.mp3"
+      ],
+      "sources": [
+        "./audio/hud-expand.mp3"
+      ],
+      "volume": 0.3,
+      "delaySeconds": 0,
+      "fadeInPercent": 5,
+      "fadeOutPercent": 5
+    },
+    "hudCollapsed": {
+      "label": "HUD 介面收折",
+      "trigger": "任務提示 UI、生存計量 UI 或小地圖 UI 的狀態真正由展開切換為收折時播放一次；滑鼠、鍵盤、手把、教學與系統流程共用。",
+      "sourceAssetPaths": [
+        "Assets/Audio/互動操作音_#1-1785307011343.mp3"
+      ],
+      "sources": [
+        "./audio/interaction-success-1.mp3"
       ],
       "volume": 0.7,
       "delaySeconds": 0,
@@ -197,7 +248,9 @@ export const AUDIO_EVENT_CONFIG = (
         "./audio/world-item-pickup.mp3"
       ],
       "volume": 0.9,
-      "delaySeconds": 0
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "crystalMiningSucceeded": {
       "label": "藍色晶體採礦成功",
@@ -208,8 +261,10 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/mining-1.mp3"
       ],
-      "volume": 0.7,
-      "delaySeconds": 0
+      "volume": 0.5,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "emergencyRationConsumed": {
       "label": "成功食用緊急口糧",
@@ -221,7 +276,9 @@ export const AUDIO_EVENT_CONFIG = (
         "./audio/eating-1.mp3"
       ],
       "volume": 1,
-      "delaySeconds": 0
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "purifiedWaterConsumed": {
       "label": "成功飲用淨水瓶",
@@ -233,7 +290,9 @@ export const AUDIO_EVENT_CONFIG = (
         "./audio/drinking-2.mp3"
       ],
       "volume": 1,
-      "delaySeconds": 0
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "alienFruitConsumed": {
       "label": "成功食用外星果實",
@@ -245,7 +304,9 @@ export const AUDIO_EVENT_CONFIG = (
         "./audio/eat-fruit.mp3"
       ],
       "volume": 1,
-      "delaySeconds": 0
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "campPowerCrystalInserted": {
       "label": "營地電力灌入晶體成功",
@@ -270,8 +331,10 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/panel-open-2.mp3"
       ],
-      "volume": 1,
-      "delaySeconds": 0
+      "volume": 0.8,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
     },
     "questCompleted": {
       "label": "任務完成提示",
@@ -380,7 +443,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/welding-preview-countdown.mp3"
       ],
-      "volume": 1,
+      "volume": 0.5,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
@@ -446,6 +509,39 @@ export const AUDIO_EVENT_CONFIG = (
   }
   /* AUDIO_EVENT_CONFIG_END */
 ) as const satisfies Record<string, AudioEventDefinition>;
+
+/**
+ * 對話 Line ID 專用音效設定。
+ *
+ * 只在對話真正切換到新 Line ID 時觸發一次，不會於文字逐字顯示期間
+ * 每幀檢查。管理器中的「切到下一句」預設為 finish（自然播完）。
+ */
+export const LINE_SE_CONFIG = (
+  /* LINE_SE_CONFIG_START */
+  [
+    {
+      "lineId": "chapter03-section-9-line-010",
+      "source": "./audio/Alarm.mp3",
+      "volume": 0.85,
+      "delaySeconds": 0,
+      "fadeInSeconds": 0.05,
+      "fadeOutSeconds": 0.5,
+      "loop": false,
+      "nextLineBehavior": "finish"
+    },
+    {
+      "lineId": "chapter03-section-9-line-013",
+      "source": "./audio/Radio-waves.mp3",
+      "volume": 0.7,
+      "delaySeconds": 0,
+      "fadeInSeconds": 0.1,
+      "fadeOutSeconds": 0.5,
+      "loop": false,
+      "nextLineBehavior": "finish"
+    }
+  ]
+  /* LINE_SE_CONFIG_END */
+) as const satisfies readonly LineSeDefinition[];
 
 export type AudioEventName = keyof typeof AUDIO_EVENT_CONFIG;
 
@@ -603,8 +699,8 @@ export const BGM_CONTROL_RULES = (
       "action": "fade",
       "trackId": "power-routing",
       "targetVolume": 1,
-      "fadeOutSeconds": 1,
-      "fadeInSeconds": 1,
+      "fadeOutSeconds": 1.5,
+      "fadeInSeconds": 1.5,
       "priority": 1000,
       "durationSeconds": 0,
       "restoreMode": "resume"
@@ -619,8 +715,8 @@ export const BGM_CONTROL_RULES = (
       "action": "fade",
       "trackId": "frequency-calibration",
       "targetVolume": 1,
-      "fadeOutSeconds": 1,
-      "fadeInSeconds": 1,
+      "fadeOutSeconds": 1.5,
+      "fadeInSeconds": 1.5,
       "priority": 1000,
       "durationSeconds": 0,
       "restoreMode": "resume"
@@ -635,8 +731,8 @@ export const BGM_CONTROL_RULES = (
       "action": "fade",
       "trackId": "welding-route",
       "targetVolume": 1,
-      "fadeOutSeconds": 1,
-      "fadeInSeconds": 1,
+      "fadeOutSeconds": 1.5,
+      "fadeInSeconds": 1.5,
       "priority": 1000,
       "durationSeconds": 0,
       "restoreMode": "resume"
@@ -734,6 +830,14 @@ type AudioEventRuntime = {
   sourceIndex: number;
 };
 
+type LineSeRuntime = {
+  audio: HTMLAudioElement;
+  definition: LineSeDefinition;
+  delayTimerId: number | null;
+  fadeFrameId: number | null;
+  requestId: number;
+};
+
 type PlayOptions = {
   /** true 會先停止、歸零，再依設定延遲播放。 */
   restart?: boolean;
@@ -752,6 +856,17 @@ function clampPercent(value: number | undefined) {
   return Math.min(100, Math.max(0, value ?? 0));
 }
 
+function clampSeconds(value: number | undefined) {
+  return Number.isFinite(value) ? Math.max(0, value ?? 0) : 0;
+}
+
+/** 未指定時維持「切到下一句自然播完」的專案預設。 */
+export function getLineSeNextLineBehavior(
+  definition: Pick<LineSeDefinition, "nextLineBehavior">,
+): LineSeNextLineBehavior {
+  return definition.nextLineBehavior === "stop" ? "stop" : "finish";
+}
+
 /** 將音檔總長百分比換算成實際淡入／淡出毫秒數。 */
 export function getAudioFadeDurationMilliseconds(
   durationSeconds: number,
@@ -764,6 +879,9 @@ export function getAudioFadeDurationMilliseconds(
 export class AudioEventManager {
   private disposed = false;
   private readonly runtimes = new Map<AudioEventName, AudioEventRuntime>();
+  private readonly lineSeRuntimes = new Map<string, LineSeRuntime>();
+  private currentDialogueLineId: string | null = null;
+  private activeLineSeRuntime: LineSeRuntime | null = null;
   private weldingSparksActive = false;
   private weldingSparksFadeFrameId: number | null = null;
   private weldingSparksRequestId = 0;
@@ -815,6 +933,22 @@ export class AudioEventManager {
 
       audio.addEventListener("ended", runtime.endedHandler);
       this.runtimes.set(eventName, runtime);
+    });
+
+    LINE_SE_CONFIG.forEach((definition) => {
+      const lineId = definition.lineId.trim();
+      if (!lineId || this.lineSeRuntimes.has(lineId)) return;
+      const audio = new Audio(definition.source);
+      audio.preload = "auto";
+      audio.volume = clampVolume(definition.volume);
+      audio.loop = Boolean(definition.loop);
+      this.lineSeRuntimes.set(lineId, {
+        audio,
+        definition,
+        delayTimerId: null,
+        fadeFrameId: null,
+        requestId: 0,
+      });
     });
   }
 
@@ -909,6 +1043,28 @@ export class AudioEventManager {
     if (options.reset ?? true) runtime.audio.currentTime = 0;
   }
 
+  /**
+   * 對話真正換到另一個 Line ID 時呼叫。相同 Line 因分頁重繪時不會重播。
+   */
+  triggerDialogueLineSe(lineId: string) {
+    if (this.disposed) return;
+    const normalizedLineId = lineId.trim();
+    if (this.currentDialogueLineId === normalizedLineId) return;
+
+    this.releaseActiveLineSe();
+    this.currentDialogueLineId = normalizedLineId;
+    const runtime = this.lineSeRuntimes.get(normalizedLineId) ?? null;
+    this.activeLineSeRuntime = runtime;
+    if (runtime) this.scheduleLineSe(runtime);
+  }
+
+  /** 對話關閉時視同離開目前 Line，套用該列的下一句行為。 */
+  clearDialogueLineSe() {
+    if (this.disposed) return;
+    this.releaseActiveLineSe();
+    this.currentDialogueLineId = null;
+  }
+
   dispose() {
     if (this.disposed) return;
     this.weldingSparksActive = false;
@@ -922,6 +1078,161 @@ export class AudioEventManager {
       runtime.audio.currentTime = 0;
     });
     this.runtimes.clear();
+    this.lineSeRuntimes.forEach((runtime) => {
+      this.cancelLineSeRuntime(runtime);
+      runtime.audio.pause();
+      runtime.audio.currentTime = 0;
+    });
+    this.lineSeRuntimes.clear();
+    this.activeLineSeRuntime = null;
+    this.currentDialogueLineId = null;
+  }
+
+  private scheduleLineSe(runtime: LineSeRuntime) {
+    this.cancelLineSeRuntime(runtime);
+    runtime.audio.pause();
+    runtime.audio.currentTime = 0;
+    runtime.audio.loop = Boolean(runtime.definition.loop);
+    runtime.audio.volume = clampVolume(runtime.definition.volume);
+    const requestId = runtime.requestId;
+    const start = () => {
+      runtime.delayTimerId = null;
+      if (
+        this.disposed ||
+        runtime.requestId !== requestId ||
+        this.activeLineSeRuntime !== runtime
+      ) {
+        return;
+      }
+      const fadeInSeconds = clampSeconds(runtime.definition.fadeInSeconds);
+      runtime.audio.volume = fadeInSeconds > 0
+        ? 0
+        : clampVolume(runtime.definition.volume);
+      void runtime.audio.play().then(() => {
+        if (
+          this.disposed ||
+          runtime.requestId !== requestId ||
+          runtime.audio.paused
+        ) {
+          return;
+        }
+        this.startLineSeNaturalEnvelope(runtime, requestId);
+      }).catch(() => {
+        // Line SE 不得因瀏覽器暫時禁止播放而中斷對話流程。
+      });
+    };
+
+    const delayMilliseconds = clampSeconds(runtime.definition.delaySeconds) * 1000;
+    if (delayMilliseconds > 0) {
+      runtime.delayTimerId = window.setTimeout(start, delayMilliseconds);
+    } else {
+      start();
+    }
+  }
+
+  private releaseActiveLineSe() {
+    const runtime = this.activeLineSeRuntime;
+    this.activeLineSeRuntime = null;
+    if (!runtime) return;
+
+    if (runtime.delayTimerId !== null) {
+      this.cancelLineSeRuntime(runtime);
+      return;
+    }
+
+    if (getLineSeNextLineBehavior(runtime.definition) === "stop") {
+      this.fadeAndStopLineSe(runtime);
+      return;
+    }
+
+    // 自然播完是預設：單次音效不被切句打斷；Loop 則只取消循環，
+    // 讓目前正在播放的這一輪走到音檔尾端。
+    runtime.audio.loop = false;
+  }
+
+  private startLineSeNaturalEnvelope(
+    runtime: LineSeRuntime,
+    requestId: number,
+  ) {
+    if (runtime.fadeFrameId !== null) {
+      window.cancelAnimationFrame(runtime.fadeFrameId);
+    }
+    const targetVolume = clampVolume(runtime.definition.volume);
+    const fadeInSeconds = clampSeconds(runtime.definition.fadeInSeconds);
+    const fadeOutSeconds = clampSeconds(runtime.definition.fadeOutSeconds);
+    const smoothstep = (progress: number) =>
+      progress * progress * (3 - 2 * progress);
+    const update = () => {
+      if (this.disposed || runtime.requestId !== requestId) return;
+      const fadeInProgress = fadeInSeconds > 0
+        ? Math.min(1, runtime.audio.currentTime / fadeInSeconds)
+        : 1;
+      const remainingSeconds = Number.isFinite(runtime.audio.duration)
+        ? Math.max(0, runtime.audio.duration - runtime.audio.currentTime)
+        : Number.POSITIVE_INFINITY;
+      const fadeOutProgress = !runtime.audio.loop && fadeOutSeconds > 0
+        ? Math.min(1, remainingSeconds / fadeOutSeconds)
+        : 1;
+      runtime.audio.volume = clampVolume(
+        targetVolume * smoothstep(fadeInProgress) * smoothstep(fadeOutProgress),
+      );
+      if (!runtime.audio.paused && !runtime.audio.ended) {
+        runtime.fadeFrameId = window.requestAnimationFrame(update);
+      } else {
+        runtime.fadeFrameId = null;
+        runtime.audio.volume = targetVolume;
+      }
+    };
+    runtime.fadeFrameId = window.requestAnimationFrame(update);
+  }
+
+  private fadeAndStopLineSe(runtime: LineSeRuntime) {
+    const requestId = ++runtime.requestId;
+    if (runtime.fadeFrameId !== null) {
+      window.cancelAnimationFrame(runtime.fadeFrameId);
+      runtime.fadeFrameId = null;
+    }
+    const durationMilliseconds =
+      clampSeconds(runtime.definition.fadeOutSeconds) * 1000;
+    if (runtime.audio.paused || durationMilliseconds <= 0) {
+      runtime.audio.pause();
+      runtime.audio.currentTime = 0;
+      runtime.audio.volume = clampVolume(runtime.definition.volume);
+      return;
+    }
+
+    const startingVolume = runtime.audio.volume;
+    const startedAt = performance.now();
+    const update = (time: number) => {
+      if (this.disposed || runtime.requestId !== requestId) return;
+      const progress = Math.min(
+        1,
+        Math.max(0, (time - startedAt) / durationMilliseconds),
+      );
+      const eased = progress * progress * (3 - 2 * progress);
+      runtime.audio.volume = clampVolume(startingVolume * (1 - eased));
+      if (progress < 1) {
+        runtime.fadeFrameId = window.requestAnimationFrame(update);
+        return;
+      }
+      runtime.fadeFrameId = null;
+      runtime.audio.pause();
+      runtime.audio.currentTime = 0;
+      runtime.audio.volume = clampVolume(runtime.definition.volume);
+    };
+    runtime.fadeFrameId = window.requestAnimationFrame(update);
+  }
+
+  private cancelLineSeRuntime(runtime: LineSeRuntime) {
+    runtime.requestId += 1;
+    if (runtime.delayTimerId !== null) {
+      window.clearTimeout(runtime.delayTimerId);
+      runtime.delayTimerId = null;
+    }
+    if (runtime.fadeFrameId !== null) {
+      window.cancelAnimationFrame(runtime.fadeFrameId);
+      runtime.fadeFrameId = null;
+    }
   }
 
   private async startPlayback(
