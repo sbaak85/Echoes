@@ -113,6 +113,7 @@ test("chapter03-End 由章節編輯器在 section-9 後播放黑幕白字幕", a
       holdMs: 4000,
       fadeOutMs: 2000,
       keepBlack: false,
+      fadeOnly: true,
       afterSubtitleFadeOutCheckpointId: CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID,
     },
     { type: "unlockInput" },

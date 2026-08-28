@@ -20,6 +20,24 @@ test("類型頁籤在範圍內移動，邊界不循環", () => {
   assert.equal(getClampedInventoryCategoryIndex(4, 5, 1), 4);
 });
 
+test("背包固定使用全部、食物、資源、工具、任務道具五個頁籤", () => {
+  const source = readFileSync(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  const start = source.indexOf("const INVENTORY_CATEGORIES");
+  const end = source.indexOf("const DEFAULT_SELECTED_INVENTORY_INDEX", start);
+  const categories = source.slice(start, end);
+
+  assert.match(categories, /\{ id: "all", label: "全部" \}/);
+  assert.match(categories, /\{ id: "food", label: "食物" \}/);
+  assert.match(categories, /\{ id: "resource", label: "資源" \}/);
+  assert.match(categories, /\{ id: "tool", label: "工具" \}/);
+  assert.match(categories, /\{ id: "quest", label: "任務道具" \}/);
+  assert.doesNotMatch(categories, /label: "主線道具"/);
+  assert.match(categories, /category === "main" \? "quest" : category/);
+});
+
 test("虛擬游標第一次點道具只選定，再點同一道具才使用", () => {
   assert.equal(getVirtualCursorInventoryItemAction(2, 5), "select");
   assert.equal(getVirtualCursorInventoryItemAction(5, 5), "use");

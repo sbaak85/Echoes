@@ -98,7 +98,9 @@ test("遮罩為 70% 黑、柔邊開孔，提示框會呼吸發亮", () => {
   assert.match(styles, /\.new-player-tutorial-copy\s*{[\s\S]*?font-weight:\s*400/);
   assert.match(styles, /\.new-player-tutorial-actions\s*{[\s\S]*?border-top:[\s\S]*?backdrop-filter:\s*blur\(10px\)/);
   assert.match(styles, /\.new-player-tutorial-actions\s*{[\s\S]*?font-weight:\s*400/);
-  assert.match(styles, /new-player-tutorial-prompt-breathe 1\.25s/);
+  assert.match(styles, /\.new-player-tutorial-actions\s*\{[\s\S]*?animation:\s*new-player-tutorial-prompt-breathe 1\.25s/);
+  assert.doesNotMatch(styles, /\.new-player-tutorial-context-action,\s*\n\.new-player-tutorial-continue\s*\{[^}]*animation:/);
+  assert.doesNotMatch(styles, /\.new-player-tutorial-continue\s*\{[^}]*animation-delay:/);
   assert.match(styles, /@keyframes new-player-tutorial-prompt-breathe/);
 });
 

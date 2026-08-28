@@ -1657,15 +1657,31 @@ function hasConfiguredInventoryItemInformationEffect(
     hasConfiguredSurvivalEffects(item.survivalEffects);
 }
 
-type InventoryCategory = "all" | ItemCategory;
+type InventoryDisplayCategory = Exclude<ItemCategory, "main">;
+type InventoryCategory = "all" | InventoryDisplayCategory;
 
 const INVENTORY_CATEGORIES: Array<{ id: InventoryCategory; label: string }> = [
   { id: "all", label: "全部" },
+  { id: "food", label: "食物" },
   { id: "resource", label: "資源" },
   { id: "tool", label: "工具" },
   { id: "quest", label: "任務道具" },
-  { id: "main", label: "主線道具" },
 ];
+
+function getInventoryDisplayCategory(
+  category: ItemCategory,
+): InventoryDisplayCategory {
+  return category === "main" ? "quest" : category;
+}
+
+function getInventoryCategoryPresentation(category: ItemCategory) {
+  switch (getInventoryDisplayCategory(category)) {
+    case "food": return { symbol: "♨", label: "食物" };
+    case "resource": return { symbol: "♣", label: "資源" };
+    case "tool": return { symbol: "⌘", label: "工具" };
+    case "quest": return { symbol: "⚑", label: "任務道具" };
+  }
+}
 
 const DEFAULT_SELECTED_INVENTORY_INDEX = Math.max(
   0,
@@ -3519,7 +3535,6 @@ export function MovementLab() {
   const [dialogueTextSize, setDialogueTextSize] =
     useState<DialogueTextSize>("small");
   const [facing, setFacing] = useState<Direction>(SCENE_START_FACING);
-  const [moving, setMoving] = useState(false);
   const [gamepadConnected, setGamepadConnected] = useState(false);
   const [questPromptInputMode, setQuestPromptInputMode] =
     useState<QuestPromptInputMode>("keyboard-mouse");
@@ -3528,7 +3543,6 @@ export function MovementLab() {
     "等待手把輸入…",
   );
   const [activeKeyboardKeys, setActiveKeyboardKeys] = useState<string[]>([]);
-  const [interactionJustTriggered, setInteractionJustTriggered] = useState(false);
   const [mobileInteractionTarget, setMobileInteractionTarget] = useState<{
     id: string;
     label: string;
@@ -5787,10 +5801,10 @@ export function MovementLab() {
     const currentItem = ITEM_DATABASE[selectedInventoryIndexRef.current]?.item;
     if (
       category !== "all" &&
-      (!currentItem || currentItem.category !== category)
+      (!currentItem || getInventoryDisplayCategory(currentItem.category) !== category)
     ) {
       const nextItem = getOwnedItemStacks(playerInventoryRef.current).find(
-        (stack) => stack.definition.category === category,
+        (stack) => getInventoryDisplayCategory(stack.definition.category) === category,
       );
       if (nextItem) selectInventoryItem(nextItem.databaseIndex);
     }
@@ -7736,7 +7750,6 @@ export function MovementLab() {
       footstepShouldPlay = false;
       footstepAudio.pause();
       wasMoving = false;
-      setMoving(false);
       setMobileInteractionTarget(null);
       setMobileSceneConnectionTarget(null);
       return true;
@@ -7779,7 +7792,6 @@ export function MovementLab() {
     let bgmPlayPending = false;
     let bgmPlayBlocked = false;
     let bgmDisposed = false;
-    let interactionFeedbackTimer: number | null = null;
     let lastMovementGuideSign = 1;
     let lockedAutoMovementGuideId: string | null = null;
     let bypassedAutoMovementGuideId: string | null = null;
@@ -8279,7 +8291,6 @@ export function MovementLab() {
       playerPositionRef.current = { x: point.x, y: point.y };
       playerFacingRef.current = point.facing;
       setFacing(point.facing);
-      setMoving(false);
       stopFootsteps();
       storyTriggerContactCheckRequested = true;
       return true;
@@ -9744,14 +9755,6 @@ export function MovementLab() {
         interactionUsageRef.current = usage;
         saveInteractionUsageState(usage);
       }
-      if (interactionFeedbackTimer !== null) {
-        window.clearTimeout(interactionFeedbackTimer);
-      }
-      setInteractionJustTriggered(true);
-      interactionFeedbackTimer = window.setTimeout(() => {
-        interactionFeedbackTimer = null;
-        setInteractionJustTriggered(false);
-      }, 800);
       window.dispatchEvent(
         new CustomEvent("echoes:interaction", {
           detail: {
@@ -13783,7 +13786,6 @@ export function MovementLab() {
 
       if (isActuallyMoving !== wasMoving) {
         wasMoving = isActuallyMoving;
-        setMoving(isActuallyMoving);
       }
 
       setFacing((previous) =>
@@ -14029,10 +14031,6 @@ export function MovementLab() {
       stopFootsteps();
       stopDialogueTyping();
       stopFrequencyFineTuningAudio(true);
-      if (interactionFeedbackTimer !== null) {
-        window.clearTimeout(interactionFeedbackTimer);
-      }
-      setInteractionJustTriggered(false);
       bgmDirector.dispose();
       if (bgmDirectorRef.current === bgmDirector) {
         bgmDirectorRef.current = null;
@@ -14055,7 +14053,7 @@ export function MovementLab() {
     .filter(
       (stack) =>
         inventoryCategory === "all" ||
-        stack.definition.category === inventoryCategory,
+        getInventoryDisplayCategory(stack.definition.category) === inventoryCategory,
     )
     .map((stack) => ({
       item: { ...stack.definition, count: stack.count },
@@ -14084,10 +14082,10 @@ export function MovementLab() {
   );
   const inventoryCategoryCounts = ownedInventoryItems.reduce(
     (counts, stack) => {
-      counts[stack.definition.category] += stack.count;
+      counts[getInventoryDisplayCategory(stack.definition.category)] += stack.count;
       return counts;
     },
-    { resource: 0, tool: 0, quest: 0, main: 0 } as Record<ItemCategory, number>,
+    { food: 0, resource: 0, tool: 0, quest: 0 } as Record<InventoryDisplayCategory, number>,
   );
 
   const changeInventoryPage = (offset: number) => {
@@ -14841,17 +14839,13 @@ export function MovementLab() {
         </section>
       ) : null}
 
-      <section className="top-left-hud" aria-label="場景資訊">
-        <p className="eyebrow">Echoes Beyond the Stars</p>
-        <h1>地圖測試場景</h1>
-        <div className="status-row">
-          <i className="status-dot" aria-hidden="true" />
-          <span>{currentSceneData.image.file.replace(/\.[^.]+$/, "")} · NavMesh ready</span>
-        </div>
-        <p className={`hud-gamepad-status${gamepadConnected ? " is-connected" : ""}`}>
-          🎮 {gamepadConnected ? "手把已連線" : "請按手把任一按鈕啟用"}
-        </p>
-      </section>
+      <p
+        className={`gamepad-connection-status${gamepadConnected ? " is-connected" : ""}`}
+        role="status"
+        aria-live="polite"
+      >
+        🎮 {gamepadConnected ? "手把已連線" : "請按手把任一按鈕啟用"}
+      </p>
 
       <aside
         ref={survivalHudRef}
@@ -15221,10 +15215,10 @@ export function MovementLab() {
                 </div>
                 <section className="inventory-category-stats">
                   <h4>分類統計</h4>
+                  <p><span>♨　食物</span><strong>{inventoryCategoryCounts.food}</strong></p>
                   <p><span>♣　資源</span><strong>{inventoryCategoryCounts.resource}</strong></p>
                   <p><span>⌘　工具</span><strong>{inventoryCategoryCounts.tool}</strong></p>
                   <p><span>⚑　任務道具</span><strong>{inventoryCategoryCounts.quest}</strong></p>
-                  <p><span>♔　主線道具</span><strong>{inventoryCategoryCounts.main}</strong></p>
                 </section>
               </aside>
 
@@ -15237,7 +15231,7 @@ export function MovementLab() {
                     </div>
                     <section className="inventory-selected-copy">
                       <h3>{selectedInventoryItem.name}</h3>
-                      <strong>{selectedInventoryItem.category === "main" ? "♔ 主線道具" : selectedInventoryItem.category === "quest" ? "⚑ 任務道具" : selectedInventoryItem.category === "tool" ? "⌘ 工具" : "♣ 資源"}</strong>
+                      <strong>{`${getInventoryCategoryPresentation(selectedInventoryItem.category).symbol} ${getInventoryCategoryPresentation(selectedInventoryItem.category).label}`}</strong>
                       <p>{selectedInventoryItem.description}</p>
                       <p className={`inventory-survival-effects${hasConfiguredInventoryItemInformationEffect(selectedInventoryItem) ? " is-configured" : ""}`}>
                         {formatInventoryItemInformationEffect(selectedInventoryItem)}
@@ -15322,7 +15316,7 @@ export function MovementLab() {
                         selectInventoryItem(index);
                       }}
                     >
-                      <span className="inventory-item-kind" aria-hidden="true">{item.category === "main" ? "♔" : item.category === "quest" ? "⚑" : item.category === "tool" ? "⌘" : "♣"}</span>
+                      <span className="inventory-item-kind" aria-hidden="true">{getInventoryCategoryPresentation(item.category).symbol}</span>
                       <span className="inventory-item-icon" aria-hidden="true">{item.symbol}</span>
                       <strong>{item.name}</strong>
                       <small>×{item.count}</small>
@@ -16232,15 +16226,6 @@ export function MovementLab() {
           </div>
         </section>
       ) : null}
-
-      <p className="controls-subtitle" aria-label="操作提示">
-        <span className="controls-subtitle-desktop">WASD／方向鍵、滑鼠點擊、左搖桿移動 · Shift／LT：加速行走 · ] 短按：下一 Stage／長按：下一任務 · Q／RB：任務 · R／LB：生存 · ESC／START：選項</span>
-        <span className="controls-subtitle-touch">上半部點擊前往 · 下半部按住移動 · START：選項</span>
-      </p>
-
-      <section className="movement-status" aria-live="polite">
-        {interactionJustTriggered ? "INTERACTIVE" : moving ? "MOVING" : "FACING"}
-      </section>
 
       <button
         className={`minimap-hud${minimapCollapsed ? " is-collapsed" : ""}`}

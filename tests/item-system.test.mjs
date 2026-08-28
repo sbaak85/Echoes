@@ -116,6 +116,17 @@ test("中央道具資料庫固定保留 100 欄，現有 33 項道具都有分�
   );
 });
 
+test("所有可恢復生存數值的食品保持原 ItemID 並歸入食物類別", () => {
+  const foodItems = ITEM_DEFINITIONS.filter(
+    (item) => Object.keys(item.survivalEffects).length > 0,
+  );
+  assert.deepEqual(
+    foodItems.map((item) => item.id),
+    ["R0004", "R0005", "R0006", "R0012", "R0100", "R0016", "R0017"],
+  );
+  assert.ok(foodItems.every((item) => item.category === "food"));
+});
+
 test("多功能工具箱設定為確認打開後在地面生成一個現有銲槍工具", () => {
   const repairKit = ITEM_DEFINITIONS.find((item) => item.id === "T0003");
   const weldingTool = ITEM_DEFINITIONS.find((item) => item.id === "T0007");

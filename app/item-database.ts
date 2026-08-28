@@ -6,7 +6,7 @@ import {
   type SurvivalGameState,
 } from "./survival-manager.ts";
 
-export type ItemCategory = "resource" | "tool" | "quest" | "main";
+export type ItemCategory = "food" | "resource" | "tool" | "quest" | "main";
 
 export type ItemDebugSpawnDelivery = "world" | "inventory";
 
@@ -118,7 +118,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       englishName: "water-bottle",
       name: "淨水瓶",
       symbol: "◉",
-      category: "resource",
+      category: "food",
       description: "經過濾的飲用水，可恢復口渴數值。",
       weight: 0.8,
       usable: true,
@@ -133,7 +133,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       englishName: "emergency-ration",
       name: "緊急口糧",
       symbol: "▰",
-      category: "resource",
+      category: "food",
       description: "便於攜帶的高熱量壓縮食品。",
       weight: 0.35,
       usable: true,
@@ -148,7 +148,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       englishName: "alien-spore",
       name: "外星種子",
       symbol: "✺",
-      category: "resource",
+      category: "food",
       description: "來源不明的活性種子，仍在緩慢脈動。",
       weight: 0.1,
       usable: true,
@@ -425,7 +425,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       englishName: "alien-fruit",
       name: "外星果實",
       symbol: "⬢",
-      category: "resource",
+      category: "food",
       description: "富含水分與高能量養分的異星果實，可同時恢復體力、飢餓與口渴。",
       weight: 0.3,
       usable: true,
@@ -440,7 +440,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       englishName: "full-recovery-test-item",
       name: "全回復道具（測試用）",
       symbol: "✚",
-      category: "resource",
+      category: "food",
       description: "測試用全回復道具，使用後會將四項生存計量恢復至上限。",
       weight: 0.0,
       usable: true,
@@ -550,7 +550,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       englishName: "mental-focus-stimulant",
       name: "精神專注劑",
       symbol: "✧",
-      category: "resource",
+      category: "food",
       description: "協助恢復體力並快速提高精神專注程度的便攜式藥劑。",
       weight: 0.12,
       usable: true,
@@ -565,7 +565,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       englishName: "invigorating-supply-drink",
       name: "提神補給飲料",
       symbol: "◒",
-      category: "resource",
+      category: "food",
       description: "補充水分並稍微提振精神狀態的機能飲料。",
       weight: 0.45,
       usable: true,

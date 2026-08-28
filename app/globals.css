@@ -849,48 +849,6 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   cursor: none !important;
 }
 
-.top-left-hud {
-  position: absolute;
-  z-index: 3;
-  top: 250px;
-  left: 40px;
-  pointer-events: none;
-  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.7);
-}
-
-.eyebrow {
-  margin: 0 0 5px;
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.19em;
-  text-transform: uppercase;
-}
-
-.top-left-hud h1 {
-  margin: 0;
-  font-size: clamp(18px, 2.1vw, 26px);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.status-row {
-  display: flex;
-  gap: 9px;
-  align-items: center;
-  margin-top: 9px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 10px rgba(123, 224, 212, 0.9);
-}
-
 .survival-hud {
   position: absolute;
   z-index: 3;
@@ -1980,14 +1938,14 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   font-weight: 400;
   letter-spacing: 0.04em;
   text-shadow: 0 0 10px rgba(208, 173, 255, 0.16);
+  transform-origin: center;
+  animation: new-player-tutorial-prompt-breathe 1.25s ease-in-out infinite alternate;
 }
 
 .new-player-tutorial-context-action,
 .new-player-tutorial-continue {
   color: #f4effb;
   white-space: nowrap;
-  transform-origin: center;
-  animation: new-player-tutorial-prompt-breathe 1.25s ease-in-out infinite alternate;
 }
 
 .new-player-tutorial-context-action {
@@ -1998,7 +1956,6 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
 
 .new-player-tutorial-continue {
   justify-self: end;
-  animation-delay: -625ms;
 }
 
 .new-player-tutorial-actions b {
@@ -2400,11 +2357,6 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
 .game-shell.is-fullscreen .survival-hud:not(.is-inventory-open),
 .game-shell:fullscreen .survival-hud:not(.is-inventory-open) {
   top: 14px;
-  left: 14px;
-}
-
-.game-shell.is-fullscreen .top-left-hud,
-.game-shell:fullscreen .top-left-hud {
   left: 14px;
 }
 
@@ -3587,8 +3539,9 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
 }
 
 .inventory-item.is-tool .inventory-item-kind { color: #57cde0; }
+.inventory-item.is-food .inventory-item-kind { color: #efbd68; }
 .inventory-item.is-quest .inventory-item-kind { color: #ad6de2; }
-.inventory-item.is-main .inventory-item-kind { color: #e2b95e; }
+.inventory-item.is-main .inventory-item-kind { color: #ad6de2; }
 
 .inventory-item-icon {
   color: #9bcfd2;
@@ -6778,13 +6731,23 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   gap: 3px;
 }
 
-.hud-gamepad-status {
-  margin: 9px 0 0;
+.gamepad-connection-status {
+  position: absolute;
+  z-index: 3;
+  bottom: 18px;
+  left: 50%;
+  margin: 0;
   color: #7f9295;
   font-size: 11px;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+  text-align: center;
+  text-shadow: 0 2px 9px rgba(0, 0, 0, 0.88);
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 
-.hud-gamepad-status.is-connected {
+.gamepad-connection-status.is-connected {
   color: var(--accent);
   text-shadow: 0 0 12px rgba(123, 224, 212, 0.38);
 }
@@ -6824,26 +6787,6 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
 
 .keycap.d {
   grid-column: 3;
-}
-
-.controls-subtitle {
-  position: absolute;
-  z-index: 3;
-  bottom: 24px;
-  left: 50%;
-  width: min(calc(100vw - 80px), 820px);
-  margin: 0;
-  color: rgba(221, 239, 236, 0.82);
-  font-size: clamp(10px, 1.05vw, 13px);
-  letter-spacing: 0.03em;
-  pointer-events: none;
-  text-align: center;
-  text-shadow: 0 2px 9px rgba(0, 0, 0, 0.88);
-  transform: translateX(-50%);
-}
-
-.controls-subtitle-touch {
-  display: none;
 }
 
 .compass-strip {
@@ -6941,22 +6884,6 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   box-shadow: 0 0 9px rgba(123, 224, 212, 0.74);
 }
 
-.movement-status {
-  position: absolute;
-  z-index: 3;
-  bottom: 48px;
-  left: 50%;
-  margin: 0;
-  color: rgba(221, 239, 236, 0.82);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  pointer-events: none;
-  text-align: center;
-  text-shadow: 0 2px 9px rgba(0, 0, 0, 0.88);
-  transform: translateX(-50%);
-}
-
 @media (max-width: 680px) {
   .survival-clock-desktop {
     display: none;
@@ -6988,11 +6915,6 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
 
   .survival-clock-mobile i {
     font-size: 16px;
-  }
-
-  .top-left-hud {
-    top: 212px;
-    left: 15px;
   }
 
   .survival-hud {
@@ -7177,12 +7099,6 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
     left: clamp(72px, 13%, calc(100% - 72px));
   }
 
-  .controls-subtitle {
-    bottom: 16px;
-    width: calc(100vw - 40px);
-    font-size: 10px;
-  }
-
   .compass-strip {
     z-index: 6;
     top: 56px;
@@ -7223,10 +7139,6 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
 
   .compass-direction.is-current::before {
     height: 17px;
-  }
-
-  .movement-status {
-    bottom: 38px;
   }
 
   .status-row {
@@ -7420,16 +7332,6 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
     backdrop-filter: blur(16px);
   }
 
-}
-
-@media (pointer: coarse) {
-  .controls-subtitle-desktop {
-    display: none;
-  }
-
-  .controls-subtitle-touch {
-    display: inline;
-  }
 }
 
 /* Stage 01 welding route puzzle. */
