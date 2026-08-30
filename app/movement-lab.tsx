@@ -133,6 +133,7 @@ import {
 } from "./frequency-calibration-puzzle.tsx";
 import { FREQUENCY_CALIBRATION_COMPLETION_FLAG } from "./frequency-calibration-puzzle";
 import { WeldingRoutePuzzle } from "./welding-route-puzzle.tsx";
+import { StarCardsGame } from "./star-cards-game.tsx";
 import { isDebugGameCommand, parseDebugGameCommand } from "./debug-game-command";
 import {
   CAMP_POWER_CAPACITY,
@@ -3280,6 +3281,7 @@ export function MovementLab() {
   const powerPuzzleOpenRef = useRef(false);
   const frequencyPuzzleOpenRef = useRef(false);
   const weldingPuzzleOpenRef = useRef(false);
+  const starCardsOpenRef = useRef(false);
   const weldingPuzzleVirtualCursorAvailableRef = useRef(false);
   const powerPuzzleSessionRef = useRef<PowerPuzzleSession | null>(null);
   const powerPuzzleControllerRef = useRef<PowerRoutingPuzzleController | null>(null);
@@ -3478,6 +3480,7 @@ export function MovementLab() {
   const [powerPuzzleOpen, setPowerPuzzleOpen] = useState(false);
   const [frequencyPuzzleOpen, setFrequencyPuzzleOpen] = useState(false);
   const [weldingPuzzleOpen, setWeldingPuzzleOpen] = useState(false);
+  const [starCardsOpen, setStarCardsOpen] = useState(false);
   const [weldingPuzzleVirtualCursorAvailable, setWeldingPuzzleVirtualCursorAvailable] =
     useState(false);
   const [weldingPuzzleSessionKey, setWeldingPuzzleSessionKey] = useState(0);
@@ -3728,6 +3731,7 @@ export function MovementLab() {
   const [dialogueView, setDialogueView] = useState<DialogueView>(null);
   const powerPuzzlePreviewStartedRef = useRef(false);
   const frequencyPuzzlePreviewStartedRef = useRef(false);
+  const starCardsPreviewStartedRef = useRef(false);
 
   const applyCampPowerState = (nextState: CampPowerState) => {
     campPowerStateRef.current = nextState;
@@ -3816,6 +3820,24 @@ export function MovementLab() {
     setFrequencyPuzzleOpen(false);
     setWeldingPuzzleOpen(false);
     setWeldingPuzzleVirtualCursorAvailable(false);
+  };
+
+  const closeStarCardsGame = useCallback(() => {
+    bgmDirectorRef.current?.setMinigameState("star-cards", null);
+    starCardsOpenRef.current = false;
+    setStarCardsOpen(false);
+  }, []);
+
+  const openStarCardsGame = () => {
+    closePowerRoutingPuzzle();
+    dismissTimeElapsedNotice();
+    optionsOpenRef.current = false;
+    inventoryOpenRef.current = false;
+    setOptionsOpen(false);
+    setInventoryOpen(false);
+    starCardsOpenRef.current = true;
+    setStarCardsOpen(true);
+    bgmDirectorRef.current?.setMinigameState("star-cards", "playing");
   };
 
   const openWeldingPuzzle = (
@@ -4007,6 +4029,18 @@ export function MovementLab() {
     }
     frequencyPuzzlePreviewStartedRef.current = true;
     openFrequencyCalibrationPuzzle();
+  }, []);
+
+  useEffect(() => {
+    if (starCardsPreviewStartedRef.current) return;
+    if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      return;
+    }
+    if (new URLSearchParams(window.location.search).get("starCardsPreview") !== "1") {
+      return;
+    }
+    starCardsPreviewStartedRef.current = true;
+    openStarCardsGame();
   }, []);
 
   useLayoutEffect(() => {
@@ -6710,7 +6744,12 @@ export function MovementLab() {
     if (chapter04ManualSaveActiveRef.current) return "";
     if (debugSaveIsolationRef.current) return "Debug Scenario 不會寫入正式存檔。";
     if (storyFlowActiveRef.current || dialoguePlaybackRef.current) return "對話／劇情播放期間無法手動存檔。";
-    if (powerPuzzleOpenRef.current || frequencyPuzzleOpenRef.current || weldingPuzzleOpenRef.current) {
+    if (
+      powerPuzzleOpenRef.current ||
+      frequencyPuzzleOpenRef.current ||
+      weldingPuzzleOpenRef.current ||
+      starCardsOpenRef.current
+    ) {
       return "小遊戲進行期間無法手動存檔。";
     }
     if (sceneTransitioningRef.current || timePassInputLockedRef.current || storyInputLockedRef.current) {
@@ -6846,7 +6885,7 @@ export function MovementLab() {
       !open &&
       chapter04ManualSaveActiveRef.current &&
       !chapter04TransitionCompletingRef.current;
-    if (open && powerPuzzleOpenRef.current) return;
+    if (open && (powerPuzzleOpenRef.current || starCardsOpenRef.current)) return;
     if (open && storyFlowActiveRef.current) {
       cancelStorySkipHold();
       chapterFlowManager.pause();
@@ -6951,7 +6990,7 @@ export function MovementLab() {
   };
 
   const setInventoryPanelOpen = (open: boolean) => {
-    if (open && powerPuzzleOpenRef.current) return;
+    if (open && (powerPuzzleOpenRef.current || starCardsOpenRef.current)) return;
     if (open && storyInputLockedRef.current) return;
     if (open && newPlayerTutorialOpenRef.current) return;
     if (open) dismissTimeElapsedNotice();
@@ -7565,7 +7604,9 @@ export function MovementLab() {
     bgmDirector.setChapter(currentStoryChapterRef.current);
     const currentQuestSave = questRuntimeManagerRef.current?.exportSave();
     bgmDirector.syncQuestSnapshot(currentQuestSave?.quests ?? {});
-    if (weldingPuzzleOpenRef.current) {
+    if (starCardsOpenRef.current) {
+      bgmDirector.setMinigameState("star-cards", "playing");
+    } else if (weldingPuzzleOpenRef.current) {
       bgmDirector.setMinigameState("welding-route", "playing");
     } else if (frequencyPuzzleOpenRef.current) {
       bgmDirector.setMinigameState("frequency-calibration", "playing");
@@ -8576,6 +8617,7 @@ export function MovementLab() {
       powerPuzzleOpenRef.current ||
       frequencyPuzzleOpenRef.current ||
       weldingPuzzleOpenRef.current ||
+      starCardsOpenRef.current ||
       Boolean(survivalStateRef.current.gameOverReason);
 
     const canUseQuestSkipHotkey = () =>
@@ -8594,7 +8636,8 @@ export function MovementLab() {
       !chapter04SavePromptOpenRef.current &&
       !powerPuzzleOpenRef.current &&
       !frequencyPuzzleOpenRef.current &&
-      !weldingPuzzleOpenRef.current;
+      !weldingPuzzleOpenRef.current &&
+      !starCardsOpenRef.current;
 
     const questSkipKeyController = createQuestSkipKeyController({
       canTrigger: canUseQuestSkipHotkey,
@@ -8726,6 +8769,17 @@ export function MovementLab() {
             closeCampPowerConfirmation();
           }
         }
+        return;
+      }
+      if (starCardsOpenRef.current) {
+        if (
+          eventTarget instanceof HTMLElement &&
+          eventTarget.closest(".star-cards-dialog")
+        ) {
+          return;
+        }
+        event.preventDefault();
+        if (key === "escape" && !event.repeat) closeStarCardsGame();
         return;
       }
       if (powerPuzzleOpenRef.current) {
@@ -9262,7 +9316,11 @@ export function MovementLab() {
           openWeldingPuzzle();
           return true;
         }
-        showInteractionItemFeedback("Debug：目前可用的小遊戲指令為 Game 1～3");
+        if (gameCommand.gameNumber === 4) {
+          openStarCardsGame();
+          return true;
+        }
+        showInteractionItemFeedback("Debug：目前可用的小遊戲指令為 Game 1～4");
         return false;
       }
 
@@ -10428,7 +10486,11 @@ export function MovementLab() {
       playAcceptedInteractionSound = false,
       allowInteractableSelection = true,
     ) => {
-      if (blackScreenOpacityRef.current > 0 || powerPuzzleOpenRef.current) return;
+      if (
+        blackScreenOpacityRef.current > 0 ||
+        powerPuzzleOpenRef.current ||
+        starCardsOpenRef.current
+      ) return;
 
       const selectedInteractable = allowInteractableSelection
         ? forcedInteractable ??
@@ -12614,6 +12676,7 @@ export function MovementLab() {
         activateSceneConnectionConfirmationDpadMode();
       }
       const menuCursorCanTakeControl =
+        !starCardsOpenRef.current &&
         (!optionsOpenRef.current ||
           shouldOptionsCursorTakeControl(
             optionsGamepadModeRef.current,
@@ -12697,6 +12760,7 @@ export function MovementLab() {
         startJustPressed &&
         !timePassInputLockedRef.current &&
         !powerPuzzleOpenRef.current &&
+        !starCardsOpenRef.current &&
         !itemUseConfirmationOpenRef.current &&
         !campPowerConfirmationOpenRef.current &&
         !chapter04SavePromptOpenRef.current &&
@@ -12718,6 +12782,7 @@ export function MovementLab() {
         !optionsOpenRef.current &&
         !inventoryOpenRef.current &&
         !powerPuzzleOpenRef.current &&
+        !starCardsOpenRef.current &&
         !itemUseConfirmationOpenRef.current &&
         !campPowerConfirmationOpenRef.current &&
         !chapter04SavePromptOpenRef.current &&
@@ -12753,6 +12818,7 @@ export function MovementLab() {
       let sceneConnectionConfirmationMenuOpen =
         sceneConnectionConfirmationOpenRef.current;
       let campPowerConfirmationMenuOpen = campPowerConfirmationOpenRef.current;
+      let starCardsMenuOpen = starCardsOpenRef.current;
       let powerPuzzleMenuOpen = powerPuzzleOpenRef.current;
       let optionsMenuOpen = optionsOpenRef.current;
       const newPlayerTutorialMenuOpen = newPlayerTutorialOpenRef.current;
@@ -12775,6 +12841,9 @@ export function MovementLab() {
           closeCampPowerConfirmation();
           campPowerConfirmationMenuOpen = false;
         }
+      } else if (starCardsMenuOpen && backJustPressed) {
+        closeStarCardsGame();
+        starCardsMenuOpen = false;
       } else if (powerPuzzleMenuOpen && backJustPressed) {
         if (weldingPuzzleOpenRef.current) {
           closePowerRoutingPuzzle();
@@ -12960,6 +13029,14 @@ export function MovementLab() {
             closeCampPowerConfirmation();
           }
         }
+      } else if (starCardsMenuOpen) {
+        // StarCards owns its own edge-detected directional selection and A
+        // activation. This branch blocks gameplay actions behind the modal.
+        gameplayHotbarDpadX = 0;
+        heldGamepadDpadX = 0;
+        heldGamepadDpadY = 0;
+        gamepadDpadXRepeatSeconds = 0;
+        gamepadDpadYRepeatSeconds = 0;
       } else if (powerPuzzleMenuOpen) {
         gameplayHotbarDpadX = 0;
         if (frequencyPuzzleOpenRef.current) {
@@ -13281,6 +13358,7 @@ export function MovementLab() {
           !storyInputLockedRef.current &&
           !timePassInputLockedRef.current &&
           !powerPuzzleOpenRef.current &&
+          !starCardsOpenRef.current &&
           !dialoguePlaybackRef.current;
         if (canToggleGameplayHud && leftBumperJustPressed) {
           toggleSurvivalPanel();
@@ -13294,6 +13372,7 @@ export function MovementLab() {
           !storyInputLockedRef.current &&
           !timePassInputLockedRef.current &&
           !powerPuzzleOpenRef.current &&
+          !starCardsOpenRef.current &&
           hotbarDpadHorizontal !== 0 &&
           gameplayHotbarDpadX === 0
         ) {
@@ -13305,6 +13384,7 @@ export function MovementLab() {
           !storyInputLockedRef.current &&
           !timePassInputLockedRef.current &&
           !powerPuzzleOpenRef.current &&
+          !starCardsOpenRef.current &&
           gamepadInput.connected &&
           gamepadInput.hotbarUsePressed &&
           !wasGamepadHotbarUsePressed
@@ -13375,6 +13455,7 @@ export function MovementLab() {
         dialoguePlaybackRef.current ||
         inventoryOpenRef.current ||
         powerPuzzleOpenRef.current ||
+        starCardsOpenRef.current ||
         itemUseConfirmationOpenRef.current ||
         campPowerConfirmationOpenRef.current ||
         chapter04SavePromptOpenRef.current ||
@@ -13732,6 +13813,7 @@ export function MovementLab() {
         optionsOpenRef.current ||
         inventoryOpenRef.current ||
         powerPuzzleOpenRef.current ||
+        starCardsOpenRef.current ||
         itemUseConfirmationOpenRef.current ||
         campPowerConfirmationOpenRef.current ||
         chapter04SavePromptOpenRef.current ||
@@ -13825,6 +13907,7 @@ export function MovementLab() {
         !optionsOpenRef.current &&
         !inventoryOpenRef.current &&
         !powerPuzzleOpenRef.current &&
+        !starCardsOpenRef.current &&
         !itemUseConfirmationOpenRef.current &&
         !dialoguePlaybackRef.current &&
         !sceneConnectionConfirmationOpenRef.current &&
@@ -13849,7 +13932,11 @@ export function MovementLab() {
           openSceneConnectionConfirmation(choiceConnection);
         }
       }
-      if (!storyInputLockedRef.current && !powerPuzzleOpenRef.current) {
+      if (
+        !storyInputLockedRef.current &&
+        !powerPuzzleOpenRef.current &&
+        !starCardsOpenRef.current
+      ) {
         const shouldRecheckTouchingStoryTriggers =
           storyTriggerContactCheckRequested;
         storyTriggerContactCheckRequested = false;
@@ -15417,6 +15504,8 @@ export function MovementLab() {
         </menu>
       ) : null}
 
+      {starCardsOpen ? <StarCardsGame onClose={closeStarCardsGame} /> : null}
+
       {powerPuzzleOpen && !frequencyPuzzleOpen && !weldingPuzzleOpen ? (
         <PowerRoutingPuzzle
           ref={powerPuzzleControllerRef}
@@ -16352,7 +16441,7 @@ export function MovementLab() {
 
       <canvas
         ref={cursorCanvasRef}
-        className={`cursor-layer${powerPuzzleOpen || itemUseConfirmation || campPowerConfirmationOpen || sceneConnectionConfirmation || chapter04SavePromptOpen ? " is-over-modal" : ""}${weldingPuzzleOpen && !weldingPuzzleVirtualCursorAvailable ? " is-hidden-for-welding" : ""}`}
+        className={`cursor-layer${powerPuzzleOpen || itemUseConfirmation || campPowerConfirmationOpen || sceneConnectionConfirmation || chapter04SavePromptOpen ? " is-over-modal" : ""}${weldingPuzzleOpen && !weldingPuzzleVirtualCursorAvailable ? " is-hidden-for-welding" : ""}${starCardsOpen ? " is-hidden-for-star-cards" : ""}`}
         aria-hidden="true"
       />
       </main>
