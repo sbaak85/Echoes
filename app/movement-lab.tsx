@@ -271,6 +271,7 @@ import {
   type QuestRuntimeEntry,
 } from "./quest-runtime-manager";
 import { recordWeldingToolHintInteractionFailure } from "./welding-objective-hint";
+import { resolveRuntimePublicAssetUrl } from "./public-asset-url";
 import {
   buildQuestDebugScenarioPlan,
   isQuestDebugCommand,
@@ -490,8 +491,11 @@ const WELDING_FAILURE_MATERIAL_ITEM_ID = "R0009";
 const WELDING_FAILURE_MATERIAL_QUANTITY = 1;
 const WELDING_FAILURE_DIALOGUE_ID = "chapter03-special-1";
 const COMMUNICATION_ARRAY_INTERACTION_ID = "scene3-interaction-023";
+const uiAssetUrl = (assetPath: string) => resolveRuntimePublicAssetUrl(
+  `ui/${assetPath}`,
+);
 const COMMUNICATION_ARRAY_TARGET_ICON_SRC =
-  "/ui/interactions/communication-array-tower-icon.png";
+  uiAssetUrl("interactions/communication-array-tower-icon.png");
 const QUEST_ITEM_SUBMISSION_COMPLETION_PREVIEW_MS = 800;
 type ItemChangeVisualState = "available" | "missing" | "submitted" | "result";
 type ItemChangeVisualEntry = {
@@ -1693,116 +1697,116 @@ const INVENTORY_ITEM_ARTWORK_PREVIEWS: Readonly<
   Record<string, InventoryItemArtworkPreview>
 > = {
   R0001: {
-    iconPath: "/ui/items/crystal-shard-icon-280.png",
-    inspectPath: "/ui/items/crystal-shard-inspect-640.png",
+    iconPath: uiAssetUrl("items/crystal-shard-icon-280.png"),
+    inspectPath: uiAssetUrl("items/crystal-shard-inspect-640.png"),
   },
   R0002: {
-    iconPath: "/ui/items/metal-parts-icon-280.png",
-    inspectPath: "/ui/items/metal-parts-inspect-640.png",
+    iconPath: uiAssetUrl("items/metal-parts-icon-280.png"),
+    inspectPath: uiAssetUrl("items/metal-parts-inspect-640.png"),
   },
   R0003: {
-    iconPath: "/ui/items/fiber-bundle-icon-280.png",
-    inspectPath: "/ui/items/fiber-bundle-inspect-640.png",
+    iconPath: uiAssetUrl("items/fiber-bundle-icon-280.png"),
+    inspectPath: uiAssetUrl("items/fiber-bundle-inspect-640.png"),
   },
   R0004: {
-    iconPath: "/ui/items/water-bottle-icon-280.png",
-    inspectPath: "/ui/items/water-bottle-inspect-640.png",
+    iconPath: uiAssetUrl("items/water-bottle-icon-280.png"),
+    inspectPath: uiAssetUrl("items/water-bottle-inspect-640.png"),
   },
   R0005: {
-    iconPath: "/ui/items/emergency-ration-icon-280.png",
-    inspectPath: "/ui/items/emergency-ration-inspect-640.png",
+    iconPath: uiAssetUrl("items/emergency-ration-icon-280.png"),
+    inspectPath: uiAssetUrl("items/emergency-ration-inspect-640.png"),
   },
   R0006: {
-    iconPath: "/ui/items/alien-spore-icon-280.png",
-    inspectPath: "/ui/items/alien-spore-inspect-640.png",
+    iconPath: uiAssetUrl("items/alien-spore-icon-280.png"),
+    inspectPath: uiAssetUrl("items/alien-spore-inspect-640.png"),
   },
   R0007: {
-    iconPath: "/ui/items/battery-icon-280.png",
-    inspectPath: "/ui/items/battery-inspect-640.png",
+    iconPath: uiAssetUrl("items/battery-icon-280.png"),
+    inspectPath: uiAssetUrl("items/battery-inspect-640.png"),
   },
   R0009: {
-    iconPath: "/ui/items/metal-scrap-icon-280.png",
-    inspectPath: "/ui/items/metal-scrap-inspect-640.png",
+    iconPath: uiAssetUrl("items/metal-scrap-icon-280.png"),
+    inspectPath: uiAssetUrl("items/metal-scrap-inspect-640.png"),
   },
   R0010: {
-    iconPath: "/ui/items/synthetic-cloth-icon-280.png",
-    inspectPath: "/ui/items/synthetic-cloth-inspect-640.png",
+    iconPath: uiAssetUrl("items/synthetic-cloth-icon-280.png"),
+    inspectPath: uiAssetUrl("items/synthetic-cloth-inspect-640.png"),
   },
   R0012: {
-    iconPath: "/ui/items/alien-fruit-icon-280.png",
-    inspectPath: "/ui/items/alien-fruit-inspect-640.png",
+    iconPath: uiAssetUrl("items/alien-fruit-icon-280.png"),
+    inspectPath: uiAssetUrl("items/alien-fruit-inspect-640.png"),
   },
   R0013: {
-    iconPath: "/ui/items/communication-array-panel-icon-280.png",
-    inspectPath: "/ui/items/communication-array-panel-inspect-640.png",
+    iconPath: uiAssetUrl("items/communication-array-panel-icon-280.png"),
+    inspectPath: uiAssetUrl("items/communication-array-panel-inspect-640.png"),
   },
   R0014: {
-    iconPath: "/ui/items/quantum-transmitter-icon-280.png",
-    inspectPath: "/ui/items/quantum-transmitter-inspect-640.png",
+    iconPath: uiAssetUrl("items/quantum-transmitter-icon-280.png"),
+    inspectPath: uiAssetUrl("items/quantum-transmitter-inspect-640.png"),
   },
   R0015: {
-    iconPath: "/ui/items/calibration-component-icon-280.png",
-    inspectPath: "/ui/items/calibration-component-inspect-640.png",
+    iconPath: uiAssetUrl("items/calibration-component-icon-280.png"),
+    inspectPath: uiAssetUrl("items/calibration-component-inspect-640.png"),
   },
   R0016: {
-    iconPath: "/ui/items/mental-focus-stimulant-icon-280.png",
-    inspectPath: "/ui/items/mental-focus-stimulant-inspect-640.png",
+    iconPath: uiAssetUrl("items/mental-focus-stimulant-icon-280.png"),
+    inspectPath: uiAssetUrl("items/mental-focus-stimulant-inspect-640.png"),
   },
   R0017: {
-    iconPath: "/ui/items/invigorating-supply-drink-icon-280.png",
-    inspectPath: "/ui/items/invigorating-supply-drink-inspect-640.png",
+    iconPath: uiAssetUrl("items/invigorating-supply-drink-icon-280.png"),
+    inspectPath: uiAssetUrl("items/invigorating-supply-drink-inspect-640.png"),
   },
   T0001: {
-    iconPath: "/ui/items/utility-rope-icon-280.png",
-    inspectPath: "/ui/items/utility-rope-inspect-640.png",
+    iconPath: uiAssetUrl("items/utility-rope-icon-280.png"),
+    inspectPath: uiAssetUrl("items/utility-rope-inspect-640.png"),
   },
   T0003: {
-    iconPath: "/ui/items/repair-kit-icon-280.png",
-    inspectPath: "/ui/items/repair-kit-inspect-640.png",
+    iconPath: uiAssetUrl("items/repair-kit-icon-280.png"),
+    inspectPath: uiAssetUrl("items/repair-kit-inspect-640.png"),
   },
   T0005: {
-    iconPath: "/ui/items/medkit-icon-280.png",
-    inspectPath: "/ui/items/medkit-inspect-640.png",
+    iconPath: uiAssetUrl("items/medkit-icon-280.png"),
+    inspectPath: uiAssetUrl("items/medkit-inspect-640.png"),
   },
   T0006: {
-    iconPath: "/ui/items/lantern-icon-280.png",
-    inspectPath: "/ui/items/lantern-inspect-640.png",
+    iconPath: uiAssetUrl("items/lantern-icon-280.png"),
+    inspectPath: uiAssetUrl("items/lantern-inspect-640.png"),
   },
   T0007: {
-    iconPath: "/ui/items/welding-tool-icon-280.png",
-    inspectPath: "/ui/items/welding-tool-inspect-640.png",
+    iconPath: uiAssetUrl("items/welding-tool-icon-280.png"),
+    inspectPath: uiAssetUrl("items/welding-tool-inspect-640.png"),
   },
   T0008: {
-    iconPath: "/ui/items/digging-shovel-icon-280.png",
-    inspectPath: "/ui/items/digging-shovel-inspect-640.png",
+    iconPath: uiAssetUrl("items/digging-shovel-icon-280.png"),
+    inspectPath: uiAssetUrl("items/digging-shovel-inspect-640.png"),
   },
   T0009: {
-    iconPath: "/ui/items/multifunction-folding-knife-icon-280.png",
-    inspectPath: "/ui/items/multifunction-folding-knife-inspect-640.png",
+    iconPath: uiAssetUrl("items/multifunction-folding-knife-icon-280.png"),
+    inspectPath: uiAssetUrl("items/multifunction-folding-knife-inspect-640.png"),
   },
   T0010: {
-    iconPath: "/ui/items/sharp-metal-fragment-icon-280.png",
-    inspectPath: "/ui/items/sharp-metal-fragment-inspect-640.png",
+    iconPath: uiAssetUrl("items/sharp-metal-fragment-icon-280.png"),
+    inspectPath: uiAssetUrl("items/sharp-metal-fragment-inspect-640.png"),
   },
   Q0001: {
-    iconPath: "/ui/items/navigation-data-icon-280.png",
-    inspectPath: "/ui/items/navigation-data-inspect-640.png",
+    iconPath: uiAssetUrl("items/navigation-data-icon-280.png"),
+    inspectPath: uiAssetUrl("items/navigation-data-inspect-640.png"),
   },
   Q0002: {
-    iconPath: "/ui/items/memory-charm-icon-280.png",
-    inspectPath: "/ui/items/memory-charm-inspect-640.png",
+    iconPath: uiAssetUrl("items/memory-charm-icon-280.png"),
+    inspectPath: uiAssetUrl("items/memory-charm-inspect-640.png"),
   },
   Q0003: {
-    iconPath: "/ui/items/ancient-plate-icon-280.png",
-    inspectPath: "/ui/items/ancient-plate-inspect-640.png",
+    iconPath: uiAssetUrl("items/ancient-plate-icon-280.png"),
+    inspectPath: uiAssetUrl("items/ancient-plate-inspect-640.png"),
   },
   Q0004: {
-    iconPath: "/ui/items/ruin-key-icon-280.png",
-    inspectPath: "/ui/items/ruin-key-inspect-640.png",
+    iconPath: uiAssetUrl("items/ruin-key-icon-280.png"),
+    inspectPath: uiAssetUrl("items/ruin-key-inspect-640.png"),
   },
   M0001: {
-    iconPath: "/ui/items/time-crystal-icon-280.png",
-    inspectPath: "/ui/items/time-crystal-inspect-640.png",
+    iconPath: uiAssetUrl("items/time-crystal-icon-280.png"),
+    inspectPath: uiAssetUrl("items/time-crystal-inspect-640.png"),
   },
 };
 
@@ -16810,7 +16814,7 @@ export function MovementLab() {
           <div className="survival-game-over-blackout" aria-hidden="true" />
           <img
             className="survival-game-over-image"
-            src="/ui/gameover.png"
+            src={uiAssetUrl("gameover.png")}
             alt=""
             aria-hidden="true"
           />

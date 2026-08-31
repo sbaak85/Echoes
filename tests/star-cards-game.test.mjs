@@ -84,7 +84,7 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   const source = readFileSync(new URL("../app/star-cards-game.tsx", import.meta.url), "utf8");
   const movementLabSource = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
   const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(source, /\/ui\/star-cards\/card-back\.png/);
+  assert.match(source, /starCardsAssetUrl\("card-back\.png"\)/);
   assert.doesNotMatch(source, /star-card-secret/);
   assert.match(source, /star-card-back-point/);
   assert.match(source, /star-card-back-attribute/);
@@ -126,8 +126,8 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(movementLabSource, /<StarCardsGame onClose=\{closeStarCardsGame\}/);
   assert.match(source, /className="is-player-wins"/);
   assert.match(source, /className="is-ai-wins"/);
-  assert.match(source, /\/ui\/star-cards\/score-panel\.png/);
-  assert.match(source, /\/ui\/star-cards\/match-wins-panel\.png/);
+  assert.match(source, /starCardsAssetUrl\("score-panel\.png"\)/);
+  assert.match(source, /starCardsAssetUrl\("match-wins-panel\.png"\)/);
   assert.match(styles, /\.star-cards-match-wins/);
   assert.match(styles, /\.star-cards-game-banner/);
   assert.match(styles, /pointer-events: none;[\s\S]*animation: star-cards-game-banner-sweep 950ms linear both/);
@@ -138,7 +138,7 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /setPhase\("draw-ready"\)/);
   assert.match(source, /STAR_CARDS_MAX_GAMES = 5/);
   assert.match(source, /STAR_CARDS_WINS_TO_MATCH = 3/);
-  assert.match(source, /\/ui\/star-cards\/button-stack\.png/);
+  assert.match(source, /starCardsAssetUrl\("button-stack\.png"\)/);
   assert.match(styles, /\.star-cards-stack-status/);
   assert.match(source, /const PLAYER_HAND_X = \[33\.4, 50, 66\.6\]/);
   assert.match(source, /const PLAYER_HAND_BOTTOM = \[5\.9, 10\.6, 5\.9\]/);
@@ -162,7 +162,7 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(styles, /@keyframes star-cards-score-panel-bump/);
   assert.match(styles, /@keyframes star-cards-score-number-bump/);
   assert.doesNotMatch(source, /<b>BATTLE LOG<\/b>/);
-  assert.match(source, /\/ui\/star-cards\/type-advantage-panel\.png/);
+  assert.match(source, /starCardsAssetUrl\("type-advantage-panel\.png"\)/);
   assert.match(styles, /\.star-cards-advantage-panel/);
   assert.match(source, /data-gamepad-selected/);
   assert.match(source, /navigator\.getGamepads/);

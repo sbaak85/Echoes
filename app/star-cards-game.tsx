@@ -18,6 +18,7 @@ import {
   compareStarCards,
   getStarCardBattleScore,
   shuffleStarCardDeck,
+  starCardsAssetUrl,
   type StarCardDefinition,
   type StarCardLane,
 } from "./star-cards-game";
@@ -961,7 +962,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
               <img src={card.image} alt="" draggable={false} />
             </div>
             <div className="star-card-face star-card-back">
-              <img src="/ui/star-cards/card-back.png" alt="" draggable={false} />
+              <img src={starCardsAssetUrl("card-back.png")} alt="" draggable={false} />
               {options.owner === "player" && !hand ? (
                 <div
                   className={`star-card-back-hints is-${card.attribute}`}
@@ -992,7 +993,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
       >
         <img
           className="star-cards-background"
-          src="/ui/star-cards/card-bg-2.png"
+          src={starCardsAssetUrl("card-bg-2.png")}
           alt=""
           aria-hidden="true"
           draggable={false}
@@ -1023,7 +1024,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
           className={`star-cards-score${scorePulse ? ` is-scoring is-${scorePulse.owner}` : ""}`}
           aria-label={`本局比分：玩家 ${playerScore} 分，OWEN ${aiScore} 分`}
         >
-          <img src="/ui/star-cards/score-panel.png" alt="" aria-hidden="true" />
+          <img src={starCardsAssetUrl("score-panel.png")} alt="" aria-hidden="true" />
           <b className="is-player-score">{playerScore}</b>
           <b className="is-ai-score">{aiScore}</b>
         </div>
@@ -1032,7 +1033,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
           className="star-cards-match-wins"
           aria-label={`勝局：PLAYER ${playerGameWins}，OWEN ${aiGameWins}；目前第 ${currentGame} 局，最多 ${STAR_CARDS_MAX_GAMES} 局`}
         >
-          <img src="/ui/star-cards/match-wins-panel.png" alt="" aria-hidden="true" />
+          <img src={starCardsAssetUrl("match-wins-panel.png")} alt="" aria-hidden="true" />
           <b className="is-player-wins">{playerGameWins}</b>
           <b className="is-ai-wins">{aiGameWins}</b>
         </div>
@@ -1042,7 +1043,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
           aria-label="屬性剋制：護盾剋雷射、雷射剋飛彈、飛彈剋護盾"
         >
           <img
-            src="/ui/star-cards/type-advantage-panel.png"
+            src={starCardsAssetUrl("type-advantage-panel.png")}
             alt="護盾指向雷射、雷射指向飛彈、飛彈指向護盾的順時針互剋表"
             draggable={false}
           />
@@ -1173,7 +1174,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
             className="star-cards-stack-status"
             aria-label={`玩家牌庫：已抽 ${playerDrawnCount} 張，共 ${STAR_CARD_DECK.length} 張不重複牌`}
           >
-            <img src="/ui/star-cards/button-stack.png" alt="" aria-hidden="true" draggable={false} />
+            <img src={starCardsAssetUrl("button-stack.png")} alt="" aria-hidden="true" draggable={false} />
             <span aria-hidden="true">
               <b>{playerDrawnCount}</b><i>/</i><b>{STAR_CARD_DECK.length}</b>
             </span>
@@ -1189,7 +1190,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
             onClick={drawNextCard}
             aria-label="DRAW，抽一張牌"
           >
-            <img src="/ui/star-cards/button-draw.png" alt="" draggable={false} />
+            <img src={starCardsAssetUrl("button-draw.png")} alt="" draggable={false} />
           </button>
           <button
             type="button"
@@ -1206,7 +1207,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
             onClick={resolveBattle}
             aria-label="BATTLE，進行三路戰鬥"
           >
-            <img src="/ui/star-cards/button-battle.png" alt="" draggable={false} />
+            <img src={starCardsAssetUrl("button-battle.png")} alt="" draggable={false} />
           </button>
         </div>
 

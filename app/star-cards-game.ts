@@ -1,5 +1,11 @@
+import { resolveRuntimePublicAssetUrl } from "./public-asset-url.ts";
+
 export const STAR_CARDS_GAME_ID = "StarCards";
 export const STAR_CARDS_DEBUG_NUMBER = 4;
+
+export const starCardsAssetUrl = (fileName: string) => resolveRuntimePublicAssetUrl(
+  `ui/star-cards/${fileName}`,
+);
 
 export const STAR_CARD_LANES = ["A", "B", "C"] as const;
 
@@ -22,7 +28,7 @@ export const STAR_CARD_DECK: readonly StarCardDefinition[] = [
     points: 3,
     attribute: "missile",
     attributeLabel: "飛彈",
-    image: "/ui/star-cards/01-missile-corvette-3.png",
+    image: starCardsAssetUrl("01-missile-corvette-3.png"),
   },
   {
     id: "missile-corvette-2",
@@ -30,7 +36,7 @@ export const STAR_CARD_DECK: readonly StarCardDefinition[] = [
     points: 2,
     attribute: "missile",
     attributeLabel: "飛彈",
-    image: "/ui/star-cards/02-missile-corvette-2.png",
+    image: starCardsAssetUrl("02-missile-corvette-2.png"),
   },
   {
     id: "missile-scout-1",
@@ -38,7 +44,7 @@ export const STAR_CARD_DECK: readonly StarCardDefinition[] = [
     points: 1,
     attribute: "missile",
     attributeLabel: "飛彈",
-    image: "/ui/star-cards/03-missile-scout-1.png",
+    image: starCardsAssetUrl("03-missile-scout-1.png"),
   },
   {
     id: "shield-cruiser-2",
@@ -46,7 +52,7 @@ export const STAR_CARD_DECK: readonly StarCardDefinition[] = [
     points: 2,
     attribute: "shield",
     attributeLabel: "護盾",
-    image: "/ui/star-cards/04-shield-cruiser-2.png",
+    image: starCardsAssetUrl("04-shield-cruiser-2.png"),
   },
   {
     id: "shield-bastion-3",
@@ -54,7 +60,7 @@ export const STAR_CARD_DECK: readonly StarCardDefinition[] = [
     points: 3,
     attribute: "shield",
     attributeLabel: "護盾",
-    image: "/ui/star-cards/05-shield-bastion-3.png",
+    image: starCardsAssetUrl("05-shield-bastion-3.png"),
   },
   {
     id: "shield-cruiser-1",
@@ -62,7 +68,7 @@ export const STAR_CARD_DECK: readonly StarCardDefinition[] = [
     points: 1,
     attribute: "shield",
     attributeLabel: "護盾",
-    image: "/ui/star-cards/06-shield-cruiser-1.png",
+    image: starCardsAssetUrl("06-shield-cruiser-1.png"),
   },
   {
     id: "laser-frigate-1",
@@ -70,7 +76,7 @@ export const STAR_CARD_DECK: readonly StarCardDefinition[] = [
     points: 1,
     attribute: "laser",
     attributeLabel: "雷射",
-    image: "/ui/star-cards/07-laser-frigate-1.png",
+    image: starCardsAssetUrl("07-laser-frigate-1.png"),
   },
   {
     id: "laser-frigate-2",
@@ -78,7 +84,7 @@ export const STAR_CARD_DECK: readonly StarCardDefinition[] = [
     points: 2,
     attribute: "laser",
     attributeLabel: "雷射",
-    image: "/ui/star-cards/08-laser-frigate-2.png",
+    image: starCardsAssetUrl("08-laser-frigate-2.png"),
   },
   {
     id: "laser-frigate-3",
@@ -86,7 +92,7 @@ export const STAR_CARD_DECK: readonly StarCardDefinition[] = [
     points: 3,
     attribute: "laser",
     attributeLabel: "雷射",
-    image: "/ui/star-cards/09-laser-frigate-3.png",
+    image: starCardsAssetUrl("09-laser-frigate-3.png"),
   },
 ];
 

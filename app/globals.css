@@ -5273,7 +5273,9 @@ html.gamepad-cursor-active.dialogue-cursor-active .dialogue-box * {
   aspect-ratio: 2 / 1;
   margin: 4px 0 0;
   padding: 0;
-  background: url("/ui/frequency-calibration/current-band-frame.png") center / 100% 100% no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
   filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.36));
   text-align: center;
 }

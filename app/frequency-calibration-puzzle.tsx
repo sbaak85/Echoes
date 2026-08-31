@@ -31,6 +31,7 @@ import {
   type FrequencyCalibrationPuzzleConfig,
   type FrequencyCalibrationState,
 } from "./frequency-calibration-puzzle";
+import { resolveRuntimePublicAssetUrl } from "./public-asset-url";
 
 type FrequencyControlTarget = "coarse" | "fine" | "lock";
 
@@ -40,6 +41,10 @@ const FREQUENCY_COARSE_BAND_ANGLE = 360 / FREQUENCY_COARSE_BAND_COUNT;
 const FREQUENCY_DIAL_MINOR_TICKS_PER_BAND = 4;
 const FREQUENCY_DIAL_TICK_COUNT =
   FREQUENCY_COARSE_BAND_COUNT * FREQUENCY_DIAL_MINOR_TICKS_PER_BAND;
+
+const frequencyAssetUrl = (fileName: string) => resolveRuntimePublicAssetUrl(
+  `ui/frequency-calibration/${fileName}`,
+);
 
 function coarseBandToDialAngle(coarse: number) {
   return (coarse - FREQUENCY_COARSE_MIN) * FREQUENCY_COARSE_BAND_ANGLE;
@@ -660,7 +665,7 @@ export const FrequencyCalibrationPuzzle = forwardRef<
               })}
               <img
                 className="frequency-dial-knob"
-                src="/ui/frequency-calibration/coarse-dial-knob.png"
+                src={frequencyAssetUrl("coarse-dial-knob.png")}
                 alt=""
                 draggable={false}
               />
@@ -668,7 +673,12 @@ export const FrequencyCalibrationPuzzle = forwardRef<
                 className="frequency-dial-pointer"
               ><i /></span>
             </div>
-            <dl className="frequency-current-band">
+            <dl
+              className="frequency-current-band"
+              style={{
+                backgroundImage: `url("${frequencyAssetUrl("current-band-frame.png")}")`,
+              }}
+            >
               <dt>目前頻段</dt>
               <dd>{state.coarse}</dd>
             </dl>
@@ -702,13 +712,13 @@ export const FrequencyCalibrationPuzzle = forwardRef<
                 </span>
                 <img
                   className="frequency-fine-slider-track"
-                  src="/ui/frequency-calibration/fine-slider-rail-retro.png"
+                  src={frequencyAssetUrl("fine-slider-rail-retro.png")}
                   alt=""
                   draggable={false}
                 />
                 <img
                   className="frequency-fine-slider-thumb"
-                  src="/ui/frequency-calibration/fine-slider-lever-retro.png"
+                  src={frequencyAssetUrl("fine-slider-lever-retro.png")}
                   alt=""
                   draggable={false}
                   style={{ left: `${fineThumbProgress}%` }}
