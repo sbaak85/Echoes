@@ -9000,10 +9000,17 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 .star-card-shell.is-dragging {
   position: fixed;
   z-index: 260;
+  top: 0;
+  left: 0;
   bottom: auto;
   width: min(16.1vw, 28.6vh);
-  transform: translate(-50%, -50%) scale(1.035) rotate(-1.2deg);
+  transform:
+    translate3d(var(--drag-x, 0), var(--drag-y, 0), 0)
+    translate(-50%, -50%)
+    scale(1.035)
+    rotate(-1.2deg);
   filter: drop-shadow(0 22px 22px rgba(0, 0, 0, 0.58));
+  will-change: transform;
 }
 
 .star-card-hover,
@@ -9029,7 +9036,7 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 .star-card-inner {
   position: relative;
   transform-style: preserve-3d;
-  transition: transform 540ms cubic-bezier(0.22, 0.78, 0.22, 1);
+  transition: transform 300ms cubic-bezier(0.22, 0.78, 0.22, 1);
 }
 
 .star-card-inner.is-face-down { transform: rotateY(180deg); }
@@ -9128,11 +9135,11 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 }
 
 .star-card-shell.is-snapping {
-  animation: star-card-snap 560ms cubic-bezier(0.16, 0.9, 0.2, 1.28) both;
+  animation: star-card-snap 280ms cubic-bezier(0.16, 0.9, 0.2, 1.18) both;
 }
 
 .star-card-shell.is-snapping .star-card-inner.is-face-down {
-  animation: star-card-place-back 560ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: star-card-place-back 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .star-card-shell.is-held .star-card-hover,
@@ -9636,14 +9643,14 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 }
 
 @keyframes star-card-snap {
-  0% { opacity: 0.82; transform: translateX(-50%) translateY(34px) scale(0.88); }
-  65% { opacity: 1; transform: translateX(-50%) translateY(-7px) scale(1.025); }
+  0% { opacity: 1; transform: translateX(-50%) translateY(14px) scale(0.96); }
+  62% { opacity: 1; transform: translateX(-50%) translateY(-3px) scale(1.01); }
   100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 
 @keyframes star-card-place-back {
   0% { transform: rotateY(0deg); }
-  44% { transform: rotateY(92deg) scaleX(0.96); }
+  42% { transform: rotateY(92deg) scaleX(0.97); }
   100% { transform: rotateY(180deg); }
 }
 
@@ -9762,23 +9769,6 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 @media (max-aspect-ratio: 4 / 5) {
   .star-cards-status { max-width: 38%; }
   .star-cards-exit-hint { display: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .star-card-shell,
-  .star-card-hover,
-  .star-card-inner,
-  .star-card-back-hints,
-  .star-cards-lane::before,
-  .star-cards-lane::after,
-  .star-cards-battle-log,
-  .star-cards-battle-log li,
-  .star-cards-image-button,
-  .star-cards-image-button::before {
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 1ms !important;
-  }
 }
 
 @media (max-width: 760px) {

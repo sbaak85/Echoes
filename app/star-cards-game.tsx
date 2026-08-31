@@ -59,6 +59,13 @@ type DragState = {
   originalLane?: StarCardLane;
 };
 
+type DragPoint = {
+  x: number;
+  y: number;
+};
+
+type DropLaneBounds = Partial<Record<StarCardLane, DOMRectReadOnly>>;
+
 type LaneBattleEffect = {
   lane: StarCardLane;
   attribute: StarCardDefinition["attribute"];
@@ -88,6 +95,7 @@ const PLAYER_HAND_X = [33.4, 50, 66.6] as const;
 const PLAYER_HAND_BOTTOM = [5.9, 10.6, 5.9] as const;
 const STAR_CARDS_MAX_GAMES = 5;
 const STAR_CARDS_WINS_TO_MATCH = 3;
+const STAR_CARD_PLACE_FEEDBACK_MS = 320;
 
 function createOwnerDeck(owner: StarCardsOwner, gameNumber = 1) {
   return shuffleStarCardDeck().map((card) => ({
@@ -215,6 +223,12 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     B: null,
     C: null,
   });
+  const draggingRef = useRef<DragState | null>(null);
+  const dragElementRef = useRef<HTMLDivElement | null>(null);
+  const dragPointRef = useRef<DragPoint | null>(null);
+  const dropLaneBoundsRef = useRef<DropLaneBounds | null>(null);
+  const dragFrameRef = useRef<number | null>(null);
+  const hoveredLaneRef = useRef<StarCardLane | null>(null);
   const timersRef = useRef<number[]>([]);
 
   const schedule = useCallback((callback: () => void, delayMs: number) => {
@@ -242,9 +256,19 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     [aiPlaced, playerPlaced],
   );
 
-  const getDropLane = (x: number, y: number) => {
+  const measureDropLaneBounds = useCallback(() => {
+    const nextBounds: DropLaneBounds = {};
     for (const lane of STAR_CARD_LANES) {
-      const bounds = playerLaneRefs.current[lane]?.getBoundingClientRect();
+      const element = playerLaneRefs.current[lane];
+      if (element) nextBounds[lane] = element.getBoundingClientRect();
+    }
+    return nextBounds;
+  }, []);
+
+  const getDropLane = useCallback((x: number, y: number) => {
+    const laneBounds = dropLaneBoundsRef.current ?? measureDropLaneBounds();
+    for (const lane of STAR_CARD_LANES) {
+      const bounds = laneBounds[lane];
       if (
         bounds &&
         x >= bounds.left &&
@@ -256,7 +280,45 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
       }
     }
     return null;
-  };
+  }, [measureDropLaneBounds]);
+
+  const queueDragFrame = useCallback((point: DragPoint) => {
+    dragPointRef.current = point;
+    if (dragFrameRef.current !== null) return;
+    dragFrameRef.current = window.requestAnimationFrame(() => {
+      dragFrameRef.current = null;
+      const latestPoint = dragPointRef.current;
+      const dragElement = dragElementRef.current;
+      if (!latestPoint || !dragElement || !draggingRef.current) return;
+      dragElement.style.setProperty("--drag-x", `${latestPoint.x}px`);
+      dragElement.style.setProperty("--drag-y", `${latestPoint.y}px`);
+      const nextHoveredLane = getDropLane(latestPoint.x, latestPoint.y);
+      if (hoveredLaneRef.current !== nextHoveredLane) {
+        hoveredLaneRef.current = nextHoveredLane;
+        setHoveredLane(nextHoveredLane);
+      }
+    });
+  }, [getDropLane]);
+
+  const stopDragFrame = useCallback(() => {
+    if (dragFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragFrameRef.current);
+      dragFrameRef.current = null;
+    }
+  }, []);
+
+  const clearDragInteraction = useCallback(() => {
+    stopDragFrame();
+    draggingRef.current = null;
+    dragElementRef.current = null;
+    dragPointRef.current = null;
+    dropLaneBoundsRef.current = null;
+    hoveredLaneRef.current = null;
+    setDragging(null);
+    setHoveredLane(null);
+  }, [stopDragFrame]);
+
+  useEffect(() => () => stopDragFrame(), [stopDragFrame]);
 
   const revealInitialCards = useCallback(() => {
     setPhase("revealing");
@@ -302,7 +364,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
       setAnnouncement(
         `${handCard.card.points} 點・${handCard.card.attributeLabel} 已蓋牌放入 ${lane} 格`,
       );
-      schedule(() => setSnappingCardId(null), 620);
+      schedule(() => setSnappingCardId(null), STAR_CARD_PLACE_FEEDBACK_MS);
 
       if (phase === "initial-placement" && nextPlaced.length === 3) {
         revealInitialCards();
@@ -364,7 +426,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
       ]);
       setSnappingCardId(aiCard.id);
       setAnnouncement(`OWEN 已將本輪新牌蓋放到 ${lane} 格`);
-      schedule(() => setSnappingCardId(null), 620);
+      schedule(() => setSnappingCardId(null), STAR_CARD_PLACE_FEEDBACK_MS);
     }, 2000);
   }, [aiRemainingDeck, chooseAiLane, phase, playerDrawnCount, playerRemainingDeck, schedule]);
 
@@ -782,6 +844,22 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     event.currentTarget.setPointerCapture(event.pointerId);
     setNavigationMode("pointer");
     setHeldCardId(null);
+    const dragPoint = { x: event.clientX, y: event.clientY };
+    const nextDragging: DragState = {
+      cardId,
+      pointerId: event.pointerId,
+      x: dragPoint.x,
+      y: dragPoint.y,
+      source,
+      originalLane,
+    };
+    draggingRef.current = nextDragging;
+    dragElementRef.current = event.currentTarget;
+    dragPointRef.current = dragPoint;
+    dropLaneBoundsRef.current = measureDropLaneBounds();
+    hoveredLaneRef.current = null;
+    event.currentTarget.style.setProperty("--drag-x", `${dragPoint.x}px`);
+    event.currentTarget.style.setProperty("--drag-y", `${dragPoint.y}px`);
     if (source === "placed-draw") {
       setRepositioningCardId(cardId);
       setPhase("draw-placement");
@@ -790,75 +868,67 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
       ));
       setAnnouncement("本輪新牌已抽起並翻回正面，拖曳到新的格子");
     }
-    setDragging({
-      cardId,
-      pointerId: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-      source,
-      originalLane,
-    });
+    setDragging(nextDragging);
   };
 
   const moveDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragging || dragging.pointerId !== event.pointerId) return;
+    const activeDrag = draggingRef.current;
+    if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
     event.preventDefault();
-    setDragging((current) =>
-      current ? { ...current, x: event.clientX, y: event.clientY } : current,
-    );
-    setHoveredLane(getDropLane(event.clientX, event.clientY));
+    queueDragFrame({ x: event.clientX, y: event.clientY });
   };
 
   const finishDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragging || dragging.pointerId !== event.pointerId) return;
+    const activeDrag = draggingRef.current;
+    if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
     event.preventDefault();
+    stopDragFrame();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     const lane = getDropLane(event.clientX, event.clientY);
-    if (dragging.source === "placed-draw") {
+    if (activeDrag.source === "placed-draw") {
       const destinationCount = lane
         ? playerPlaced.filter(
-            (placed) => placed.lane === lane && placed.card.id !== dragging.cardId,
+            (placed) => placed.lane === lane && placed.card.id !== activeDrag.cardId,
           ).length
         : 3;
-      const destination = lane && destinationCount < 3 ? lane : dragging.originalLane;
+      const destination = lane && destinationCount < 3 ? lane : activeDrag.originalLane;
       if (destination) {
         setPlayerPlaced((cards) => cards.map((placed) =>
-          placed.card.id === dragging.cardId
+          placed.card.id === activeDrag.cardId
             ? { ...placed, lane: destination, faceDown: true }
             : placed,
         ));
-        setSnappingCardId(dragging.cardId);
+        setSnappingCardId(activeDrag.cardId);
         setPhase("draw-placed");
         setAnnouncement(
           lane && destination === lane
             ? `本輪新牌已重新蓋牌放入 ${lane} 格`
             : "該位置無法放牌，卡牌已回到原位",
         );
-        schedule(() => setSnappingCardId(null), 620);
+        schedule(() => setSnappingCardId(null), STAR_CARD_PLACE_FEEDBACK_MS);
       }
       setRepositioningCardId(null);
     } else if (lane) {
-      placeCard(dragging.cardId, lane);
+      placeCard(activeDrag.cardId, lane);
     } else {
       setAnnouncement("請將卡牌放開在 A／B／C 格內");
     }
-    setDragging(null);
-    setHoveredLane(null);
+    clearDragInteraction();
   };
 
   const cancelDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragging || dragging.pointerId !== event.pointerId) return;
-    if (dragging.source === "placed-draw") {
+    const activeDrag = draggingRef.current;
+    if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
+    if (activeDrag.source === "placed-draw") {
       setPlayerPlaced((cards) => cards.map((placed) =>
-        placed.card.id === dragging.cardId ? { ...placed, faceDown: true } : placed,
+        placed.card.id === activeDrag.cardId ? { ...placed, faceDown: true } : placed,
       ));
       setRepositioningCardId(null);
       setPhase("draw-placed");
     }
-    setDragging(null);
-    setHoveredLane(null);
+    clearDragInteraction();
   };
 
   const renderCard = (
@@ -898,7 +968,10 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     const dealX = 50 - handX;
     const aiDealX = options.laneIndex === 0 ? 23 : options.laneIndex === 2 ? -23 : 0;
     const style: StarCardStyle = isDragging
-      ? { left: dragging.x, top: dragging.y }
+      ? {
+          "--drag-x": `${dragging.x}px`,
+          "--drag-y": `${dragging.y}px`,
+        }
       : hand
         ? {
             "--hand-x": `${handX}%`,

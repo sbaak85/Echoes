@@ -168,7 +168,20 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /navigator\.getGamepads/);
   assert.match(styles, /@keyframes star-card-deal-player/);
   assert.match(styles, /@keyframes star-card-deal-ai/);
+  assert.match(styles, /@keyframes star-card-float/);
+  assert.match(styles, /@keyframes star-card-held-pulse/);
   assert.match(styles, /@keyframes star-card-place-back/);
+  assert.doesNotMatch(
+    styles,
+    /@media \(prefers-reduced-motion: reduce\) \{\s*\.star-card-shell/,
+  );
+  assert.match(source, /const STAR_CARD_PLACE_FEEDBACK_MS = 320/);
+  assert.match(source, /dropLaneBoundsRef\.current = measureDropLaneBounds\(\)/);
+  assert.match(source, /window\.requestAnimationFrame\(\(\) =>/);
+  assert.match(source, /queueDragFrame\(\{ x: event\.clientX, y: event\.clientY \}\)/);
+  assert.doesNotMatch(source, /setDragging\(\(current\)/);
+  assert.match(styles, /translate3d\(var\(--drag-x, 0\), var\(--drag-y, 0\), 0\)/);
+  assert.match(styles, /animation: star-card-snap 280ms/);
   assert.match(styles, /@keyframes star-cards-draw-line-scan/);
   assert.match(styles, /@keyframes star-card-destroy/);
   assert.match(styles, /@keyframes star-cards-shield-surge/);
