@@ -8869,8 +8869,25 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 .star-cards-lane[data-lane="A"] { left: 18.4%; }
 .star-cards-lane[data-lane="B"] { left: 40.8%; }
 .star-cards-lane[data-lane="C"] { left: 63.2%; }
-.star-cards-lane.is-ai-lane { top: 5.9%; height: 38.3%; }
-.star-cards-lane.is-player-lane { top: 52.4%; height: 41%; cursor: default; }
+.star-cards-lane.is-ai-lane {
+  --card-idle-x: 0px;
+  --opponent-card-idle-y: 3.13vh;
+  top: 5.9%;
+  height: 38.3%;
+}
+.star-cards-lane.is-ai-lane[data-lane="A"] { --card-idle-x: -0.3vw; }
+.star-cards-lane.is-ai-lane[data-lane="B"] { --card-idle-x: -0.5vw; }
+.star-cards-lane.is-ai-lane[data-lane="C"] { --card-idle-x: -0.3vw; }
+.star-cards-lane.is-player-lane {
+  --card-idle-x: 0px;
+  --player-card-idle-y: 1.3vh;
+  top: 52.4%;
+  height: 41%;
+  cursor: default;
+}
+.star-cards-lane.is-player-lane[data-lane="A"] { --card-idle-x: -3.7vw; }
+.star-cards-lane.is-player-lane[data-lane="B"] { --card-idle-x: -0.5vw; }
+.star-cards-lane.is-player-lane[data-lane="C"] { --card-idle-x: 2.4vw; }
 .star-cards-lane.is-drag-source { z-index: 255; }
 
 .star-cards-lane.is-player-lane::before {
@@ -8963,12 +8980,20 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   z-index: calc(20 + var(--stack-index));
   top: calc(var(--stack-index) * min(5.2vh, 3vw));
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(calc(-50% + var(--card-idle-x, 0px)));
+}
+
+.star-cards-lane.is-player-lane .star-card-shell.is-placed {
+  top: calc(
+    var(--stack-index) * min(5.2vh, 3vw) + var(--player-card-idle-y)
+  );
 }
 
 .star-cards-lane.is-ai-lane .star-card-shell.is-placed {
-  width: min(14.5vw, 25.8vh);
-  top: calc(var(--stack-index) * min(4.6vh, 2.6vw));
+  width: min(13.528vw, 24.03vh);
+  top: calc(
+    var(--stack-index) * min(4.6vh, 2.6vw) + var(--opponent-card-idle-y)
+  );
 }
 
 .star-card-shell.is-hand {
@@ -9011,6 +9036,13 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
     rotate(-1.2deg);
   filter: drop-shadow(0 22px 22px rgba(0, 0, 0, 0.58));
   will-change: transform;
+}
+
+.star-cards-lane.is-player-lane .star-card-shell.is-placed.is-dragging {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: auto;
 }
 
 .star-card-hover,
@@ -9058,7 +9090,7 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 }
 
 .star-card-back {
-  background: #100424;
+  background: transparent;
   transform: rotateY(180deg);
 }
 
@@ -9625,7 +9657,10 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
     transform: translate(calc(-50% + var(--deal-x)), 76vh) scale(0.22) rotateY(18deg);
   }
   62% { opacity: 1; }
-  100% { opacity: 1; transform: translateX(-50%) scale(1) rotateY(0); }
+  100% {
+    opacity: 1;
+    transform: translateX(calc(-50% + var(--card-idle-x, 0px))) scale(1) rotateY(0);
+  }
 }
 
 @keyframes star-card-draw-ai {
@@ -9643,9 +9678,18 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 }
 
 @keyframes star-card-snap {
-  0% { opacity: 1; transform: translateX(-50%) translateY(14px) scale(0.96); }
-  62% { opacity: 1; transform: translateX(-50%) translateY(-3px) scale(1.01); }
-  100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  0% {
+    opacity: 1;
+    transform: translateX(calc(-50% + var(--card-idle-x, 0px))) translateY(14px) scale(0.96);
+  }
+  62% {
+    opacity: 1;
+    transform: translateX(calc(-50% + var(--card-idle-x, 0px))) translateY(-3px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(calc(-50% + var(--card-idle-x, 0px))) translateY(0) scale(1);
+  }
 }
 
 @keyframes star-card-place-back {

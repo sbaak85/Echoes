@@ -91,6 +91,8 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /StarCardAttributeIcon/);
   assert.match(styles, /\.star-card-back-point/);
   assert.match(styles, /\.star-card-back-attribute/);
+  assert.match(styles, /\.star-card-back \{[^}]*background: transparent/);
+  assert.doesNotMatch(styles, /\.star-card-back \{[^}]*background: #100424/);
   assert.match(styles, /@keyframes star-card-back-hints-in/);
   assert.match(source, /setPhase\("initial-placement"\), 920/);
   assert.match(source, /setPhase\("revealing"\)/);
@@ -168,6 +170,10 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /navigator\.getGamepads/);
   assert.match(styles, /@keyframes star-card-deal-player/);
   assert.match(styles, /@keyframes star-card-deal-ai/);
+  assert.match(
+    styles,
+    /@keyframes star-card-deal-ai[\s\S]*100% \{[\s\S]*var\(--card-idle-x, 0px\)/,
+  );
   assert.match(styles, /@keyframes star-card-float/);
   assert.match(styles, /@keyframes star-card-held-pulse/);
   assert.match(styles, /@keyframes star-card-place-back/);
@@ -181,12 +187,25 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /queueDragFrame\(\{ x: event\.clientX, y: event\.clientY \}\)/);
   assert.doesNotMatch(source, /setDragging\(\(current\)/);
   assert.match(styles, /translate3d\(var\(--drag-x, 0\), var\(--drag-y, 0\), 0\)/);
+  assert.match(
+    styles,
+    /\.star-cards-lane\.is-player-lane \.star-card-shell\.is-placed\.is-dragging \{[^}]*position: fixed;[^}]*top: 0;[^}]*left: 0;[^}]*bottom: auto;/,
+  );
   assert.match(styles, /animation: star-card-snap 280ms/);
   assert.match(styles, /@keyframes star-cards-draw-line-scan/);
   assert.match(styles, /@keyframes star-card-destroy/);
   assert.match(styles, /@keyframes star-cards-shield-surge/);
   assert.match(styles, /@keyframes star-cards-log-line-in/);
-  assert.match(styles, /\.star-cards-lane\.is-ai-lane \{ top: 5\.9%; height: 38\.3%; \}/);
+  assert.match(styles, /--opponent-card-idle-y: 3\.13vh/);
+  assert.match(styles, /is-ai-lane\[data-lane="A"\] \{ --card-idle-x: -0\.3vw; \}/);
+  assert.match(styles, /is-ai-lane\[data-lane="B"\] \{ --card-idle-x: -0\.5vw; \}/);
+  assert.match(styles, /is-ai-lane\[data-lane="C"\] \{ --card-idle-x: -0\.3vw; \}/);
+  assert.match(styles, /--player-card-idle-y: 1\.3vh/);
+  assert.match(styles, /is-player-lane\[data-lane="A"\] \{ --card-idle-x: -3\.7vw; \}/);
+  assert.match(styles, /is-player-lane\[data-lane="B"\] \{ --card-idle-x: -0\.5vw; \}/);
+  assert.match(styles, /is-player-lane\[data-lane="C"\] \{ --card-idle-x: 2\.4vw; \}/);
+  assert.match(styles, /width: min\(13\.528vw, 24\.03vh\)/);
+  assert.match(styles, /translateX\(calc\(-50% \+ var\(--card-idle-x, 0px\)\)\)/);
   assert.match(styles, /aspect-ratio: 380 \/ 475/);
   assert.match(styles, /\.star-cards-dialog button:focus-visible[\s\S]*outline: none/);
 });
