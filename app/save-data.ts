@@ -108,6 +108,7 @@ export function normalizeEchoesSaveData(value: unknown): EchoesSaveData | null {
   const quest = progress.quest;
   if (!sceneId || !quest || quest.schemaVersion !== 1 || typeof quest.quests !== "object") return null;
   const survival = normalizeSurvivalState(progress.survival);
+  const legacyQuestName = String(candidate.summary.questName ?? "");
   return {
     format: SAVE_DATA_FORMAT,
     schemaVersion: SAVE_DATA_SCHEMA_VERSION,
@@ -118,7 +119,7 @@ export function normalizeEchoesSaveData(value: unknown): EchoesSaveData | null {
       chapterId: String(candidate.summary.chapterId ?? ""),
       chapterName: String(candidate.summary.chapterName ?? ""),
       questId: String(candidate.summary.questId ?? ""),
-      questName: String(candidate.summary.questName ?? ""),
+      questName: legacyQuestName === "自由活動" ? "Camping" : legacyQuestName,
       stageId: String(candidate.summary.stageId ?? ""),
       stageName: String(candidate.summary.stageName ?? ""),
     },

@@ -4730,7 +4730,7 @@
     {
       "id": "scene3-item-point-001",
       "label": "ItemPoint 1",
-      "itemId": "R0015",
+      "itemId": "R0016",
       "quantity": 1,
       "spawnPolicy": "once",
       "showOnMinimap": true,
@@ -4746,7 +4746,7 @@
       "id": "scene3-item-point-002",
       "label": "ItemPoint 2",
       "itemId": "R0009",
-      "quantity": 1,
+      "quantity": 2,
       "spawnPolicy": "once",
       "showOnMinimap": true,
       "spawnRequirement": {

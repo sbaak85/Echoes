@@ -419,7 +419,7 @@ test("成功拾取場上道具後集中播放 Pick.mp3", () => {
   assert.match(event.trigger, /不播放/);
 });
 
-test("採礦、拆面板與三種生存道具成功音效集中登記並綁定穩定 ID", async () => {
+test("採礦、拆面板與五種生存道具成功音效集中登記並綁定穩定 ID", async () => {
   const cases = [
     {
       eventName: "crystalMiningSucceeded",
@@ -451,6 +451,18 @@ test("採礦、拆面板與三種生存道具成功音效集中登記並綁定�
       publicSource: "./audio/eat-fruit.mp3",
       resolved: getSuccessfulItemUseAudioEvent("R0012"),
     },
+    {
+      eventName: "spiritFocusMedicineConsumed",
+      sourceAsset: "Assets/Audio/精神藥劑.mp3",
+      publicSource: "./audio/spirit-focus-medicine.mp3",
+      resolved: getSuccessfulItemUseAudioEvent("R0016"),
+    },
+    {
+      eventName: "energySupplyDrinkConsumed",
+      sourceAsset: "Assets/Audio/飲用提神飲料.mp3",
+      publicSource: "./audio/energy-supply-drink.mp3",
+      resolved: getSuccessfulItemUseAudioEvent("R0017"),
+    },
   ];
 
   for (const entry of cases) {
@@ -479,7 +491,7 @@ test("採礦、拆面板與三種生存道具成功音效集中登記並綁定�
   assert.equal(getSuccessfulItemUseAudioEvent("R9999"), null);
 });
 
-test("五種新音效只接在成功的互動與道具結算路徑", async () => {
+test("七種新音效只接在成功的互動與道具結算路徑", async () => {
   const source = await readFile(
     new URL("../app/movement-lab.tsx", import.meta.url),
     "utf8",
@@ -710,6 +722,112 @@ test("焊接火星以雙軌混音共同淡入淡出，總音量限制為八成",
     ),
   );
   files.forEach((file) => assert.ok(file.size > 0));
+});
+
+test("章節結束存檔確認視窗彈出時透過 AudioEventManager 單次播放提示音效", async () => {
+  const event = AUDIO_EVENT_CONFIG.chapterEndSavePromptOpened;
+  assert.deepEqual(event.sourceAssetPaths, ["Assets/Audio/存檔確認.mp3"]);
+  assert.deepEqual(event.sources, ["./audio/chapter-end-save-confirmation.mp3"]);
+  assert.equal(event.volume, 1);
+  assert.equal(event.delaySeconds, 0);
+  assert.equal(event.loop, undefined);
+  assert.match(event.trigger, /由關閉轉為開啟時播放一次/);
+  assert.match(event.trigger, /React 重繪期間不重複播放/);
+
+  const [sourceBytes, publicBytes, movementLabSource] = await Promise.all([
+    readFile(new URL("../Assets/Audio/存檔確認.mp3", import.meta.url)),
+    readFile(new URL("../public/audio/chapter-end-save-confirmation.mp3", import.meta.url)),
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.deepEqual(publicBytes, sourceBytes);
+  assert.match(
+    movementLabSource,
+    /const openChapter04SavePrompt = \(\) => \{[\s\S]*?const wasOpen = chapter04SavePromptOpenRef\.current;[\s\S]*?if \(!wasOpen\) playOneShotAudio\("chapterEndSavePromptOpened"\)/,
+  );
+  assert.equal(
+    (movementLabSource.match(/playOneShotAudio\("chapterEndSavePromptOpened"\)/g) ?? []).length,
+    1,
+  );
+});
+
+test("自然死亡模糊轉黑與 Game Over 插圖淡入分別播放指定音效", async () => {
+  const breathing = AUDIO_EVENT_CONFIG.deathImminentBreathing;
+  assert.deepEqual(breathing.sourceAssetPaths, ["Assets/Audio/呼吸急促1.mp3"]);
+  assert.deepEqual(breathing.sources, ["./audio/death-imminent-breathing-1.mp3"]);
+  assert.equal(breathing.volume, 1);
+  assert.equal(breathing.delaySeconds, 0);
+  assert.equal(breathing.loop, undefined);
+  assert.match(breathing.trigger, /最後 1 個遊戲分鐘/);
+  assert.match(breathing.trigger, /模糊並同步淡入黑幕/);
+
+  const gameOver = AUDIO_EVENT_CONFIG.gameOverImageRevealed;
+  assert.deepEqual(gameOver.sourceAssetPaths, ["Assets/Audio/Gameover1.mp3"]);
+  assert.deepEqual(gameOver.sources, ["./audio/game-over-1.mp3"]);
+  assert.equal(gameOver.volume, 1);
+  assert.equal(gameOver.delaySeconds, 0);
+  assert.equal(gameOver.loop, undefined);
+  assert.match(gameOver.trigger, /Gameover 插圖開始 1 秒 FadeIn/);
+
+  const bgmFade = BGM_CONTROL_RULES.find(
+    (rule) => rule.id === "survival-death-imminent-bgm-fadeout",
+  );
+  assert.ok(bgmFade);
+  assert.equal(bgmFade.triggerType, "event");
+  assert.equal(bgmFade.targetId, "survival-death-imminent");
+  assert.equal(bgmFade.state, "triggered");
+  assert.equal(bgmFade.action, "mute");
+  assert.equal(bgmFade.targetVolume, 0);
+  assert.equal(bgmFade.fadeOutSeconds, 2);
+  assert.equal(bgmFade.durationSeconds, 0);
+  assert.ok(
+    bgmFade.priority >
+      Math.max(...BGM_CONTROL_RULES.filter((rule) => rule !== bgmFade).map((rule) => rule.priority)),
+  );
+  const mutedPlan = resolveBgmControlPlan(
+    BGM_CONTROL_RULES,
+    (triggerType, targetId) =>
+      triggerType === "event" && targetId === "survival-death-imminent"
+        ? "triggered"
+        : null,
+  );
+  assert.equal(mutedPlan.volumeMultiplier, 0);
+  assert.equal(mutedPlan.fadeOutSeconds, 2);
+
+  const [
+    breathingSource,
+    breathingPublic,
+    gameOverSource,
+    gameOverPublic,
+    movementLabSource,
+  ] = await Promise.all([
+    readFile(new URL("../Assets/Audio/呼吸急促1.mp3", import.meta.url)),
+    readFile(new URL("../public/audio/death-imminent-breathing-1.mp3", import.meta.url)),
+    readFile(new URL("../Assets/Audio/Gameover1.mp3", import.meta.url)),
+    readFile(new URL("../public/audio/game-over-1.mp3", import.meta.url)),
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.deepEqual(breathingPublic, breathingSource);
+  assert.deepEqual(gameOverPublic, gameOverSource);
+  assert.match(
+    movementLabSource,
+    /deathWarningAudioReasonRef\.current === reason[\s\S]*triggerEvent\("survival-death-imminent"\)[\s\S]*playOneShotAudio\("deathImminentBreathing"\)/,
+  );
+  assert.match(
+    movementLabSource,
+    /!survivalState\.gameOverReason[\s\S]*clearEvent\("survival-death-imminent"\)/,
+  );
+  assert.match(
+    movementLabSource,
+    /gameOverAudioReasonRef\.current === reason[\s\S]*playOneShotAudio\("gameOverImageRevealed"\)/,
+  );
+  assert.equal(
+    (movementLabSource.match(/playOneShotAudio\("deathImminentBreathing"\)/g) ?? []).length,
+    1,
+  );
+  assert.equal(
+    (movementLabSource.match(/playOneShotAudio\("gameOverImageRevealed"\)/g) ?? []).length,
+    1,
+  );
 });
 
 test("焊接失敗紅底出現時透過 AudioEventManager 單次播放失敗音效", async () => {

@@ -124,6 +124,48 @@ export const AUDIO_EVENT_CONFIG = (
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
+    "chapterEndSavePromptOpened": {
+      "label": "章節結束存檔確認視窗展開",
+      "trigger": "chapter03-End 字幕淡出完成後，『要手動儲存目前的遊戲進度嗎？』確認視窗由關閉轉為開啟時播放一次；React 重繪期間不重複播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/存檔確認.mp3"
+      ],
+      "sources": [
+        "./audio/chapter-end-save-confirmation.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "deathImminentBreathing": {
+      "label": "自然死亡前急促呼吸",
+      "trigger": "任一自然死亡條件進入最後 1 個遊戲分鐘，死亡前畫面開始 RootShake、模糊並同步淡入黑幕的當下播放一次；React 重繪期間不重複播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/呼吸急促1.mp3"
+      ],
+      "sources": [
+        "./audio/death-imminent-breathing-1.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "gameOverImageRevealed": {
+      "label": "Game Over 插圖淡入",
+      "trigger": "自然死亡正式成立、畫面已維持全黑且 Gameover 插圖開始 1 秒 FadeIn 的當下播放一次；Game Over 介面重繪不重複播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/Gameover1.mp3"
+      ],
+      "sources": [
+        "./audio/game-over-1.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
     "uiInput": {
       "label": "介面輸入點擊",
       "trigger": "玩家點擊背包內的操作按鈕、道具頁籤、換頁箭頭、道具格或其右鍵選單；點擊快捷工具格或其右鍵選單；開啟／關閉背包或 Options 介面；以及新手教學每次有效換卡時播放。只要輸入成立就播放，不要求操作成功。任務提示、生存計量與小地圖的展開／收折改由 hudExpanded／hudCollapsed 管理。",
@@ -308,6 +350,34 @@ export const AUDIO_EVENT_CONFIG = (
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
+    "spiritFocusMedicineConsumed": {
+      "label": "成功使用精神專注劑",
+      "trigger": "玩家從背包或快捷工具列成功使用 R0016 精神專注劑，精神數值已恢復且道具已扣除後播放一次；無法使用或精神已滿時不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/精神藥劑.mp3"
+      ],
+      "sources": [
+        "./audio/spirit-focus-medicine.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "energySupplyDrinkConsumed": {
+      "label": "成功飲用提神補給飲料",
+      "trigger": "玩家從背包或快捷工具列成功使用 R0017 提神補給飲料，生存數值已恢復且道具已扣除後播放一次；無法使用或相關生存數值已滿時不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/飲用提神飲料.mp3"
+      ],
+      "sources": [
+        "./audio/energy-supply-drink.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
     "campPowerCrystalInserted": {
       "label": "營地電力灌入晶體成功",
       "trigger": "interaction-013 的灌入確認流程成功扣除一個藍色晶體碎片，且營地電力確實增加並寫入狀態後播放一次；取消、道具不足或電力已滿時不播放。",
@@ -331,7 +401,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/panel-open-2.mp3"
       ],
-      "volume": 0.8,
+      "volume": 0.7,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
@@ -443,7 +513,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/welding-preview-countdown.mp3"
       ],
-      "volume": 0.5,
+      "volume": 0.35,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
@@ -690,6 +760,21 @@ export const BGM_CONTROL_RULES = (
       "restoreMode": "resume"
     },
     {
+      "id": "survival-death-imminent-bgm-fadeout",
+      "label": "自然死亡前模糊轉黑：BGM 於 2 秒內淡出結束",
+      "enabled": true,
+      "triggerType": "event",
+      "targetId": "survival-death-imminent",
+      "state": "triggered",
+      "action": "mute",
+      "targetVolume": 0,
+      "fadeOutSeconds": 2,
+      "fadeInSeconds": 1,
+      "priority": 10000,
+      "durationSeconds": 0,
+      "restoreMode": "resume"
+    },
+    {
       "id": "minigame-bgm-change-1",
       "label": "電力分配：切換專用 BGM",
       "enabled": true,
@@ -745,6 +830,8 @@ const SUCCESSFUL_ITEM_USE_AUDIO_EVENT_BY_ITEM_ID = {
   R0004: "purifiedWaterConsumed",
   R0005: "emergencyRationConsumed",
   R0012: "alienFruitConsumed",
+  R0016: "spiritFocusMedicineConsumed",
+  R0017: "energySupplyDrinkConsumed",
 } as const satisfies Readonly<Record<string, AudioEventName>>;
 
 const SUCCESSFUL_INTERACTION_AUDIO_EVENT_BY_INTERACTION_ID = {

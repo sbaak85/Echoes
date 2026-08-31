@@ -16,11 +16,14 @@ import {
   getGameClock,
   getMealCurveRate,
   getSurvivalDisplayValue,
+  getSurvivalDeathWarning,
   getUnmetSurvivalRequirements,
   getSurvivalSpeedMultiplier,
   isInteractionLocked,
   recordInteractionUse,
   shouldShowLockedInteractionHint,
+  SURVIVAL_GAME_OVER_ZERO_MINUTES,
+  prepareDebugNaturalDeathFinalMoment,
 } from "../app/survival-manager.ts";
 
 test("生存計量 UI 一律無條件捨去小數", () => {
@@ -102,6 +105,52 @@ test("one real hour advances one game day and applies the approved natural drain
   assert.ok(Math.abs(result.values.hunger - 58) < 0.03);
   assert.ok(Math.abs(result.values.thirst - 52) < 0.01);
   assert.ok(Math.abs(result.values.spirit - 76) < 0.01);
+});
+
+test("自然死亡只要求單一生存值歸零並持續至各自期限", () => {
+  assert.deepEqual(SURVIVAL_GAME_OVER_ZERO_MINUTES, {
+    hunger: 5 * 24 * 60,
+    thirst: 3 * 24 * 60,
+    spirit: 10 * 24 * 60,
+  });
+
+  const initial = createInitialSurvivalState();
+  initial.values.thirst = 0;
+  const beforeThreshold = advanceSurvivalByGameMinutes(
+    initial,
+    SURVIVAL_GAME_OVER_ZERO_MINUTES.thirst - 1,
+  );
+  assert.equal(beforeThreshold.gameOverReason, null);
+
+  const atThreshold = advanceSurvivalByGameMinutes(beforeThreshold, 1);
+  assert.equal(atThreshold.gameOverReason, "thirst");
+  assert.ok(atThreshold.values.stamina > 0);
+  assert.ok(atThreshold.values.spirit > 0);
+});
+
+test("Dead Debug 指令停在口渴死亡門檻前最後一個遊戲分鐘", () => {
+  const prepared = prepareDebugNaturalDeathFinalMoment(
+    createInitialSurvivalState(),
+  );
+  assert.equal(prepared.gameOverReason, null);
+  assert.deepEqual(prepared.values, {
+    stamina: 100,
+    hunger: 100,
+    thirst: 0,
+    spirit: 100,
+  });
+  assert.equal(
+    prepared.zeroDurationMinutes.thirst,
+    SURVIVAL_GAME_OVER_ZERO_MINUTES.thirst - 1,
+  );
+  assert.deepEqual(getSurvivalDeathWarning(prepared), {
+    reason: "thirst",
+    remainingGameMinutes: 1,
+  });
+
+  const naturallyCompleted = advanceSurvivalByGameMinutes(prepared, 1);
+  assert.equal(naturallyCompleted.gameOverReason, "thirst");
+  assert.equal(getSurvivalDeathWarning(naturallyCompleted), null);
 });
 
 test("meal hills peak at 08:00, 12:00 and 18:00 and vanish outside one hour", () => {

@@ -23,5 +23,8 @@
     <Compile
       Include="..\AudioEventManager\BgmConfigEditorControl.cs"
       Link="BgmConfigEditorControl.cs" />
+    <Compile
+      Include="..\AudioEventManager\LineSeConfigEditorControl.cs"
+      Link="LineSeConfigEditorControl.cs" />
   </ItemGroup>
 </Project>

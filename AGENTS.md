@@ -16,6 +16,12 @@ Use `docs/daily-summaries` as the canonical repository-relative summary director
 
 Before creating, modifying, reviewing, or testing any browser-game UI with buttons, menus, inputs, sliders, modals, virtual cursors, keyboard navigation, or gamepad navigation, read and apply [`.codex/skills/browser-ui-focus-visuals/SKILL.md`](.codex/skills/browser-ui-focus-visuals/SKILL.md).
 
+## Item catalog synchronization skill
+
+Before adding, removing, renaming, reclassifying, or changing the ID of any game Item, read and apply [`.codex/skills/echoes-item-catalog-sync/SKILL.md`](.codex/skills/echoes-item-catalog-sync/SKILL.md).
+
+Treat `app/item-database.ts` as the source of truth, and update every editor or local tool that maintains an indexed Item catalog or Item selector.
+
 ## Handoff and summary requirement
 
 Every new daily or project handoff summary that includes UI work must state that the project UI skill above applies, and link to it. Mention any deliberate exception explicitly.

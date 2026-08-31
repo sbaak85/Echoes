@@ -285,3 +285,15 @@ test("runtime snapshot source never reads player coordinates or facing", async (
   assert.match(snapshotBuilder, /sceneId: SCENE_DATA\.sceneId/);
   assert.match(snapshotBuilder, /droppedWorldItems: droppedWorldItemsRef\.current/);
 });
+
+test("沒有任務的存檔標題統一顯示 Camping", async () => {
+  const source = await readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(source, /questName: quest\?\.name \?\? "Camping"/);
+  assert.match(source, /slot\.summary\?\.questName \|\| "Camping"/);
+  assert.doesNotMatch(source, /自由活動/);
+
+  const legacySave = createSave();
+  legacySave.summary.questId = "free-exploration";
+  legacySave.summary.questName = "自由活動";
+  assert.equal(normalizeEchoesSaveData(legacySave)?.summary.questName, "Camping");
+});

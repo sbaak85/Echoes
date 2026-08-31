@@ -134,7 +134,11 @@ import {
 import { FREQUENCY_CALIBRATION_COMPLETION_FLAG } from "./frequency-calibration-puzzle";
 import { WeldingRoutePuzzle } from "./welding-route-puzzle.tsx";
 import { StarCardsGame } from "./star-cards-game.tsx";
-import { isDebugGameCommand, parseDebugGameCommand } from "./debug-game-command";
+import {
+  isDebugDeathCommand,
+  isDebugGameCommand,
+  parseDebugGameCommand,
+} from "./debug-game-command";
 import {
   CAMP_POWER_CAPACITY,
   CAMP_POWER_DAILY_CONSUMPTION_QUEST_ID,
@@ -171,6 +175,7 @@ import {
   getInteractionCompletionElapsedMinutes,
   getInteractionCycle,
   getSurvivalDisplayValue,
+  getSurvivalDeathWarning,
   getTimePassTransitionHoldMs,
   getUnmetSurvivalRequirements,
   getSurvivalSpeedMultiplier,
@@ -182,6 +187,7 @@ import {
   saveInteractionUsageState,
   saveSurvivalState,
   shouldShowLockedInteractionHint,
+  prepareDebugNaturalDeathFinalMoment,
   type InteractionUsageState,
   type InteractionTimeEffects,
   type SurvivalEffects,
@@ -1668,6 +1674,141 @@ const INVENTORY_CATEGORIES: Array<{ id: InventoryCategory; label: string }> = [
   { id: "tool", label: "工具" },
   { id: "quest", label: "任務道具" },
 ];
+
+type InventoryItemArtworkPreview = {
+  iconPath: string;
+  inspectPath: string;
+};
+
+type InventoryItemInspectView = {
+  itemId: string;
+  itemName: string;
+  imagePath: string;
+  closing: boolean;
+};
+
+// Preview-only artwork overrides. The old framed PNG and the original symbol
+// renderer remain untouched, so removing an entry restores the previous UI.
+const INVENTORY_ITEM_ARTWORK_PREVIEWS: Readonly<
+  Record<string, InventoryItemArtworkPreview>
+> = {
+  R0001: {
+    iconPath: "/ui/items/crystal-shard-icon-280.png",
+    inspectPath: "/ui/items/crystal-shard-inspect-640.png",
+  },
+  R0002: {
+    iconPath: "/ui/items/metal-parts-icon-280.png",
+    inspectPath: "/ui/items/metal-parts-inspect-640.png",
+  },
+  R0003: {
+    iconPath: "/ui/items/fiber-bundle-icon-280.png",
+    inspectPath: "/ui/items/fiber-bundle-inspect-640.png",
+  },
+  R0004: {
+    iconPath: "/ui/items/water-bottle-icon-280.png",
+    inspectPath: "/ui/items/water-bottle-inspect-640.png",
+  },
+  R0005: {
+    iconPath: "/ui/items/emergency-ration-icon-280.png",
+    inspectPath: "/ui/items/emergency-ration-inspect-640.png",
+  },
+  R0006: {
+    iconPath: "/ui/items/alien-spore-icon-280.png",
+    inspectPath: "/ui/items/alien-spore-inspect-640.png",
+  },
+  R0007: {
+    iconPath: "/ui/items/battery-icon-280.png",
+    inspectPath: "/ui/items/battery-inspect-640.png",
+  },
+  R0009: {
+    iconPath: "/ui/items/metal-scrap-icon-280.png",
+    inspectPath: "/ui/items/metal-scrap-inspect-640.png",
+  },
+  R0010: {
+    iconPath: "/ui/items/synthetic-cloth-icon-280.png",
+    inspectPath: "/ui/items/synthetic-cloth-inspect-640.png",
+  },
+  R0012: {
+    iconPath: "/ui/items/alien-fruit-icon-280.png",
+    inspectPath: "/ui/items/alien-fruit-inspect-640.png",
+  },
+  R0013: {
+    iconPath: "/ui/items/communication-array-panel-icon-280.png",
+    inspectPath: "/ui/items/communication-array-panel-inspect-640.png",
+  },
+  R0014: {
+    iconPath: "/ui/items/quantum-transmitter-icon-280.png",
+    inspectPath: "/ui/items/quantum-transmitter-inspect-640.png",
+  },
+  R0015: {
+    iconPath: "/ui/items/calibration-component-icon-280.png",
+    inspectPath: "/ui/items/calibration-component-inspect-640.png",
+  },
+  R0016: {
+    iconPath: "/ui/items/mental-focus-stimulant-icon-280.png",
+    inspectPath: "/ui/items/mental-focus-stimulant-inspect-640.png",
+  },
+  R0017: {
+    iconPath: "/ui/items/invigorating-supply-drink-icon-280.png",
+    inspectPath: "/ui/items/invigorating-supply-drink-inspect-640.png",
+  },
+  T0001: {
+    iconPath: "/ui/items/utility-rope-icon-280.png",
+    inspectPath: "/ui/items/utility-rope-inspect-640.png",
+  },
+  T0003: {
+    iconPath: "/ui/items/repair-kit-icon-280.png",
+    inspectPath: "/ui/items/repair-kit-inspect-640.png",
+  },
+  T0005: {
+    iconPath: "/ui/items/medkit-icon-280.png",
+    inspectPath: "/ui/items/medkit-inspect-640.png",
+  },
+  T0006: {
+    iconPath: "/ui/items/lantern-icon-280.png",
+    inspectPath: "/ui/items/lantern-inspect-640.png",
+  },
+  T0007: {
+    iconPath: "/ui/items/welding-tool-icon-280.png",
+    inspectPath: "/ui/items/welding-tool-inspect-640.png",
+  },
+  T0008: {
+    iconPath: "/ui/items/digging-shovel-icon-280.png",
+    inspectPath: "/ui/items/digging-shovel-inspect-640.png",
+  },
+  T0009: {
+    iconPath: "/ui/items/multifunction-folding-knife-icon-280.png",
+    inspectPath: "/ui/items/multifunction-folding-knife-inspect-640.png",
+  },
+  T0010: {
+    iconPath: "/ui/items/sharp-metal-fragment-icon-280.png",
+    inspectPath: "/ui/items/sharp-metal-fragment-inspect-640.png",
+  },
+  Q0001: {
+    iconPath: "/ui/items/navigation-data-icon-280.png",
+    inspectPath: "/ui/items/navigation-data-inspect-640.png",
+  },
+  Q0002: {
+    iconPath: "/ui/items/memory-charm-icon-280.png",
+    inspectPath: "/ui/items/memory-charm-inspect-640.png",
+  },
+  Q0003: {
+    iconPath: "/ui/items/ancient-plate-icon-280.png",
+    inspectPath: "/ui/items/ancient-plate-inspect-640.png",
+  },
+  Q0004: {
+    iconPath: "/ui/items/ruin-key-icon-280.png",
+    inspectPath: "/ui/items/ruin-key-inspect-640.png",
+  },
+  M0001: {
+    iconPath: "/ui/items/time-crystal-icon-280.png",
+    inspectPath: "/ui/items/time-crystal-inspect-640.png",
+  },
+};
+
+function getInventoryItemArtworkPreview(itemId: string) {
+  return INVENTORY_ITEM_ARTWORK_PREVIEWS[itemId];
+}
 
 function getInventoryDisplayCategory(
   category: ItemCategory,
@@ -3241,6 +3382,8 @@ export function MovementLab() {
   const virtualCursorControlsEnabledRef = useRef(true);
   const questPromptInputModeRef = useRef<QuestPromptInputMode>("keyboard-mouse");
   const audioEventManagerRef = useRef<AudioEventManager | null>(null);
+  const deathWarningAudioReasonRef = useRef<string | null>(null);
+  const gameOverAudioReasonRef = useRef<string | null>(null);
   const bgmDirectorRef = useRef<BgmDirector | null>(null);
   const setWeldingSparkAudioActive = useCallback((active: boolean) => {
     audioEventManagerRef.current?.setWeldingSparksActive(active);
@@ -3278,6 +3421,8 @@ export function MovementLab() {
     () => false,
   );
   const inventoryOpenRef = useRef(false);
+  const inventoryItemInspectOpenRef = useRef(false);
+  const inventoryItemInspectCloseTimerRef = useRef<number | null>(null);
   const powerPuzzleOpenRef = useRef(false);
   const frequencyPuzzleOpenRef = useRef(false);
   const weldingPuzzleOpenRef = useRef(false);
@@ -3477,6 +3622,8 @@ export function MovementLab() {
   const [sceneConnectionConfirmationChoice, setSceneConnectionConfirmationChoice] =
     useState<"cancel" | "confirm">("cancel");
   const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [inventoryItemInspect, setInventoryItemInspect] =
+    useState<InventoryItemInspectView | null>(null);
   const [powerPuzzleOpen, setPowerPuzzleOpen] = useState(false);
   const [frequencyPuzzleOpen, setFrequencyPuzzleOpen] = useState(false);
   const [weldingPuzzleOpen, setWeldingPuzzleOpen] = useState(false);
@@ -5897,6 +6044,74 @@ export function MovementLab() {
     });
   };
 
+  const clearInventoryItemInspectImmediately = () => {
+    if (inventoryItemInspectCloseTimerRef.current !== null) {
+      window.clearTimeout(inventoryItemInspectCloseTimerRef.current);
+      inventoryItemInspectCloseTimerRef.current = null;
+    }
+    inventoryItemInspectOpenRef.current = false;
+    setInventoryItemInspect(null);
+  };
+
+  const openInventoryItemInspect = (
+    item: Pick<ItemDefinition, "id" | "name">,
+  ) => {
+    const artwork = getInventoryItemArtworkPreview(item.id);
+    if (!artwork) return;
+    if (inventoryItemInspectCloseTimerRef.current !== null) {
+      window.clearTimeout(inventoryItemInspectCloseTimerRef.current);
+      inventoryItemInspectCloseTimerRef.current = null;
+    }
+    inventoryItemInspectOpenRef.current = true;
+    setInventoryContextMenu(null);
+    setInventoryItemInspect({
+      itemId: item.id,
+      itemName: item.name,
+      imagePath: artwork.inspectPath,
+      closing: false,
+    });
+    playOneShotAudio("uiInput");
+  };
+
+  const closeInventoryItemInspect = () => {
+    if (
+      !inventoryItemInspectOpenRef.current ||
+      inventoryItemInspectCloseTimerRef.current !== null
+    ) {
+      return;
+    }
+    playOneShotAudio("uiInput");
+    setInventoryItemInspect((current) =>
+      current ? { ...current, closing: true } : current,
+    );
+    inventoryItemInspectCloseTimerRef.current = window.setTimeout(() => {
+      inventoryItemInspectCloseTimerRef.current = null;
+      inventoryItemInspectOpenRef.current = false;
+      setInventoryItemInspect(null);
+    }, 200);
+  };
+
+  useEffect(() => {
+    if (inventoryOpen) return;
+    if (inventoryItemInspectCloseTimerRef.current !== null) {
+      window.clearTimeout(inventoryItemInspectCloseTimerRef.current);
+      inventoryItemInspectCloseTimerRef.current = null;
+    }
+    inventoryItemInspectOpenRef.current = false;
+    setInventoryItemInspect(null);
+    // The inspect layer belongs to the inventory and must not survive a
+    // story/minigame transition that closes its parent panel directly.
+  }, [inventoryOpen]);
+
+  useEffect(
+    () => () => {
+      if (inventoryItemInspectCloseTimerRef.current !== null) {
+        window.clearTimeout(inventoryItemInspectCloseTimerRef.current);
+      }
+    },
+    [],
+  );
+
   const stopFrequencyFineTuningAudio = (reset = false) => {
     if (frequencyFineAudioFrameRef.current !== null) {
       window.cancelAnimationFrame(frequencyFineAudioFrameRef.current);
@@ -6556,7 +6771,7 @@ export function MovementLab() {
           ? CHAPTER04_NAME
           : chapter?.name ?? `第 ${storyProgress.currentChapter} 章`,
         questId: quest?.id ?? "free-exploration",
-        questName: quest?.name ?? "自由活動",
+        questName: quest?.name ?? "Camping",
         stageId: stage?.id ?? "",
         stageName: stage?.name ?? "",
       },
@@ -6617,6 +6832,13 @@ export function MovementLab() {
   const setChapter04SavePromptChoiceValue = (choice: Chapter04SaveChoice) => {
     chapter04SavePromptChoiceRef.current = choice;
     setChapter04SavePromptChoice(choice);
+  };
+
+  const openChapter04SavePrompt = () => {
+    const wasOpen = chapter04SavePromptOpenRef.current;
+    chapter04SavePromptOpenRef.current = true;
+    setChapter04SavePromptOpen(true);
+    if (!wasOpen) playOneShotAudio("chapterEndSavePromptOpened");
   };
 
   const getPendingChapter04StoryProgress = () =>
@@ -6704,7 +6926,6 @@ export function MovementLab() {
       return Promise.resolve();
     }
     chapter04SaveCheckpointFlowIdRef.current = flowId;
-    chapter04SavePromptOpenRef.current = true;
     chapter04SavePromptGamepadModeRef.current = "dpad";
     chapter04SavePromptCursorRearmRequiredRef.current = false;
     chapter04ManualSaveActiveRef.current = false;
@@ -6712,7 +6933,7 @@ export function MovementLab() {
     chapter04TransitionBusyRef.current = false;
     setChapter04TransitionBusy(false);
     setChapter04TransitionStatus("");
-    setChapter04SavePromptOpen(true);
+    openChapter04SavePrompt();
     return new Promise<void>((resolve) => {
       chapter04SaveCheckpointResolveRef.current = resolve;
     });
@@ -6924,11 +7145,10 @@ export function MovementLab() {
         });
     }
     if (returnToChapter04Prompt) {
-      chapter04SavePromptOpenRef.current = true;
       chapter04SavePromptGamepadModeRef.current = "dpad";
       setChapter04SavePromptChoiceValue("manual");
       setChapter04TransitionStatus("尚未完成存檔，請選擇一種儲存方式。 ");
-      setChapter04SavePromptOpen(true);
+      openChapter04SavePrompt();
     }
   };
 
@@ -6997,6 +7217,7 @@ export function MovementLab() {
     const wasOpen = inventoryOpenRef.current;
     inventoryOpenRef.current = open;
     if (!open) {
+      clearInventoryItemInspectImmediately();
       const pendingDrag = pendingInventoryDragRef.current;
       if (pendingDrag?.timerId !== null && pendingDrag?.timerId !== undefined) {
         window.clearTimeout(pendingDrag.timerId);
@@ -8607,6 +8828,7 @@ export function MovementLab() {
       timePassInputLockedRef.current ||
       optionsOpenRef.current ||
       inventoryOpenRef.current ||
+      inventoryItemInspectOpenRef.current ||
       dialoguePlaybackRef.current ||
       debugItemSpawnerOpenRef.current ||
       restartConfirmationOpenRef.current ||
@@ -8627,6 +8849,7 @@ export function MovementLab() {
       !storyFlowActiveRef.current &&
       !optionsOpenRef.current &&
       !inventoryOpenRef.current &&
+      !inventoryItemInspectOpenRef.current &&
       !dialoguePlaybackRef.current &&
       !debugItemSpawnerOpenRef.current &&
       !restartConfirmationOpenRef.current &&
@@ -8660,6 +8883,29 @@ export function MovementLab() {
       }
       activeInputMode = "keyboard-mouse";
       activateQuestPromptInputMode("keyboard-mouse");
+      if (survivalStateRef.current.gameOverReason) {
+        event.preventDefault();
+        if (
+          (event.code === "Enter" || event.code === "Space") &&
+          !event.repeat
+        ) {
+          restartSurvivalTest();
+        }
+        return;
+      }
+      if (inventoryItemInspectOpenRef.current) {
+        event.preventDefault();
+        if (
+          !event.repeat &&
+          (key === "escape" ||
+            key === "enter" ||
+            key === " " ||
+            key === keyboardInteractionKey)
+        ) {
+          closeInventoryItemInspect();
+        }
+        return;
+      }
       if (
         timePassInputLockedRef.current &&
         !chapter04SavePromptOpenRef.current &&
@@ -9061,6 +9307,20 @@ export function MovementLab() {
     };
 
     debugItemSpawnHandlerRef.current = (command: string) => {
+      if (isDebugDeathCommand(command)) {
+        const nextSurvival = prepareDebugNaturalDeathFinalMoment(
+          survivalStateRef.current,
+          "thirst",
+        );
+        survivalStateRef.current = nextSurvival;
+        setSurvivalState(nextSurvival);
+        saveSurvivalState(nextSurvival);
+        showInteractionItemFeedback(
+          "Debug：口渴死亡門檻剩最後 1 遊戲分鐘",
+        );
+        return true;
+      }
+
       const questCommand = parseQuestDebugCommand(command);
       if (questCommand) {
         // Scenario fast-forward runs in an isolated debug state. It must never
@@ -9325,7 +9585,7 @@ export function MovementLab() {
       }
 
       if (isDebugGameCommand(command)) {
-        showInteractionItemFeedback("格式錯誤 · 請輸入：Game 1、Game 2 或 Game 3");
+        showInteractionItemFeedback("格式錯誤 · 請輸入：Game 1、Game 2、Game 3 或 Game 4");
         return false;
       }
 
@@ -10829,7 +11089,7 @@ export function MovementLab() {
       }
 
       return element.closest(
-        ".new-player-tutorial-overlay, .inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .dialogue-box, .quest-hud",
+        ".new-player-tutorial-overlay, .inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .survival-game-over, .dialogue-box, .quest-hud",
       )
         ? "blocked"
         : "none";
@@ -12759,6 +13019,7 @@ export function MovementLab() {
       if (
         startJustPressed &&
         !timePassInputLockedRef.current &&
+        !inventoryItemInspectOpenRef.current &&
         !powerPuzzleOpenRef.current &&
         !starCardsOpenRef.current &&
         !itemUseConfirmationOpenRef.current &&
@@ -12814,6 +13075,8 @@ export function MovementLab() {
         gamepadInput.rightTriggerPressed &&
         !wasGamepadRightTriggerPressed;
       let chapter04SavePromptMenuOpen = chapter04SavePromptOpenRef.current;
+      const inventoryItemInspectMenuOpen =
+        inventoryItemInspectOpenRef.current;
       let itemUseConfirmationMenuOpen = itemUseConfirmationOpenRef.current;
       let sceneConnectionConfirmationMenuOpen =
         sceneConnectionConfirmationOpenRef.current;
@@ -12824,6 +13087,8 @@ export function MovementLab() {
       const newPlayerTutorialMenuOpen = newPlayerTutorialOpenRef.current;
       if (chapter04SavePromptMenuOpen && backJustPressed) {
         playOneShotAudio("uiInput");
+      } else if (inventoryItemInspectMenuOpen && backJustPressed) {
+        closeInventoryItemInspect();
       } else if (itemUseConfirmationMenuOpen && backJustPressed) {
         playOneShotAudio("uiInput");
         closeItemUseConfirmation();
@@ -12886,7 +13151,20 @@ export function MovementLab() {
         gamepadDpadXRepeatSeconds = 0;
         gamepadDpadYRepeatSeconds = 0;
       }
-      if (chapter04SavePromptMenuOpen) {
+      if (inventoryItemInspectMenuOpen) {
+        gameplayHotbarDpadX = 0;
+        heldGamepadDpadX = 0;
+        heldGamepadDpadY = 0;
+        gamepadDpadXRepeatSeconds = 0;
+        gamepadDpadYRepeatSeconds = 0;
+        if (
+          gamepadInput.connected &&
+          gamepadInput.confirmPressed &&
+          !wasGamepadConfirmPressed
+        ) {
+          closeInventoryItemInspect();
+        }
+      } else if (chapter04SavePromptMenuOpen) {
         gameplayHotbarDpadX = 0;
         const horizontalInput =
           Math.abs(gamepadInput.dpadX) > 0
@@ -13394,6 +13672,13 @@ export function MovementLab() {
         }
 
         if (
+          survivalStateRef.current.gameOverReason &&
+          gamepadInput.connected &&
+          gamepadInput.actionPressed &&
+          !wasGamepadActionPressed
+        ) {
+          restartSurvivalTest();
+        } else if (
           !startJustPressed &&
           !timePassInputLockedRef.current &&
           gamepadInput.connected &&
@@ -14624,6 +14909,34 @@ export function MovementLab() {
   const activeNewPlayerTutorialStep = newPlayerTutorialStep
     ? getNewPlayerTutorialStep(newPlayerTutorialStep)
     : null;
+  const survivalDeathWarning = getSurvivalDeathWarning(survivalState);
+  useEffect(() => {
+    const reason = survivalDeathWarning?.reason ?? null;
+    if (!reason) {
+      if (!survivalState.gameOverReason) {
+        deathWarningAudioReasonRef.current = null;
+        bgmDirectorRef.current?.clearEvent("survival-death-imminent");
+      }
+      return;
+    }
+    if (deathWarningAudioReasonRef.current === reason) return;
+    deathWarningAudioReasonRef.current = reason;
+    bgmDirectorRef.current?.triggerEvent("survival-death-imminent");
+    playOneShotAudio("deathImminentBreathing");
+  }, [survivalDeathWarning?.reason, survivalState.gameOverReason]);
+
+  useEffect(() => {
+    const reason = survivalState.gameOverReason;
+    if (!reason) {
+      gameOverAudioReasonRef.current = null;
+      return;
+    }
+    if (gameOverAudioReasonRef.current === reason) return;
+    gameOverAudioReasonRef.current = reason;
+    bgmDirectorRef.current?.triggerEvent("survival-death-imminent");
+    playOneShotAudio("gameOverImageRevealed");
+  }, [survivalState.gameOverReason]);
+
   const mobileInteractionButtonTarget =
     mobileInteractionTarget ?? mobileSceneConnectionTarget;
   const dayNightStyle = getDayNightCssVariables(
@@ -14672,7 +14985,7 @@ export function MovementLab() {
       />
       <main
         ref={gameShellRef}
-        className={`game-shell${stageFullscreen ? " is-fullscreen" : ""}${storyFlowActive ? " is-story-flow" : ""}${storyFlowPaused ? " is-story-flow-paused" : ""}${storyInputLocked ? " is-story-input-locked" : ""}${newPlayerTutorialStep ? " is-new-player-tutorial" : ""}`}
+        className={`game-shell${stageFullscreen ? " is-fullscreen" : ""}${storyFlowActive ? " is-story-flow" : ""}${storyFlowPaused ? " is-story-flow-paused" : ""}${storyInputLocked ? " is-story-input-locked" : ""}${newPlayerTutorialStep ? " is-new-player-tutorial" : ""}${survivalDeathWarning ? " is-death-imminent" : ""}`}
         onClickCapture={handleGameShellClickCapture}
         onPointerDownCapture={handleStoryPointerDownCapture}
         onPointerUpCapture={handleStoryPointerUpCapture}
@@ -14832,7 +15145,7 @@ export function MovementLab() {
                 }, 0);
               }
             }}
-            placeholder="Quest Stage Next／Quest Next／Quest Goto 5 Stage 3／Game 3／Item All"
+            placeholder="Dead／Quest Stage Next／Quest Next／Quest Goto 5 Stage 3／Game 4／Item All"
             aria-label="輸入 Debug 指令"
             autoComplete="off"
             spellCheck={false}
@@ -15314,7 +15627,15 @@ export function MovementLab() {
                 {selectedInventoryItem ? (
                   <>
                     <div className="inventory-feature-art">
-                      <span aria-hidden="true">{selectedInventoryItem.symbol}</span>
+                      <span aria-hidden="true">
+                        {getInventoryItemArtworkPreview(selectedInventoryItem.id) ? (
+                          <img
+                            src={getInventoryItemArtworkPreview(selectedInventoryItem.id)!.inspectPath}
+                            alt=""
+                            draggable={false}
+                          />
+                        ) : selectedInventoryItem.symbol}
+                      </span>
                     </div>
                     <section className="inventory-selected-copy">
                       <h3>{selectedInventoryItem.name}</h3>
@@ -15327,7 +15648,18 @@ export function MovementLab() {
                     </section>
                     <div className="inventory-selected-actions">
                       <button type="button" onClick={() => activateInventoryItem(selectedInventoryStack?.databaseIndex ?? selectedInventoryIndex)}>使用</button>
-                      <button type="button">查看</button>
+                      <button
+                        type="button"
+                        disabled={!getInventoryItemArtworkPreview(selectedInventoryItem.id)}
+                        title={
+                          getInventoryItemArtworkPreview(selectedInventoryItem.id)
+                            ? `查看${selectedInventoryItem.name}大圖`
+                            : "此道具目前沒有查看大圖"
+                        }
+                        onClick={() => openInventoryItemInspect(selectedInventoryItem)}
+                      >
+                        查看
+                      </button>
                       <button type="button">標記</button>
                       <button
                         className="is-danger"
@@ -15404,7 +15736,15 @@ export function MovementLab() {
                       }}
                     >
                       <span className="inventory-item-kind" aria-hidden="true">{getInventoryCategoryPresentation(item.category).symbol}</span>
-                      <span className="inventory-item-icon" aria-hidden="true">{item.symbol}</span>
+                      <span className="inventory-item-icon" aria-hidden="true">
+                        {getInventoryItemArtworkPreview(item.id) ? (
+                          <img
+                            src={getInventoryItemArtworkPreview(item.id)!.iconPath}
+                            alt=""
+                            draggable={false}
+                          />
+                        ) : item.symbol}
+                      </span>
                       <strong>{item.name}</strong>
                       <small>×{item.count}</small>
                     </button>
@@ -15426,13 +15766,36 @@ export function MovementLab() {
         </div>
       ) : null}
 
+      {inventoryItemInspect ? (
+        <button
+          className={`inventory-item-inspect-overlay${inventoryItemInspect.closing ? " is-closing" : ""}`}
+          type="button"
+          aria-label={`關閉${inventoryItemInspect.itemName}查看大圖`}
+          onClick={closeInventoryItemInspect}
+        >
+          <img
+            src={inventoryItemInspect.imagePath}
+            alt={`${inventoryItemInspect.itemName}查看大圖`}
+            draggable={false}
+          />
+        </button>
+      ) : null}
+
       {inventoryDrag && draggedInventoryItem ? (
         <div
           className="inventory-drag-ghost"
           style={{ left: inventoryDrag.x, top: inventoryDrag.y }}
           aria-hidden="true"
         >
-          <span>{draggedInventoryItem.symbol}</span>
+          <span>
+            {getInventoryItemArtworkPreview(draggedInventoryItem.id) ? (
+              <img
+                src={getInventoryItemArtworkPreview(draggedInventoryItem.id)!.iconPath}
+                alt=""
+                draggable={false}
+              />
+            ) : draggedInventoryItem.symbol}
+          </span>
           <strong>{draggedInventoryItem.name}</strong>
           <small>拖曳至快捷格</small>
         </div>
@@ -15453,7 +15816,16 @@ export function MovementLab() {
           >
             使用
           </button>
-          <button type="button" onClick={() => showUnavailableInventoryAction("查看")}>查看</button>
+          <button
+            type="button"
+            disabled={!contextInventoryItem || !getInventoryItemArtworkPreview(contextInventoryItem.id)}
+            onClick={() => {
+              if (contextInventoryItem) openInventoryItemInspect(contextInventoryItem);
+              else showUnavailableInventoryAction("查看");
+            }}
+          >
+            查看
+          </button>
           <button type="button" onClick={() => showUnavailableInventoryAction("標記")}>標記</button>
           <button
             className="is-danger"
@@ -15921,7 +16293,7 @@ export function MovementLab() {
                               {slot?.corrupted
                                 ? "存檔損毀／版本不相容"
                                 : slot?.exists
-                                  ? `${slot.summary?.chapterName || "未知章節"} · ${slot.summary?.questName || "自由活動"}`
+                                  ? `${slot.summary?.chapterName || "未知章節"} · ${slot.summary?.questName || "Camping"}`
                                   : isAuto ? "尚無自動存檔" : "空存檔"}
                             </strong>
                             <small>
@@ -16424,18 +16796,43 @@ export function MovementLab() {
         </button>
       ) : null}
 
+      {survivalDeathWarning ? (
+        <div className="survival-death-warning-blackout" aria-hidden="true" />
+      ) : null}
+
       {survivalState.gameOverReason ? (
-        <section className="survival-game-over" role="alertdialog" aria-modal="true" aria-label="遊戲結束">
-          <small>SURVIVAL FAILURE</small>
-          <h2>GAME OVER</h2>
-          <p>
-            {{
-              hunger: "角色已連續五個遊戲日處於飢餓歸零狀態。",
-              thirst: "角色已連續三個遊戲日處於口渴歸零狀態。",
-              spirit: "角色已連續十個遊戲日處於精神歸零狀態。",
-            }[survivalState.gameOverReason]}
-          </p>
-          <button type="button" onClick={restartSurvivalTest}>重新開始生存測試</button>
+        <section
+          className="survival-game-over"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="survival-game-over-title"
+        >
+          <div className="survival-game-over-blackout" aria-hidden="true" />
+          <img
+            className="survival-game-over-image"
+            src="/ui/gameover.png"
+            alt=""
+            aria-hidden="true"
+          />
+          <div className="survival-game-over-interference" aria-hidden="true" />
+          <div className="survival-game-over-copy">
+            <h2
+              id="survival-game-over-title"
+              data-text="GAME OVER"
+              aria-label="GAME OVER"
+            >
+              GAME OVER
+            </h2>
+            <p>生命跡象中止</p>
+            <small>SIGNAL LOST</small>
+            <button
+              type="button"
+              data-gamepad-selected="true"
+              onClick={restartSurvivalTest}
+            >
+              重新開始冒險旅程
+            </button>
+          </div>
         </section>
       ) : null}
 

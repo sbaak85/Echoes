@@ -50,13 +50,102 @@ function Test-GameReady {
             -UseBasicParsing `
             -TimeoutSec 2
 
-        return `
-            $response.StatusCode -ge 200 -and `
-            $response.StatusCode -lt 500 -and `
-            $response.Content -match "Echoes Beyond the Stars"
+        if (
+            $response.StatusCode -lt 200 -or
+            $response.StatusCode -ge 400 -or
+            $response.Content -notmatch "Echoes Beyond the Stars"
+        ) {
+            return $false
+        }
+
+        # Receiving server-rendered HTML is not enough: when the Vite process
+        # crashes or a stale production server remains on port 3000, the page
+        # can still contain the game title while every CSS/JS request fails.
+        # Verify the referenced client entry points before opening the browser.
+        $assetPaths = @()
+        foreach ($match in [regex]::Matches(
+            $response.Content,
+            '<script[^>]*\bsrc=["'']([^"'']+)["'']',
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+        )) {
+            $assetPaths += $match.Groups[1].Value
+        }
+        foreach ($match in [regex]::Matches(
+            $response.Content,
+            '<link[^>]*\brel=["''][^"'']*stylesheet[^"'']*["''][^>]*\bhref=["'']([^"'']+)["'']|<link[^>]*\bhref=["'']([^"'']+)["''][^>]*\brel=["''][^"'']*stylesheet[^"'']*["'']',
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+        )) {
+            $assetPath = if ($match.Groups[1].Success) {
+                $match.Groups[1].Value
+            }
+            else {
+                $match.Groups[2].Value
+            }
+            $assetPaths += $assetPath
+        }
+
+        $assetPaths = @($assetPaths | Where-Object {
+            -not [string]::IsNullOrWhiteSpace($_) -and
+            -not $_.StartsWith("data:", [System.StringComparison]::OrdinalIgnoreCase)
+        } | Select-Object -Unique)
+        if ($assetPaths.Count -eq 0) {
+            return $false
+        }
+
+        $baseUri = [System.Uri]::new($gameUrl)
+        foreach ($assetPath in $assetPaths) {
+            $assetUri = [System.Uri]::new($baseUri, $assetPath)
+            $assetResponse = Invoke-WebRequest `
+                -Uri $assetUri.AbsoluteUri `
+                -UseBasicParsing `
+                -TimeoutSec 2
+            if (
+                $assetResponse.StatusCode -lt 200 -or
+                $assetResponse.StatusCode -ge 400 -or
+                $assetResponse.RawContentLength -le 0
+            ) {
+                return $false
+            }
+        }
+
+        return $true
     }
     catch {
         return $false
+    }
+}
+
+function Stop-TrackedGameServer {
+    if (-not (Test-Path -LiteralPath $processIdFile)) {
+        return
+    }
+
+    $storedProcessIdText = (Get-Content -LiteralPath $processIdFile -Raw).Trim()
+    $storedProcessId = 0
+    if (-not [int]::TryParse($storedProcessIdText, [ref]$storedProcessId)) {
+        return
+    }
+
+    $trackedProcess = Get-Process -Id $storedProcessId -ErrorAction SilentlyContinue
+    if ($null -eq $trackedProcess -or $trackedProcess.ProcessName -ne "node") {
+        return
+    }
+
+    # Guard against PID reuse: the launcher writes the PID file immediately
+    # after starting Node, so a newer process with the same numeric PID must
+    # not be terminated.
+    $pidRecordedAt = (Get-Item -LiteralPath $processIdFile).LastWriteTime
+    if ($trackedProcess.StartTime -gt $pidRecordedAt.AddSeconds(5)) {
+        return
+    }
+
+    Stop-Process -Id $storedProcessId -Force -ErrorAction SilentlyContinue
+    try {
+        $trackedProcess.WaitForExit(3000)
+    }
+    catch {
+        # Starting the replacement server will report a strict-port failure if
+        # the old process could not be released.
     }
 }
 
@@ -251,6 +340,10 @@ try {
             exit 1
         }
     }
+
+    # A tracked server that returns incomplete HTML/assets is stale. Replace it
+    # instead of allowing strictPort to fail or reopening an unstyled page.
+    Stop-TrackedGameServer
 
     $serverArguments = @(
         "`"$vinextCli`"",

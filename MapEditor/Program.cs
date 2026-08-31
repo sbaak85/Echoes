@@ -337,16 +337,20 @@ internal static class EditorSelfTest
         var scene = SceneJson.Load(scenePath);
         SceneJson.Validate(scene);
         if (
-            ItemCatalog.All.Count != 31 ||
+            ItemCatalog.All.Count != 33 ||
             ItemCatalog.Find("crystal-shard")?.Id != "R0001" ||
             ItemCatalog.Find("R0012")?.Name != "外星果實" ||
             ItemCatalog.Find("R0015")?.Name != "校正元件" ||
+            ItemCatalog.Find("mental-focus-stimulant")?.Id != "R0016" ||
+            ItemCatalog.Find("R0016")?.Name != "精神專注劑" ||
+            ItemCatalog.Find("invigorating-supply-drink")?.Id != "R0017" ||
+            ItemCatalog.Find("R0017")?.Name != "提神補給飲料" ||
             ItemCatalog.Find("T0009")?.Name != "多功能折刀" ||
             ItemCatalog.Find("T0010")?.Name != "鋒利的金屬片" ||
             ItemCatalog.Find("R0100")?.Name != "全回復道具（測試用）"
         )
         {
-            throw new InvalidDataException("道具分類流水號、舊 ID 遷移或外星果實目錄不正確。");
+            throw new InvalidDataException("MapEditor 道具目錄數量、名稱或舊 ID 遷移不正確。");
         }
 
         using var image = ImageLoader.Load(imagePath);
@@ -422,7 +426,7 @@ internal static class EditorSelfTest
                 Kind: "questStage",
                 QuestId: "QUEST_CH03_MAIN_005",
                 StageId: "QUEST_CH03_MAIN_005_STAGE_03",
-                StageMode: "CurrentStageOnly",
+                StageMode: "UnlockFromStage",
             })
         {
             throw new InvalidDataException("Scene_3 出入口設定未能正確通過場景 JSON round-trip。");

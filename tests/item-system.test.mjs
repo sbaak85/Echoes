@@ -1,4 +1,5 @@
 ﻿import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -44,6 +45,36 @@ function installMemoryLocalStorage() {
   };
   return values;
 }
+
+test("MapEditor 道具選項與遊戲 Item 資料庫同步", async () => {
+  const sceneModelsSource = await readFile(
+    new URL("../MapEditor/SceneModels.cs", import.meta.url),
+    "utf8",
+  );
+  const catalogStart = sceneModelsSource.indexOf(
+    "public static class ItemCatalog",
+  );
+  const catalogEnd = sceneModelsSource.indexOf(
+    "public sealed record QuestStageCatalogEntry",
+    catalogStart,
+  );
+
+  assert.notEqual(catalogStart, -1, "找不到 MapEditor ItemCatalog");
+  assert.notEqual(catalogEnd, -1, "找不到 MapEditor ItemCatalog 結尾");
+
+  const editorItems = [
+    ...sceneModelsSource.slice(catalogStart, catalogEnd).matchAll(
+      /new\("([A-Z]\d{4})", "([^"]+)"\)/g,
+    ),
+  ]
+    .map((match) => ({ id: match[1], name: match[2] }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const gameItems = ITEM_DEFINITIONS.map(({ id, name }) => ({ id, name })).sort(
+    (left, right) => left.id.localeCompare(right.id),
+  );
+
+  assert.deepEqual(editorItems, gameItems);
+});
 
 test("Debug 道具生成指令支援 ID、數量與生成去向", () => {
   assert.equal(isDebugGrantAllItemsCommand("Item All"), true);

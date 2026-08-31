@@ -199,14 +199,16 @@ export function NewPlayerTutorialOverlay({
         >
           <span className="new-player-tutorial-copy">{step.message}</span>
           <strong className="new-player-tutorial-actions">
-            <span className="new-player-tutorial-context-action">
-              {operationHint}
+            <span className="new-player-tutorial-action-copy">
+              <span className="new-player-tutorial-context-action">
+                {operationHint}
+              </span>
+              <span className="new-player-tutorial-continue">
+                {prompt} {step.actionLabel}
+              </span>
+              <b>{step.order} / 4</b>
+              <i aria-hidden="true">▶</i>
             </span>
-            <span className="new-player-tutorial-continue">
-              {prompt} {step.actionLabel}
-            </span>
-            <b>{step.order} / 4</b>
-            <i aria-hidden="true">▶</i>
           </strong>
         </button>
       ) : null}

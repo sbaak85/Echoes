@@ -203,7 +203,7 @@
             },
             {
               "id": "QUEST_CH03_MAIN_001_OBJ_05",
-              "displayText": "\u62FE\u53D6\u6563\u843D\u5728\u56DB\u5468\u7684\u96F6\u4EF6",
+              "displayText": "\u62FE\u53D6\u6563\u843D\u5728\u56DB\u5468\u7684\u7269\u54C1",
               "startDelaySeconds": 0,
               "startPresentationDelaySeconds": 0,
               "completionDelaySeconds": 0,
@@ -215,15 +215,15 @@
               "targetId": "",
               "itemRequirements": [
                 {
-                  "itemId": "R0015",
-                  "requiredAmount": 1
-                },
-                {
                   "itemId": "R0009",
                   "requiredAmount": 1
                 },
                 {
                   "itemId": "R0010",
+                  "requiredAmount": 1
+                },
+                {
+                  "itemId": "R0016",
                   "requiredAmount": 1
                 }
               ],

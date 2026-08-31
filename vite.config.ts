@@ -50,9 +50,22 @@ export default defineConfig(async () => {
       // The Windows launcher always opens 127.0.0.1:3000. Never let Vite
       // silently move the game to 3001+ while the launcher keeps polling 3000.
       strictPort: true,
-      ...(isCodexSeatbeltSandbox
-        ? { watch: { useFsEvents: false, usePolling: true } }
-        : {}),
+      watch: {
+        // Assets is the editable source-media library, not a runtime import
+        // root. Large PNG/MP3 files are commonly open in image/audio tools on
+        // Windows; attempting to watch those locked files can terminate Vite
+        // with EBUSY and leave the browser showing unstyled server HTML.
+        ignored: [
+          "**/Assets/**",
+          "**/.runtime/**",
+          "**/SaveData/**",
+          "**/dist/**",
+          "**/pages-dist/**",
+        ],
+        ...(isCodexSeatbeltSandbox
+          ? { useFsEvents: false, usePolling: true }
+          : {}),
+      },
     },
     plugins: [
       saveDataFileApiPlugin(),

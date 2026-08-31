@@ -125,3 +125,94 @@ test("背包與阻擋型介面開啟時，虛擬游標不會命中後方世界�
     "應先阻擋 UI，再進行虛擬游標的世界物件命中測試",
   );
 });
+
+test("有大圖素材的道具分離使用 280 Icon 與 640 查看圖，且 PNG 都保留透明色版", () => {
+  const source = readFileSync(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  const artworkStart = source.indexOf("const INVENTORY_ITEM_ARTWORK_PREVIEWS");
+  const artworkEnd = source.indexOf("function getInventoryDisplayCategory", artworkStart);
+  const artworkSource = source.slice(artworkStart, artworkEnd);
+
+  assert.ok(artworkStart >= 0 && artworkEnd > artworkStart);
+  const artworkEntries = [
+    ["R0001", "crystal-shard"],
+    ["R0002", "metal-parts"],
+    ["R0003", "fiber-bundle"],
+    ["R0004", "water-bottle"],
+    ["R0005", "emergency-ration"],
+    ["R0006", "alien-spore"],
+    ["R0007", "battery"],
+    ["R0009", "metal-scrap"],
+    ["R0010", "synthetic-cloth"],
+    ["R0012", "alien-fruit"],
+    ["R0013", "communication-array-panel"],
+    ["R0014", "quantum-transmitter"],
+    ["R0015", "calibration-component"],
+    ["R0016", "mental-focus-stimulant"],
+    ["R0017", "invigorating-supply-drink"],
+    ["T0001", "utility-rope"],
+    ["T0003", "repair-kit"],
+    ["T0005", "medkit"],
+    ["T0006", "lantern"],
+    ["T0007", "welding-tool"],
+    ["T0008", "digging-shovel"],
+    ["T0009", "multifunction-folding-knife"],
+    ["T0010", "sharp-metal-fragment"],
+    ["Q0001", "navigation-data"],
+    ["Q0002", "memory-charm"],
+    ["Q0003", "ancient-plate"],
+    ["Q0004", "ruin-key"],
+    ["M0001", "time-crystal"],
+  ];
+
+  for (const [itemId, stem] of artworkEntries) {
+    assert.match(
+      artworkSource,
+      new RegExp(`${itemId}:[\\s\\S]*${stem}-icon-280\\.png`),
+    );
+    assert.match(
+      artworkSource,
+      new RegExp(`${itemId}:[\\s\\S]*${stem}-inspect-640\\.png`),
+    );
+  }
+  assert.match(source, /inventory-feature-art[\s\S]*\.inspectPath/);
+  assert.match(source, /inventory-item-icon[\s\S]*\.iconPath/);
+
+  const assertTransparentPngSize = (relativePath, expectedSize) => {
+    const png = readFileSync(new URL(relativePath, import.meta.url));
+    assert.equal(png.toString("ascii", 1, 4), "PNG");
+    assert.equal(png.readUInt32BE(16), expectedSize);
+    assert.equal(png.readUInt32BE(20), expectedSize);
+    assert.equal(png[25], 6, "PNG 必須是帶 alpha 的 RGBA 色版");
+  };
+
+  for (const [, stem] of artworkEntries) {
+    assertTransparentPngSize(`../public/ui/items/${stem}-icon-280.png`, 280);
+    assertTransparentPngSize(`../public/ui/items/${stem}-inspect-640.png`, 640);
+  }
+});
+
+test("道具查看層以 0.2 秒淡入淡出、80% 黑底與模糊阻擋背後操作", () => {
+  const source = readFileSync(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  const css = readFileSync(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /inventoryItemInspectOpenRef\.current/);
+  assert.match(source, /closeInventoryItemInspect/);
+  assert.match(source, /aria-label={`關閉\$\{inventoryItemInspect\.itemName\}查看大圖`}/);
+  assert.match(source, /inventoryItemInspectOpenRef\.current \|\|/);
+  assert.match(source, /inventoryItemInspectMenuOpen[\s\S]*confirmPressed/);
+  assert.match(css, /\.inventory-item-inspect-overlay \{[\s\S]*rgba\(0, 0, 0, 0\.8\)/);
+  assert.match(css, /\.inventory-item-inspect-overlay \{[\s\S]*backdrop-filter: blur\(12px\)/);
+  assert.match(css, /inventory-item-inspect-fade-in 200ms/);
+  assert.match(css, /inventory-item-inspect-fade-out 200ms/);
+  assert.match(css, /width: min\(640px, 78vw\)/);
+  assert.match(css, /height: min\(640px, 78vh\)/);
+});

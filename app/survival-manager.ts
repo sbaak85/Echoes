@@ -32,6 +32,11 @@ export type UnmetSurvivalRequirement = SurvivalRequirementRule & {
 
 export type SurvivalGameOverReason = "hunger" | "thirst" | "spirit";
 
+export type SurvivalDeathWarning = {
+  reason: SurvivalGameOverReason;
+  remainingGameMinutes: number;
+};
+
 export type SurvivalGameState = {
   values: SurvivalValues;
   gameMinutes: number;
@@ -62,7 +67,10 @@ export const MEAL_CENTERS = [8, 12, 18] as const;
 
 const METRICS: SurvivalMetric[] = ["stamina", "hunger", "thirst", "spirit"];
 const CRITICAL_THRESHOLD = 20;
-const ZERO_GAME_OVER_MINUTES: Record<SurvivalGameOverReason, number> = {
+export const SURVIVAL_GAME_OVER_ZERO_MINUTES: Record<
+  SurvivalGameOverReason,
+  number
+> = {
   hunger: 5 * 24 * 60,
   thirst: 3 * 24 * 60,
   spirit: 10 * 24 * 60,
@@ -230,11 +238,47 @@ export function getMealCurveRate(hourOfDay: number) {
 function detectGameOver(state: SurvivalGameState) {
   if (state.gameOverReason) return;
   for (const metric of ["thirst", "hunger", "spirit"] as const) {
-    if (state.zeroDurationMinutes[metric] >= ZERO_GAME_OVER_MINUTES[metric]) {
+    if (
+      state.zeroDurationMinutes[metric] >=
+      SURVIVAL_GAME_OVER_ZERO_MINUTES[metric]
+    ) {
       state.gameOverReason = metric;
       return;
     }
   }
+}
+
+export function getSurvivalDeathWarning(
+  state: SurvivalGameState,
+): SurvivalDeathWarning | null {
+  if (state.gameOverReason) return null;
+  for (const reason of ["thirst", "hunger", "spirit"] as const) {
+    if (state.values[reason] > 0) continue;
+    const remainingGameMinutes = Math.max(
+      0,
+      SURVIVAL_GAME_OVER_ZERO_MINUTES[reason] -
+        state.zeroDurationMinutes[reason],
+    );
+    if (remainingGameMinutes > 0 && remainingGameMinutes <= 1) {
+      return { reason, remainingGameMinutes };
+    }
+  }
+  return null;
+}
+
+export function prepareDebugNaturalDeathFinalMoment(
+  current: SurvivalGameState,
+  reason: SurvivalGameOverReason = "thirst",
+) {
+  return {
+    values: { ...current.values, [reason]: 0 },
+    gameMinutes: current.gameMinutes,
+    zeroDurationMinutes: {
+      ...current.zeroDurationMinutes,
+      [reason]: Math.max(0, SURVIVAL_GAME_OVER_ZERO_MINUTES[reason] - 1),
+    },
+    gameOverReason: null,
+  } satisfies SurvivalGameState;
 }
 
 export function advanceSurvivalState(
