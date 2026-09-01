@@ -751,20 +751,42 @@ test("章節結束存檔確認視窗彈出時透過 AudioEventManager 單次播�
   );
 });
 
-test("星際牌基礎、雷射與飛彈音效事件集中登記且允許多路重疊", async () => {
+test("星際牌發射池與分層爆炸池集中登記且允許多路重疊", async () => {
   const ui = AUDIO_EVENT_CONFIG.starCardsUiInput;
   const dealt = AUDIO_EVENT_CONFIG.starCardsCardDealt;
   const flipped = AUDIO_EVENT_CONFIG.starCardsCardFlipped;
   const laserEvents = [
-    AUDIO_EVENT_CONFIG.starCardsLaserAttack1,
-    AUDIO_EVENT_CONFIG.starCardsLaserAttack2,
-    AUDIO_EVENT_CONFIG.starCardsLaserAttack3,
-    AUDIO_EVENT_CONFIG.starCardsLaserAttack4,
+    AUDIO_EVENT_CONFIG.starCardsLaserFire1,
+    AUDIO_EVENT_CONFIG.starCardsLaserFire2,
+    AUDIO_EVENT_CONFIG.starCardsLaserFire3,
+    AUDIO_EVENT_CONFIG.starCardsLaserFire4,
+    AUDIO_EVENT_CONFIG.starCardsLaserFire5,
+    AUDIO_EVENT_CONFIG.starCardsLaserFire6,
+    AUDIO_EVENT_CONFIG.starCardsLaserFire7,
   ];
-  const missileEvents = Array.from(
+  const missileEvents = [
+    AUDIO_EVENT_CONFIG.starCardsMissileFire1,
+    AUDIO_EVENT_CONFIG.starCardsMissileFire2,
+    AUDIO_EVENT_CONFIG.starCardsMissileFire3,
+    AUDIO_EVENT_CONFIG.starCardsMissileFire4,
+    AUDIO_EVENT_CONFIG.starCardsMissileFire5,
+    AUDIO_EVENT_CONFIG.starCardsMissileFire6,
+  ];
+  const shieldAttackEvents = [
+    AUDIO_EVENT_CONFIG.starCardsShieldAttackLayer1,
+    AUDIO_EVENT_CONFIG.starCardsShieldAttackLayer2,
+  ];
+  const tie = AUDIO_EVENT_CONFIG.starCardsTie;
+  const explosionEvents = Array.from(
     { length: 8 },
-    (_, index) => AUDIO_EVENT_CONFIG[`starCardsMissileAttack${index + 1}`],
+    (_, index) => AUDIO_EVENT_CONFIG[`starCardsExplosion${index + 1}`],
   );
+  const explosionFinishEvents = [
+    AUDIO_EVENT_CONFIG.starCardsExplosionFinish1,
+    AUDIO_EVENT_CONFIG.starCardsExplosionFinish2,
+    AUDIO_EVENT_CONFIG.starCardsExplosionFinish3,
+  ];
+  const explosionHeavyFinish = AUDIO_EVENT_CONFIG.starCardsExplosionHeavyFinish;
 
   assert.deepEqual(ui.sourceAssetPaths, ["Assets/Audio/InPut.mp3"]);
   assert.deepEqual(ui.sources, ["./audio/ui-input.mp3"]);
@@ -775,27 +797,39 @@ test("星際牌基礎、雷射與飛彈音效事件集中登記且允許多路�
   assert.deepEqual(dealt.sources, ["./audio/star-cards-card-dealt.mp3"]);
   assert.match(dealt.trigger, /開場我方三張與對手三張共六次/);
   assert.match(dealt.trigger, /每次 DRAW 我方與對手各一次/);
-  assert.match(dealt.trigger, /重疊播放/);
+  assert.match(dealt.trigger, /任意 200ms 內最多開始三聲/);
+  assert.equal(dealt.maxPlaysPerWindow, 3);
+  assert.equal(dealt.playLimitWindowMs, 200);
+  assert.equal(dealt.maxOverlappingVoices, 3);
 
   assert.deepEqual(flipped.sourceAssetPaths, ["Assets/Audio/翻面.mp3"]);
   assert.deepEqual(flipped.sources, ["./audio/star-cards-card-flipped.mp3"]);
   assert.match(flipped.trigger, /正面翻到背面/);
   assert.match(flipped.trigger, /背面翻回正面/);
   assert.match(flipped.trigger, /我方與對手共用/);
+  assert.match(flipped.trigger, /任意 200ms 內最多開始三聲/);
+  assert.equal(flipped.maxPlaysPerWindow, 3);
+  assert.equal(flipped.playLimitWindowMs, 200);
+  assert.equal(flipped.maxOverlappingVoices, 3);
 
   const laserSourceAssets = [
     "Assets/Audio/The_sound_of_a_power_#1-1788199126794.mp3",
     "Assets/Audio/The_sound_of_a_power_#3-1788199017585.mp3",
     "Assets/Audio/The_sound_of_a_power_#4-1788199021817.mp3",
     "Assets/Audio/The_sound_of_a_power_#4-1788199120487.mp3",
+    "Assets/Audio/FX_RailgunBulletShoot01.mp3",
+    "Assets/Audio/FX_RailgunBulletShoot02.mp3",
+    "Assets/Audio/FX_RailgunBulletShoot03.mp3",
   ];
   for (const [index, event] of laserEvents.entries()) {
     assert.deepEqual(event.sourceAssetPaths, [laserSourceAssets[index]]);
-    assert.deepEqual(event.sources, [`./audio/star-cards-laser-attack-${index + 1}.mp3`]);
-    assert.match(event.trigger, /四首雷射音效池洗牌/);
-    assert.match(event.trigger, /不重複的 3～4 支/);
+    assert.deepEqual(event.sources, [`./audio/star-cards-laser-fire-${index + 1}.mp3`]);
+    assert.match(event.trigger, /開始發射光束/);
+    assert.match(event.trigger, /七首雷射發射音效池/);
+    assert.match(event.trigger, /允許重複抽到同一支/);
     assert.match(event.trigger, /0\.2～0\.4 秒/);
-    assert.match(event.trigger, /多路命中可重疊且互不截斷/);
+    assert.match(event.trigger, /發射池，不包含卡牌命中爆炸聲/);
+    assert.match(event.trigger, /多路雷射發射可重疊且互不截斷/);
     const [sourceBytes, publicBytes] = await Promise.all([
       readFile(new URL(`../${event.sourceAssetPaths[0].replaceAll("#", "%23")}`, import.meta.url)),
       readFile(new URL(`../public/${event.sources[0].replace(/^\.\//, "")}`, import.meta.url)),
@@ -804,6 +838,57 @@ test("星際牌基礎、雷射與飛彈音效事件集中登記且允許多路�
   }
 
   const missileSourceAssets = [
+    "Assets/Audio/SplitBullet_Fire01.mp3",
+    "Assets/Audio/SplitBullet_Fire02.mp3",
+    "Assets/Audio/SplitBullet_Fire03.mp3",
+    "Assets/Audio/ChargeBullet_Fire01.mp3",
+    "Assets/Audio/ChargeBullet_Fire02.mp3",
+    "Assets/Audio/ChargeBullet_Fire03.mp3",
+  ];
+  for (const [index, event] of missileEvents.entries()) {
+    assert.deepEqual(event.sourceAssetPaths, [missileSourceAssets[index]]);
+    assert.deepEqual(event.sources, [`./audio/star-cards-missile-fire-${index + 1}.mp3`]);
+    assert.match(event.trigger, /飛彈武器開始發射/);
+    assert.match(event.trigger, /六首飛彈發射音效池/);
+    assert.match(event.trigger, /允許重複抽到同一支/);
+    assert.match(event.trigger, /0\.2～0\.3 秒/);
+    assert.match(event.trigger, /發射池，不包含卡牌命中爆炸聲/);
+    assert.match(event.trigger, /多路飛彈發射可重疊且互不截斷/);
+    const [sourceBytes, publicBytes] = await Promise.all([
+      readFile(new URL(`../${event.sourceAssetPaths[0]}`, import.meta.url)),
+      readFile(new URL(`../public/${event.sources[0].replace(/^\.\//, "")}`, import.meta.url)),
+    ]);
+    assert.deepEqual(publicBytes, sourceBytes);
+  }
+
+  for (const [index, event] of shieldAttackEvents.entries()) {
+    assert.deepEqual(event.sourceAssetPaths, [`Assets/Audio/護盾${index + 1}.mp3`]);
+    assert.deepEqual(event.sources, [`./audio/star-cards-shield-attack-${index + 1}.mp3`]);
+    assert.equal(event.volume, 0.2);
+    assert.match(event.trigger, /護盾艦開始發射護盾攻擊/);
+    assert.match(event.trigger, /同一幀同步播放/);
+    assert.match(event.trigger, /兩層合計視為一組護盾攻擊音效/);
+    assert.match(event.trigger, /不進行隨機抽選/);
+    const [sourceBytes, publicBytes] = await Promise.all([
+      readFile(new URL(`../${event.sourceAssetPaths[0]}`, import.meta.url)),
+      readFile(new URL(`../public/${event.sources[0].replace(/^\.\//, "")}`, import.meta.url)),
+    ]);
+    assert.deepEqual(publicBytes, sourceBytes);
+  }
+
+  assert.deepEqual(tie.sourceAssetPaths, ["Assets/Audio/平手.mp3"]);
+  assert.deepEqual(tie.sources, ["./audio/star-cards-tie.mp3"]);
+  assert.equal(tie.volume, 0.2);
+  assert.match(tie.trigger, /判定為平手/);
+  assert.match(tie.trigger, /平手碰撞特效的同一時間/);
+  assert.match(tie.trigger, /每一路平手各自觸發/);
+  const [tieSourceBytes, tiePublicBytes] = await Promise.all([
+    readFile(new URL("../Assets/Audio/平手.mp3", import.meta.url)),
+    readFile(new URL("../public/audio/star-cards-tie.mp3", import.meta.url)),
+  ]);
+  assert.deepEqual(tiePublicBytes, tieSourceBytes);
+
+  const explosionSourceAssets = [
     "Assets/Audio/The_sound_of_a_missi_#1-1788199534339.mp3",
     "Assets/Audio/The_sound_of_a_missi_#1-1788199550101.mp3",
     "Assets/Audio/The_sound_of_a_missi_#2-1788199534341.mp3",
@@ -813,13 +898,19 @@ test("星際牌基礎、雷射與飛彈音效事件集中登記且允許多路�
     "Assets/Audio/The_sound_of_a_missi_#4-1788199534342.mp3",
     "Assets/Audio/The_sound_of_a_missi_#4-1788199552869.mp3",
   ];
-  for (const [index, event] of missileEvents.entries()) {
-    assert.deepEqual(event.sourceAssetPaths, [missileSourceAssets[index]]);
-    assert.deepEqual(event.sources, [`./audio/star-cards-missile-attack-${index + 1}.mp3`]);
-    assert.match(event.trigger, /八首飛彈音效池洗牌/);
-    assert.match(event.trigger, /不重複的 3～4 支/);
+  for (const [index, event] of explosionEvents.entries()) {
+    assert.deepEqual(event.sourceAssetPaths, [explosionSourceAssets[index]]);
+    assert.deepEqual(event.sources, [`./audio/star-cards-explosion-${index + 1}.mp3`]);
+    assert.match(event.trigger, /卡牌真正被命中並進入爆炸／摧毀效果/);
+    assert.match(event.trigger, /十二首共用爆炸池/);
+    assert.match(event.trigger, /隨機抽出 2～3 支作為前段/);
+    assert.match(event.trigger, /允許重複抽到同一支/);
+    assert.match(event.trigger, /雷射、飛彈或其他武器造成的爆炸皆共用/);
+    assert.match(event.trigger, /平手不播放/);
+    assert.match(event.trigger, /整套總共 3～4 聲/);
+    assert.match(event.trigger, /最後一聲依被擊敗卡牌點數指定收尾/);
     assert.match(event.trigger, /0\.2～0\.4 秒/);
-    assert.match(event.trigger, /多路命中可重疊且互不截斷/);
+    assert.match(event.trigger, /多路爆炸可重疊且互不截斷/);
     const [sourceBytes, publicBytes] = await Promise.all([
       readFile(new URL(`../${event.sourceAssetPaths[0].replaceAll("#", "%23")}`, import.meta.url)),
       readFile(new URL(`../public/${event.sources[0].replace(/^\.\//, "")}`, import.meta.url)),
@@ -827,10 +918,75 @@ test("星際牌基礎、雷射與飛彈音效事件集中登記且允許多路�
     assert.deepEqual(publicBytes, sourceBytes);
   }
 
-  for (const event of [ui, dealt, flipped, ...laserEvents, ...missileEvents]) {
+  const finishSourceAssets = [
+    "Assets/Audio/FX_Mon_Dead01.mp3",
+    "Assets/Audio/FX_Mon_Dead02.mp3",
+    "Assets/Audio/FX_Mon_Dead03.mp3",
+  ];
+  for (const [index, event] of explosionFinishEvents.entries()) {
+    assert.deepEqual(event.sourceAssetPaths, [finishSourceAssets[index]]);
+    assert.deepEqual(event.sources, [`./audio/star-cards-explosion-finish-${index + 1}.mp3`]);
+    assert.match(event.trigger, /1 點或 2 點卡牌被擊敗/);
+    assert.match(event.trigger, /十二首共用爆炸池/);
+    assert.match(event.trigger, /最後一聲必須從 FX_Mon_Dead01～03/);
+    assert.match(event.trigger, /3 點卡牌，最後一聲不使用本音效/);
+    const [sourceBytes, publicBytes] = await Promise.all([
+      readFile(new URL(`../${event.sourceAssetPaths[0]}`, import.meta.url)),
+      readFile(new URL(`../public/${event.sources[0].replace(/^\.\//, "")}`, import.meta.url)),
+    ]);
+    assert.deepEqual(publicBytes, sourceBytes);
+  }
+
+  assert.deepEqual(
+    explosionHeavyFinish.sourceAssetPaths,
+    ["Assets/Audio/Fx_PantagonExplode_In.mp3"],
+  );
+  assert.deepEqual(
+    explosionHeavyFinish.sources,
+    ["./audio/star-cards-explosion-heavy-finish.mp3"],
+  );
+  assert.match(explosionHeavyFinish.trigger, /被擊敗的卡牌為 3 點牌/);
+  assert.match(explosionHeavyFinish.trigger, /最後一聲固定播放 Fx_PantagonExplode_In/);
+  assert.match(explosionHeavyFinish.trigger, /十二首共用爆炸池/);
+  const [heavySourceBytes, heavyPublicBytes] = await Promise.all([
+    readFile(new URL("../Assets/Audio/Fx_PantagonExplode_In.mp3", import.meta.url)),
+    readFile(new URL("../public/audio/star-cards-explosion-heavy-finish.mp3", import.meta.url)),
+  ]);
+  assert.deepEqual(heavyPublicBytes, heavySourceBytes);
+
+  assert.equal(AUDIO_EVENT_CONFIG.starCardsMissileAttack1, undefined);
+
+  for (const event of laserEvents) assert.equal(event.volume, 0.17);
+  for (const event of missileEvents) assert.equal(event.volume, 0.2);
+  for (const event of [
+    ...explosionEvents,
+    ...explosionFinishEvents,
+    explosionHeavyFinish,
+  ]) assert.equal(event.volume, 0.15);
+
+  for (const event of [
+    ui,
+    dealt,
+    flipped,
+    ...laserEvents,
+    ...missileEvents,
+    ...shieldAttackEvents,
+    tie,
+    ...explosionEvents,
+  ]) {
     assert.equal(event.delaySeconds, 0);
     assert.equal(event.fadeInPercent, 0);
     assert.equal(event.fadeOutPercent, 0);
+    assert.ok(
+      (await stat(
+        new URL(`../public/${event.sources[0].replace(/^\.\//, "")}`, import.meta.url),
+      )).size > 0,
+    );
+  }
+  for (const event of [...explosionFinishEvents, explosionHeavyFinish]) {
+    assert.equal(event.delaySeconds, 0);
+    assert.equal(event.fadeInPercent, 0);
+    assert.equal(event.fadeOutPercent, 10);
     assert.ok(
       (await stat(
         new URL(`../public/${event.sources[0].replace(/^\.\//, "")}`, import.meta.url),
@@ -847,7 +1003,7 @@ test("星際牌基礎、雷射與飛彈音效事件集中登記且允許多路�
   assert.match(audioManagerSource, /new Audio\(runtime\.definition\.sources\[0\]\)/);
 });
 
-test("AudioEventManager 會為連續的星際牌逐張音效建立獨立音軌", async () => {
+test("AudioEventManager 將同一星際牌音效限制為 200ms 三聲且最多三軌", async () => {
   const originalAudio = globalThis.Audio;
   const created = [];
 
@@ -893,17 +1049,34 @@ test("AudioEventManager 會為連續的星際牌逐張音效建立獨立音軌",
       manager.play("starCardsCardDealt", { overlap: true }),
       manager.play("starCardsCardDealt", { overlap: true }),
       manager.play("starCardsCardDealt", { overlap: true }),
+      manager.play("starCardsCardDealt", { overlap: true }),
+      manager.play("starCardsCardDealt", { overlap: true }),
+      manager.play("starCardsCardDealt", { overlap: true }),
     ]);
-    const voices = created.slice(configuredRuntimeCount);
-    assert.equal(voices.length, 3);
-    assert.deepEqual(voices.map((voice) => voice.src), [
+    const dealtVoices = created.slice(configuredRuntimeCount);
+    assert.equal(dealtVoices.length, 3);
+    assert.deepEqual(dealtVoices.map((voice) => voice.src), [
       "./audio/star-cards-card-dealt.mp3",
       "./audio/star-cards-card-dealt.mp3",
       "./audio/star-cards-card-dealt.mp3",
     ]);
-    assert.deepEqual(voices.map((voice) => voice.playCount), [1, 1, 1]);
+    assert.deepEqual(dealtVoices.map((voice) => voice.playCount), [1, 1, 1]);
+
+    await Promise.all(Array.from(
+      { length: 6 },
+      () => manager.play("starCardsCardFlipped", { overlap: true }),
+    ));
+    const flippedVoices = created.slice(configuredRuntimeCount + dealtVoices.length);
+    assert.equal(flippedVoices.length, 3);
+    assert.deepEqual(
+      flippedVoices.map((voice) => voice.src),
+      Array(3).fill("./audio/star-cards-card-flipped.mp3"),
+    );
     manager.dispose();
-    assert.deepEqual(voices.map((voice) => voice.paused), [true, true, true]);
+    assert.deepEqual(
+      [...dealtVoices, ...flippedVoices].map((voice) => voice.paused),
+      Array(6).fill(true),
+    );
   } finally {
     if (originalAudio === undefined) delete globalThis.Audio;
     else globalThis.Audio = originalAudio;

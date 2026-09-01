@@ -8,6 +8,7 @@ import {
   STAR_CARDS_GAME_ID,
   canPlaceStarCard,
   compareStarCards,
+  createStarCardsMissileTrailLayout,
   getStarCardBattleScore,
   shuffleStarCardDeck,
 } from "../app/star-cards-game.ts";
@@ -43,6 +44,45 @@ test("shuffle keeps every card exactly once", () => {
     shuffled.map((card) => card.id).sort(),
     STAR_CARD_DECK.map((card) => card.id).sort(),
   );
+});
+
+test("missile trails randomize lateral position, depth, and flight phase per attack", () => {
+  const values = [
+    0.05, 0.8, 0.1,
+    0.75, 0.15, 0.65,
+    0.45, 0.55, 0.95,
+  ];
+  let index = 0;
+  const layout = createStarCardsMissileTrailLayout(() => values[index++]);
+  assert.deepEqual(layout, [
+    { lateralOffsetVw: -1.3, depthOffsetCqh: 2.04, animationDelayMs: -390 },
+    { lateralOffsetVw: 0.72, depthOffsetCqh: -2.38, animationDelayMs: -170 },
+    { lateralOffsetVw: -0.15, depthOffsetCqh: 0.34, animationDelayMs: -50 },
+  ]);
+  for (const trail of layout) {
+    assert.ok(trail.lateralOffsetVw >= -1.45 && trail.lateralOffsetVw <= 1.45);
+    assert.ok(trail.depthOffsetCqh >= -3.4 && trail.depthOffsetCqh <= 3.4);
+    assert.ok(trail.animationDelayMs >= -430 && trail.animationDelayMs <= -30);
+  }
+  for (let first = 0; first < layout.length; first += 1) {
+    for (let second = first + 1; second < layout.length; second += 1) {
+      assert.ok(
+        Math.abs(layout[first].lateralOffsetVw - layout[second].lateralOffsetVw) >= 0.42 ||
+        Math.abs(layout[first].depthOffsetCqh - layout[second].depthOffsetCqh) >= 0.9,
+      );
+    }
+  }
+
+  const alternateValues = [
+    0.9, 0.75, 0.2,
+    0.2, 0.25, 0.6,
+    0.6, 0.95, 0.85,
+  ];
+  let alternateIndex = 0;
+  const alternateLayout = createStarCardsMissileTrailLayout(
+    () => alternateValues[alternateIndex++],
+  );
+  assert.notDeepEqual(alternateLayout, layout);
 });
 
 test("initial placement requires an empty lane while the drawn card may stack", () => {
@@ -130,7 +170,16 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /className="is-ai-wins"/);
   assert.match(source, /starCardsAssetUrl\("score-panel\.png"\)/);
   assert.match(source, /starCardsAssetUrl\("match-wins-panel\.png"\)/);
-  assert.match(styles, /\.star-cards-match-wins/);
+  assert.match(
+    styles,
+    /\.star-cards-match-wins \{[\s\S]*top: 0\.75%;[\s\S]*width: 15\.76%/,
+  );
+  assert.match(
+    styles,
+    /\.star-cards-match-wins > b \{[\s\S]*font-size: clamp\(14px, 1\.55cqw, 29px\)[\s\S]*text-shadow: none/,
+  );
+  assert.match(styles, /\.star-cards-match-wins \.is-player-wins \{[\s\S]*left: 31\.25%/);
+  assert.match(styles, /\.star-cards-match-wins \.is-ai-wins \{[\s\S]*left: 68\.5%/);
   assert.match(styles, /\.star-cards-game-banner/);
   assert.match(styles, /pointer-events: none;[\s\S]*animation: star-cards-game-banner-sweep 950ms linear both/);
   assert.match(styles, /@keyframes star-cards-game-banner-sweep/);
@@ -213,26 +262,96 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /playStarCardsAudio\("starCardsCardFlipped", 6\)/);
   assert.match(
     source,
-    /const STAR_CARDS_LASER_AUDIO_EVENTS = \[[\s\S]*"starCardsLaserAttack1"[\s\S]*"starCardsLaserAttack4"/,
+    /const STAR_CARDS_LASER_FIRE_AUDIO_EVENTS = \[[\s\S]*"starCardsLaserFire1"[\s\S]*"starCardsLaserFire7"/,
   );
   assert.match(
     source,
-    /const STAR_CARDS_MISSILE_AUDIO_EVENTS = \[[\s\S]*"starCardsMissileAttack1"[\s\S]*"starCardsMissileAttack8"/,
+    /const STAR_CARDS_MISSILE_FIRE_AUDIO_EVENTS = \[[\s\S]*"starCardsMissileFire1"[\s\S]*"starCardsMissileFire6"/,
   );
-  assert.match(source, /const playBattleHitAudioSet = useCallback/);
-  assert.match(source, /attribute === "laser"[\s\S]*STAR_CARDS_LASER_AUDIO_EVENTS/);
-  assert.match(source, /attribute === "missile"[\s\S]*STAR_CARDS_MISSILE_AUDIO_EVENTS/);
+  assert.match(
+    source,
+    /const STAR_CARDS_SHIELD_ATTACK_AUDIO_EVENTS = \[[\s\S]*"starCardsShieldAttackLayer1"[\s\S]*"starCardsShieldAttackLayer2"/,
+  );
+  assert.match(
+    source,
+    /const STAR_CARDS_EXPLOSION_ORIGINAL_AUDIO_EVENTS = \[[\s\S]*"starCardsExplosion1"[\s\S]*"starCardsExplosion8"/,
+  );
+  assert.match(
+    source,
+    /const STAR_CARDS_EXPLOSION_FINISH_AUDIO_EVENTS = \[[\s\S]*"starCardsExplosionFinish1"[\s\S]*"starCardsExplosionFinish3"/,
+  );
+  assert.match(source, /"starCardsExplosionHeavyFinish" as const/);
+  assert.match(
+    source,
+    /const STAR_CARDS_EXPLOSION_AUDIO_EVENTS = \[[\s\S]*\.\.\.STAR_CARDS_EXPLOSION_ORIGINAL_AUDIO_EVENTS[\s\S]*\.\.\.STAR_CARDS_EXPLOSION_FINISH_AUDIO_EVENTS[\s\S]*STAR_CARDS_EXPLOSION_HEAVY_FINISH_AUDIO_EVENT/,
+  );
+  assert.match(source, /const playAudioSequence = useCallback/);
+  assert.match(source, /const playRandomAudioSet = useCallback/);
+  assert.match(source, /const playExplosionAudioSet = useCallback/);
   assert.match(source, /const soundCount = 3 \+ Math\.floor\(Math\.random\(\) \* 2\)/);
-  assert.match(source, /elapsedMs \+= 200 \+ Math\.floor\(Math\.random\(\) \* 201\)/);
-  assert.match(source, /shuffledAudioPool\.slice\(0, soundCount\)/);
+  assert.match(
+    source,
+    /elapsedMs \+= intervalMinMs \+[\s\S]*Math\.floor\(Math\.random\(\) \* \(intervalMaxMs - intervalMinMs \+ 1\)\)/,
+  );
+  assert.match(
+    source,
+    /Array\.from\([\s\S]*\{ length: soundCount \}[\s\S]*audioPool\[Math\.floor\(Math\.random\(\) \* audioPool\.length\)\]/,
+  );
+  assert.doesNotMatch(source, /shuffledAudioPool|shuffledBasePool/);
   assert.match(source, /schedule\(\(\) => playStarCardsAudio\(audioEvent\), elapsedMs\)/);
-  assert.match(source, /effects\.forEach\(\(effect\) => playBattleHitAudioSet\(effect\.attribute\)\)/);
+  assert.match(
+    source,
+    /effect\.attribute === "laser"[\s\S]*playRandomAudioSet\(STAR_CARDS_LASER_FIRE_AUDIO_EVENTS\)/,
+  );
+  assert.match(
+    source,
+    /effect\.attribute === "missile"[\s\S]*playRandomAudioSet\(STAR_CARDS_MISSILE_FIRE_AUDIO_EVENTS, 200, 300\)/,
+  );
+  assert.match(
+    source,
+    /effect\.attribute === "shield"[\s\S]*STAR_CARDS_SHIELD_ATTACK_AUDIO_EVENTS\.forEach\(\(audioEvent\)[\s\S]*playStarCardsAudio\(audioEvent\)/,
+  );
+  assert.match(
+    source,
+    /effect\.outcome === "tie"[\s\S]*playStarCardsAudio\("starCardsTie"\)/,
+  );
+  assert.match(source, /loserCardPoints: loser\.points/);
+  assert.match(
+    source,
+    /loserCardPoints === 3[\s\S]*STAR_CARDS_EXPLOSION_HEAVY_FINISH_AUDIO_EVENT[\s\S]*STAR_CARDS_EXPLOSION_FINISH_AUDIO_EVENTS/,
+  );
+  assert.match(
+    source,
+    /STAR_CARDS_EXPLOSION_AUDIO_EVENTS\[[\s\S]*STAR_CARDS_EXPLOSION_AUDIO_EVENTS\.length[\s\S]*\[\.\.\.leadingAudioEvents, finishAudioEvent\][\s\S]*200,[\s\S]*400/,
+  );
+  assert.match(
+    source,
+    /effect\.loserCardId && effect\.loserCardPoints[\s\S]*playExplosionAudioSet\(effect\.loserCardPoints!\)/,
+  );
+  assert.doesNotMatch(source, /starCardsMissileAttack/);
   assert.match(source, /restart: !overlap/);
-  assert.match(source, /\n\s*overlap,\n/);
+  assert.match(source, /\r?\n\s*overlap,\r?\n/);
   assert.match(source, /dropLaneBoundsRef\.current = measureDropLaneBounds\(\)/);
   assert.match(source, /window\.requestAnimationFrame\(\(\) =>/);
   assert.match(source, /queueDragFrame\(\{ x: event\.clientX, y: event\.clientY \}\)/);
   assert.doesNotMatch(source, /setDragging\(\(current\)/);
+  assert.match(source, /originX: originBounds\.left \+ originBounds\.width \/ 2/);
+  assert.match(source, /originY: originBounds\.top \+ originBounds\.height \/ 2/);
+  assert.match(source, /const returnDraggedCardToIdle = useCallback/);
+  assert.match(source, /element\.animate\([\s\S]*activeDrag\.originX[\s\S]*activeDrag\.originY[\s\S]*duration: STAR_CARD_REJECT_RETURN_MS/);
+  assert.match(source, /laneCardCount >= 3[\s\S]*showFullLaneFeedback\(\)[\s\S]*return false/);
+  assert.match(source, /setDropFeedback\(\{ text: "此戰區堆疊已滿", serial \}\)/);
+  assert.match(source, /playStarCardsAudio\("interactionDenied"\)/);
+  assert.match(source, /STAR_CARD_DROP_FEEDBACK_MS = 1100/);
+  assert.match(source, /hand\?\.drawCard && !settledHandCardIds\.includes\(card\.id\)/);
+  assert.match(
+    styles,
+    /\.star-cards-drop-feedback \{[\s\S]*animation: star-cards-drop-feedback 1100ms linear both/,
+  );
+  assert.match(
+    styles,
+    /@keyframes star-cards-drop-feedback \{[\s\S]*18\.182% \{ opacity: 1; \}[\s\S]*81\.818% \{ opacity: 1; \}[\s\S]*100% \{ opacity: 0; \}/,
+  );
   assert.match(styles, /translate3d\(var\(--drag-x, 0\), var\(--drag-y, 0\), 0\)/);
   assert.match(
     styles,
@@ -280,7 +399,43 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   );
   assert.match(styles, /@keyframes star-cards-missile-sparks-player/);
   assert.match(styles, /@keyframes star-cards-missile-sparks-ai/);
-  assert.match(styles, /\.star-cards-score-popup \{[\s\S]*animation: star-cards-score-popup 900ms linear both/);
+  assert.match(
+    styles,
+    /\.star-cards-battle-effect\.is-missile \.star-cards-attack-trail \{[\s\S]*width: 12px;[\s\S]*height: 24px;[\s\S]*border-radius: 70% 70% 30% 30%/,
+  );
+  assert.match(
+    styles,
+    /@keyframes star-cards-missile-sparks-player \{[\s\S]*0% \{[^}]*scale\(1\)[^}]*\}[\s\S]*100% \{[^}]*scale\(1\)[^}]*\}/,
+  );
+  assert.match(
+    styles,
+    /@keyframes star-cards-missile-sparks-ai \{[\s\S]*0% \{[^}]*scale\(1\)[^}]*\}[\s\S]*100% \{[^}]*scale\(1\)[^}]*\}/,
+  );
+  assert.doesNotMatch(
+    styles,
+    /\.star-cards-battle-effect\.is-missile \.is-(?:one|two|three) \{/,
+  );
+  assert.match(source, /missileTrailLayout: winner\.attribute === "missile"[\s\S]*createStarCardsMissileTrailLayout\(\)/);
+  assert.match(
+    source,
+    /"--battle-spark-offset":[\s\S]*effect\.missileTrailLayout\[index\]\.lateralOffsetVw/,
+  );
+  assert.match(
+    source,
+    /"--battle-missile-depth-offset":[\s\S]*effect\.missileTrailLayout\[index\]\.depthOffsetCqh/,
+  );
+  assert.match(
+    source,
+    /animationDelay:[\s\S]*effect\.missileTrailLayout\[index\]\.animationDelayMs/,
+  );
+  assert.match(
+    styles,
+    /@keyframes star-cards-missile-sparks-player \{[\s\S]*calc\(12% \+ var\(--battle-missile-depth-offset\)\)[\s\S]*calc\(80% \+ var\(--battle-missile-depth-offset\)\)/,
+  );
+  assert.match(
+    styles,
+    /\.star-cards-score-popup \{[\s\S]*text-shadow: none;[\s\S]*animation: star-cards-score-popup 900ms linear both/,
+  );
   assert.match(styles, /\.star-cards-score-popup\.is-player \{ top: 51\.6%; \}/);
   assert.match(styles, /\.star-cards-score-popup\.is-ai \{[\s\S]*top: 43\.2%;[\s\S]*color: #ff4d43/);
   assert.match(styles, /\.star-cards-score-popup\.is-player\[data-lane="A"\] \{ left: 25\.9%; \}/);

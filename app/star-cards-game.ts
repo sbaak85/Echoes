@@ -107,6 +107,57 @@ export function shuffleStarCardDeck(
   return cards;
 }
 
+export type StarCardsMissileTrail = {
+  lateralOffsetVw: number;
+  depthOffsetCqh: number;
+  animationDelayMs: number;
+};
+
+export type StarCardsMissileTrailLayout = readonly [
+  StarCardsMissileTrail,
+  StarCardsMissileTrail,
+  StarCardsMissileTrail,
+];
+
+/** 每次攻擊只建立一次的隨機散射編隊；重繪不變，下次發射重新抽選。 */
+export function createStarCardsMissileTrailLayout(
+  random: () => number = Math.random,
+): StarCardsMissileTrailLayout {
+  const randomBetween = (minimum: number, maximum: number) => {
+    const randomValue = Math.min(1, Math.max(0, random()));
+    return Number((minimum + (maximum - minimum) * randomValue).toFixed(2));
+  };
+  const trails: StarCardsMissileTrail[] = [];
+  for (let index = 0; index < 3; index += 1) {
+    let selected: StarCardsMissileTrail | null = null;
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const candidate: StarCardsMissileTrail = {
+        lateralOffsetVw: randomBetween(-1.45, 1.45),
+        depthOffsetCqh: randomBetween(-3.4, 3.4),
+        animationDelayMs: Math.round(randomBetween(-430, -30)),
+      };
+      const separated = trails.every((trail) =>
+        Math.abs(trail.lateralOffsetVw - candidate.lateralOffsetVw) >= 0.42 ||
+        Math.abs(trail.depthOffsetCqh - candidate.depthOffsetCqh) >= 0.9
+      );
+      if (separated) {
+        selected = candidate;
+        break;
+      }
+    }
+    if (!selected) {
+      const angle = randomBetween(0, Math.PI * 2) + index * Math.PI * 2 / 3;
+      selected = {
+        lateralOffsetVw: Number((Math.cos(angle) * 1.25).toFixed(2)),
+        depthOffsetCqh: Number((Math.sin(angle) * 2.8).toFixed(2)),
+        animationDelayMs: -70 - index * 145,
+      };
+    }
+    trails.push(selected);
+  }
+  return trails as StarCardsMissileTrailLayout;
+}
+
 export function canPlaceStarCard(
   phase: "initial-placement" | "draw-placement",
   laneCardCount: number,

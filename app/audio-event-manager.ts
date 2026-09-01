@@ -17,6 +17,12 @@ export type AudioEventDefinition = {
   fadeOutPercent?: number;
   /** 省略時預設單次；BGM、腳步、打字音等持續聲音設為 true。 */
   loop?: boolean;
+  /** 同一事件在指定短時間窗內允許開始播放的最大次數。 */
+  maxPlaysPerWindow?: number;
+  /** 短時間播放限制的滾動時間窗，單位為毫秒。 */
+  playLimitWindowMs?: number;
+  /** 同一事件允許同時存在的獨立重疊音軌上限。 */
+  maxOverlappingVoices?: number;
 };
 
 export type LineSeNextLineBehavior = "finish" | "stop";
@@ -196,7 +202,7 @@ export const AUDIO_EVENT_CONFIG = (
     },
     "starCardsCardDealt": {
       "label": "星際牌發牌飛入",
-      "trigger": "星際牌任何一張卡牌開始飛入畫面時逐張播放；開場我方三張與對手三張共六次，每次 DRAW 我方與對手各一次。允許短時間內重疊播放，不能互相截斷。",
+      "trigger": "星際牌任何一張卡牌開始飛入畫面時逐張播放；開場我方三張與對手三張共六次，每次 DRAW 我方與對手各一次。允許短時間內重疊播放，但同時最多三軌且任意 200ms 內最多開始三聲，超出的呼叫直接略過。",
       "sourceAssetPaths": [
         "Assets/Audio/飛牌.mp3"
       ],
@@ -205,12 +211,15 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 1,
       "delaySeconds": 0,
+      "maxPlaysPerWindow": 3,
+      "playLimitWindowMs": 200,
+      "maxOverlappingVoices": 3,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
     "starCardsCardFlipped": {
       "label": "星際牌卡牌翻面",
-      "trigger": "星際牌任何一張卡牌由正面翻到背面，或由背面翻回正面時逐張播放；我方與對手共用，允許同步翻牌的多聲重疊播放。",
+      "trigger": "星際牌任何一張卡牌由正面翻到背面，或由背面翻回正面時逐張播放；我方與對手共用。允許同步翻牌重疊，但同時最多三軌且任意 200ms 內最多開始三聲，超出的呼叫直接略過。",
       "sourceAssetPaths": [
         "Assets/Audio/翻面.mp3"
       ],
@@ -219,144 +228,403 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 1,
       "delaySeconds": 0,
+      "maxPlaysPerWindow": 3,
+      "playLimitWindowMs": 200,
+      "maxOverlappingVoices": 3,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
-    "starCardsLaserAttack1": {
-      "label": "星際牌雷射攻擊 1",
-      "trigger": "星際牌 BATTLE 中任一路雷射武器命中時，從四首雷射音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+    "starCardsLaserFire1": {
+      "label": "星際牌雷射發射 1",
+      "trigger": "星際牌 BATTLE 中任一路雷射武器開始發射光束時，從七首雷射發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒。這是發射池，不包含卡牌命中爆炸聲。多路雷射發射可重疊且互不截斷。",
       "sourceAssetPaths": [
         "Assets/Audio/The_sound_of_a_power_#1-1788199126794.mp3"
       ],
       "sources": [
-        "./audio/star-cards-laser-attack-1.mp3"
+        "./audio/star-cards-laser-fire-1.mp3"
       ],
-      "volume": 1,
+      "volume": 0.17,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
-    "starCardsLaserAttack2": {
-      "label": "星際牌雷射攻擊 2",
-      "trigger": "星際牌 BATTLE 中任一路雷射武器命中時，從四首雷射音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+    "starCardsLaserFire2": {
+      "label": "星際牌雷射發射 2",
+      "trigger": "星際牌 BATTLE 中任一路雷射武器開始發射光束時，從七首雷射發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒。這是發射池，不包含卡牌命中爆炸聲。多路雷射發射可重疊且互不截斷。",
       "sourceAssetPaths": [
         "Assets/Audio/The_sound_of_a_power_#3-1788199017585.mp3"
       ],
       "sources": [
-        "./audio/star-cards-laser-attack-2.mp3"
+        "./audio/star-cards-laser-fire-2.mp3"
       ],
-      "volume": 1,
+      "volume": 0.17,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
-    "starCardsLaserAttack3": {
-      "label": "星際牌雷射攻擊 3",
-      "trigger": "星際牌 BATTLE 中任一路雷射武器命中時，從四首雷射音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+    "starCardsLaserFire3": {
+      "label": "星際牌雷射發射 3",
+      "trigger": "星際牌 BATTLE 中任一路雷射武器開始發射光束時，從七首雷射發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒。這是發射池，不包含卡牌命中爆炸聲。多路雷射發射可重疊且互不截斷。",
       "sourceAssetPaths": [
         "Assets/Audio/The_sound_of_a_power_#4-1788199021817.mp3"
       ],
       "sources": [
-        "./audio/star-cards-laser-attack-3.mp3"
+        "./audio/star-cards-laser-fire-3.mp3"
       ],
-      "volume": 1,
+      "volume": 0.17,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
-    "starCardsLaserAttack4": {
-      "label": "星際牌雷射攻擊 4",
-      "trigger": "星際牌 BATTLE 中任一路雷射武器命中時，從四首雷射音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+    "starCardsLaserFire4": {
+      "label": "星際牌雷射發射 4",
+      "trigger": "星際牌 BATTLE 中任一路雷射武器開始發射光束時，從七首雷射發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒。這是發射池，不包含卡牌命中爆炸聲。多路雷射發射可重疊且互不截斷。",
       "sourceAssetPaths": [
         "Assets/Audio/The_sound_of_a_power_#4-1788199120487.mp3"
       ],
       "sources": [
-        "./audio/star-cards-laser-attack-4.mp3"
+        "./audio/star-cards-laser-fire-4.mp3"
       ],
-      "volume": 1,
+      "volume": 0.17,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
-    "starCardsMissileAttack1": {
-      "label": "星際牌飛彈命中 1",
-      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
-      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#1-1788199534339.mp3"],
-      "sources": ["./audio/star-cards-missile-attack-1.mp3"],
-      "volume": 1,
+    "starCardsLaserFire5": {
+      "label": "星際牌雷射發射 5",
+      "trigger": "星際牌 BATTLE 中任一路雷射武器開始發射光束時，從七首雷射發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒。這是發射池，不包含卡牌命中爆炸聲。多路雷射發射可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/FX_RailgunBulletShoot01.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-laser-fire-5.mp3"
+      ],
+      "volume": 0.17,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
-    "starCardsMissileAttack2": {
-      "label": "星際牌飛彈命中 2",
-      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
-      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#1-1788199550101.mp3"],
-      "sources": ["./audio/star-cards-missile-attack-2.mp3"],
-      "volume": 1,
+    "starCardsLaserFire6": {
+      "label": "星際牌雷射發射 6",
+      "trigger": "星際牌 BATTLE 中任一路雷射武器開始發射光束時，從七首雷射發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒。這是發射池，不包含卡牌命中爆炸聲。多路雷射發射可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/FX_RailgunBulletShoot02.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-laser-fire-6.mp3"
+      ],
+      "volume": 0.17,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
-    "starCardsMissileAttack3": {
-      "label": "星際牌飛彈命中 3",
-      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
-      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#2-1788199534341.mp3"],
-      "sources": ["./audio/star-cards-missile-attack-3.mp3"],
-      "volume": 1,
+    "starCardsLaserFire7": {
+      "label": "星際牌雷射發射 7",
+      "trigger": "星際牌 BATTLE 中任一路雷射武器開始發射光束時，從七首雷射發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒。這是發射池，不包含卡牌命中爆炸聲。多路雷射發射可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/FX_RailgunBulletShoot03.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-laser-fire-7.mp3"
+      ],
+      "volume": 0.17,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
-    "starCardsMissileAttack4": {
-      "label": "星際牌飛彈命中 4",
-      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
-      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#2-1788199552869.mp3"],
-      "sources": ["./audio/star-cards-missile-attack-4.mp3"],
-      "volume": 1,
+    "starCardsMissileFire1": {
+      "label": "星際牌飛彈發射 1",
+      "trigger": "星際牌 BATTLE 中任一路飛彈武器開始發射時，從六首飛彈發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.3 秒。這是發射池，不包含卡牌命中爆炸聲。多路飛彈發射可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/SplitBullet_Fire01.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-missile-fire-1.mp3"
+      ],
+      "volume": 0.2,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
-    "starCardsMissileAttack5": {
-      "label": "星際牌飛彈命中 5",
-      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
-      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#3-1788199534341.mp3"],
-      "sources": ["./audio/star-cards-missile-attack-5.mp3"],
-      "volume": 1,
+    "starCardsMissileFire2": {
+      "label": "星際牌飛彈發射 2",
+      "trigger": "星際牌 BATTLE 中任一路飛彈武器開始發射時，從六首飛彈發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.3 秒。這是發射池，不包含卡牌命中爆炸聲。多路飛彈發射可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/SplitBullet_Fire02.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-missile-fire-2.mp3"
+      ],
+      "volume": 0.2,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
-    "starCardsMissileAttack6": {
-      "label": "星際牌飛彈命中 6",
-      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
-      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#3-1788199552869.mp3"],
-      "sources": ["./audio/star-cards-missile-attack-6.mp3"],
-      "volume": 1,
+    "starCardsMissileFire3": {
+      "label": "星際牌飛彈發射 3",
+      "trigger": "星際牌 BATTLE 中任一路飛彈武器開始發射時，從六首飛彈發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.3 秒。這是發射池，不包含卡牌命中爆炸聲。多路飛彈發射可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/SplitBullet_Fire03.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-missile-fire-3.mp3"
+      ],
+      "volume": 0.2,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
-    "starCardsMissileAttack7": {
-      "label": "星際牌飛彈命中 7",
-      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
-      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#4-1788199534342.mp3"],
-      "sources": ["./audio/star-cards-missile-attack-7.mp3"],
-      "volume": 1,
+    "starCardsMissileFire4": {
+      "label": "星際牌飛彈發射 4",
+      "trigger": "星際牌 BATTLE 中任一路飛彈武器開始發射時，從六首飛彈發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.3 秒。這是發射池，不包含卡牌命中爆炸聲。多路飛彈發射可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/ChargeBullet_Fire01.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-missile-fire-4.mp3"
+      ],
+      "volume": 0.2,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
-    "starCardsMissileAttack8": {
-      "label": "星際牌飛彈命中 8",
-      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
-      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#4-1788199552869.mp3"],
-      "sources": ["./audio/star-cards-missile-attack-8.mp3"],
-      "volume": 1,
+    "starCardsMissileFire5": {
+      "label": "星際牌飛彈發射 5",
+      "trigger": "星際牌 BATTLE 中任一路飛彈武器開始發射時，從六首飛彈發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.3 秒。這是發射池，不包含卡牌命中爆炸聲。多路飛彈發射可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/ChargeBullet_Fire02.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-missile-fire-5.mp3"
+      ],
+      "volume": 0.2,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
+    },
+    "starCardsMissileFire6": {
+      "label": "星際牌飛彈發射 6",
+      "trigger": "星際牌 BATTLE 中任一路飛彈武器開始發射時，從六首飛彈發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.3 秒。這是發射池，不包含卡牌命中爆炸聲。多路飛彈發射可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/ChargeBullet_Fire03.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-missile-fire-6.mp3"
+      ],
+      "volume": 0.2,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsShieldAttackLayer1": {
+      "label": "星際牌護盾攻擊混音－護盾 1",
+      "trigger": "星際牌 BATTLE 中任一路護盾艦開始發射護盾攻擊時，與 starCardsShieldAttackLayer2 同一幀同步播放；兩層合計視為一組護盾攻擊音效，不進行隨機抽選。多路護盾攻擊可各自重疊。",
+      "sourceAssetPaths": [
+        "Assets/Audio/護盾1.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-shield-attack-1.mp3"
+      ],
+      "volume": 0.2,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsShieldAttackLayer2": {
+      "label": "星際牌護盾攻擊混音－護盾 2",
+      "trigger": "星際牌 BATTLE 中任一路護盾艦開始發射護盾攻擊時，與 starCardsShieldAttackLayer1 同一幀同步播放；兩層合計視為一組護盾攻擊音效，不進行隨機抽選。多路護盾攻擊可各自重疊。",
+      "sourceAssetPaths": [
+        "Assets/Audio/護盾2.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-shield-attack-2.mp3"
+      ],
+      "volume": 0.2,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsTie": {
+      "label": "星際牌平手碰撞",
+      "trigger": "星際牌 BATTLE 中任一路判定為平手，並正式開始播放該路平手碰撞特效的同一時間播放一次；每一路平手各自觸發，非平手、發射與爆炸流程不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/平手.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-tie.mp3"
+      ],
+      "volume": 0.2,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsExplosion1": {
+      "label": "星際牌卡牌爆炸 1",
+      "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/The_sound_of_a_missi_#1-1788199534339.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-explosion-1.mp3"
+      ],
+      "volume": 0.15,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsExplosion2": {
+      "label": "星際牌卡牌爆炸 2",
+      "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/The_sound_of_a_missi_#1-1788199550101.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-explosion-2.mp3"
+      ],
+      "volume": 0.15,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsExplosion3": {
+      "label": "星際牌卡牌爆炸 3",
+      "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/The_sound_of_a_missi_#2-1788199534341.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-explosion-3.mp3"
+      ],
+      "volume": 0.15,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsExplosion4": {
+      "label": "星際牌卡牌爆炸 4",
+      "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/The_sound_of_a_missi_#2-1788199552869.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-explosion-4.mp3"
+      ],
+      "volume": 0.15,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsExplosion5": {
+      "label": "星際牌卡牌爆炸 5",
+      "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/The_sound_of_a_missi_#3-1788199534341.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-explosion-5.mp3"
+      ],
+      "volume": 0.15,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsExplosion6": {
+      "label": "星際牌卡牌爆炸 6",
+      "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/The_sound_of_a_missi_#3-1788199552869.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-explosion-6.mp3"
+      ],
+      "volume": 0.15,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsExplosion7": {
+      "label": "星際牌卡牌爆炸 7",
+      "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/The_sound_of_a_missi_#4-1788199534342.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-explosion-7.mp3"
+      ],
+      "volume": 0.15,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsExplosion8": {
+      "label": "星際牌卡牌爆炸 8",
+      "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/The_sound_of_a_missi_#4-1788199552869.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-explosion-8.mp3"
+      ],
+      "volume": 0.15,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsExplosionFinish1": {
+      "label": "星際牌爆炸普通收尾 1",
+      "trigger": "本音效屬於十二首共用爆炸池。星際牌 BATTLE 中 1 點或 2 點卡牌被擊敗時，爆炸組最後一聲必須從 FX_Mon_Dead01～03 三支普通收尾音效隨機抽一支；整套爆炸總共 3～4 聲。若被擊敗的是 3 點卡牌，最後一聲不使用本音效。",
+      "sourceAssetPaths": [
+        "Assets/Audio/FX_Mon_Dead01.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-explosion-finish-1.mp3"
+      ],
+      "volume": 0.15,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 10
+    },
+    "starCardsExplosionFinish2": {
+      "label": "星際牌爆炸普通收尾 2",
+      "trigger": "本音效屬於十二首共用爆炸池。星際牌 BATTLE 中 1 點或 2 點卡牌被擊敗時，爆炸組最後一聲必須從 FX_Mon_Dead01～03 三支普通收尾音效隨機抽一支；整套爆炸總共 3～4 聲。若被擊敗的是 3 點卡牌，最後一聲不使用本音效。",
+      "sourceAssetPaths": [
+        "Assets/Audio/FX_Mon_Dead02.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-explosion-finish-2.mp3"
+      ],
+      "volume": 0.15,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 10
+    },
+    "starCardsExplosionFinish3": {
+      "label": "星際牌爆炸普通收尾 3",
+      "trigger": "本音效屬於十二首共用爆炸池。星際牌 BATTLE 中 1 點或 2 點卡牌被擊敗時，爆炸組最後一聲必須從 FX_Mon_Dead01～03 三支普通收尾音效隨機抽一支；整套爆炸總共 3～4 聲。若被擊敗的是 3 點卡牌，最後一聲不使用本音效。",
+      "sourceAssetPaths": [
+        "Assets/Audio/FX_Mon_Dead03.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-explosion-finish-3.mp3"
+      ],
+      "volume": 0.15,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 10
+    },
+    "starCardsExplosionHeavyFinish": {
+      "label": "星際牌 3 點牌爆炸收尾",
+      "trigger": "本音效屬於十二首共用爆炸池。星際牌 BATTLE 中被擊敗的卡牌為 3 點牌時，爆炸組最後一聲固定播放 Fx_PantagonExplode_In；不再從三支普通收尾音效抽選，整套爆炸總共 3～4 聲。",
+      "sourceAssetPaths": [
+        "Assets/Audio/Fx_PantagonExplode_In.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-explosion-heavy-finish.mp3"
+      ],
+      "volume": 0.15,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 10
     },
     "hudExpanded": {
       "label": "HUD 介面展開",
@@ -1149,6 +1417,7 @@ export function getAudioFadeDurationMilliseconds(
 export class AudioEventManager {
   private disposed = false;
   private readonly runtimes = new Map<AudioEventName, AudioEventRuntime>();
+  private readonly recentPlayStarts = new Map<AudioEventName, number[]>();
   private readonly overlappingVoices = new Map<
     HTMLAudioElement,
     AudioEventRuntime
@@ -1291,6 +1560,10 @@ export class AudioEventManager {
     const runtime = this.getRuntime(eventName);
     if (this.disposed) return Promise.resolve();
 
+    if (this.isPlaybackLimited(eventName, runtime, options)) {
+      return Promise.resolve();
+    }
+
     if (
       options.overlap &&
       !runtime.definition.loop &&
@@ -1374,6 +1647,7 @@ export class AudioEventManager {
       runtime.audio.currentTime = 0;
     });
     this.runtimes.clear();
+    this.recentPlayStarts.clear();
     this.overlappingVoices.forEach((_runtime, voice) => {
       voice.pause();
       voice.currentTime = 0;
@@ -1594,6 +1868,46 @@ export class AudioEventManager {
       release();
       throw error;
     });
+  }
+
+  private isPlaybackLimited(
+    eventName: AudioEventName,
+    runtime: AudioEventRuntime,
+    options: PlayOptions,
+  ) {
+    const maxOverlappingVoices = Math.max(
+      0,
+      Math.floor(runtime.definition.maxOverlappingVoices ?? 0),
+    );
+    if (options.overlap && maxOverlappingVoices > 0) {
+      let activeVoiceCount = 0;
+      this.overlappingVoices.forEach((voiceRuntime) => {
+        if (voiceRuntime === runtime) activeVoiceCount += 1;
+      });
+      if (activeVoiceCount >= maxOverlappingVoices) return true;
+    }
+
+    const maxPlaysPerWindow = Math.max(
+      0,
+      Math.floor(runtime.definition.maxPlaysPerWindow ?? 0),
+    );
+    const playLimitWindowMs = Math.max(
+      0,
+      runtime.definition.playLimitWindowMs ?? 0,
+    );
+    if (maxPlaysPerWindow <= 0 || playLimitWindowMs <= 0) return false;
+
+    const now = performance.now();
+    const windowStart = now - playLimitWindowMs;
+    const recentStarts = (this.recentPlayStarts.get(eventName) ?? [])
+      .filter((startedAt) => startedAt > windowStart);
+    if (recentStarts.length >= maxPlaysPerWindow) {
+      this.recentPlayStarts.set(eventName, recentStarts);
+      return true;
+    }
+    recentStarts.push(now);
+    this.recentPlayStarts.set(eventName, recentStarts);
+    return false;
   }
 
   private startVolumeEnvelope(

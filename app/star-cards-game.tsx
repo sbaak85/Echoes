@@ -16,11 +16,13 @@ import {
   STAR_CARD_LANES,
   canPlaceStarCard,
   compareStarCards,
+  createStarCardsMissileTrailLayout,
   getStarCardBattleScore,
   shuffleStarCardDeck,
   starCardsAssetUrl,
   type StarCardDefinition,
   type StarCardLane,
+  type StarCardsMissileTrailLayout,
 } from "./star-cards-game";
 import type { AudioEventManager } from "./audio-event-manager";
 
@@ -56,6 +58,8 @@ type DragState = {
   pointerId: number;
   x: number;
   y: number;
+  originX: number;
+  originY: number;
   source: "hand" | "placed-draw";
   originalLane?: StarCardLane;
 };
@@ -75,6 +79,8 @@ type LaneBattleEffect = {
   logDetail: string;
   winnerCardId?: string;
   loserCardId?: string;
+  loserCardPoints?: StarCardDefinition["points"];
+  missileTrailLayout?: StarCardsMissileTrailLayout;
   awardedPoints: 0 | 1 | 2 | 3;
 };
 
@@ -105,39 +111,82 @@ type PlacementPromptState = {
   serial: number;
 };
 
-const STAR_CARDS_LASER_AUDIO_EVENTS = [
-  "starCardsLaserAttack1",
-  "starCardsLaserAttack2",
-  "starCardsLaserAttack3",
-  "starCardsLaserAttack4",
+type DropFeedbackState = {
+  text: string;
+  serial: number;
+};
+
+const STAR_CARDS_LASER_FIRE_AUDIO_EVENTS = [
+  "starCardsLaserFire1",
+  "starCardsLaserFire2",
+  "starCardsLaserFire3",
+  "starCardsLaserFire4",
+  "starCardsLaserFire5",
+  "starCardsLaserFire6",
+  "starCardsLaserFire7",
 ] as const;
 
-const STAR_CARDS_MISSILE_AUDIO_EVENTS = [
-  "starCardsMissileAttack1",
-  "starCardsMissileAttack2",
-  "starCardsMissileAttack3",
-  "starCardsMissileAttack4",
-  "starCardsMissileAttack5",
-  "starCardsMissileAttack6",
-  "starCardsMissileAttack7",
-  "starCardsMissileAttack8",
+const STAR_CARDS_MISSILE_FIRE_AUDIO_EVENTS = [
+  "starCardsMissileFire1",
+  "starCardsMissileFire2",
+  "starCardsMissileFire3",
+  "starCardsMissileFire4",
+  "starCardsMissileFire5",
+  "starCardsMissileFire6",
 ] as const;
 
-type StarCardsBattleHitAudioEventName =
-  | (typeof STAR_CARDS_LASER_AUDIO_EVENTS)[number]
-  | (typeof STAR_CARDS_MISSILE_AUDIO_EVENTS)[number];
+const STAR_CARDS_SHIELD_ATTACK_AUDIO_EVENTS = [
+  "starCardsShieldAttackLayer1",
+  "starCardsShieldAttackLayer2",
+] as const;
+
+const STAR_CARDS_EXPLOSION_ORIGINAL_AUDIO_EVENTS = [
+  "starCardsExplosion1",
+  "starCardsExplosion2",
+  "starCardsExplosion3",
+  "starCardsExplosion4",
+  "starCardsExplosion5",
+  "starCardsExplosion6",
+  "starCardsExplosion7",
+  "starCardsExplosion8",
+] as const;
+
+const STAR_CARDS_EXPLOSION_FINISH_AUDIO_EVENTS = [
+  "starCardsExplosionFinish1",
+  "starCardsExplosionFinish2",
+  "starCardsExplosionFinish3",
+] as const;
+
+const STAR_CARDS_EXPLOSION_HEAVY_FINISH_AUDIO_EVENT =
+  "starCardsExplosionHeavyFinish" as const;
+
+const STAR_CARDS_EXPLOSION_AUDIO_EVENTS = [
+  ...STAR_CARDS_EXPLOSION_ORIGINAL_AUDIO_EVENTS,
+  ...STAR_CARDS_EXPLOSION_FINISH_AUDIO_EVENTS,
+  STAR_CARDS_EXPLOSION_HEAVY_FINISH_AUDIO_EVENT,
+] as const;
+
+type StarCardsLayeredAudioEventName =
+  | (typeof STAR_CARDS_LASER_FIRE_AUDIO_EVENTS)[number]
+  | (typeof STAR_CARDS_MISSILE_FIRE_AUDIO_EVENTS)[number]
+  | (typeof STAR_CARDS_SHIELD_ATTACK_AUDIO_EVENTS)[number]
+  | (typeof STAR_CARDS_EXPLOSION_AUDIO_EVENTS)[number];
 
 type StarCardsAudioEventName =
   | "starCardsUiInput"
   | "starCardsCardDealt"
   | "starCardsCardFlipped"
-  | StarCardsBattleHitAudioEventName;
+  | "interactionDenied"
+  | "starCardsTie"
+  | StarCardsLayeredAudioEventName;
 
 const PLAYER_HAND_X = [33.4, 50, 66.6] as const;
 const PLAYER_HAND_BOTTOM = [5.9, 10.6, 5.9] as const;
 const STAR_CARDS_MAX_GAMES = 5;
 const STAR_CARDS_WINS_TO_MATCH = 3;
 const STAR_CARD_PLACE_FEEDBACK_MS = 320;
+const STAR_CARD_REJECT_RETURN_MS = 320;
+const STAR_CARD_DROP_FEEDBACK_MS = 1100;
 const INITIAL_DEAL_AUDIO_DELAYS_MS = [0, 0, 90, 110, 180, 220] as const;
 
 function createOwnerDeck(owner: StarCardsOwner, gameNumber = 1) {
@@ -263,6 +312,8 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
   const [heldCardId, setHeldCardId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [placementPrompt, setPlacementPrompt] = useState<PlacementPromptState | null>(null);
+  const [dropFeedback, setDropFeedback] = useState<DropFeedbackState | null>(null);
+  const [settledHandCardIds, setSettledHandCardIds] = useState<string[]>([]);
   const playerLaneRefs = useRef<Record<StarCardLane, HTMLDivElement | null>>({
     A: null,
     B: null,
@@ -278,6 +329,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
   const placementPromptRef = useRef<PlacementPromptState | null>(null);
   const placementPromptSerialRef = useRef(0);
   const placementPromptRequestRef = useRef(0);
+  const dropFeedbackSerialRef = useRef(0);
 
   const schedule = useCallback((callback: () => void, delayMs: number) => {
     const timer = window.setTimeout(() => {
@@ -329,41 +381,78 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     }
   }, [audioEvents]);
 
+  const showFullLaneFeedback = useCallback(() => {
+    placementPromptRequestRef.current += 1;
+    placementPromptRef.current = null;
+    setPlacementPrompt(null);
+    const serial = dropFeedbackSerialRef.current + 1;
+    dropFeedbackSerialRef.current = serial;
+    setDropFeedback({ text: "此戰區堆疊已滿", serial });
+    setAnnouncement("此戰區堆疊已滿");
+    playStarCardsAudio("interactionDenied");
+    schedule(() => {
+      setDropFeedback((current) => current?.serial === serial ? null : current);
+    }, STAR_CARD_DROP_FEEDBACK_MS);
+  }, [playStarCardsAudio, schedule]);
+
   const playInitialDealAudio = useCallback(() => {
     INITIAL_DEAL_AUDIO_DELAYS_MS.forEach((delayMs) => {
       schedule(() => playStarCardsAudio("starCardsCardDealt"), delayMs);
     });
   }, [playStarCardsAudio, schedule]);
 
-  const playBattleHitAudioSet = useCallback((
-    attribute: StarCardDefinition["attribute"],
+  const playAudioSequence = useCallback((
+    audioEvents: readonly StarCardsLayeredAudioEventName[],
+    intervalMinMs: number,
+    intervalMaxMs: number,
   ) => {
-    const audioPool: readonly StarCardsBattleHitAudioEventName[] | null =
-      attribute === "laser"
-        ? STAR_CARDS_LASER_AUDIO_EVENTS
-        : attribute === "missile"
-          ? STAR_CARDS_MISSILE_AUDIO_EVENTS
-          : null;
-    if (!audioPool) return;
-
-    const shuffledAudioPool = [...audioPool];
-    for (let index = shuffledAudioPool.length - 1; index > 0; index -= 1) {
-      const swapIndex = Math.floor(Math.random() * (index + 1));
-      [shuffledAudioPool[index], shuffledAudioPool[swapIndex]] = [
-        shuffledAudioPool[swapIndex],
-        shuffledAudioPool[index],
-      ];
-    }
-
-    const soundCount = 3 + Math.floor(Math.random() * 2);
     let elapsedMs = 0;
-    shuffledAudioPool.slice(0, soundCount).forEach((audioEvent, index) => {
+    audioEvents.forEach((audioEvent, index) => {
       if (index > 0) {
-        elapsedMs += 200 + Math.floor(Math.random() * 201);
+        elapsedMs += intervalMinMs +
+          Math.floor(Math.random() * (intervalMaxMs - intervalMinMs + 1));
       }
       schedule(() => playStarCardsAudio(audioEvent), elapsedMs);
     });
   }, [playStarCardsAudio, schedule]);
+
+  const playRandomAudioSet = useCallback((
+    audioPool: readonly StarCardsLayeredAudioEventName[],
+    intervalMinMs = 200,
+    intervalMaxMs = 400,
+  ) => {
+    const soundCount = 3 + Math.floor(Math.random() * 2);
+    playAudioSequence(
+      Array.from(
+        { length: soundCount },
+        () => audioPool[Math.floor(Math.random() * audioPool.length)],
+      ),
+      intervalMinMs,
+      intervalMaxMs,
+    );
+  }, [playAudioSequence]);
+
+  const playExplosionAudioSet = useCallback((
+    loserCardPoints: StarCardDefinition["points"],
+  ) => {
+    const soundCount = 3 + Math.floor(Math.random() * 2);
+    const leadingAudioEvents = Array.from(
+      { length: soundCount - 1 },
+      () => STAR_CARDS_EXPLOSION_AUDIO_EVENTS[
+        Math.floor(Math.random() * STAR_CARDS_EXPLOSION_AUDIO_EVENTS.length)
+      ],
+    );
+    const finishAudioEvent = loserCardPoints === 3
+      ? STAR_CARDS_EXPLOSION_HEAVY_FINISH_AUDIO_EVENT
+      : STAR_CARDS_EXPLOSION_FINISH_AUDIO_EVENTS[
+          Math.floor(Math.random() * STAR_CARDS_EXPLOSION_FINISH_AUDIO_EVENTS.length)
+        ];
+    playAudioSequence(
+      [...leadingAudioEvents, finishAudioEvent],
+      200,
+      400,
+    );
+  }, [playAudioSequence]);
 
   useEffect(() => {
     playInitialDealAudio();
@@ -447,6 +536,43 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     setHoveredLane(null);
   }, [stopDragFrame]);
 
+  const returnDraggedCardToIdle = useCallback((
+    activeDrag: DragState,
+    element: HTMLDivElement,
+    releasePoint: DragPoint,
+  ) => {
+    stopDragFrame();
+    draggingRef.current = { ...activeDrag, pointerId: -1 };
+    hoveredLaneRef.current = null;
+    setHoveredLane(null);
+    element.style.setProperty("--drag-x", `${releasePoint.x}px`);
+    element.style.setProperty("--drag-y", `${releasePoint.y}px`);
+    if (activeDrag.source === "hand") {
+      setSettledHandCardIds((current) =>
+        current.includes(activeDrag.cardId) ? current : [...current, activeDrag.cardId],
+      );
+    }
+    const returnAnimation = element.animate(
+      [
+        {
+          transform: `translate3d(${releasePoint.x}px, ${releasePoint.y}px, 0) translate(-50%, -50%) scale(1.035) rotate(-1.2deg)`,
+        },
+        {
+          transform: `translate3d(${activeDrag.originX}px, ${activeDrag.originY}px, 0) translate(-50%, -50%) scale(1) rotate(0deg)`,
+        },
+      ],
+      {
+        duration: STAR_CARD_REJECT_RETURN_MS,
+        easing: "cubic-bezier(0.2, 0.82, 0.22, 1)",
+        fill: "forwards",
+      },
+    );
+    schedule(() => {
+      clearDragInteraction();
+      window.requestAnimationFrame(() => returnAnimation.cancel());
+    }, STAR_CARD_REJECT_RETURN_MS);
+  }, [clearDragInteraction, schedule, stopDragFrame]);
+
   useEffect(() => () => stopDragFrame(), [stopDragFrame]);
 
   const revealInitialCards = useCallback(() => {
@@ -470,6 +596,10 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       const handCard = playerHand.find((candidate) => candidate.card.id === cardId);
       if (!handCard) return false;
       const laneCardCount = playerPlaced.filter((placed) => placed.lane === lane).length;
+      if (laneCardCount >= 3) {
+        showFullLaneFeedback();
+        return false;
+      }
       if (!canPlaceStarCard(phase, laneCardCount)) {
         setAnnouncement(`${lane} 格已有首張牌，請選擇其他空格`);
         return false;
@@ -504,7 +634,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       }
       return true;
     },
-    [phase, playStarCardsAudio, playerHand, playerPlaced, revealInitialCards, schedule],
+    [phase, playStarCardsAudio, playerHand, playerPlaced, revealInitialCards, schedule, showFullLaneFeedback],
   );
 
   const chooseAiLane = useCallback(
@@ -628,6 +758,8 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     setHeldCardId(null);
     setRepositioningCardId(null);
     setHoveredLane(null);
+    setDropFeedback(null);
+    setSettledHandCardIds([]);
     setNavigationMode("pointer");
     setSelectedHandIndex(0);
     setSelectedLaneIndex(1);
@@ -677,6 +809,10 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
         logDetail: `${playerWon ? "PLAYER WIN" : "OWEN WIN"}｜${reason}｜擊毀 ${loser.points} 點牌，+${awardedPoints} 分`,
         winnerCardId: playerWon ? playerTop.card.id : aiTop.card.id,
         loserCardId: playerWon ? aiTop.card.id : playerTop.card.id,
+        loserCardPoints: loser.points,
+        missileTrailLayout: winner.attribute === "missile"
+          ? createStarCardsMissileTrailLayout()
+          : undefined,
         awardedPoints,
       }];
     });
@@ -715,7 +851,22 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     schedule(() => setBattleButtonPressed(false), 280);
     schedule(() => {
       setBattleEffects(effects);
-      effects.forEach((effect) => playBattleHitAudioSet(effect.attribute));
+      effects
+        .filter((effect) => effect.outcome === "tie")
+        .forEach(() => playStarCardsAudio("starCardsTie"));
+      effects
+        .filter((effect) => effect.outcome !== "tie")
+        .forEach((effect) => {
+          if (effect.attribute === "laser") {
+            playRandomAudioSet(STAR_CARDS_LASER_FIRE_AUDIO_EVENTS);
+          } else if (effect.attribute === "missile") {
+            playRandomAudioSet(STAR_CARDS_MISSILE_FIRE_AUDIO_EVENTS, 200, 300);
+          } else if (effect.attribute === "shield") {
+            STAR_CARDS_SHIELD_ATTACK_AUDIO_EVENTS.forEach((audioEvent) => {
+              playStarCardsAudio(audioEvent);
+            });
+          }
+        });
     }, 520);
     effects.forEach((effect, index) => {
       schedule(() => {
@@ -744,6 +895,9 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       }, 600 + index * 260);
     });
     schedule(() => {
+      effects
+        .filter((effect) => Boolean(effect.loserCardId && effect.loserCardPoints))
+        .forEach((effect) => playExplosionAudioSet(effect.loserCardPoints!));
       setVictoriousCardIds(
         effects.flatMap((effect) => effect.winnerCardId ? [effect.winnerCardId] : []),
       );
@@ -854,7 +1008,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
         schedule(() => prepareNextGame(currentGame + 1), 2400);
       }, 900);
     }, 2050);
-  }, [aiGameWins, aiPlaced, aiRemainingDeck.length, currentGame, phase, playBattleHitAudioSet, playStarCardsAudio, playerDrawnCount, playerGameWins, playerPlaced, playerRemainingDeck.length, playerScore, aiScore, prepareNextGame, schedule]);
+  }, [aiGameWins, aiPlaced, aiRemainingDeck.length, currentGame, phase, playExplosionAudioSet, playRandomAudioSet, playStarCardsAudio, playerDrawnCount, playerGameWins, playerPlaced, playerRemainingDeck.length, playerScore, aiScore, prepareNextGame, schedule]);
 
   const liftPlacedDrawCard = useCallback(() => {
     const placed = playerPlaced.find(
@@ -999,6 +1153,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     source: DragState["source"] = "hand",
     originalLane?: StarCardLane,
   ) => {
+    if (draggingRef.current) return;
     const canDragHand = source === "hand" &&
       (phase === "initial-placement" || phase === "draw-placement");
     const canReposition = source === "placed-draw" &&
@@ -1011,11 +1166,14 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     setNavigationMode("pointer");
     setHeldCardId(null);
     const dragPoint = { x: event.clientX, y: event.clientY };
+    const originBounds = event.currentTarget.getBoundingClientRect();
     const nextDragging: DragState = {
       cardId,
       pointerId: event.pointerId,
       x: dragPoint.x,
       y: dragPoint.y,
+      originX: originBounds.left + originBounds.width / 2,
+      originY: originBounds.top + originBounds.height / 2,
       source,
       originalLane,
     };
@@ -1060,6 +1218,21 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
             (placed) => placed.lane === lane && placed.card.id !== activeDrag.cardId,
           ).length
         : 3;
+      if (lane && destinationCount >= 3) {
+        showFullLaneFeedback();
+        playStarCardsAudio("starCardsCardFlipped");
+        setPlayerPlaced((cards) => cards.map((placed) =>
+          placed.card.id === activeDrag.cardId ? { ...placed, faceDown: true } : placed,
+        ));
+        setRepositioningCardId(null);
+        setPhase("draw-placed");
+        returnDraggedCardToIdle(
+          activeDrag,
+          event.currentTarget,
+          { x: event.clientX, y: event.clientY },
+        );
+        return;
+      }
       const destination = lane && destinationCount < 3 ? lane : activeDrag.originalLane;
       if (destination) {
         playStarCardsAudio("starCardsCardFlipped");
@@ -1079,9 +1252,23 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       }
       setRepositioningCardId(null);
     } else if (lane) {
-      placeCard(activeDrag.cardId, lane);
+      const placed = placeCard(activeDrag.cardId, lane);
+      if (!placed) {
+        returnDraggedCardToIdle(
+          activeDrag,
+          event.currentTarget,
+          { x: event.clientX, y: event.clientY },
+        );
+        return;
+      }
     } else {
       setAnnouncement("請將卡牌放開在 A／B／C 格內");
+      returnDraggedCardToIdle(
+        activeDrag,
+        event.currentTarget,
+        { x: event.clientX, y: event.clientY },
+      );
+      return;
     }
     clearDragInteraction();
   };
@@ -1171,7 +1358,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     return (
       <div
         key={card.id}
-        className={`star-card-shell${options.aiPending ? " is-ai-pending" : hand ? " is-hand" : " is-placed"}${hand?.drawCard ? " is-draw-card" : ""}${options.owner === "ai" ? " is-ai" : " is-player"}${isDragging ? " is-dragging" : ""}${isHeld ? " is-held" : ""}${isSelectedHand || isSelectedMovable ? " is-gamepad-selected" : ""}${snappingCardId === card.id ? " is-snapping" : ""}${destroyingCardIds.includes(card.id) ? " is-destroying" : ""}${victoriousCardIds.includes(card.id) ? " is-victorious" : ""}${phase === "dealing" || hand?.drawCard || options.aiPending ? " is-dealing" : ""}`}
+        className={`star-card-shell${options.aiPending ? " is-ai-pending" : hand ? " is-hand" : " is-placed"}${hand?.drawCard ? " is-draw-card" : ""}${options.owner === "ai" ? " is-ai" : " is-player"}${isDragging ? " is-dragging" : ""}${isHeld ? " is-held" : ""}${isSelectedHand || isSelectedMovable ? " is-gamepad-selected" : ""}${snappingCardId === card.id ? " is-snapping" : ""}${destroyingCardIds.includes(card.id) ? " is-destroying" : ""}${victoriousCardIds.includes(card.id) ? " is-victorious" : ""}${phase === "dealing" || (hand?.drawCard && !settledHandCardIds.includes(card.id)) || options.aiPending ? " is-dealing" : ""}`}
         style={style}
         role={isInteractive ? "button" : undefined}
         tabIndex={isInteractive ? 0 : -1}
@@ -1273,6 +1460,17 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
                 ? "將卡牌自由分配到空格子中"
                 : "將卡牌拖曳到其中一個位置"}
             </span>
+          </div>
+        ) : null}
+
+        {dropFeedback ? (
+          <div
+            key={dropFeedback.serial}
+            className="star-cards-drop-feedback"
+            role="status"
+            aria-live="assertive"
+          >
+            <span>{dropFeedback.text}</span>
           </div>
         ) : null}
 
@@ -1431,9 +1629,22 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
               key={`${effect.lane}-${effect.outcome}`}
             >
               <span className="star-cards-attack-core" />
-              <span className="star-cards-attack-trail is-one" />
-              <span className="star-cards-attack-trail is-two" />
-              <span className="star-cards-attack-trail is-three" />
+              {(["is-one", "is-two", "is-three"] as const).map((className, index) => (
+                <span
+                  className={`star-cards-attack-trail ${className}`}
+                  key={className}
+                  style={effect.missileTrailLayout
+                    ? {
+                        "--battle-spark-offset":
+                          `${effect.missileTrailLayout[index].lateralOffsetVw}vw`,
+                        "--battle-missile-depth-offset":
+                          `${effect.missileTrailLayout[index].depthOffsetCqh}cqh`,
+                        animationDelay:
+                          `${effect.missileTrailLayout[index].animationDelayMs}ms`,
+                      } as StarCardStyle
+                    : undefined}
+                />
+              ))}
               <span className="star-cards-impact" />
             </div>
           ))}
