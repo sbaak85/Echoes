@@ -6,8 +6,10 @@ import {
   STAR_CARD_LANES,
   STAR_CARDS_DEBUG_NUMBER,
   STAR_CARDS_GAME_ID,
+  STAR_CARDS_IMPACT_PARTICLE_COUNT,
   canPlaceStarCard,
   compareStarCards,
+  createStarCardsImpactParticleLayout,
   createStarCardsMissileTrailLayout,
   getStarCardBattleScore,
   shuffleStarCardDeck,
@@ -83,6 +85,38 @@ test("missile trails randomize lateral position, depth, and flight phase per att
     () => alternateValues[alternateIndex++],
   );
   assert.notDeepEqual(alternateLayout, layout);
+});
+
+test("impact particles randomize around a ring while every particle points radially outward", () => {
+  const values = [0, 0.25, 0.5, 0.75, 1];
+  let index = 0;
+  const layout = createStarCardsImpactParticleLayout(
+    () => values[index++ % values.length],
+  );
+
+  assert.equal(STAR_CARDS_IMPACT_PARTICLE_COUNT, 24);
+  assert.equal(layout.length, STAR_CARDS_IMPACT_PARTICLE_COUNT);
+  assert.deepEqual(layout[0], {
+    offsetXCqw: 6.98,
+    offsetYCqh: -3.71,
+    angleDeg: 62,
+    animationDelayMs: 55,
+    animationDurationMs: 830,
+  });
+  for (const particle of layout) {
+    assert.ok(Math.hypot(particle.offsetXCqw, particle.offsetYCqh) >= 6.79);
+    assert.ok(Math.hypot(particle.offsetXCqw, particle.offsetYCqh) <= 11.21);
+    assert.ok(particle.animationDelayMs >= 0 && particle.animationDelayMs <= 110);
+    assert.ok(particle.animationDurationMs >= 620 && particle.animationDurationMs <= 900);
+    const travelDirectionDeg = (
+      Math.atan2(particle.offsetYCqh, particle.offsetXCqw) * 180 / Math.PI + 360
+    ) % 360;
+    const particleDirectionDeg = (particle.angleDeg - 90 + 360) % 360;
+    const directionDifference = Math.abs(
+      ((travelDirectionDeg - particleDirectionDeg + 540) % 360) - 180,
+    );
+    assert.ok(directionDifference < 0.1);
+  }
 });
 
 test("initial placement requires an empty lane while the drawn card may stack", () => {
@@ -176,7 +210,7 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   );
   assert.match(
     styles,
-    /\.star-cards-match-wins > b \{[\s\S]*font-size: clamp\(14px, 1\.55cqw, 29px\)[\s\S]*text-shadow: none/,
+    /\.star-cards-match-wins > b \{[\s\S]*top: 42%;[\s\S]*font-size: clamp\(14px, 1\.55cqw, 29px\)[\s\S]*text-shadow: none/,
   );
   assert.match(styles, /\.star-cards-match-wins \.is-player-wins \{[\s\S]*left: 31\.25%/);
   assert.match(styles, /\.star-cards-match-wins \.is-ai-wins \{[\s\S]*left: 68\.5%/);
@@ -196,12 +230,28 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /type PlacementPromptState/);
   assert.match(source, /showPlacementPrompt\("initial"\)/);
   assert.match(source, /showPlacementPrompt\("draw"\)/);
-  assert.match(source, /"將卡牌自由分配到空格子中"/);
-  assert.match(source, /"將卡牌拖曳到其中一個位置"/);
+  assert.match(source, /"將卡牌自由分配到任一個戰區中"/);
+  assert.match(source, /"將卡牌拖曳到其中一個戰區"/);
   assert.match(source, /dismissPlacementPrompt\(\);[\s\S]*setNavigationMode\("pointer"\)/);
   assert.match(styles, /\.star-cards-placement-prompt \{[\s\S]*star-cards-placement-prompt-fade-in 1s/);
   assert.match(styles, /\.star-cards-placement-prompt\.is-exiting \{[\s\S]*star-cards-placement-prompt-fade-out 1s/);
   assert.match(styles, /\.star-cards-placement-prompt span \{[\s\S]*star-cards-placement-prompt-breathe 1\.25s/);
+  assert.match(
+    styles,
+    /\.star-cards-placement-prompt span \{[\s\S]*border: 0;[\s\S]*transparent 0%[\s\S]*transparent 100%/,
+  );
+  assert.match(
+    styles,
+    /\.star-cards-drop-feedback span \{[\s\S]*border: 0;[\s\S]*background: none;[\s\S]*box-shadow: none/,
+  );
+  assert.match(
+    styles,
+    /\.star-cards-drop-feedback span::before \{[\s\S]*inset: 2px -2px;[\s\S]*transparent 0%[\s\S]*rgba\(61, 9, 25, 0\.9\) 50%[\s\S]*transparent 100%[\s\S]*filter: blur\(2px\)/,
+  );
+  assert.match(
+    styles,
+    /\.star-cards-score\.is-ai \.is-ai-score \{[\s\S]*0 0 4px[\s\S]*0 0 10px/,
+  );
   assert.match(styles, /@keyframes star-cards-placement-prompt-fade-in/);
   assert.match(styles, /@keyframes star-cards-placement-prompt-fade-out/);
   assert.match(styles, /@keyframes star-cards-placement-prompt-breathe/);
@@ -211,6 +261,8 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /is-drag-source/);
   assert.match(styles, /\.star-cards-lane\.is-drag-source \{ z-index: 255; \}/);
   assert.match(source, /starCardsAssetUrl\("drop-lane-highlight\.png"\)/);
+  assert.doesNotMatch(source, /star-cards-zone-labels|ZONE \{laneIndex \+ 1\}/);
+  assert.doesNotMatch(styles, /\.star-cards-zone-labels/);
   assert.match(source, /hoveredLane \? ` is-\$\{hoveredLane\.toLowerCase\(\)\}`/);
   assert.match(styles, /\.star-cards-drop-highlight\.is-a[\s\S]*clip-path: inset\(0 62% 0 0\)/);
   assert.match(styles, /\.star-cards-drop-highlight\.is-b[\s\S]*clip-path: inset\(0 38%\)/);
@@ -234,7 +286,7 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(styles, /@keyframes star-cards-score-panel-bump/);
   assert.match(styles, /@keyframes star-cards-score-number-bump/);
   assert.doesNotMatch(source, /<b>BATTLE LOG<\/b>/);
-  assert.match(source, /starCardsAssetUrl\("type-advantage-panel\.png"\)/);
+  assert.match(source, /starCardsAssetUrl\("CardF1\.png"\)/);
   assert.match(styles, /\.star-cards-advantage-panel/);
   assert.match(source, /data-gamepad-selected/);
   assert.match(source, /navigator\.getGamepads/);
@@ -251,6 +303,19 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   );
   assert.match(styles, /@keyframes star-card-held-pulse/);
   assert.match(styles, /@keyframes star-card-place-back/);
+  assert.match(source, /const STAR_CARD_REVEAL_FRONT_MS = 300/);
+  assert.match(source, /const \[revealingFrontCardIds, setRevealingFrontCardIds\] = useState<string\[\]>\(\[\]\)/);
+  assert.match(source, /const markCardsRevealingFront = useCallback/);
+  assert.match(source, /phase === "revealing" \|\| revealingFrontCardIds\.includes\(card\.id\)/);
+  assert.match(source, /isRevealingFront \? " is-revealing-front"/);
+  assert.match(
+    styles,
+    /\.star-card-inner\.is-revealing-front \{[\s\S]*animation: star-card-reveal-front-reverse 300ms/,
+  );
+  assert.match(
+    styles,
+    /@keyframes star-card-reveal-front-reverse \{[\s\S]*0% \{ transform: rotateY\(180deg\); \}[\s\S]*100% \{ transform: rotateY\(360deg\); \}/,
+  );
   assert.doesNotMatch(
     styles,
     /@media \(prefers-reduced-motion: reduce\) \{\s*\.star-card-shell/,
@@ -259,7 +324,21 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /INITIAL_DEAL_AUDIO_DELAYS_MS = \[0, 0, 90, 110, 180, 220\]/);
   assert.match(source, /playStarCardsAudio\("starCardsUiInput"\)/);
   assert.match(source, /playStarCardsAudio\("starCardsCardDealt"\)/);
-  assert.match(source, /playStarCardsAudio\("starCardsCardFlipped", 6\)/);
+  assert.match(source, /const INITIAL_REVEAL_STEP_MS = 100/);
+  assert.match(
+    source,
+    /const INITIAL_REVEAL_SEQUENCE = \[[\s\S]*owner: "ai", lane: "A", delaySteps: 0[\s\S]*owner: "ai", lane: "B", delaySteps: 1[\s\S]*owner: "ai", lane: "C", delaySteps: 2[\s\S]*owner: "player", lane: "A", delaySteps: 1[\s\S]*owner: "player", lane: "B", delaySteps: 2[\s\S]*owner: "player", lane: "C", delaySteps: 3/,
+  );
+  assert.match(
+    source,
+    /INITIAL_REVEAL_SEQUENCE\.forEach\([\s\S]*playStarCardsAudio\("starCardsCardFlipped"\)[\s\S]*INITIAL_REVEAL_START_MS \+ delaySteps \* INITIAL_REVEAL_STEP_MS/,
+  );
+  assert.match(source, /INITIAL_REVEAL_FINAL_STEP \* INITIAL_REVEAL_STEP_MS \+ 300/);
+  assert.doesNotMatch(source, /playStarCardsAudio\("starCardsCardFlipped", 6\)/);
+  assert.match(
+    source,
+    /hoveredLaneRef\.current !== nextHoveredLane[\s\S]*setHoveredLane\(nextHoveredLane\)[\s\S]*if \(nextHoveredLane\) playStarCardsAudio\("starCardsLaneChanged"\)/,
+  );
   assert.match(
     source,
     /const STAR_CARDS_LASER_FIRE_AUDIO_EVENTS = \[[\s\S]*"starCardsLaserFire1"[\s\S]*"starCardsLaserFire7"/,
@@ -387,6 +466,21 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
     styles,
     /\.star-cards-battle-effect\.is-ai \.star-cards-impact \{[^}]*left: calc\(50% \+ var\(--battle-player-x\)\)/,
   );
+  assert.match(
+    source,
+    /effect\.outcome !== "tie"[\s\S]*star-cards-impact-particles[\s\S]*effect\.impactParticleLayout\?\.map/,
+  );
+  assert.match(
+    styles,
+    /\.star-cards-impact-particle \{[\s\S]*linear-gradient\(180deg, #fffbd0 0%, #ffd84c 38%, #ff9d00 100%\)[\s\S]*star-cards-impact-gold-particle/,
+  );
+  assert.match(source, /impactParticleLayout: createStarCardsImpactParticleLayout\(\)/);
+  assert.match(styles, /width: clamp\(4px, 0\.32cqw, 8px\)/);
+  assert.match(styles, /height: clamp\(14px, 1\.36cqh, 26px\)/);
+  assert.match(
+    styles,
+    /@keyframes star-cards-impact-gold-particle[\s\S]*translate\(var\(--impact-particle-x\), var\(--impact-particle-y\)\)/,
+  );
   assert.match(styles, /@keyframes star-cards-laser-player[\s\S]*rotate\(var\(--battle-angle\)\)/);
   assert.match(styles, /@keyframes star-cards-laser-ai[\s\S]*rotate\(var\(--battle-angle\)\)/);
   assert.match(
@@ -487,7 +581,7 @@ test("all StarCards runtime assets are present", () => {
     "button-stack.png",
     "score-panel.png",
     "match-wins-panel.png",
-    "type-advantage-panel.png",
+    "CardF1.png",
     ...STAR_CARD_DECK.map((card) => card.image.split("/").at(-1)),
   ]) {
     assert.equal(existsSync(new URL(name, assetRoot)), true, `${name} should exist`);

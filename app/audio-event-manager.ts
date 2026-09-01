@@ -211,15 +211,15 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 1,
       "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0,
       "maxPlaysPerWindow": 3,
       "playLimitWindowMs": 200,
-      "maxOverlappingVoices": 3,
-      "fadeInPercent": 0,
-      "fadeOutPercent": 0
+      "maxOverlappingVoices": 3
     },
     "starCardsCardFlipped": {
       "label": "星際牌卡牌翻面",
-      "trigger": "星際牌任何一張卡牌由正面翻到背面，或由背面翻回正面時逐張播放；我方與對手共用。允許同步翻牌重疊，但同時最多三軌且任意 200ms 內最多開始三聲，超出的呼叫直接略過。",
+      "trigger": "星際牌任何一張卡牌由正面翻到背面，或由背面翻回正面時逐張播放；我方與對手共用。首局對手由左至右每 0.1 秒翻一張，我方序列比對手晚 0.1 秒開始；同時翻面的兩張仍各自播放，最多六軌重疊。",
       "sourceAssetPaths": [
         "Assets/Audio/翻面.mp3"
       ],
@@ -228,9 +228,23 @@ export const AUDIO_EVENT_CONFIG = (
       ],
       "volume": 1,
       "delaySeconds": 0,
-      "maxPlaysPerWindow": 3,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0,
+      "maxPlaysPerWindow": 6,
       "playLimitWindowMs": 200,
-      "maxOverlappingVoices": 3,
+      "maxOverlappingVoices": 6
+    },
+    "starCardsLaneChanged": {
+      "label": "星際牌拖曳換格",
+      "trigger": "玩家拖曳卡牌進入 A、B、C 任一格，使該格亮框由未亮或其他格切換為亮起時播放一次；停留在同一格內不重複播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/換格.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-lane-changed.mp3"
+      ],
+      "volume": 0.5,
+      "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
@@ -1163,6 +1177,18 @@ export const BGM_TRACK_CONFIG = (
       "volume": 1,
       "loop": true,
       "rememberPosition": false
+    },
+    "star-cards": {
+      "label": "星際牌小遊戲 BGM",
+      "sourceAssetPaths": [
+        "Assets/Audio/星海棋盤.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards.mp3"
+      ],
+      "volume": 1,
+      "loop": true,
+      "rememberPosition": false
     }
   }
   /* BGM_TRACK_CONFIG_END */
@@ -1261,6 +1287,22 @@ export const BGM_CONTROL_RULES = (
       "state": "playing",
       "action": "fade",
       "trackId": "welding-route",
+      "targetVolume": 1,
+      "fadeOutSeconds": 1.5,
+      "fadeInSeconds": 1.5,
+      "priority": 1000,
+      "durationSeconds": 0,
+      "restoreMode": "resume"
+    },
+    {
+      "id": "minigame-bgm-change-4",
+      "label": "星際牌：切換專用 BGM",
+      "enabled": true,
+      "triggerType": "minigame",
+      "targetId": "star-cards",
+      "state": "playing",
+      "action": "fade",
+      "trackId": "star-cards",
       "targetVolume": 1,
       "fadeOutSeconds": 1.5,
       "fadeInSeconds": 1.5,

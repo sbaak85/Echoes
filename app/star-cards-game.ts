@@ -119,6 +119,44 @@ export type StarCardsMissileTrailLayout = readonly [
   StarCardsMissileTrail,
 ];
 
+export const STAR_CARDS_IMPACT_PARTICLE_COUNT = 24;
+
+export type StarCardsImpactParticle = {
+  offsetXCqw: number;
+  offsetYCqh: number;
+  angleDeg: number;
+  animationDelayMs: number;
+  animationDurationMs: number;
+};
+
+export type StarCardsImpactParticleLayout = readonly StarCardsImpactParticle[];
+
+/** 每次爆炸只建立一次的放射狀金色粒子；環形分布隨機，粒子朝向永遠對準外擴路徑。 */
+export function createStarCardsImpactParticleLayout(
+  random: () => number = Math.random,
+): StarCardsImpactParticleLayout {
+  const randomBetween = (minimum: number, maximum: number) => {
+    const randomValue = Math.min(1, Math.max(0, random()));
+    return minimum + (maximum - minimum) * randomValue;
+  };
+
+  return Array.from({ length: STAR_CARDS_IMPACT_PARTICLE_COUNT }, (_, index) => {
+    const baseDirectionDeg = index * (360 / STAR_CARDS_IMPACT_PARTICLE_COUNT);
+    const directionDeg = (baseDirectionDeg + randomBetween(-28, 28) + 360) % 360;
+    const directionRad = directionDeg * Math.PI / 180;
+    const distance = randomBetween(6.8, 11.2);
+    const angleDeg = (directionDeg + 90) % 360;
+
+    return {
+      offsetXCqw: Number((Math.cos(directionRad) * distance).toFixed(2)),
+      offsetYCqh: Number((Math.sin(directionRad) * distance).toFixed(2)),
+      angleDeg: Number(angleDeg.toFixed(2)),
+      animationDelayMs: Math.round(randomBetween(0, 110)),
+      animationDurationMs: Math.round(randomBetween(620, 900)),
+    };
+  });
+}
+
 /** 每次攻擊只建立一次的隨機散射編隊；重繪不變，下次發射重新抽選。 */
 export function createStarCardsMissileTrailLayout(
   random: () => number = Math.random,

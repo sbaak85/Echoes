@@ -755,6 +755,7 @@ test("星際牌發射池與分層爆炸池集中登記且允許多路重疊", as
   const ui = AUDIO_EVENT_CONFIG.starCardsUiInput;
   const dealt = AUDIO_EVENT_CONFIG.starCardsCardDealt;
   const flipped = AUDIO_EVENT_CONFIG.starCardsCardFlipped;
+  const laneChanged = AUDIO_EVENT_CONFIG.starCardsLaneChanged;
   const laserEvents = [
     AUDIO_EVENT_CONFIG.starCardsLaserFire1,
     AUDIO_EVENT_CONFIG.starCardsLaserFire2,
@@ -807,10 +808,21 @@ test("星際牌發射池與分層爆炸池集中登記且允許多路重疊", as
   assert.match(flipped.trigger, /正面翻到背面/);
   assert.match(flipped.trigger, /背面翻回正面/);
   assert.match(flipped.trigger, /我方與對手共用/);
-  assert.match(flipped.trigger, /任意 200ms 內最多開始三聲/);
-  assert.equal(flipped.maxPlaysPerWindow, 3);
+  assert.match(flipped.trigger, /我方序列比對手晚 0\.1 秒開始/);
+  assert.match(flipped.trigger, /同時翻面的兩張仍各自播放/);
+  assert.equal(flipped.maxPlaysPerWindow, 6);
   assert.equal(flipped.playLimitWindowMs, 200);
-  assert.equal(flipped.maxOverlappingVoices, 3);
+  assert.equal(flipped.maxOverlappingVoices, 6);
+
+  assert.deepEqual(laneChanged.sourceAssetPaths, ["Assets/Audio/換格.mp3"]);
+  assert.deepEqual(laneChanged.sources, ["./audio/star-cards-lane-changed.mp3"]);
+  assert.equal(laneChanged.volume, 0.5);
+  assert.match(laneChanged.trigger, /A、B、C 任一格/);
+  assert.match(laneChanged.trigger, /停留在同一格內不重複播放/);
+  assert.deepEqual(
+    await readFile(new URL("../public/audio/star-cards-lane-changed.mp3", import.meta.url)),
+    await readFile(new URL("../Assets/Audio/換格.mp3", import.meta.url)),
+  );
 
   const laserSourceAssets = [
     "Assets/Audio/The_sound_of_a_power_#1-1788199126794.mp3",
@@ -1003,7 +1015,7 @@ test("星際牌發射池與分層爆炸池集中登記且允許多路重疊", as
   assert.match(audioManagerSource, /new Audio\(runtime\.definition\.sources\[0\]\)/);
 });
 
-test("AudioEventManager 將同一星際牌音效限制為 200ms 三聲且最多三軌", async () => {
+test("AudioEventManager 限制發牌為三軌並允許六張卡牌各自翻面發聲", async () => {
   const originalAudio = globalThis.Audio;
   const created = [];
 
@@ -1067,15 +1079,15 @@ test("AudioEventManager 將同一星際牌音效限制為 200ms 三聲且最多�
       () => manager.play("starCardsCardFlipped", { overlap: true }),
     ));
     const flippedVoices = created.slice(configuredRuntimeCount + dealtVoices.length);
-    assert.equal(flippedVoices.length, 3);
+    assert.equal(flippedVoices.length, 6);
     assert.deepEqual(
       flippedVoices.map((voice) => voice.src),
-      Array(3).fill("./audio/star-cards-card-flipped.mp3"),
+      Array(6).fill("./audio/star-cards-card-flipped.mp3"),
     );
     manager.dispose();
     assert.deepEqual(
       [...dealtVoices, ...flippedVoices].map((voice) => voice.paused),
-      Array(6).fill(true),
+      Array(9).fill(true),
     );
   } finally {
     if (originalAudio === undefined) delete globalThis.Audio;

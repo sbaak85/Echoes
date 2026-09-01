@@ -16,12 +16,14 @@ import {
   STAR_CARD_LANES,
   canPlaceStarCard,
   compareStarCards,
+  createStarCardsImpactParticleLayout,
   createStarCardsMissileTrailLayout,
   getStarCardBattleScore,
   shuffleStarCardDeck,
   starCardsAssetUrl,
   type StarCardDefinition,
   type StarCardLane,
+  type StarCardsImpactParticleLayout,
   type StarCardsMissileTrailLayout,
 } from "./star-cards-game";
 import type { AudioEventManager } from "./audio-event-manager";
@@ -80,6 +82,7 @@ type LaneBattleEffect = {
   winnerCardId?: string;
   loserCardId?: string;
   loserCardPoints?: StarCardDefinition["points"];
+  impactParticleLayout?: StarCardsImpactParticleLayout;
   missileTrailLayout?: StarCardsMissileTrailLayout;
   awardedPoints: 0 | 1 | 2 | 3;
 };
@@ -176,6 +179,7 @@ type StarCardsAudioEventName =
   | "starCardsUiInput"
   | "starCardsCardDealt"
   | "starCardsCardFlipped"
+  | "starCardsLaneChanged"
   | "interactionDenied"
   | "starCardsTie"
   | StarCardsLayeredAudioEventName;
@@ -187,7 +191,25 @@ const STAR_CARDS_WINS_TO_MATCH = 3;
 const STAR_CARD_PLACE_FEEDBACK_MS = 320;
 const STAR_CARD_REJECT_RETURN_MS = 320;
 const STAR_CARD_DROP_FEEDBACK_MS = 1100;
+const STAR_CARD_REVEAL_FRONT_MS = 300;
 const INITIAL_DEAL_AUDIO_DELAYS_MS = [0, 0, 90, 110, 180, 220] as const;
+const INITIAL_REVEAL_START_MS = 620;
+const INITIAL_REVEAL_STEP_MS = 100;
+const INITIAL_REVEAL_SEQUENCE = [
+  { owner: "ai", lane: "A", delaySteps: 0 },
+  { owner: "ai", lane: "B", delaySteps: 1 },
+  { owner: "ai", lane: "C", delaySteps: 2 },
+  { owner: "player", lane: "A", delaySteps: 1 },
+  { owner: "player", lane: "B", delaySteps: 2 },
+  { owner: "player", lane: "C", delaySteps: 3 },
+] as const satisfies readonly {
+  owner: StarCardsOwner;
+  lane: StarCardLane;
+  delaySteps: number;
+}[];
+const INITIAL_REVEAL_FINAL_STEP = Math.max(
+  ...INITIAL_REVEAL_SEQUENCE.map(({ delaySteps }) => delaySteps),
+);
 
 function createOwnerDeck(owner: StarCardsOwner, gameNumber = 1) {
   return shuffleStarCardDeck().map((card) => ({
@@ -303,6 +325,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
   } | null>(null);
   const [destroyingCardIds, setDestroyingCardIds] = useState<string[]>([]);
   const [victoriousCardIds, setVictoriousCardIds] = useState<string[]>([]);
+  const [revealingFrontCardIds, setRevealingFrontCardIds] = useState<string[]>([]);
   const [navigationMode, setNavigationMode] = useState<"pointer" | "directional">(
     "pointer",
   );
@@ -339,6 +362,21 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     timersRef.current.push(timer);
     return timer;
   }, []);
+
+  const markCardsRevealingFront = useCallback((cardIds: readonly string[]) => {
+    if (cardIds.length === 0) return;
+    setRevealingFrontCardIds((current) => [
+      ...current,
+      ...cardIds.filter((cardId) => !current.includes(cardId)),
+    ]);
+    cardIds.forEach((cardId) => {
+      schedule(() => {
+        setRevealingFrontCardIds((current) =>
+          current.filter((candidate) => candidate !== cardId),
+        );
+      }, STAR_CARD_REVEAL_FRONT_MS);
+    });
+  }, [schedule]);
 
   const showPlacementPrompt = useCallback((kind: PlacementPromptState["kind"]) => {
     const nextPrompt: PlacementPromptState = {
@@ -514,9 +552,10 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       if (hoveredLaneRef.current !== nextHoveredLane) {
         hoveredLaneRef.current = nextHoveredLane;
         setHoveredLane(nextHoveredLane);
+        if (nextHoveredLane) playStarCardsAudio("starCardsLaneChanged");
       }
     });
-  }, [getDropLane]);
+  }, [getDropLane, playStarCardsAudio]);
 
   const stopDragFrame = useCallback(() => {
     if (dragFrameRef.current !== null) {
@@ -577,17 +616,28 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
 
   const revealInitialCards = useCallback(() => {
     setPhase("revealing");
-    schedule(() => {
-      playStarCardsAudio("starCardsCardFlipped", 6);
-      setPlayerPlaced((cards) => cards.map((placed) => ({ ...placed, faceDown: false })));
-      setAiPlaced((cards) => cards.map((placed) => ({ ...placed, faceDown: false })));
-      setAnnouncement("六張牌已同步開牌");
-    }, 620);
+    INITIAL_REVEAL_SEQUENCE.forEach(({ owner, lane, delaySteps }, index) => {
+      schedule(() => {
+        playStarCardsAudio("starCardsCardFlipped");
+        const revealLane = (cards: PlacedStarCard[]) => cards.map((placed) =>
+          placed.lane === lane ? { ...placed, faceDown: false } : placed,
+        );
+        if (owner === "ai") {
+          setAiPlaced(revealLane);
+        } else {
+          setPlayerPlaced(revealLane);
+        }
+        if (index === INITIAL_REVEAL_SEQUENCE.length - 1) {
+          setAnnouncement("對手與我方卡牌已依序開牌");
+        }
+      }, INITIAL_REVEAL_START_MS + delaySteps * INITIAL_REVEAL_STEP_MS);
+    });
     schedule(() => {
       setPhase("draw-ready");
       setNavigationMode("directional");
       setAnnouncement("DRAW 已可使用");
-    }, 1320);
+    }, INITIAL_REVEAL_START_MS +
+      INITIAL_REVEAL_FINAL_STEP * INITIAL_REVEAL_STEP_MS + 300);
   }, [playStarCardsAudio, schedule]);
 
   const placeCard = useCallback(
@@ -810,6 +860,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
         winnerCardId: playerWon ? playerTop.card.id : aiTop.card.id,
         loserCardId: playerWon ? aiTop.card.id : playerTop.card.id,
         loserCardPoints: loser.points,
+        impactParticleLayout: createStarCardsImpactParticleLayout(),
         missileTrailLayout: winner.attribute === "missile"
           ? createStarCardsMissileTrailLayout()
           : undefined,
@@ -834,6 +885,10 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     setBattleButtonPressed(true);
     setPhase("battling");
     setNavigationMode("pointer");
+    markCardsRevealingFront([
+      ...playerPlaced.filter((placed) => placed.faceDown).map((placed) => placed.card.id),
+      ...aiPlaced.filter((placed) => placed.faceDown).map((placed) => placed.card.id),
+    ]);
     playStarCardsAudio(
       "starCardsCardFlipped",
       playerPlaced.filter((placed) => placed.faceDown).length +
@@ -1008,7 +1063,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
         schedule(() => prepareNextGame(currentGame + 1), 2400);
       }, 900);
     }, 2050);
-  }, [aiGameWins, aiPlaced, aiRemainingDeck.length, currentGame, phase, playExplosionAudioSet, playRandomAudioSet, playStarCardsAudio, playerDrawnCount, playerGameWins, playerPlaced, playerRemainingDeck.length, playerScore, aiScore, prepareNextGame, schedule]);
+  }, [aiGameWins, aiPlaced, aiRemainingDeck.length, currentGame, phase, playExplosionAudioSet, playRandomAudioSet, playStarCardsAudio, playerDrawnCount, playerGameWins, playerPlaced, playerRemainingDeck.length, playerScore, aiScore, markCardsRevealingFront, prepareNextGame, schedule]);
 
   const liftPlacedDrawCard = useCallback(() => {
     const placed = playerPlaced.find(
@@ -1186,6 +1241,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     event.currentTarget.style.setProperty("--drag-y", `${dragPoint.y}px`);
     if (source === "placed-draw") {
       playStarCardsAudio("starCardsCardFlipped");
+      markCardsRevealingFront([cardId]);
       setRepositioningCardId(cardId);
       setPhase("draw-placement");
       setPlayerPlaced((cards) => cards.map((placed) =>
@@ -1318,6 +1374,9 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       phase === "battle-ready" &&
       navigationMode === "directional" &&
       battleNavigationIndex === 0;
+    const isRevealingFront = !options.faceDown && (
+      phase === "revealing" || revealingFrontCardIds.includes(card.id)
+    );
     const handX = hand?.drawCard ? 50 : PLAYER_HAND_X[hand?.dealIndex ?? 1] ?? 50;
     const handBottom = hand?.drawCard
       ? 7.1
@@ -1397,7 +1456,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
         }
       >
         <div className="star-card-hover">
-          <div className={`star-card-inner${options.faceDown ? " is-face-down" : ""}`}>
+          <div className={`star-card-inner${options.faceDown ? " is-face-down" : ""}${isRevealingFront ? " is-revealing-front" : ""}`}>
             <div className="star-card-face star-card-front">
               <img src={card.image} alt="" draggable={false} />
             </div>
@@ -1457,8 +1516,8 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
           >
             <span>
               {placementPrompt.kind === "initial"
-                ? "將卡牌自由分配到空格子中"
-                : "將卡牌拖曳到其中一個位置"}
+                ? "將卡牌自由分配到任一個戰區中"
+                : "將卡牌拖曳到其中一個戰區"}
             </span>
           </div>
         ) : null}
@@ -1518,7 +1577,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
           aria-label="屬性剋制：護盾剋雷射、雷射剋飛彈、飛彈剋護盾"
         >
           <img
-            src={starCardsAssetUrl("type-advantage-panel.png")}
+            src={starCardsAssetUrl("CardF1.png")}
             alt="護盾指向雷射、雷射指向飛彈、飛彈指向護盾的順時針互剋表"
             draggable={false}
           />
@@ -1646,6 +1705,23 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
                 />
               ))}
               <span className="star-cards-impact" />
+              {effect.outcome !== "tie" ? (
+                <span className="star-cards-impact-particles">
+                  {effect.impactParticleLayout?.map((particle, index) => (
+                    <span
+                      className="star-cards-impact-particle"
+                      key={`gold-particle-${index + 1}`}
+                      style={{
+                        "--impact-particle-x": `${particle.offsetXCqw}cqw`,
+                        "--impact-particle-y": `${particle.offsetYCqh}cqh`,
+                        "--impact-particle-angle": `${particle.angleDeg}deg`,
+                        "--impact-particle-delay": `${particle.animationDelayMs}ms`,
+                        "--impact-particle-duration": `${particle.animationDurationMs}ms`,
+                      } as StarCardStyle}
+                    />
+                  ))}
+                </span>
+              ) : null}
             </div>
           ))}
           {battleScorePopups.map((popup) => (
