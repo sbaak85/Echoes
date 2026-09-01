@@ -22,6 +22,7 @@ import {
   type StarCardDefinition,
   type StarCardLane,
 } from "./star-cards-game";
+import type { AudioEventManager } from "./audio-event-manager";
 
 type StarCardsPhase =
   | "dealing"
@@ -77,6 +78,12 @@ type LaneBattleEffect = {
   awardedPoints: 0 | 1 | 2 | 3;
 };
 
+type BattleScorePopup = {
+  lane: StarCardLane;
+  owner: "player" | "ai";
+  points: 0 | 1 | 2 | 3;
+};
+
 type BattleLogEntry = {
   id: string;
   tone: "system" | "player" | "ai" | "tie";
@@ -89,13 +96,49 @@ type StarCardStyle = CSSProperties &
 
 type StarCardsGameProps = {
   onClose: () => void;
+  audioEvents: Pick<AudioEventManager, "play"> | null;
 };
+
+type PlacementPromptState = {
+  kind: "initial" | "draw";
+  exiting: boolean;
+  serial: number;
+};
+
+const STAR_CARDS_LASER_AUDIO_EVENTS = [
+  "starCardsLaserAttack1",
+  "starCardsLaserAttack2",
+  "starCardsLaserAttack3",
+  "starCardsLaserAttack4",
+] as const;
+
+const STAR_CARDS_MISSILE_AUDIO_EVENTS = [
+  "starCardsMissileAttack1",
+  "starCardsMissileAttack2",
+  "starCardsMissileAttack3",
+  "starCardsMissileAttack4",
+  "starCardsMissileAttack5",
+  "starCardsMissileAttack6",
+  "starCardsMissileAttack7",
+  "starCardsMissileAttack8",
+] as const;
+
+type StarCardsBattleHitAudioEventName =
+  | (typeof STAR_CARDS_LASER_AUDIO_EVENTS)[number]
+  | (typeof STAR_CARDS_MISSILE_AUDIO_EVENTS)[number];
+
+type StarCardsAudioEventName =
+  | "starCardsUiInput"
+  | "starCardsCardDealt"
+  | "starCardsCardFlipped"
+  | StarCardsBattleHitAudioEventName;
 
 const PLAYER_HAND_X = [33.4, 50, 66.6] as const;
 const PLAYER_HAND_BOTTOM = [5.9, 10.6, 5.9] as const;
 const STAR_CARDS_MAX_GAMES = 5;
 const STAR_CARDS_WINS_TO_MATCH = 3;
 const STAR_CARD_PLACE_FEEDBACK_MS = 320;
+const INITIAL_DEAL_AUDIO_DELAYS_MS = [0, 0, 90, 110, 180, 220] as const;
 
 function createOwnerDeck(owner: StarCardsOwner, gameNumber = 1) {
   return shuffleStarCardDeck().map((card) => ({
@@ -156,7 +199,7 @@ function getPhaseMessage(phase: StarCardsPhase) {
   }
 }
 
-export function StarCardsGame({ onClose }: StarCardsGameProps) {
+export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
   const [playerInitialDeck] = useState(() => createOwnerDeck("player", 1));
   const [aiInitialDeck] = useState(() => createOwnerDeck("ai", 1));
 
@@ -201,6 +244,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
   const [playerGameWins, setPlayerGameWins] = useState(0);
   const [aiGameWins, setAiGameWins] = useState(0);
   const [battleEffects, setBattleEffects] = useState<LaneBattleEffect[]>([]);
+  const [battleScorePopups, setBattleScorePopups] = useState<BattleScorePopup[]>([]);
   const [battleLog, setBattleLog] = useState<BattleLogEntry[]>([]);
   const [playerScore, setPlayerScore] = useState(0);
   const [aiScore, setAiScore] = useState(0);
@@ -218,6 +262,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
   const [battleNavigationIndex, setBattleNavigationIndex] = useState(1);
   const [heldCardId, setHeldCardId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const [placementPrompt, setPlacementPrompt] = useState<PlacementPromptState | null>(null);
   const playerLaneRefs = useRef<Record<StarCardLane, HTMLDivElement | null>>({
     A: null,
     B: null,
@@ -230,6 +275,9 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
   const dragFrameRef = useRef<number | null>(null);
   const hoveredLaneRef = useRef<StarCardLane | null>(null);
   const timersRef = useRef<number[]>([]);
+  const placementPromptRef = useRef<PlacementPromptState | null>(null);
+  const placementPromptSerialRef = useRef(0);
+  const placementPromptRequestRef = useRef(0);
 
   const schedule = useCallback((callback: () => void, delayMs: number) => {
     const timer = window.setTimeout(() => {
@@ -240,13 +288,94 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     return timer;
   }, []);
 
+  const showPlacementPrompt = useCallback((kind: PlacementPromptState["kind"]) => {
+    const nextPrompt: PlacementPromptState = {
+      kind,
+      exiting: false,
+      serial: placementPromptSerialRef.current + 1,
+    };
+    placementPromptSerialRef.current = nextPrompt.serial;
+    placementPromptRef.current = nextPrompt;
+    setPlacementPrompt(nextPrompt);
+  }, []);
+
+  const dismissPlacementPrompt = useCallback(() => {
+    placementPromptRequestRef.current += 1;
+    const currentPrompt = placementPromptRef.current;
+    if (!currentPrompt || currentPrompt.exiting) return;
+    const exitingPrompt = { ...currentPrompt, exiting: true };
+    placementPromptRef.current = exitingPrompt;
+    setPlacementPrompt(exitingPrompt);
+    schedule(() => {
+      if (placementPromptRef.current?.serial !== currentPrompt.serial) return;
+      placementPromptRef.current = null;
+      setPlacementPrompt(null);
+    }, 1000);
+  }, [schedule]);
+
+  const playStarCardsAudio = useCallback((
+    eventName: StarCardsAudioEventName,
+    count = 1,
+  ) => {
+    if (!audioEvents || count <= 0) return;
+    const overlap = eventName !== "starCardsUiInput";
+    for (let index = 0; index < count; index += 1) {
+      void audioEvents.play(eventName, {
+        restart: !overlap,
+        overlap,
+      }).catch(() => {
+        // 音效被瀏覽器暫時阻擋時，不得中斷牌局操作。
+      });
+    }
+  }, [audioEvents]);
+
+  const playInitialDealAudio = useCallback(() => {
+    INITIAL_DEAL_AUDIO_DELAYS_MS.forEach((delayMs) => {
+      schedule(() => playStarCardsAudio("starCardsCardDealt"), delayMs);
+    });
+  }, [playStarCardsAudio, schedule]);
+
+  const playBattleHitAudioSet = useCallback((
+    attribute: StarCardDefinition["attribute"],
+  ) => {
+    const audioPool: readonly StarCardsBattleHitAudioEventName[] | null =
+      attribute === "laser"
+        ? STAR_CARDS_LASER_AUDIO_EVENTS
+        : attribute === "missile"
+          ? STAR_CARDS_MISSILE_AUDIO_EVENTS
+          : null;
+    if (!audioPool) return;
+
+    const shuffledAudioPool = [...audioPool];
+    for (let index = shuffledAudioPool.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [shuffledAudioPool[index], shuffledAudioPool[swapIndex]] = [
+        shuffledAudioPool[swapIndex],
+        shuffledAudioPool[index],
+      ];
+    }
+
+    const soundCount = 3 + Math.floor(Math.random() * 2);
+    let elapsedMs = 0;
+    shuffledAudioPool.slice(0, soundCount).forEach((audioEvent, index) => {
+      if (index > 0) {
+        elapsedMs += 200 + Math.floor(Math.random() * 201);
+      }
+      schedule(() => playStarCardsAudio(audioEvent), elapsedMs);
+    });
+  }, [playStarCardsAudio, schedule]);
+
   useEffect(() => {
-    schedule(() => setPhase("initial-placement"), 920);
+    playInitialDealAudio();
+    schedule(() => {
+      setPhase("initial-placement");
+      showPlacementPrompt("initial");
+    }, 920);
     return () => {
       timersRef.current.forEach((timer) => window.clearTimeout(timer));
       timersRef.current = [];
     };
-  }, [schedule]);
+  }, [playInitialDealAudio, schedule, showPlacementPrompt]);
 
   const getLaneCards = useCallback(
     (owner: StarCardsOwner, lane: StarCardLane) =>
@@ -323,6 +452,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
   const revealInitialCards = useCallback(() => {
     setPhase("revealing");
     schedule(() => {
+      playStarCardsAudio("starCardsCardFlipped", 6);
       setPlayerPlaced((cards) => cards.map((placed) => ({ ...placed, faceDown: false })));
       setAiPlaced((cards) => cards.map((placed) => ({ ...placed, faceDown: false })));
       setAnnouncement("六張牌已同步開牌");
@@ -332,7 +462,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
       setNavigationMode("directional");
       setAnnouncement("DRAW 已可使用");
     }, 1320);
-  }, [schedule]);
+  }, [playStarCardsAudio, schedule]);
 
   const placeCard = useCallback(
     (cardId: string, lane: StarCardLane) => {
@@ -355,6 +485,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
           dealIndex: handCard.dealIndex,
         },
       ];
+      playStarCardsAudio("starCardsCardFlipped");
       setPlayerPlaced(nextPlaced);
       const nextHand = playerHand.filter((candidate) => candidate.card.id !== cardId);
       setPlayerHand(nextHand);
@@ -373,7 +504,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
       }
       return true;
     },
-    [phase, playerHand, playerPlaced, revealInitialCards, schedule],
+    [phase, playStarCardsAudio, playerHand, playerPlaced, revealInitialCards, schedule],
   );
 
   const chooseAiLane = useCallback(
@@ -399,6 +530,14 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     const aiCard = aiRemainingDeck[0];
     if (!nextCard || !aiCard) return;
     const drawIndex = playerDrawnCount;
+    const promptRequest = placementPromptRequestRef.current + 1;
+    placementPromptRequestRef.current = promptRequest;
+    playStarCardsAudio("starCardsUiInput");
+    playStarCardsAudio("starCardsCardDealt");
+    schedule(
+      () => playStarCardsAudio("starCardsCardDealt"),
+      drawIndex * 90,
+    );
     setDrawButtonPressed(true);
     setNavigationMode("pointer");
     setActiveDrawIndex(drawIndex);
@@ -410,6 +549,10 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     setSelectedLaneIndex(1);
     setPhase("draw-placement");
     setAnnouncement(`${nextCard.points} 點・${nextCard.attributeLabel} 已抽出；OWEN 同步抽牌`);
+    schedule(() => {
+      if (placementPromptRequestRef.current !== promptRequest) return;
+      showPlacementPrompt("draw");
+    }, 720);
     schedule(() => setDrawButtonPressed(false), 300);
     schedule(() => {
       const lane = chooseAiLane(aiCard);
@@ -428,7 +571,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
       setAnnouncement(`OWEN 已將本輪新牌蓋放到 ${lane} 格`);
       schedule(() => setSnappingCardId(null), STAR_CARD_PLACE_FEEDBACK_MS);
     }, 2000);
-  }, [aiRemainingDeck, chooseAiLane, phase, playerDrawnCount, playerRemainingDeck, schedule]);
+  }, [aiRemainingDeck, chooseAiLane, phase, playStarCardsAudio, playerDrawnCount, playerRemainingDeck, schedule, showPlacementPrompt]);
 
   const playerDrawPlaced = activeDrawIndex !== null &&
     playerPlaced.some((placed) => placed.dealIndex === activeDrawIndex);
@@ -478,6 +621,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     setAiRemainingDeck(nextAiDeck.slice(3));
     setAiPendingCard(null);
     setBattleEffects([]);
+    setBattleScorePopups([]);
     setBattleLog([]);
     setDestroyingCardIds([]);
     setVictoriousCardIds([]);
@@ -489,12 +633,14 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     setSelectedLaneIndex(1);
     setPhase("dealing");
     setAnnouncement(`第 ${nextGame} 局開始，雙方重新洗牌`);
+    playInitialDealAudio();
     schedule(() => setGameBannerNumber(null), 950);
     schedule(() => {
       setPhase("initial-placement");
+      showPlacementPrompt("initial");
       setAnnouncement(`第 ${nextGame} 局：拖曳三張牌，分別放入 A／B／C`);
     }, 1050);
-  }, [schedule]);
+  }, [playInitialDealAudio, schedule, showPlacementPrompt]);
 
   const resolveBattle = useCallback(() => {
     if (phase !== "battle-ready") return;
@@ -535,6 +681,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
       }];
     });
     if (effects.length === 0) return;
+    playStarCardsAudio("starCardsUiInput");
     const battlePlayerPoints = effects.reduce(
       (total, effect) => total + (effect.outcome === "player" ? effect.awardedPoints : 0),
       0,
@@ -551,6 +698,11 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     setBattleButtonPressed(true);
     setPhase("battling");
     setNavigationMode("pointer");
+    playStarCardsAudio(
+      "starCardsCardFlipped",
+      playerPlaced.filter((placed) => placed.faceDown).length +
+        aiPlaced.filter((placed) => placed.faceDown).length,
+    );
     setPlayerPlaced((cards) => cards.map((placed) => ({ ...placed, faceDown: false })));
     setAiPlaced((cards) => cards.map((placed) => ({ ...placed, faceDown: false })));
     setBattleLog([{
@@ -561,7 +713,10 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     }]);
     setAnnouncement("三路卡牌同步開牌，戰鬥開始");
     schedule(() => setBattleButtonPressed(false), 280);
-    schedule(() => setBattleEffects(effects), 520);
+    schedule(() => {
+      setBattleEffects(effects);
+      effects.forEach((effect) => playBattleHitAudioSet(effect.attribute));
+    }, 520);
     effects.forEach((effect, index) => {
       schedule(() => {
         if (effect.outcome === "player") {
@@ -595,6 +750,14 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
       setDestroyingCardIds(
         effects.flatMap((effect) => effect.loserCardId ? [effect.loserCardId] : []),
       );
+      setBattleScorePopups(
+        effects.flatMap((effect) => effect.outcome === "tie" ? [] : [{
+          lane: effect.lane,
+          owner: effect.outcome,
+          points: effect.awardedPoints,
+        }]),
+      );
+      schedule(() => setBattleScorePopups([]), 900);
     }, 1280);
     schedule(() => {
       const destroyedCount = effects.filter((effect) => effect.loserCardId).length;
@@ -691,13 +854,14 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
         schedule(() => prepareNextGame(currentGame + 1), 2400);
       }, 900);
     }, 2050);
-  }, [aiGameWins, aiPlaced, aiRemainingDeck.length, currentGame, phase, playerDrawnCount, playerGameWins, playerPlaced, playerRemainingDeck.length, playerScore, aiScore, prepareNextGame, schedule]);
+  }, [aiGameWins, aiPlaced, aiRemainingDeck.length, currentGame, phase, playBattleHitAudioSet, playStarCardsAudio, playerDrawnCount, playerGameWins, playerPlaced, playerRemainingDeck.length, playerScore, aiScore, prepareNextGame, schedule]);
 
   const liftPlacedDrawCard = useCallback(() => {
     const placed = playerPlaced.find(
       (candidate) => candidate.dealIndex === activeDrawIndex,
     );
     if (!placed || phase !== "battle-ready") return;
+    playStarCardsAudio("starCardsCardFlipped");
     setPlayerPlaced((cards) => cards.filter((candidate) => candidate.card.id !== placed.card.id));
     setPlayerHand([{ card: placed.card, dealIndex: placed.dealIndex, drawCard: true }]);
     setSelectedLaneIndex(STAR_CARD_LANES.indexOf(placed.lane));
@@ -705,7 +869,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     setHeldCardId(placed.card.id);
     setPhase("draw-placement");
     setAnnouncement(`${placed.card.points} 點・${placed.card.attributeLabel} 已重新抽起並翻回正面`);
-  }, [activeDrawIndex, phase, playerPlaced]);
+  }, [activeDrawIndex, phase, playStarCardsAudio, playerPlaced]);
 
   const moveDirectionalSelection = useCallback(
     (direction: number) => {
@@ -744,12 +908,13 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     if (!heldCardId) {
       const selected = playerHand[selectedHandIndex];
       if (!selected) return;
+      dismissPlacementPrompt();
       setHeldCardId(selected.card.id);
       setAnnouncement(`已選取 ${selected.card.points} 點・${selected.card.attributeLabel}，選擇格子後按 A`);
       return;
     }
     placeCard(heldCardId, STAR_CARD_LANES[selectedLaneIndex]);
-  }, [battleNavigationIndex, drawNextCard, heldCardId, liftPlacedDrawCard, phase, placeCard, playerHand, resolveBattle, selectedHandIndex, selectedLaneIndex]);
+  }, [battleNavigationIndex, dismissPlacementPrompt, drawNextCard, heldCardId, liftPlacedDrawCard, phase, placeCard, playerHand, resolveBattle, selectedHandIndex, selectedLaneIndex]);
 
   const navigationRef = useRef({
     move: moveDirectionalSelection,
@@ -842,6 +1007,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
+    dismissPlacementPrompt();
     setNavigationMode("pointer");
     setHeldCardId(null);
     const dragPoint = { x: event.clientX, y: event.clientY };
@@ -861,6 +1027,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     event.currentTarget.style.setProperty("--drag-x", `${dragPoint.x}px`);
     event.currentTarget.style.setProperty("--drag-y", `${dragPoint.y}px`);
     if (source === "placed-draw") {
+      playStarCardsAudio("starCardsCardFlipped");
       setRepositioningCardId(cardId);
       setPhase("draw-placement");
       setPlayerPlaced((cards) => cards.map((placed) =>
@@ -895,6 +1062,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
         : 3;
       const destination = lane && destinationCount < 3 ? lane : activeDrag.originalLane;
       if (destination) {
+        playStarCardsAudio("starCardsCardFlipped");
         setPlayerPlaced((cards) => cards.map((placed) =>
           placed.card.id === activeDrag.cardId
             ? { ...placed, lane: destination, faceDown: true }
@@ -922,6 +1090,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     const activeDrag = draggingRef.current;
     if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
     if (activeDrag.source === "placed-draw") {
+      playStarCardsAudio("starCardsCardFlipped");
       setPlayerPlaced((cards) => cards.map((placed) =>
         placed.card.id === activeDrag.cardId ? { ...placed, faceDown: true } : placed,
       ));
@@ -940,6 +1109,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
       aiPending?: boolean;
       movable?: boolean;
       stackIndex?: number;
+      stackDepth?: number;
       laneIndex?: number;
       dealIndex: number;
     },
@@ -965,6 +1135,12 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
     const handBottom = hand?.drawCard
       ? 7.1
       : PLAYER_HAND_BOTTOM[hand?.dealIndex ?? 1] ?? 7.1;
+    const stackDepth = options.stackDepth ?? 0;
+    const stackInwardDirection = options.laneIndex === 0
+      ? 1
+      : options.laneIndex === 2
+        ? -1
+        : 0;
     const dealX = 50 - handX;
     const aiDealX = options.laneIndex === 0 ? 23 : options.laneIndex === 2 ? -23 : 0;
     const style: StarCardStyle = isDragging
@@ -985,6 +1161,9 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
             }
         : {
             "--stack-index": options.stackIndex ?? 0,
+            "--stack-depth": stackDepth,
+            "--stack-scale": Math.max(0.94, 1 - stackDepth * 0.02),
+            "--stack-inward-x": `${stackInwardDirection * stackDepth * 0.36}vw`,
             "--deal-x": `${aiDealX}vw`,
             "--deal-delay": `${options.dealIndex * 110}ms`,
           };
@@ -1022,6 +1201,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
             ? (event: ReactKeyboardEvent<HTMLDivElement>) => {
                 if (event.key !== "Enter" && event.key !== " ") return;
                 event.preventDefault();
+                dismissPlacementPrompt();
                 setNavigationMode("directional");
                 setSelectedHandIndex(Math.max(0, handIndex));
                 setHeldCardId(card.id);
@@ -1071,6 +1251,30 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
           aria-hidden="true"
           draggable={false}
         />
+
+        <img
+          className={`star-cards-drop-highlight${hoveredLane ? ` is-${hoveredLane.toLowerCase()}` : ""}`}
+          src={starCardsAssetUrl("drop-lane-highlight.png")}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+        />
+
+        {placementPrompt ? (
+          <div
+            key={placementPrompt.serial}
+            className={`star-cards-placement-prompt${placementPrompt.exiting ? " is-exiting" : ""}`}
+            role="status"
+            aria-live="polite"
+            aria-hidden={placementPrompt.exiting || undefined}
+          >
+            <span>
+              {placementPrompt.kind === "initial"
+                ? "將卡牌自由分配到空格子中"
+                : "將卡牌拖曳到其中一個位置"}
+            </span>
+          </div>
+        ) : null}
 
         {gameBannerNumber !== null ? (
           <div
@@ -1138,11 +1342,12 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
             key={`ai-${lane}`}
             aria-label={`OWEN ${lane} 格`}
           >
-            {getLaneCards("ai", lane).map((placed, stackIndex) =>
+            {getLaneCards("ai", lane).map((placed, stackIndex, laneCards) =>
               renderCard(placed.card, {
                 owner: "ai",
                 faceDown: placed.faceDown,
                 stackIndex,
+                stackDepth: laneCards.length - stackIndex - 1,
                 laneIndex,
                 dealIndex: placed.dealIndex,
               }),
@@ -1161,7 +1366,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
             selectedLaneIndex === laneIndex;
           return (
             <div
-              className={`star-cards-lane is-player-lane${hoveredLane === lane ? " is-drop-hover" : ""}${laneSelected ? " is-gamepad-selected" : ""}${laneContainsDraggingCard ? " is-drag-source" : ""}`}
+              className={`star-cards-lane is-player-lane${laneSelected ? " is-gamepad-selected" : ""}${laneContainsDraggingCard ? " is-drag-source" : ""}`}
               data-lane={lane}
               key={`player-${lane}`}
               ref={(element) => {
@@ -1191,6 +1396,7 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
                       phase === "battle-ready" ||
                       repositioningCardId === placed.card.id),
                   stackIndex,
+                  stackDepth: laneCards.length - stackIndex - 1,
                   laneIndex,
                   dealIndex: placed.dealIndex,
                 }),
@@ -1230,6 +1436,15 @@ export function StarCardsGame({ onClose }: StarCardsGameProps) {
               <span className="star-cards-attack-trail is-three" />
               <span className="star-cards-impact" />
             </div>
+          ))}
+          {battleScorePopups.map((popup) => (
+            <span
+              className={`star-cards-score-popup is-${popup.owner}`}
+              data-lane={popup.lane}
+              key={`${popup.lane}-${popup.owner}`}
+            >
+              +{popup.points}
+            </span>
           ))}
         </div>
 

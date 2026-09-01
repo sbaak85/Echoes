@@ -8662,6 +8662,79 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   pointer-events: none;
 }
 
+.star-cards-drop-highlight {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  opacity: 0;
+  pointer-events: none;
+  will-change: clip-path, opacity;
+}
+
+.star-cards-drop-highlight.is-a {
+  clip-path: inset(0 62% 0 0);
+  opacity: 1;
+}
+
+.star-cards-drop-highlight.is-b {
+  clip-path: inset(0 38%);
+  opacity: 1;
+}
+
+.star-cards-drop-highlight.is-c {
+  clip-path: inset(0 0 0 62%);
+  opacity: 1;
+}
+
+.star-cards-placement-prompt {
+  position: absolute;
+  z-index: 115;
+  top: 47.5%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: max-content;
+  max-width: 70%;
+  color: rgba(244, 247, 255, 0.96);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: star-cards-placement-prompt-fade-in 1s ease-out both;
+  will-change: opacity;
+}
+
+.star-cards-placement-prompt.is-exiting {
+  animation: star-cards-placement-prompt-fade-out 1s ease-in both;
+}
+
+.star-cards-placement-prompt span {
+  display: block;
+  padding: clamp(7px, 0.8cqw, 14px) clamp(16px, 1.6cqw, 30px);
+  border: 1px solid rgba(184, 141, 255, 0.18);
+  background: linear-gradient(
+    90deg,
+    rgba(7, 7, 24, 0.2),
+    rgba(16, 10, 39, 0.82) 20%,
+    rgba(15, 10, 37, 0.9) 50%,
+    rgba(16, 10, 39, 0.82) 80%,
+    rgba(7, 7, 24, 0.2)
+  );
+  box-shadow:
+    0 0 22px rgba(18, 8, 45, 0.72),
+    0 0 18px rgba(153, 77, 255, 0.13);
+  font: 500 clamp(16px, 1.55cqw, 29px)/1.15 "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  letter-spacing: 0.045em;
+  text-align: center;
+  text-shadow: 0 0 10px rgba(227, 217, 255, 0.46);
+  white-space: nowrap;
+  animation: star-cards-placement-prompt-breathe 1.25s ease-in-out 1s infinite alternate;
+  transform-origin: center;
+  will-change: transform, filter;
+}
+
 .star-cards-game-banner {
   position: absolute;
   z-index: 280;
@@ -8920,7 +8993,6 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   pointer-events: none;
 }
 
-.star-cards-lane.is-drop-hover::before,
 .star-cards-lane.is-gamepad-selected::before {
   border-color: #8cf4ff;
   filter:
@@ -8932,7 +9004,6 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   animation: star-cards-drop-zone-pulse 720ms ease-in-out infinite alternate;
 }
 
-.star-cards-lane.is-drop-hover::after,
 .star-cards-lane.is-gamepad-selected::after {
   border-color: rgba(200, 251, 255, 0.9);
   box-shadow: inset 0 0 18px rgba(28, 195, 255, 0.34);
@@ -8980,7 +9051,14 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   z-index: calc(20 + var(--stack-index));
   top: calc(var(--stack-index) * min(5.2vh, 3vw));
   left: 50%;
-  transform: translateX(calc(-50% + var(--card-idle-x, 0px)));
+  transform:
+    translateX(calc(-50% + var(--card-idle-x, 0px)))
+    translateX(var(--stack-inward-x, 0px))
+    scale(var(--stack-scale, 1));
+  transform-origin: top center;
+  transition:
+    top 280ms cubic-bezier(0.2, 0.78, 0.2, 1),
+    transform 280ms cubic-bezier(0.2, 0.78, 0.2, 1);
 }
 
 .star-cards-lane.is-player-lane .star-card-shell.is-placed {
@@ -9035,6 +9113,7 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
     scale(1.035)
     rotate(-1.2deg);
   filter: drop-shadow(0 22px 22px rgba(0, 0, 0, 0.58));
+  transition: none;
   will-change: transform;
 }
 
@@ -9174,6 +9253,14 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   animation: star-card-place-back 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+.star-card-shell.is-hand .star-card-hover {
+  filter:
+    drop-shadow(0 0 8px #fff)
+    drop-shadow(0 0 15px #43dfff)
+    drop-shadow(0 0 28px rgba(73, 255, 218, 0.72))
+    brightness(1.1);
+}
+
 .star-card-shell.is-held .star-card-hover,
 .star-card-shell.is-gamepad-selected .star-card-hover {
   filter:
@@ -9193,6 +9280,9 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 
 .star-card-shell.is-destroying {
   pointer-events: none;
+}
+
+.star-card-shell.is-destroying .star-card-hover {
   animation: star-card-destroy 760ms cubic-bezier(0.48, 0.02, 0.88, 0.42) both;
 }
 
@@ -9269,6 +9359,12 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 }
 
 .star-cards-battle-effect {
+  --battle-ai-x: -0.5vw;
+  --battle-player-x: -0.5vw;
+  --battle-mid-x: -0.5vw;
+  --battle-player-to-ai-x: 0vw;
+  --battle-ai-to-player-x: 0vw;
+  --battle-angle: 0deg;
   position: absolute;
   top: 31%;
   width: 11%;
@@ -9278,9 +9374,59 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   color: #ff5ed8;
 }
 
-.star-cards-battle-effect[data-lane="A"] { left: 28%; }
+.star-cards-battle-effect[data-lane="A"] {
+  --battle-ai-x: -0.3vw;
+  --battle-player-x: -3.7vw;
+  --battle-mid-x: -2vw;
+  --battle-player-to-ai-x: 3.4vw;
+  --battle-ai-to-player-x: -3.4vw;
+  --battle-angle: 10deg;
+  left: 28%;
+}
 .star-cards-battle-effect[data-lane="B"] { left: 50.4%; }
-.star-cards-battle-effect[data-lane="C"] { left: 72.8%; }
+.star-cards-battle-effect[data-lane="C"] {
+  --battle-ai-x: -0.3vw;
+  --battle-player-x: 2.4vw;
+  --battle-mid-x: 1.05vw;
+  --battle-player-to-ai-x: -2.7vw;
+  --battle-ai-to-player-x: 2.7vw;
+  --battle-angle: -8deg;
+  left: 72.8%;
+}
+
+.star-cards-score-popup {
+  position: absolute;
+  z-index: 5;
+  display: block;
+  min-width: 2.8em;
+  color: #42ff72;
+  font: 1000 clamp(22px, 2.05cqw, 42px)/1 "Arial Black", "Segoe UI", sans-serif;
+  letter-spacing: -0.04em;
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  -webkit-text-stroke: 0.025em rgba(225, 255, 235, 0.58);
+  text-shadow:
+    0 0 5px rgba(255, 255, 255, 0.92),
+    0 0 11px currentColor,
+    0 0 22px currentColor;
+  animation: star-cards-score-popup 900ms linear both;
+}
+
+.star-cards-score-popup.is-player { top: 51.6%; }
+.star-cards-score-popup.is-ai {
+  top: 43.2%;
+  color: #ff4d43;
+  -webkit-text-stroke-color: rgba(255, 232, 225, 0.62);
+}
+
+.star-cards-score-popup.is-player[data-lane="A"] { left: 25.9%; }
+.star-cards-score-popup.is-player[data-lane="B"] { left: 49.9%; }
+.star-cards-score-popup.is-player[data-lane="C"] { left: 72.9%; }
+.star-cards-score-popup.is-ai[data-lane="A"] { left: 26.5%; }
+.star-cards-score-popup.is-ai[data-lane="B"] { left: 49.8%; }
+.star-cards-score-popup.is-ai[data-lane="C"] { left: 72.7%; }
 
 .star-cards-attack-core,
 .star-cards-attack-trail,
@@ -9293,12 +9439,12 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 .star-cards-attack-core {
   top: 8%;
   bottom: 8%;
-  left: 50%;
+  left: calc(50% + var(--battle-mid-x));
   width: 6px;
   border-radius: 999px;
   background: linear-gradient(#ff52ca, #fff 44%, #ff52ca);
   box-shadow: 0 0 7px 2px #fff, 0 0 18px 7px currentColor;
-  transform: translateX(-50%) scaleY(0);
+  transform: translateX(-50%) rotate(var(--battle-angle)) scaleY(0);
 }
 
 .star-cards-battle-effect.is-player .star-cards-attack-core {
@@ -9309,6 +9455,14 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 .star-cards-battle-effect.is-ai .star-cards-attack-core {
   transform-origin: top;
   animation: star-cards-laser-ai 720ms ease-out both;
+}
+
+.star-cards-battle-effect.is-player:not(.is-shield):not(.is-tie) .star-cards-attack-core {
+  left: calc(50% + var(--battle-player-x));
+}
+
+.star-cards-battle-effect.is-ai:not(.is-shield):not(.is-tie) .star-cards-attack-core {
+  left: calc(50% + var(--battle-ai-x));
 }
 
 .star-cards-impact {
@@ -9323,8 +9477,14 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   animation: star-cards-impact-burst 620ms ease-out 300ms both;
 }
 
-.star-cards-battle-effect.is-player .star-cards-impact { top: -8%; }
-.star-cards-battle-effect.is-ai .star-cards-impact { bottom: -8%; }
+.star-cards-battle-effect.is-player .star-cards-impact {
+  top: -8%;
+  left: calc(50% + var(--battle-ai-x));
+}
+.star-cards-battle-effect.is-ai .star-cards-impact {
+  bottom: -8%;
+  left: calc(50% + var(--battle-player-x));
+}
 
 .star-cards-battle-effect.is-missile { color: #ff7d3d; }
 
@@ -9340,35 +9500,48 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 }
 
 .star-cards-battle-effect.is-missile.is-player .star-cards-attack-core {
+  left: calc(50% + var(--battle-player-x));
   bottom: 1%;
   animation: star-cards-missile-player 690ms cubic-bezier(0.28, 0.76, 0.4, 1) both;
 }
 
 .star-cards-battle-effect.is-missile.is-ai .star-cards-attack-core {
+  left: calc(50% + var(--battle-ai-x));
   top: 1%;
   animation: star-cards-missile-ai 690ms cubic-bezier(0.28, 0.76, 0.4, 1) both;
 }
 
 .star-cards-battle-effect.is-missile .star-cards-attack-trail {
-  left: 50%;
+  --battle-spark-offset: 0vw;
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: #fff0a7;
   box-shadow: 0 0 8px 3px #ff623e;
-  animation: star-cards-missile-sparks 520ms linear infinite;
 }
 
-.star-cards-battle-effect.is-missile .is-one { left: 42%; animation-delay: -80ms; }
-.star-cards-battle-effect.is-missile .is-two { left: 52%; animation-delay: -190ms; }
-.star-cards-battle-effect.is-missile .is-three { left: 59%; animation-delay: -310ms; }
+.star-cards-battle-effect.is-missile.is-player .star-cards-attack-trail {
+  bottom: 12%;
+  left: calc(50% + var(--battle-player-x) + var(--battle-spark-offset));
+  animation: star-cards-missile-sparks-player 520ms linear infinite;
+}
+
+.star-cards-battle-effect.is-missile.is-ai .star-cards-attack-trail {
+  top: 12%;
+  left: calc(50% + var(--battle-ai-x) + var(--battle-spark-offset));
+  animation: star-cards-missile-sparks-ai 520ms linear infinite;
+}
+
+.star-cards-battle-effect.is-missile .is-one { --battle-spark-offset: -0.75vw; animation-delay: -80ms; }
+.star-cards-battle-effect.is-missile .is-two { --battle-spark-offset: 0vw; animation-delay: -190ms; }
+.star-cards-battle-effect.is-missile .is-three { --battle-spark-offset: 0.75vw; animation-delay: -310ms; }
 
 .star-cards-battle-effect.is-shield { color: #46e9ff; }
 
 .star-cards-battle-effect.is-shield .star-cards-attack-core {
   top: 50%;
   bottom: auto;
-  left: 50%;
+  left: calc(50% + var(--battle-mid-x));
   width: 68%;
   aspect-ratio: 1;
   border: 4px solid #78f5ff;
@@ -9386,7 +9559,7 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 .star-cards-battle-effect.is-tie .star-cards-attack-core {
   top: 50%;
   bottom: auto;
-  left: 50%;
+  left: calc(50% + var(--battle-mid-x));
   width: 54%;
   aspect-ratio: 1;
   border: 3px solid currentColor;
@@ -9455,6 +9628,7 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   position: absolute;
   bottom: 0.55%;
   display: block;
+  isolation: isolate;
   padding: 0;
   border: 0;
   outline: 0;
@@ -9472,6 +9646,8 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 .star-cards-image-button.is-battle { left: 63.5%; width: 13.02%; }
 
 .star-cards-image-button > img {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   height: auto;
@@ -9485,43 +9661,71 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 }
 
 .star-cards-image-button.is-ready {
+  --button-ready-glow: #ff5cff;
+  --button-ready-glow-bright: rgba(255, 133, 255, 0.96);
+  --button-ready-glow-soft: rgba(174, 45, 255, 0.58);
   cursor: pointer;
   filter:
-    brightness(1.18)
-    drop-shadow(0 0 8px rgba(240, 124, 255, 0.95))
-    drop-shadow(0 0 20px rgba(152, 32, 255, 0.86));
+    brightness(1.14)
+    drop-shadow(0 0 5px rgba(240, 124, 255, 0.88))
+    drop-shadow(0 0 12px rgba(152, 32, 255, 0.68));
   opacity: 1;
   animation: star-cards-draw-ready-pulse 920ms ease-in-out infinite alternate;
 }
 
 .star-cards-image-button.is-ready::before {
   position: absolute;
-  z-index: 2;
-  inset: 7% 2%;
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  border-radius: 18%;
+  z-index: 0;
+  inset: 14% 6% 10%;
+  border-radius: 24%;
+  background: radial-gradient(
+    ellipse at center,
+    var(--button-ready-glow-bright) 0%,
+    var(--button-ready-glow-soft) 40%,
+    transparent 72%
+  );
   box-shadow:
-    0 0 8px #fff,
-    0 0 16px #ff5cff,
-    inset 0 0 10px rgba(236, 70, 255, 0.72);
-  clip-path: inset(0 72% 0 0);
+    0 0 4px rgba(255, 255, 255, 0.82),
+    0 0 10px var(--button-ready-glow),
+    0 0 19px var(--button-ready-glow-soft);
   content: "";
-  animation: star-cards-draw-line-scan 1.15s linear infinite;
+  filter: blur(4px);
+  opacity: 0.62;
+  animation: star-cards-button-backlight-pulse 1.05s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+.star-cards-image-button.is-ready::after {
+  position: absolute;
+  z-index: 2;
+  inset: 8% 5%;
+  border-radius: 18%;
+  background:
+    linear-gradient(
+      106deg,
+      transparent 35%,
+      var(--button-ready-glow-soft) 44%,
+      rgba(255, 255, 255, 0.92) 50%,
+      var(--button-ready-glow) 56%,
+      transparent 65%
+    ) 175% 0 / 230% 100% no-repeat;
+  clip-path: polygon(5% 0, 95% 0, 100% 25%, 100% 75%, 95% 100%, 5% 100%, 0 75%, 0 25%);
+  content: "";
+  filter: blur(2px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: star-cards-button-glow-sweep 1.35s ease-in-out infinite;
   pointer-events: none;
 }
 
 .star-cards-image-button.is-battle.is-ready {
+  --button-ready-glow: #28dfff;
+  --button-ready-glow-bright: rgba(159, 248, 255, 0.98);
+  --button-ready-glow-soft: rgba(29, 177, 255, 0.6);
   filter:
-    brightness(1.2)
-    drop-shadow(0 0 8px rgba(113, 239, 255, 0.98))
-    drop-shadow(0 0 22px rgba(27, 184, 255, 0.9));
-}
-
-.star-cards-image-button.is-battle.is-ready::before {
-  box-shadow:
-    0 0 8px #fff,
-    0 0 18px #28dfff,
-    inset 0 0 12px rgba(55, 214, 255, 0.8);
+    brightness(1.16)
+    drop-shadow(0 0 5px rgba(113, 239, 255, 0.92))
+    drop-shadow(0 0 13px rgba(27, 184, 255, 0.72));
 }
 
 .star-cards-image-button[data-gamepad-selected="true"] {
@@ -9536,6 +9740,14 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 .star-cards-image-button:active:not(:disabled) {
   filter: brightness(1.45) drop-shadow(0 0 24px #e96dff);
   transform: translateX(-50%) translateY(4px) scale(0.92);
+}
+
+.star-cards-image-button.is-pressed::before,
+.star-cards-image-button.is-pressed::after,
+.star-cards-image-button:active:not(:disabled)::before,
+.star-cards-image-button:active:not(:disabled)::after {
+  animation: none;
+  opacity: 0;
 }
 
 .star-cards-status {
@@ -9597,6 +9809,21 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   }
   68% { opacity: 1; }
   100% { opacity: 1; transform: translateX(-50%) scale(1) rotate(0); }
+}
+
+@keyframes star-cards-placement-prompt-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes star-cards-placement-prompt-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes star-cards-placement-prompt-breathe {
+  from { filter: brightness(0.94); transform: scale(0.97); }
+  to { filter: brightness(1.08); transform: scale(1.04); }
 }
 
 @keyframes star-cards-game-banner-sweep {
@@ -9720,10 +9947,10 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 }
 
 @keyframes star-card-destroy {
-  0% { opacity: 1; filter: brightness(1); transform: translateX(-50%) scale(1); }
-  20% { filter: brightness(2.5) saturate(1.6); transform: translateX(-50%) scale(1.06) rotate(-1deg); }
-  56% { opacity: 0.82; filter: brightness(0.7) saturate(0.3); transform: translateX(-50%) scale(0.91) rotate(4deg); }
-  100% { opacity: 0; filter: brightness(0); transform: translateX(-50%) translateY(24px) scale(0.42) rotate(12deg); }
+  0% { opacity: 1; filter: brightness(1); transform: translateY(0) scale(1) rotate(0); }
+  20% { filter: brightness(2.5) saturate(1.6); transform: translateY(0) scale(1.06) rotate(-1deg); }
+  56% { opacity: 0.82; filter: brightness(0.7) saturate(0.3); transform: translateY(0) scale(0.91) rotate(4deg); }
+  100% { opacity: 0; filter: brightness(0); transform: translateY(24px) scale(0.42) rotate(12deg); }
 }
 
 @keyframes star-card-destroy-flash {
@@ -9747,17 +9974,17 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 }
 
 @keyframes star-cards-laser-player {
-  0% { opacity: 0; transform: translateX(-50%) scaleY(0); }
+  0% { opacity: 0; transform: translateX(-50%) rotate(var(--battle-angle)) scaleY(0); }
   18% { opacity: 1; }
-  58% { opacity: 1; transform: translateX(-50%) scaleY(1); }
-  100% { opacity: 0; transform: translateX(-50%) scaleY(1); }
+  58% { opacity: 1; transform: translateX(-50%) rotate(var(--battle-angle)) scaleY(1); }
+  100% { opacity: 0; transform: translateX(-50%) rotate(var(--battle-angle)) scaleY(1); }
 }
 
 @keyframes star-cards-laser-ai {
-  0% { opacity: 0; transform: translateX(-50%) scaleY(0); }
+  0% { opacity: 0; transform: translateX(-50%) rotate(var(--battle-angle)) scaleY(0); }
   18% { opacity: 1; }
-  58% { opacity: 1; transform: translateX(-50%) scaleY(1); }
-  100% { opacity: 0; transform: translateX(-50%) scaleY(1); }
+  58% { opacity: 1; transform: translateX(-50%) rotate(var(--battle-angle)) scaleY(1); }
+  100% { opacity: 0; transform: translateX(-50%) rotate(var(--battle-angle)) scaleY(1); }
 }
 
 @keyframes star-cards-impact-burst {
@@ -9767,23 +9994,52 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 }
 
 @keyframes star-cards-missile-player {
-  0% { opacity: 0; transform: translate(-50%, 0) scale(0.6); }
+  0% { opacity: 0; transform: translate(-50%, 0) rotate(var(--battle-angle)) scale(0.6); }
   15% { opacity: 1; }
-  78% { opacity: 1; transform: translate(-50%, -34cqh) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -38cqh) scale(0.3); }
+  78% { opacity: 1; transform: translate(calc(-50% + var(--battle-player-to-ai-x)), -34cqh) rotate(var(--battle-angle)) scale(1); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--battle-player-to-ai-x)), -38cqh) rotate(var(--battle-angle)) scale(0.3); }
+}
+
+@keyframes star-cards-score-popup {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.7);
+  }
+  22.222% {
+    opacity: 1;
+    transform: translate(-50%, -8px) scale(1.12);
+  }
+  30% {
+    opacity: 1;
+    transform: translate(-50%, -10px) scale(1);
+  }
+  77.778% {
+    opacity: 1;
+    transform: translate(-50%, -10px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -26px) scale(0.96);
+  }
 }
 
 @keyframes star-cards-missile-ai {
-  0% { opacity: 0; transform: translate(-50%, 0) rotate(180deg) scale(0.6); }
+  0% { opacity: 0; transform: translate(-50%, 0) rotate(calc(180deg + var(--battle-angle))) scale(0.6); }
   15% { opacity: 1; }
-  78% { opacity: 1; transform: translate(-50%, 34cqh) rotate(180deg) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, 38cqh) rotate(180deg) scale(0.3); }
+  78% { opacity: 1; transform: translate(calc(-50% + var(--battle-ai-to-player-x)), 34cqh) rotate(calc(180deg + var(--battle-angle))) scale(1); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--battle-ai-to-player-x)), 38cqh) rotate(calc(180deg + var(--battle-angle))) scale(0.3); }
 }
 
-@keyframes star-cards-missile-sparks {
-  0% { top: 80%; opacity: 0; transform: scale(0.5); }
+@keyframes star-cards-missile-sparks-player {
+  0% { bottom: 12%; opacity: 0; transform: translateX(0) scale(0.5); }
   25% { opacity: 1; }
-  100% { top: 12%; opacity: 0; transform: scale(1.5); }
+  100% { bottom: 80%; opacity: 0; transform: translateX(var(--battle-player-to-ai-x)) scale(1.5); }
+}
+
+@keyframes star-cards-missile-sparks-ai {
+  0% { top: 12%; opacity: 0; transform: translateX(0) scale(0.5); }
+  25% { opacity: 1; }
+  100% { top: 80%; opacity: 0; transform: translateX(var(--battle-ai-to-player-x)) scale(1.5); }
 }
 
 @keyframes star-cards-shield-surge {
@@ -9804,10 +10060,17 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   to { transform: translateX(-50%) scale(1.055); }
 }
 
-@keyframes star-cards-draw-line-scan {
-  0% { clip-path: inset(0 78% 0 0); opacity: 0.22; }
-  48% { clip-path: inset(0 0 0 0); opacity: 1; }
-  100% { clip-path: inset(0 0 0 78%); opacity: 0.22; }
+@keyframes star-cards-button-backlight-pulse {
+  from { opacity: 0.5; transform: scaleX(0.985) scaleY(0.94); }
+  to { opacity: 0.72; transform: scaleX(1.015) scaleY(1.02); }
+}
+
+@keyframes star-cards-button-glow-sweep {
+  0% { opacity: 0; background-position: 175% 0; }
+  18% { opacity: 0.36; }
+  52% { opacity: 0.72; }
+  82% { opacity: 0.34; }
+  100% { opacity: 0; background-position: -75% 0; }
 }
 
 @media (max-aspect-ratio: 4 / 5) {

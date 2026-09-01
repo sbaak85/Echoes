@@ -180,6 +180,184 @@ export const AUDIO_EVENT_CONFIG = (
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
+    "starCardsUiInput": {
+      "label": "星際牌按鈕輸入",
+      "trigger": "星際牌小遊戲內可用的 DRAW 或 BATTLE 按鈕，透過滑鼠、鍵盤或手把成功觸發時播放一次。",
+      "sourceAssetPaths": [
+        "Assets/Audio/InPut.mp3"
+      ],
+      "sources": [
+        "./audio/ui-input.mp3"
+      ],
+      "volume": 0.7,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsCardDealt": {
+      "label": "星際牌發牌飛入",
+      "trigger": "星際牌任何一張卡牌開始飛入畫面時逐張播放；開場我方三張與對手三張共六次，每次 DRAW 我方與對手各一次。允許短時間內重疊播放，不能互相截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/飛牌.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-card-dealt.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsCardFlipped": {
+      "label": "星際牌卡牌翻面",
+      "trigger": "星際牌任何一張卡牌由正面翻到背面，或由背面翻回正面時逐張播放；我方與對手共用，允許同步翻牌的多聲重疊播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/翻面.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-card-flipped.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsLaserAttack1": {
+      "label": "星際牌雷射攻擊 1",
+      "trigger": "星際牌 BATTLE 中任一路雷射武器命中時，從四首雷射音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/The_sound_of_a_power_#1-1788199126794.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-laser-attack-1.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsLaserAttack2": {
+      "label": "星際牌雷射攻擊 2",
+      "trigger": "星際牌 BATTLE 中任一路雷射武器命中時，從四首雷射音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/The_sound_of_a_power_#3-1788199017585.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-laser-attack-2.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsLaserAttack3": {
+      "label": "星際牌雷射攻擊 3",
+      "trigger": "星際牌 BATTLE 中任一路雷射武器命中時，從四首雷射音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/The_sound_of_a_power_#4-1788199021817.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-laser-attack-3.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsLaserAttack4": {
+      "label": "星際牌雷射攻擊 4",
+      "trigger": "星際牌 BATTLE 中任一路雷射武器命中時，從四首雷射音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+      "sourceAssetPaths": [
+        "Assets/Audio/The_sound_of_a_power_#4-1788199120487.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-laser-attack-4.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsMissileAttack1": {
+      "label": "星際牌飛彈命中 1",
+      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#1-1788199534339.mp3"],
+      "sources": ["./audio/star-cards-missile-attack-1.mp3"],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsMissileAttack2": {
+      "label": "星際牌飛彈命中 2",
+      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#1-1788199550101.mp3"],
+      "sources": ["./audio/star-cards-missile-attack-2.mp3"],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsMissileAttack3": {
+      "label": "星際牌飛彈命中 3",
+      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#2-1788199534341.mp3"],
+      "sources": ["./audio/star-cards-missile-attack-3.mp3"],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsMissileAttack4": {
+      "label": "星際牌飛彈命中 4",
+      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#2-1788199552869.mp3"],
+      "sources": ["./audio/star-cards-missile-attack-4.mp3"],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsMissileAttack5": {
+      "label": "星際牌飛彈命中 5",
+      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#3-1788199534341.mp3"],
+      "sources": ["./audio/star-cards-missile-attack-5.mp3"],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsMissileAttack6": {
+      "label": "星際牌飛彈命中 6",
+      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#3-1788199552869.mp3"],
+      "sources": ["./audio/star-cards-missile-attack-6.mp3"],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsMissileAttack7": {
+      "label": "星際牌飛彈命中 7",
+      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#4-1788199534342.mp3"],
+      "sources": ["./audio/star-cards-missile-attack-7.mp3"],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starCardsMissileAttack8": {
+      "label": "星際牌飛彈命中 8",
+      "trigger": "星際牌 BATTLE 中任一路飛彈武器命中時，從八首飛彈音效池洗牌後抽出不重複的 3～4 支組成一套；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒，多路命中可重疊且互不截斷。",
+      "sourceAssetPaths": ["Assets/Audio/The_sound_of_a_missi_#4-1788199552869.mp3"],
+      "sources": ["./audio/star-cards-missile-attack-8.mp3"],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
     "hudExpanded": {
       "label": "HUD 介面展開",
       "trigger": "任務提示 UI、生存計量 UI 或小地圖 UI 的狀態真正由收折切換為展開時播放一次；滑鼠、鍵盤、手把、教學與系統流程共用。",
@@ -928,6 +1106,11 @@ type LineSeRuntime = {
 type PlayOptions = {
   /** true 會先停止、歸零，再依設定延遲播放。 */
   restart?: boolean;
+  /**
+   * 讓零延遲、無淡入淡出的單次單檔事件建立獨立音軌，避免短時間內
+   * 逐次觸發時互相截斷。適合發牌、翻牌等每個物件都要各播一聲的事件。
+   */
+  overlap?: boolean;
 };
 
 type StopOptions = {
@@ -966,6 +1149,10 @@ export function getAudioFadeDurationMilliseconds(
 export class AudioEventManager {
   private disposed = false;
   private readonly runtimes = new Map<AudioEventName, AudioEventRuntime>();
+  private readonly overlappingVoices = new Map<
+    HTMLAudioElement,
+    AudioEventRuntime
+  >();
   private readonly lineSeRuntimes = new Map<string, LineSeRuntime>();
   private currentDialogueLineId: string | null = null;
   private activeLineSeRuntime: LineSeRuntime | null = null;
@@ -1048,7 +1235,12 @@ export class AudioEventManager {
   }
 
   setVolume(eventName: AudioEventName, volume: number) {
-    this.getRuntime(eventName).audio.volume = clampVolume(volume);
+    const runtime = this.getRuntime(eventName);
+    const nextVolume = clampVolume(volume);
+    runtime.audio.volume = nextVolume;
+    this.overlappingVoices.forEach((voiceRuntime, voice) => {
+      if (voiceRuntime === runtime) voice.volume = nextVolume;
+    });
   }
 
   /**
@@ -1099,6 +1291,17 @@ export class AudioEventManager {
     const runtime = this.getRuntime(eventName);
     if (this.disposed) return Promise.resolve();
 
+    if (
+      options.overlap &&
+      !runtime.definition.loop &&
+      runtime.definition.sources.length === 1 &&
+      runtime.definition.delaySeconds === 0 &&
+      clampPercent(runtime.definition.fadeInPercent) === 0 &&
+      clampPercent(runtime.definition.fadeOutPercent) === 0
+    ) {
+      return this.playOverlappingOneShot(runtime);
+    }
+
     if (options.restart) {
       this.cancelPendingPlay(runtime);
       runtime.audio.pause();
@@ -1128,6 +1331,12 @@ export class AudioEventManager {
     this.cancelPendingPlay(runtime);
     runtime.audio.pause();
     if (options.reset ?? true) runtime.audio.currentTime = 0;
+    this.overlappingVoices.forEach((voiceRuntime, voice) => {
+      if (voiceRuntime !== runtime) return;
+      voice.pause();
+      if (options.reset ?? true) voice.currentTime = 0;
+      this.overlappingVoices.delete(voice);
+    });
   }
 
   /**
@@ -1165,6 +1374,11 @@ export class AudioEventManager {
       runtime.audio.currentTime = 0;
     });
     this.runtimes.clear();
+    this.overlappingVoices.forEach((_runtime, voice) => {
+      voice.pause();
+      voice.currentTime = 0;
+    });
+    this.overlappingVoices.clear();
     this.lineSeRuntimes.forEach((runtime) => {
       this.cancelLineSeRuntime(runtime);
       runtime.audio.pause();
@@ -1360,6 +1574,26 @@ export class AudioEventManager {
         fadeOutPercent,
       );
     }
+  }
+
+  private playOverlappingOneShot(runtime: AudioEventRuntime) {
+    const voice = new Audio(runtime.definition.sources[0]);
+    voice.preload = "auto";
+    voice.loop = false;
+    voice.volume = clampVolume(runtime.definition.volume);
+    this.overlappingVoices.set(voice, runtime);
+
+    const release = () => {
+      voice.removeEventListener("ended", release);
+      voice.removeEventListener("error", release);
+      this.overlappingVoices.delete(voice);
+    };
+    voice.addEventListener("ended", release);
+    voice.addEventListener("error", release);
+    return voice.play().catch((error) => {
+      release();
+      throw error;
+    });
   }
 
   private startVolumeEnvelope(

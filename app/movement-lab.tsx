@@ -15880,7 +15880,12 @@ export function MovementLab() {
         </menu>
       ) : null}
 
-      {starCardsOpen ? <StarCardsGame onClose={closeStarCardsGame} /> : null}
+      {starCardsOpen ? (
+        <StarCardsGame
+          onClose={closeStarCardsGame}
+          audioEvents={audioEventManagerRef.current}
+        />
+      ) : null}
 
       {powerPuzzleOpen && !frequencyPuzzleOpen && !weldingPuzzleOpen ? (
         <PowerRoutingPuzzle

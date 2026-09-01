@@ -4,6 +4,7 @@ import { readFile, stat } from "node:fs/promises";
 
 import {
   AUDIO_EVENT_CONFIG,
+  AudioEventManager,
   BGM_CONTROL_RULES,
   BGM_TRACK_CONFIG,
   DEFAULT_BGM_USER_VOLUME,
@@ -748,6 +749,165 @@ test("章節結束存檔確認視窗彈出時透過 AudioEventManager 單次播�
     (movementLabSource.match(/playOneShotAudio\("chapterEndSavePromptOpened"\)/g) ?? []).length,
     1,
   );
+});
+
+test("星際牌基礎、雷射與飛彈音效事件集中登記且允許多路重疊", async () => {
+  const ui = AUDIO_EVENT_CONFIG.starCardsUiInput;
+  const dealt = AUDIO_EVENT_CONFIG.starCardsCardDealt;
+  const flipped = AUDIO_EVENT_CONFIG.starCardsCardFlipped;
+  const laserEvents = [
+    AUDIO_EVENT_CONFIG.starCardsLaserAttack1,
+    AUDIO_EVENT_CONFIG.starCardsLaserAttack2,
+    AUDIO_EVENT_CONFIG.starCardsLaserAttack3,
+    AUDIO_EVENT_CONFIG.starCardsLaserAttack4,
+  ];
+  const missileEvents = Array.from(
+    { length: 8 },
+    (_, index) => AUDIO_EVENT_CONFIG[`starCardsMissileAttack${index + 1}`],
+  );
+
+  assert.deepEqual(ui.sourceAssetPaths, ["Assets/Audio/InPut.mp3"]);
+  assert.deepEqual(ui.sources, ["./audio/ui-input.mp3"]);
+  assert.match(ui.trigger, /DRAW/);
+  assert.match(ui.trigger, /BATTLE/);
+
+  assert.deepEqual(dealt.sourceAssetPaths, ["Assets/Audio/飛牌.mp3"]);
+  assert.deepEqual(dealt.sources, ["./audio/star-cards-card-dealt.mp3"]);
+  assert.match(dealt.trigger, /開場我方三張與對手三張共六次/);
+  assert.match(dealt.trigger, /每次 DRAW 我方與對手各一次/);
+  assert.match(dealt.trigger, /重疊播放/);
+
+  assert.deepEqual(flipped.sourceAssetPaths, ["Assets/Audio/翻面.mp3"]);
+  assert.deepEqual(flipped.sources, ["./audio/star-cards-card-flipped.mp3"]);
+  assert.match(flipped.trigger, /正面翻到背面/);
+  assert.match(flipped.trigger, /背面翻回正面/);
+  assert.match(flipped.trigger, /我方與對手共用/);
+
+  const laserSourceAssets = [
+    "Assets/Audio/The_sound_of_a_power_#1-1788199126794.mp3",
+    "Assets/Audio/The_sound_of_a_power_#3-1788199017585.mp3",
+    "Assets/Audio/The_sound_of_a_power_#4-1788199021817.mp3",
+    "Assets/Audio/The_sound_of_a_power_#4-1788199120487.mp3",
+  ];
+  for (const [index, event] of laserEvents.entries()) {
+    assert.deepEqual(event.sourceAssetPaths, [laserSourceAssets[index]]);
+    assert.deepEqual(event.sources, [`./audio/star-cards-laser-attack-${index + 1}.mp3`]);
+    assert.match(event.trigger, /四首雷射音效池洗牌/);
+    assert.match(event.trigger, /不重複的 3～4 支/);
+    assert.match(event.trigger, /0\.2～0\.4 秒/);
+    assert.match(event.trigger, /多路命中可重疊且互不截斷/);
+    const [sourceBytes, publicBytes] = await Promise.all([
+      readFile(new URL(`../${event.sourceAssetPaths[0].replaceAll("#", "%23")}`, import.meta.url)),
+      readFile(new URL(`../public/${event.sources[0].replace(/^\.\//, "")}`, import.meta.url)),
+    ]);
+    assert.deepEqual(publicBytes, sourceBytes);
+  }
+
+  const missileSourceAssets = [
+    "Assets/Audio/The_sound_of_a_missi_#1-1788199534339.mp3",
+    "Assets/Audio/The_sound_of_a_missi_#1-1788199550101.mp3",
+    "Assets/Audio/The_sound_of_a_missi_#2-1788199534341.mp3",
+    "Assets/Audio/The_sound_of_a_missi_#2-1788199552869.mp3",
+    "Assets/Audio/The_sound_of_a_missi_#3-1788199534341.mp3",
+    "Assets/Audio/The_sound_of_a_missi_#3-1788199552869.mp3",
+    "Assets/Audio/The_sound_of_a_missi_#4-1788199534342.mp3",
+    "Assets/Audio/The_sound_of_a_missi_#4-1788199552869.mp3",
+  ];
+  for (const [index, event] of missileEvents.entries()) {
+    assert.deepEqual(event.sourceAssetPaths, [missileSourceAssets[index]]);
+    assert.deepEqual(event.sources, [`./audio/star-cards-missile-attack-${index + 1}.mp3`]);
+    assert.match(event.trigger, /八首飛彈音效池洗牌/);
+    assert.match(event.trigger, /不重複的 3～4 支/);
+    assert.match(event.trigger, /0\.2～0\.4 秒/);
+    assert.match(event.trigger, /多路命中可重疊且互不截斷/);
+    const [sourceBytes, publicBytes] = await Promise.all([
+      readFile(new URL(`../${event.sourceAssetPaths[0].replaceAll("#", "%23")}`, import.meta.url)),
+      readFile(new URL(`../public/${event.sources[0].replace(/^\.\//, "")}`, import.meta.url)),
+    ]);
+    assert.deepEqual(publicBytes, sourceBytes);
+  }
+
+  for (const event of [ui, dealt, flipped, ...laserEvents, ...missileEvents]) {
+    assert.equal(event.delaySeconds, 0);
+    assert.equal(event.fadeInPercent, 0);
+    assert.equal(event.fadeOutPercent, 0);
+    assert.ok(
+      (await stat(
+        new URL(`../public/${event.sources[0].replace(/^\.\//, "")}`, import.meta.url),
+      )).size > 0,
+    );
+  }
+
+  const audioManagerSource = await readFile(
+    new URL("../app/audio-event-manager.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(audioManagerSource, /overlap\?: boolean/);
+  assert.match(audioManagerSource, /playOverlappingOneShot\(runtime\)/);
+  assert.match(audioManagerSource, /new Audio\(runtime\.definition\.sources\[0\]\)/);
+});
+
+test("AudioEventManager 會為連續的星際牌逐張音效建立獨立音軌", async () => {
+  const originalAudio = globalThis.Audio;
+  const created = [];
+
+  class FakeAudio {
+    constructor(source = "") {
+      this.src = source;
+      this.preload = "";
+      this.volume = 1;
+      this.loop = false;
+      this.paused = true;
+      this.currentTime = 0;
+      this.playCount = 0;
+      this.listeners = new Map();
+      created.push(this);
+    }
+
+    addEventListener(name, listener) {
+      this.listeners.set(name, listener);
+    }
+
+    removeEventListener(name, listener) {
+      if (this.listeners.get(name) === listener) this.listeners.delete(name);
+    }
+
+    load() {}
+
+    pause() {
+      this.paused = true;
+    }
+
+    play() {
+      this.paused = false;
+      this.playCount += 1;
+      return Promise.resolve();
+    }
+  }
+
+  globalThis.Audio = FakeAudio;
+  try {
+    const manager = new AudioEventManager();
+    const configuredRuntimeCount = created.length;
+    await Promise.all([
+      manager.play("starCardsCardDealt", { overlap: true }),
+      manager.play("starCardsCardDealt", { overlap: true }),
+      manager.play("starCardsCardDealt", { overlap: true }),
+    ]);
+    const voices = created.slice(configuredRuntimeCount);
+    assert.equal(voices.length, 3);
+    assert.deepEqual(voices.map((voice) => voice.src), [
+      "./audio/star-cards-card-dealt.mp3",
+      "./audio/star-cards-card-dealt.mp3",
+      "./audio/star-cards-card-dealt.mp3",
+    ]);
+    assert.deepEqual(voices.map((voice) => voice.playCount), [1, 1, 1]);
+    manager.dispose();
+    assert.deepEqual(voices.map((voice) => voice.paused), [true, true, true]);
+  } finally {
+    if (originalAudio === undefined) delete globalThis.Audio;
+    else globalThis.Audio = originalAudio;
+  }
 });
 
 test("自然死亡模糊轉黑與 Game Over 插圖淡入分別播放指定音效", async () => {
