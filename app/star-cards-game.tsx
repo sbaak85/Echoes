@@ -188,7 +188,6 @@ type StarCardsAudioEventName =
 const PLAYER_HAND_X = [33.4, 50, 66.6] as const;
 const PLAYER_HAND_BOTTOM = [5.9, 10.6, 5.9] as const;
 const PLAYER_HAND_ROTATION = [-5, 0, 5] as const;
-const STAR_CARDS_MAX_GAMES = 5;
 const STAR_CARDS_WINS_TO_MATCH = 3;
 const STAR_CARD_PLACE_FEEDBACK_MS = 320;
 const STAR_CARD_REJECT_RETURN_MS = 320;
@@ -284,7 +283,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
   const [gameBannerNumber, setGameBannerNumber] = useState<number | null>(null);
   const [matchResultBanner, setMatchResultBanner] = useState<{
     text: string;
-    outcome: "victory" | "defeat";
+    outcome: "victory" | "defeat" | "tie";
   } | null>(null);
   const [playerGameWins, setPlayerGameWins] = useState(0);
   const [aiGameWins, setAiGameWins] = useState(0);
@@ -754,6 +753,16 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
   const prepareNextGame = useCallback((nextGame: number) => {
     const nextPlayerDeck = createOwnerDeck("player", nextGame);
     const nextAiDeck = createOwnerDeck("ai", nextGame);
+    placementPromptRequestRef.current += 1;
+    placementPromptRef.current = null;
+    draggingRef.current = null;
+    dragPointRef.current = null;
+    dropLaneBoundsRef.current = null;
+    hoveredLaneRef.current = null;
+    if (dragFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragFrameRef.current);
+      dragFrameRef.current = null;
+    }
     setCurrentGame(nextGame);
     setGameBannerNumber(nextGame);
     setMatchResultBanner(null);
@@ -778,19 +787,26 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     setPlayerRemainingDeck(nextPlayerDeck.slice(3));
     setAiRemainingDeck(nextAiDeck.slice(3));
     setAiPendingCard(null);
+    setDragging(null);
+    setSnappingCardId(null);
+    setDrawButtonPressed(false);
+    setBattleButtonPressed(false);
     setBattleEffects([]);
     setBattleScorePopups([]);
     setBattleLog([]);
     setDestroyingCardIds([]);
     setVictoriousCardIds([]);
+    setRevealingFrontCardIds([]);
     setHeldCardId(null);
     setRepositioningCardId(null);
     setHoveredLane(null);
+    setPlacementPrompt(null);
     setDropFeedback(null);
     setSettledHandCardIds([]);
     setNavigationMode("pointer");
     setSelectedHandIndex(0);
     setSelectedLaneIndex(1);
+    setBattleNavigationIndex(1);
     setPhase("dealing");
     setAnnouncement(`第 ${nextGame} 局開始，雙方重新洗牌`);
     playInitialDealAudio();
@@ -1009,8 +1025,11 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
 
         if (!gameWinner) {
           setAnnouncement(
-            `第 ${currentGame} 局 9／9 結束：${finalPlayerScore}：${finalAiScore} 平手，等待平手規則`,
+            `第 ${currentGame} 局 9／9 結束：${finalPlayerScore}：${finalAiScore} 平手｜局勝 ${nextPlayerGameWins}：${nextAiGameWins}`,
           );
+          setMatchResultBanner({ text: "【平手】", outcome: "tie" });
+          schedule(() => setMatchResultBanner(null), 950);
+          schedule(() => prepareNextGame(currentGame + 1), 2400);
           return;
         }
 
@@ -1019,10 +1038,8 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
           : nextAiGameWins >= STAR_CARDS_WINS_TO_MATCH
             ? "OWEN"
             : null;
-        if (matchWinner || currentGame >= STAR_CARDS_MAX_GAMES) {
-          const resolvedMatchWinner = matchWinner ?? (
-            nextPlayerGameWins > nextAiGameWins ? "PLAYER" : "OWEN"
-          );
+        if (matchWinner) {
+          const resolvedMatchWinner = matchWinner;
           setAnnouncement(
             `${resolvedMatchWinner} 贏得五戰三勝｜局勝 ${nextPlayerGameWins}：${nextAiGameWins}`,
           );
@@ -1496,6 +1513,19 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
         />
 
         <img
+          className="star-cards-player-identity is-owen"
+          src={starCardsAssetUrl("Player_Up.png")}
+          alt="OWEN"
+          draggable={false}
+        />
+        <img
+          className="star-cards-player-identity is-player"
+          src={starCardsAssetUrl("Player_Down.png")}
+          alt="PLAYER"
+          draggable={false}
+        />
+
+        <img
           className={`star-cards-drop-highlight${hoveredLane ? ` is-${hoveredLane.toLowerCase()}` : ""}`}
           src={starCardsAssetUrl("drop-lane-highlight.png")}
           alt=""
@@ -1562,7 +1592,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
 
         <div
           className="star-cards-match-wins"
-          aria-label={`勝局：PLAYER ${playerGameWins}，OWEN ${aiGameWins}；目前第 ${currentGame} 局，最多 ${STAR_CARDS_MAX_GAMES} 局`}
+          aria-label={`勝局：PLAYER ${playerGameWins}，OWEN ${aiGameWins}；五戰三勝制，目前第 ${currentGame} 局；平手局不計勝局並追加下一局`}
         >
           <img src={starCardsAssetUrl("match-wins-panel.png")} alt="" aria-hidden="true" />
           <b className="is-player-wins">{playerGameWins}</b>

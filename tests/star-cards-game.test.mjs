@@ -196,6 +196,11 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /【第\{gameBannerNumber\}局】/);
   assert.match(source, /\{ text: "你贏了！", outcome: "victory" \}/);
   assert.match(source, /\{ text: "失敗了…", outcome: "defeat" \}/);
+  assert.match(
+    source,
+    /if \(!gameWinner\) \{[\s\S]*setMatchResultBanner\(\{ text: "【平手】", outcome: "tie" \}\);[\s\S]*schedule\(\(\) => prepareNextGame\(currentGame \+ 1\), 2400\);[\s\S]*return;/,
+  );
+  assert.doesNotMatch(source, /matchWinner \|\| currentGame >= STAR_CARDS_MAX_GAMES/);
   assert.match(source, /setMatchResultBanner\(null\), 950/);
   assert.match(source, /className=\{`star-cards-game-banner is-\$\{matchResultBanner\.outcome\}`\}/);
   assert.match(source, /setPlayerGameWins\(nextPlayerGameWins\)/);
@@ -209,6 +214,10 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /className="is-ai-wins"/);
   assert.match(source, /starCardsAssetUrl\("score-panel\.png"\)/);
   assert.match(source, /starCardsAssetUrl\("match-wins-panel\.png"\)/);
+  assert.match(source, /className="star-cards-player-identity is-owen"[\s\S]*starCardsAssetUrl\("Player_Up\.png"\)/);
+  assert.match(source, /className="star-cards-player-identity is-player"[\s\S]*starCardsAssetUrl\("Player_Down\.png"\)/);
+  assert.match(styles, /\.star-cards-player-identity\.is-owen \{[\s\S]*top: 1\.2%;[\s\S]*left: 1\.2%/);
+  assert.match(styles, /\.star-cards-player-identity\.is-player \{[\s\S]*right: 1\.2%;[\s\S]*bottom: 1\.2%/);
   assert.match(
     styles,
     /\.star-cards-match-wins \{[\s\S]*top: 0\.75%;[\s\S]*width: 15\.76%/,
@@ -225,8 +234,10 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(styles, /10\.526%[\s\S]*89\.474%/);
   assert.match(styles, /\.star-cards-game-banner\.is-victory span/);
   assert.match(styles, /\.star-cards-game-banner\.is-defeat span/);
+  assert.match(styles, /\.star-cards-game-banner\.is-tie span/);
+  assert.match(source, /setPlayerScore\(0\)[\s\S]*setAiScore\(0\)[\s\S]*setPlayerPlaced\(\[\]\)[\s\S]*setPlayerRemainingDeck\(nextPlayerDeck\.slice\(3\)\)/);
+  assert.match(source, /setDragging\(null\)[\s\S]*setSnappingCardId\(null\)[\s\S]*setDrawButtonPressed\(false\)[\s\S]*setBattleButtonPressed\(false\)/);
   assert.match(source, /setPhase\("draw-ready"\)/);
-  assert.match(source, /STAR_CARDS_MAX_GAMES = 5/);
   assert.match(source, /STAR_CARDS_WINS_TO_MATCH = 3/);
   assert.match(source, /starCardsAssetUrl\("button-stack\.png"\)/);
   assert.match(styles, /\.star-cards-stack-status/);
@@ -621,6 +632,8 @@ test("all StarCards runtime assets are present", () => {
     "button-stack.png",
     "score-panel.png",
     "match-wins-panel.png",
+    "Player_Up.png",
+    "Player_Down.png",
     "CardF1.png",
     "zone-1.png",
     "zone-2.png",

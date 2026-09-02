@@ -8853,6 +8853,15 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
     0 7px 0 rgba(28, 7, 31, 0.9);
 }
 
+.star-cards-game-banner.is-tie span {
+  color: #f8f4ff;
+  text-shadow:
+    0 0 5px #fff,
+    -5px 0 18px rgba(73, 214, 255, 0.88),
+    5px 0 20px rgba(220, 81, 255, 0.86),
+    0 7px 0 rgba(18, 12, 47, 0.86);
+}
+
 .star-cards-score {
   position: absolute;
   z-index: 90;
@@ -9040,6 +9049,27 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   aspect-ratio: 3 / 1;
   transform: translate(-50%, -50%);
   pointer-events: none;
+}
+
+.star-cards-player-identity {
+  position: absolute;
+  z-index: 84;
+  display: block;
+  width: 20%;
+  height: auto;
+  filter: drop-shadow(0 0 8px rgba(96, 104, 255, 0.34));
+  pointer-events: none;
+  user-select: none;
+}
+
+.star-cards-player-identity.is-owen {
+  top: 1.2%;
+  left: 1.2%;
+}
+
+.star-cards-player-identity.is-player {
+  right: 1.2%;
+  bottom: 1.2%;
 }
 
 .star-cards-zone-title > img {
@@ -9919,7 +9949,7 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 .star-cards-exit-hint {
   position: absolute;
   z-index: 120;
-  top: 1.7%;
+  top: 13.8%;
   left: 1.5%;
   color: rgba(210, 205, 237, 0.54);
   font: 700 clamp(7px, 0.75cqw, 13px)/1 "Segoe UI", sans-serif;
