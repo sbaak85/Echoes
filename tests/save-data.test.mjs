@@ -14,8 +14,13 @@ import {
   CHAPTER04_ENTERED_FLAG_ID,
   CHAPTER04_ID,
   CHAPTER04_NAME,
+  CHAPTER04_START_LOCATION,
   createChapter04EntryStoryProgress,
 } from "../app/chapter04-transition.ts";
+import {
+  findStorySubtitleEventById,
+  getChapterOpenScriptId,
+} from "../app/story-subtitle-flow.ts";
 
 function createSave() {
   return {
@@ -92,6 +97,68 @@ test("第三章章末存檔快照會以 chapter04 命名並包含完成旗標", 
   ]);
   assert.equal(next.storyFlags.preserved, true);
   assert.equal(next.storyFlags[CHAPTER04_ENTERED_FLAG_ID], true);
+});
+
+test("第四章開始會使用 Scene_3 的 chapter04-start 傳送點", async () => {
+  assert.deepEqual(CHAPTER04_START_LOCATION, {
+    sceneId: "Scene_3",
+    teleportPointId: "chapter04-start",
+  });
+
+  const [scene, movementLabSource] = await Promise.all([
+    readFile(new URL("../public/maps/map_test01.scene.json", import.meta.url), "utf8")
+      .then(JSON.parse),
+    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.equal(scene.sceneId, CHAPTER04_START_LOCATION.sceneId);
+  assert.ok(
+    scene.teleportPoints.some(
+      (point) => point.id === CHAPTER04_START_LOCATION.teleportPointId,
+    ),
+  );
+  assert.match(
+    movementLabSource,
+    /scheduleQuestTeleport\(CHAPTER04_START_LOCATION\.teleportPointId, 0\)/,
+  );
+  assert.match(
+    movementLabSource,
+    /pendingChapterStartRef\.current = \{[\s\S]*chapter: CHAPTER04_NUMBER,[\s\S]*blackAlreadyVisible: true/,
+  );
+});
+
+test("章節存檔完成後依下一章編號尋找 chapterXX-Open，缺少時可安全略過", async () => {
+  assert.equal(getChapterOpenScriptId(4), "chapter04-Open");
+  assert.equal(getChapterOpenScriptId(12), "chapter12-Open");
+  const chapters = [{
+    chapterNumber: 4,
+    subtitleEvents: [{ id: "chapter04-Open" }],
+  }];
+  assert.equal(
+    findStorySubtitleEventById(chapters, "chapter04-Open")?.event.id,
+    "chapter04-Open",
+  );
+  assert.equal(findStorySubtitleEventById(chapters, "chapter05-Open"), null);
+
+  const movementLabSource = await readFile(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    movementLabSource,
+    /pendingChapterStartRef\.current[\s\S]*emit\("chapterStarted"/,
+  );
+  assert.match(
+    movementLabSource,
+    /createStorySubtitleFlow\([\s\S]*\{ blackAlreadyVisible \}/,
+  );
+  assert.match(
+    movementLabSource,
+    /No \$\{scriptId\} script is registered; continuing without it/,
+  );
+  assert.match(
+    movementLabSource,
+    /resumeAfterSkippedChapterOpen[\s\S]*fadeBlackScreen\(0, 1000,[\s\S]*setStoryInputLocked\(false\)/,
+  );
 });
 
 test("chapter03-End 儲存確認介面阻擋黑幕淡出並支援手把操作", async () => {

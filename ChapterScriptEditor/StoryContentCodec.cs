@@ -347,6 +347,7 @@ public static class StoryContentCodec
         builder.AppendLine("    { type: \"setBlack\", visible: true },");
         foreach (var subtitle in chapterThree?.SubtitleEvents
                      .Where(item => item.TriggerType.Equals("chapterStart", StringComparison.OrdinalIgnoreCase))
+                     .Where(item => item.Id.StartsWith("chapter03-", StringComparison.OrdinalIgnoreCase))
                      .OrderBy(item => item.Id.Equals("chapter03-Open", StringComparison.OrdinalIgnoreCase) ? 0 :
                          item.Id.Equals("chapter03-opening-card", StringComparison.OrdinalIgnoreCase) ? 1 : 2)
                      ?? Enumerable.Empty<SubtitleEventDefinition>())

@@ -74,6 +74,16 @@ Treat restoration from a black screen as a critical game-recovery invariant, not
 
 For a configured sequence such as fade-in `0.5 s`, hold `4 s`, and fade-out `2 s` with persistence disabled, the required observable result is a fully black screen after the first phase, a four-second hold, a two-second transition back to the scene, and a fully transparent non-blocking overlay at completion.
 
+## Chapter subtitle transition invariant
+
+Chapter opening, chapter ending, and ChapterScriptEditor-authored black-screen subtitles use opacity-only transitions by default.
+
+- Fade subtitle text in without changing its position, scale, rotation, blur, or clip path; hold it at the same centered coordinates; then fade it out at those same coordinates.
+- Do not add upward drift, slide-in, slide-out, floating, bounce, zoom, or other motion unless the user explicitly requests an exception for that specific subtitle.
+- Treat editor-configured fade-in and fade-out durations as opacity timing only. The editor does not implicitly authorize spatial motion.
+- Keep the runtime fallback opacity-only even when an older or hand-written flow omits an explicit pure-fade flag, so newly authored chapter subtitles cannot silently inherit positional animation.
+- When a subtitle starts while a save or preceding flow already owns a black screen, reuse that black-screen state; the subtitle still fades normally in place, and the eventual black-overlay fade-out restores the scene.
+
 ## Verification
 
 Check all relevant paths:
@@ -91,5 +101,6 @@ Check all relevant paths:
 11. Alternate real mouse movement, right-stick movement, directional navigation, modal opening, and modal closing. At every frame, confirm that no more than one physical or virtual cursor is visible and that A activates only the current owner’s target.
 12. For every non-persistent black-screen event, sample the overlay during fade-in, hold, fade-out, and after completion. Confirm that fade-out visibly lights the scene, then leaves opacity `0`, releases hit testing and input locks, and remains clear after subsequent renders.
 13. Exercise cancellation and error paths for black-screen events. Confirm that they restore the same clear terminal state unless an explicit persistent handoff owns the black screen.
+14. Inspect chapter subtitle entrance and exit frames. The centered text transform must remain unchanged throughout; only opacity may vary unless that exact subtitle has an explicit user-approved motion exception.
 
 Confirm that no native focus background or border appears, while custom selection feedback and every input method still work. For every menu or clickable-button UI, confirm that left-stick navigation and A-button activation work without additional feature-specific setup.

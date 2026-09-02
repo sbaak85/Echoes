@@ -22,6 +22,7 @@ export type ChapterFlowAction =
       fadeOutMs: number;
       keepBlack: boolean;
       fadeOnly?: boolean;
+      blackAlreadyVisible?: boolean;
       beforeFadeOutCheckpointId?: string;
       afterSubtitleFadeOutCheckpointId?: string;
     }
@@ -265,7 +266,9 @@ export class ChapterFlowManager {
           break;
         case "showBlackSubtitle":
           this.host.showCenteredText(action);
-          this.host.fadeToBlack(action.fadeInMs);
+          if (!action.blackAlreadyVisible) {
+            this.host.fadeToBlack(action.fadeInMs);
+          }
           await this.wait(action.fadeInMs + action.holdMs, allowSkip);
           if (allowSkip && this.skipRequested) {
             this.host.hideCenteredText();

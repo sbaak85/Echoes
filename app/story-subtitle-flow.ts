@@ -40,6 +40,22 @@ export const STORY_SUBTITLE_SKIP_FADE_MS = 1000;
 export const CHAPTER03_END_SUBTITLE_EVENT_ID = "chapter03-End";
 export const CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID = "chapter04-entry-save";
 
+export function getChapterOpenScriptId(chapterNumber: number) {
+  const safeChapterNumber = Math.max(0, Math.floor(chapterNumber));
+  return `chapter${String(safeChapterNumber).padStart(2, "0")}-Open`;
+}
+
+export function findStorySubtitleEventById(
+  chapters: readonly StorySubtitleChapter[],
+  eventId: string,
+) {
+  for (const chapter of chapters) {
+    const event = chapter.subtitleEvents.find((candidate) => candidate.id === eventId);
+    if (event) return { chapterNumber: chapter.chapterNumber, event };
+  }
+  return null;
+}
+
 export function findStorySubtitleEvents(
   chapters: readonly StorySubtitleChapter[],
   triggerType: StorySubtitleTriggerType,
@@ -68,6 +84,7 @@ export function createStorySubtitleFlow(
   chapterNumber: number,
   event: StorySubtitleEventDefinition,
   occurrence: number,
+  options: { blackAlreadyVisible?: boolean } = {},
 ): ChapterFlowDefinition {
   const configuredLines = event.lines?.length
     ? event.lines.map((line) => ({
@@ -83,6 +100,8 @@ export function createStorySubtitleFlow(
   if (event.delayBeforeMs > 0) {
     actions.push({ type: "wait", durationMs: event.delayBeforeMs });
   }
+  const handsOffBlackAfterSave = event.id === CHAPTER03_END_SUBTITLE_EVENT_ID;
+  const keepBlackAfterComplete = event.keepBlack || handsOffBlackAfterSave;
   const subtitleAction: Extract<
     ChapterFlowAction,
     { type: "showBlackSubtitle" }
@@ -92,15 +111,16 @@ export function createStorySubtitleFlow(
     fadeInMs: Math.max(0, event.fadeInMs),
     holdMs: Math.max(0, event.holdMs),
     fadeOutMs: Math.max(0, event.fadeOutMs),
-    keepBlack: event.keepBlack,
+    keepBlack: keepBlackAfterComplete,
+    fadeOnly: true,
   };
+  if (options.blackAlreadyVisible) subtitleAction.blackAlreadyVisible = true;
   if (event.lines?.length) {
     subtitleAction.fontSizesPx = configuredLines.map(
       (line) => line.fontSizePx ?? 34,
     );
   }
-  if (event.id === CHAPTER03_END_SUBTITLE_EVENT_ID) {
-    subtitleAction.fadeOnly = true;
+  if (handsOffBlackAfterSave) {
     subtitleAction.afterSubtitleFadeOutCheckpointId =
       CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID;
   }
@@ -108,7 +128,9 @@ export function createStorySubtitleFlow(
   if (event.delayAfterMs > 0) {
     actions.push({ type: "wait", durationMs: event.delayAfterMs });
   }
-  if (!event.keepBlack && event.lockInput) actions.push({ type: "unlockInput" });
+  if (!keepBlackAfterComplete && event.lockInput) {
+    actions.push({ type: "unlockInput" });
+  }
 
   const skipActions: ChapterFlowAction[] = [{ type: "setBlack", visible: true }];
   if (!event.keepBlack) {
@@ -123,7 +145,7 @@ export function createStorySubtitleFlow(
     id: `${STORY_SUBTITLE_COMPLETION_PREFIX}:${event.id}:${occurrence}`,
     chapter: chapterNumber,
     once: true,
-    keepBlackAfterComplete: event.keepBlack,
+    keepBlackAfterComplete,
     actions,
     skipActions,
   };

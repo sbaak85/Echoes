@@ -104,9 +104,19 @@ type BattleLogEntry = {
 type StarCardStyle = CSSProperties &
   Record<`--${string}`, string | number | undefined>;
 
+type HandFloatMotion = {
+  phase: number;
+  lastTime: number;
+  playbackRate: number;
+  fromRate: number;
+  targetRate: number;
+  rateBlendStartedAt: number;
+};
+
 type StarCardsGameProps = {
   onClose: () => void;
   audioEvents: Pick<AudioEventManager, "play"> | null;
+  initialGamepadMode?: boolean;
 };
 
 type PlacementPromptState = {
@@ -243,7 +253,11 @@ function getPhaseMessage(phase: StarCardsPhase) {
   }
 }
 
-export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
+export function StarCardsGame({
+  onClose,
+  audioEvents,
+  initialGamepadMode = false,
+}: StarCardsGameProps) {
   const [playerInitialDeck] = useState(() => createOwnerDeck("player", 1));
   const [aiInitialDeck] = useState(() => createOwnerDeck("ai", 1));
 
@@ -303,14 +317,18 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
   const [navigationMode, setNavigationMode] = useState<"pointer" | "directional">(
     "pointer",
   );
-  const [selectedHandIndex, setSelectedHandIndex] = useState(0);
-  const [selectedLaneIndex, setSelectedLaneIndex] = useState(0);
+  const [selectedHandIndex, setSelectedHandIndex] = useState(1);
+  const [selectedLaneIndex, setSelectedLaneIndex] = useState(1);
   const [battleNavigationIndex, setBattleNavigationIndex] = useState(1);
   const [heldCardId, setHeldCardId] = useState<string | null>(null);
+  const [hoveredHandCardId, setHoveredHandCardId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [placementPrompt, setPlacementPrompt] = useState<PlacementPromptState | null>(null);
   const [dropFeedback, setDropFeedback] = useState<DropFeedbackState | null>(null);
   const [settledHandCardIds, setSettledHandCardIds] = useState<string[]>([]);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const preselectedHandCardIdRef = useRef<string | null>(null);
+  const handFloatMotionRef = useRef<Map<string, HandFloatMotion>>(new Map());
   const playerLaneRefs = useRef<Record<StarCardLane, HTMLDivElement | null>>({
     A: null,
     B: null,
@@ -470,13 +488,17 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     playInitialDealAudio();
     schedule(() => {
       setPhase("initial-placement");
+      if (initialGamepadMode) {
+        setNavigationMode("directional");
+        setSelectedHandIndex(1);
+      }
       showPlacementPrompt("initial");
     }, 920);
     return () => {
       timersRef.current.forEach((timer) => window.clearTimeout(timer));
       timersRef.current = [];
     };
-  }, [playInitialDealAudio, schedule, showPlacementPrompt]);
+  }, [initialGamepadMode, playInitialDealAudio, schedule, showPlacementPrompt]);
 
   const getLaneCards = useCallback(
     (owner: StarCardsOwner, lane: StarCardLane) =>
@@ -648,6 +670,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       setPlayerHand(nextHand);
       setSelectedHandIndex((current) => Math.min(current, Math.max(0, nextHand.length - 1)));
       setHeldCardId(null);
+      setHoveredHandCardId(null);
       setSnappingCardId(cardId);
       setAnnouncement(
         `${handCard.card.points} 點・${handCard.card.attributeLabel} 已蓋牌放入 ${lane} 格`,
@@ -696,7 +719,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       drawIndex * 90,
     );
     setDrawButtonPressed(true);
-    setNavigationMode("pointer");
+    setHoveredHandCardId(null);
     setActiveDrawIndex(drawIndex);
     setPlayerHand([{ card: nextCard, dealIndex: drawIndex, drawCard: true }]);
     setAiPendingCard(aiCard);
@@ -786,10 +809,11 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     setHeldCardId(null);
     setRepositioningCardId(null);
     setHoveredLane(null);
+    setHoveredHandCardId(null);
     setDropFeedback(null);
     setSettledHandCardIds([]);
-    setNavigationMode("pointer");
-    setSelectedHandIndex(0);
+    setNavigationMode(initialGamepadMode ? "directional" : "pointer");
+    setSelectedHandIndex(1);
     setSelectedLaneIndex(1);
     setPhase("dealing");
     setAnnouncement(`第 ${nextGame} 局開始，雙方重新洗牌`);
@@ -800,7 +824,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       showPlacementPrompt("initial");
       setAnnouncement(`第 ${nextGame} 局：拖曳三張牌，分別放入 A／B／C`);
     }, 1050);
-  }, [playInitialDealAudio, schedule, showPlacementPrompt]);
+  }, [initialGamepadMode, playInitialDealAudio, schedule, showPlacementPrompt]);
 
   const resolveBattle = useCallback(() => {
     if (phase !== "battle-ready") return;
@@ -1061,6 +1085,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
   const moveDirectionalSelection = useCallback(
     (direction: number) => {
       setNavigationMode("directional");
+      setHoveredHandCardId(null);
       if (phase === "battle-ready") {
         setBattleNavigationIndex((current) => (current + direction + 2) % 2);
         return;
@@ -1068,11 +1093,11 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       if (phase === "initial-placement" || phase === "draw-placement") {
         if (heldCardId) {
           setSelectedLaneIndex(
-            (current) => (current + direction + STAR_CARD_LANES.length) % STAR_CARD_LANES.length,
+            (current) => Math.max(0, Math.min(STAR_CARD_LANES.length - 1, current + direction)),
           );
         } else if (playerHand.length > 0) {
           setSelectedHandIndex(
-            (current) => (current + direction + playerHand.length) % playerHand.length,
+            (current) => Math.max(0, Math.min(playerHand.length - 1, current + direction)),
           );
         }
       }
@@ -1096,29 +1121,127 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       const selected = playerHand[selectedHandIndex];
       if (!selected) return;
       dismissPlacementPrompt();
+      const currentLaneCount = playerPlaced.filter(
+        (placed) => placed.lane === STAR_CARD_LANES[selectedLaneIndex],
+      ).length;
+      if (!canPlaceStarCard(phase, currentLaneCount)) {
+        const firstAvailableLaneIndex = STAR_CARD_LANES.findIndex((lane) =>
+          canPlaceStarCard(
+            phase,
+            playerPlaced.filter((placed) => placed.lane === lane).length,
+          ),
+        );
+        if (firstAvailableLaneIndex >= 0) setSelectedLaneIndex(firstAvailableLaneIndex);
+      }
       setHeldCardId(selected.card.id);
       setAnnouncement(`已選取 ${selected.card.points} 點・${selected.card.attributeLabel}，選擇格子後按 A`);
       return;
     }
     placeCard(heldCardId, STAR_CARD_LANES[selectedLaneIndex]);
-  }, [battleNavigationIndex, dismissPlacementPrompt, drawNextCard, heldCardId, liftPlacedDrawCard, phase, placeCard, playerHand, resolveBattle, selectedHandIndex, selectedLaneIndex]);
+  }, [battleNavigationIndex, dismissPlacementPrompt, drawNextCard, heldCardId, liftPlacedDrawCard, phase, placeCard, playerHand, playerPlaced, resolveBattle, selectedHandIndex, selectedLaneIndex]);
 
   const navigationRef = useRef({
     move: moveDirectionalSelection,
     activate: activateDirectionalSelection,
+    mode: navigationMode,
   });
   useEffect(() => {
     navigationRef.current = {
       move: moveDirectionalSelection,
       activate: activateDirectionalSelection,
+      mode: navigationMode,
     };
-  }, [activateDirectionalSelection, moveDirectionalSelection]);
+  }, [activateDirectionalSelection, moveDirectionalSelection, navigationMode]);
+
+  useEffect(() => {
+    const handleVirtualCursor = (event: Event) => {
+      const detail = (event as CustomEvent<{ cardId?: string | null }>).detail;
+      setNavigationMode("pointer");
+      setHoveredHandCardId(detail?.cardId ?? null);
+    };
+    window.addEventListener("echoes:star-cards-cursor", handleVirtualCursor);
+    return () => window.removeEventListener("echoes:star-cards-cursor", handleVirtualCursor);
+  }, []);
+
+  useEffect(() => {
+    preselectedHandCardIdRef.current = heldCardId ?? (
+      navigationMode === "directional"
+        ? playerHand[selectedHandIndex]?.card.id ?? null
+        : hoveredHandCardId
+    );
+  }, [heldCardId, hoveredHandCardId, navigationMode, playerHand, selectedHandIndex]);
+
+  useEffect(() => {
+    let frame = 0;
+    const updateHandFloat = (now: number) => {
+      const shells = dialogRef.current?.querySelectorAll<HTMLElement>(
+        ".star-card-shell.is-hand[data-star-cards-hand-card-id]",
+      );
+      const activeCardIds = new Set<string>();
+      shells?.forEach((shell) => {
+        const cardId = shell.dataset.starCardsHandCardId;
+        const hoverLayer = shell.querySelector<HTMLElement>(".star-card-hover");
+        if (!cardId || !hoverLayer) return;
+        activeCardIds.add(cardId);
+        const targetRate = cardId === preselectedHandCardIdRef.current ? 1.2 : 1;
+        let motion = handFloatMotionRef.current.get(cardId);
+        if (!motion) {
+          motion = {
+            phase: 0,
+            lastTime: now,
+            playbackRate: 1,
+            fromRate: 1,
+            targetRate,
+            rateBlendStartedAt: now,
+          };
+          handFloatMotionRef.current.set(cardId, motion);
+        }
+        if (motion.targetRate !== targetRate) {
+          motion.fromRate = motion.playbackRate;
+          motion.targetRate = targetRate;
+          motion.rateBlendStartedAt = now;
+        }
+
+        const deltaSeconds = Math.min(0.05, Math.max(0, (now - motion.lastTime) / 1000));
+        motion.lastTime = now;
+        const blendProgress = Math.min(1, (now - motion.rateBlendStartedAt) / 280);
+        const easedBlend = blendProgress * blendProgress * (3 - 2 * blendProgress);
+        motion.playbackRate =
+          motion.fromRate + (motion.targetRate - motion.fromRate) * easedBlend;
+        hoverLayer.style.setProperty("--hand-float-rate", motion.playbackRate.toFixed(3));
+
+        if (shell.classList.contains("is-dealing") || shell.classList.contains("is-dragging")) {
+          hoverLayer.style.removeProperty("transform");
+          return;
+        }
+
+        motion.phase = (motion.phase + deltaSeconds * motion.playbackRate * Math.PI * 2 / 2.25) % (Math.PI * 2);
+        const cosine = Math.cos(motion.phase);
+        const floatY = -4.5 + cosine * 4.5;
+        const floatRotation = cosine * -0.45;
+        hoverLayer.style.transform =
+          `translateY(${floatY.toFixed(3)}px) rotate(${floatRotation.toFixed(3)}deg)`;
+      });
+      handFloatMotionRef.current.forEach((_motion, cardId) => {
+        if (!activeCardIds.has(cardId)) handFloatMotionRef.current.delete(cardId);
+      });
+      frame = window.requestAnimationFrame(updateHandFloat);
+    };
+    frame = window.requestAnimationFrame(updateHandFloat);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      handFloatMotionRef.current.clear();
+    };
+  }, []);
 
   useEffect(() => {
     let frame = 0;
     let horizontalArmed = true;
-    let confirmHeld = false;
-    let cancelHeld = false;
+    const openingGamepad = navigator.getGamepads?.().find((candidate) => candidate) ?? null;
+    let confirmHeld = Boolean(openingGamepad?.buttons[0]?.pressed);
+    let cancelHeld = Boolean(
+      openingGamepad?.buttons[1]?.pressed || openingGamepad?.buttons[8]?.pressed,
+    );
     const pollGamepad = () => {
       const gamepad = navigator.getGamepads?.().find((candidate) => candidate) ?? null;
       if (gamepad) {
@@ -1136,7 +1259,13 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
           navigationRef.current.move(horizontal);
         }
         const confirm = Boolean(gamepad.buttons[0]?.pressed);
-        if (confirm && !confirmHeld) navigationRef.current.activate();
+        if (
+          confirm &&
+          !confirmHeld &&
+          navigationRef.current.mode === "directional"
+        ) {
+          navigationRef.current.activate();
+        }
         confirmHeld = confirm;
         const cancel = Boolean(gamepad.buttons[1]?.pressed || gamepad.buttons[8]?.pressed);
         if (cancel && !cancelHeld) onClose();
@@ -1354,6 +1483,12 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       navigationMode === "directional" &&
       !heldCardId &&
       handIndex === selectedHandIndex;
+    const isHoveredHand =
+      Boolean(hand) &&
+      navigationMode === "pointer" &&
+      !heldCardId &&
+      hoveredHandCardId === card.id;
+    const isPreselectedHand = isSelectedHand || isHoveredHand;
     const isSelectedMovable =
       Boolean(options.movable) &&
       phase === "battle-ready" &&
@@ -1406,8 +1541,9 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     return (
       <div
         key={card.id}
-        className={`star-card-shell${options.aiPending ? " is-ai-pending" : hand ? " is-hand" : " is-placed"}${hand?.drawCard ? " is-draw-card" : ""}${options.owner === "ai" ? " is-ai" : " is-player"}${isDragging ? " is-dragging" : ""}${isHeld ? " is-held" : ""}${isSelectedHand || isSelectedMovable ? " is-gamepad-selected" : ""}${snappingCardId === card.id ? " is-snapping" : ""}${destroyingCardIds.includes(card.id) ? " is-destroying" : ""}${victoriousCardIds.includes(card.id) ? " is-victorious" : ""}${phase === "dealing" || (hand?.drawCard && !settledHandCardIds.includes(card.id)) || options.aiPending ? " is-dealing" : ""}`}
+        className={`star-card-shell${options.aiPending ? " is-ai-pending" : hand ? " is-hand" : " is-placed"}${hand?.drawCard ? " is-draw-card" : ""}${options.owner === "ai" ? " is-ai" : " is-player"}${isDragging ? " is-dragging" : ""}${isHeld ? " is-held" : ""}${isPreselectedHand ? " is-preselected" : ""}${isSelectedMovable ? " is-gamepad-selected" : ""}${snappingCardId === card.id ? " is-snapping" : ""}${destroyingCardIds.includes(card.id) ? " is-destroying" : ""}${victoriousCardIds.includes(card.id) ? " is-victorious" : ""}${phase === "dealing" || (hand?.drawCard && !settledHandCardIds.includes(card.id)) || options.aiPending ? " is-dealing" : ""}`}
         style={style}
+        data-star-cards-hand-card-id={hand ? card.id : undefined}
         role={isInteractive ? "button" : undefined}
         tabIndex={isInteractive ? 0 : -1}
         aria-label={
@@ -1431,6 +1567,52 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
         onPointerMove={isInteractive ? moveDrag : undefined}
         onPointerUp={isInteractive ? finishDrag : undefined}
         onPointerCancel={isInteractive ? cancelDrag : undefined}
+        onAnimationEnd={
+          hand?.drawCard
+            ? (event) => {
+                if (event.animationName !== "star-card-deal-player") return;
+                setSettledHandCardIds((current) =>
+                  current.includes(card.id) ? current : [...current, card.id],
+                );
+              }
+            : undefined
+        }
+        onPointerEnter={
+          hand
+            ? (event) => {
+                if (event.pointerType !== "mouse") return;
+                setNavigationMode("pointer");
+                setHoveredHandCardId(card.id);
+              }
+            : undefined
+        }
+        onPointerLeave={
+          hand
+            ? (event) => {
+                if (event.pointerType !== "mouse") return;
+                const nextTarget = event.relatedTarget;
+                if (
+                  nextTarget instanceof Element &&
+                  nextTarget.closest(".star-card-shell.is-hand")
+                ) {
+                  return;
+                }
+                setHoveredHandCardId((current) => current === card.id ? null : current);
+              }
+            : undefined
+        }
+        onClick={
+          hand
+            ? (event) => {
+                if (event.detail !== 0 || draggingRef.current) return;
+                dismissPlacementPrompt();
+                setNavigationMode("directional");
+                setHoveredHandCardId(null);
+                setSelectedHandIndex(Math.max(0, handIndex));
+                setHeldCardId(card.id);
+              }
+            : undefined
+        }
         onKeyDown={
           hand
             ? (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -1444,8 +1626,9 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
             : undefined
         }
       >
-        <div className="star-card-hover">
-          <div className={`star-card-inner${options.faceDown ? " is-face-down" : ""}${isRevealingFront ? " is-revealing-front" : ""}`}>
+        <div className="star-card-selection-motion">
+          <div className="star-card-hover">
+            <div className={`star-card-inner${options.faceDown ? " is-face-down" : ""}${isRevealingFront ? " is-revealing-front" : ""}`}>
             <div className="star-card-face star-card-front">
               <img src={card.image} alt="" draggable={false} />
             </div>
@@ -1473,16 +1656,30 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
                 </div>
               ) : null}
             </div>
+            </div>
           </div>
         </div>
       </div>
     );
   };
 
+  const directionalLaneHighlight =
+    navigationMode === "directional" && heldCardId
+      ? STAR_CARD_LANES[selectedLaneIndex]
+      : null;
+  const activeDropHighlightLane = hoveredLane ?? directionalLaneHighlight;
+  const handPreselectionActive =
+    Boolean(heldCardId) || (
+      Boolean(hoveredHandCardId) ||
+      (navigationMode === "directional" && playerHand.length > 0)
+    );
+
   return (
     <div className="star-cards-overlay" data-star-cards-open="true">
       <section
-        className={`star-cards-dialog is-${phase}`}
+        ref={dialogRef}
+        className={`star-cards-dialog is-${phase}${handPreselectionActive ? " has-hand-preselection" : ""}`}
+        data-navigation-mode={navigationMode}
         role="dialog"
         aria-modal="true"
         aria-label="StarCards 星際牌玩法驗證"
@@ -1496,7 +1693,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
         />
 
         <img
-          className={`star-cards-drop-highlight${hoveredLane ? ` is-${hoveredLane.toLowerCase()}` : ""}`}
+          className={`star-cards-drop-highlight${activeDropHighlightLane ? ` is-${activeDropHighlightLane.toLowerCase()}` : ""}`}
           src={starCardsAssetUrl("drop-lane-highlight.png")}
           alt=""
           aria-hidden="true"
@@ -1620,7 +1817,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
             selectedLaneIndex === laneIndex;
           return (
             <div
-              className={`star-cards-lane is-player-lane${laneSelected ? " is-gamepad-selected" : ""}${laneContainsDraggingCard ? " is-drag-source" : ""}`}
+              className={`star-cards-lane is-player-lane${laneSelected ? " is-directional-target" : ""}${laneContainsDraggingCard ? " is-drag-source" : ""}`}
               data-lane={lane}
               key={`player-${lane}`}
               ref={(element) => {

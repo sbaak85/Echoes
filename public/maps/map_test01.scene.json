@@ -33,8 +33,8 @@
       "y": 680
     },
     {
-      "id": "teleport-point-001",
-      "label": "\u7B2C\u56DB\u7AE0\u50B3\u9001\u9EDE",
+      "id": "chapter04-start",
+      "label": "\u7B2C\u56DB\u7AE0\u8D77\u59CB\u50B3\u9001\u9EDE",
       "facing": "S",
       "blackoutEnabled": false,
       "blackoutFadeSeconds": 0.3,

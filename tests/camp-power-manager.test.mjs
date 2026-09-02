@@ -115,7 +115,13 @@ test("遊戲場景包含 10 x 5 的營地電力格與灌入確認視窗", () => 
   assert.match(source, /camp-power-confirmation-overlay/);
   assert.match(source, /灌入藍色晶體碎片？/);
   assert.match(source, /className="camp-power-refill-visualization"/);
-  assert.match(source, /campPowerRefillItem\?\.symbol/);
+  assert.match(source, /getInventoryItemArtworkPreview\(campPowerRefillItem\.id\)/);
+  assert.match(source, /campPowerRefillArtwork\?\.iconPath/);
+  assert.match(source, /src=\{campPowerRefillArtwork\.iconPath\}/);
+  assert.match(
+    styles,
+    /\.camp-power-refill-item-icon\s*>\s*img\s*\{[\s\S]*?object-fit:\s*contain/,
+  );
   assert.match(source, /Array\.from\(\{ length: CAMP_POWER_CAPACITY \}/);
   assert.match(source, /index < campPowerPreviewCurrent[\s\S]*?"is-current"/);
   assert.match(source, /index < campPowerPreviewNext[\s\S]*?"is-projected"/);

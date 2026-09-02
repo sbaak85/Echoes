@@ -30,7 +30,7 @@ test("movement lab wires Game 1 through Game 4 and remounts welding sessions", (
   assert.match(source, /gameCommand\.gameNumber === 3/);
   assert.match(source, /gameCommand\.gameNumber === 4/);
   assert.match(source, /openStarCardsGame\(\)/);
-  assert.match(source, /<StarCardsGame onClose=\{closeStarCardsGame\}/);
+  assert.match(source, /<StarCardsGame[\s\S]*onClose=\{closeStarCardsGame\}/);
   assert.match(source, /setWeldingPuzzleSessionKey\(\(current\) => current \+ 1\)/);
   assert.match(source, /onFail=\{handleWeldingPuzzleFailure\}/);
   assert.match(source, /WELDING_FAILURE_MATERIAL_ITEM_ID = "R0009"/);

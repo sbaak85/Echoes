@@ -163,6 +163,22 @@ test("useAction 與任務投入共用 Item 變化圖示，通訊陣列採用 240
   assert.match(source, /sources=\{questItemSubmissionSources\}/);
   assert.match(source, /targets=\{questItemSubmissionTargets\}/);
   assert.match(source, /communication-array-tower-icon\.png/);
+  assert.match(
+    styles,
+    /\.quest-item-submission-visualization \.item-change-visual-group\.is-target \.item-change-visual-icon \{[\s\S]*rgba\(10, 35, 38, 0\.94\)/,
+  );
+  assert.doesNotMatch(
+    styles,
+    /\.quest-item-submission-visualization \.item-change-visual-group\.is-target \.item-change-visual-icon \{[^}]*rgba\(214, 222, 220, 0\.94\)/,
+  );
+  assert.match(
+    source,
+    /questItemSubmissionPrompt\.interactable\.id === COMMUNICATION_ARRAY_INTERACTION_ID[\s\S]*artwork\?\.iconPath/,
+  );
+  assert.match(
+    styles,
+    /\.quest-item-submission-visualization[\s\S]*\.item-change-visual-group\.is-source[\s\S]*\.item-change-visual-icon > img[\s\S]*width: 90%/,
+  );
   assert.match(source, /requirement\.completed[\s\S]*"submitted"/);
   assert.match(source, /"available"[\s\S]*"missing"/);
   assert.match(styles, /\.item-change-visual-card\.is-missing/);

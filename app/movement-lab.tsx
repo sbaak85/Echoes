@@ -253,13 +253,16 @@ import {
 import {
   CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID,
   createStorySubtitleFlow,
+  findStorySubtitleEventById,
   findStorySubtitleEvents,
+  getChapterOpenScriptId,
   getStorySubtitleCompletedCount,
 } from "./story-subtitle-flow";
 import {
   CHAPTER04_ID,
   CHAPTER04_NAME,
   CHAPTER04_NUMBER,
+  CHAPTER04_START_LOCATION,
   createChapter04EntryStoryProgress,
 } from "./chapter04-transition";
 import {
@@ -3431,6 +3434,7 @@ export function MovementLab() {
   const frequencyPuzzleOpenRef = useRef(false);
   const weldingPuzzleOpenRef = useRef(false);
   const starCardsOpenRef = useRef(false);
+  const starCardsInitialGamepadModeRef = useRef(false);
   const weldingPuzzleVirtualCursorAvailableRef = useRef(false);
   const powerPuzzleSessionRef = useRef<PowerPuzzleSession | null>(null);
   const powerPuzzleControllerRef = useRef<PowerRoutingPuzzleController | null>(null);
@@ -3567,6 +3571,10 @@ export function MovementLab() {
   const storyReadyEmittedRef = useRef(false);
   const storyInputLockedRef = useRef(false);
   const storyFlowActiveRef = useRef(false);
+  const pendingChapterStartRef = useRef<{
+    chapter: number;
+    blackAlreadyVisible: boolean;
+  } | null>(null);
   const storySkipHoldRef = useRef<{
     source: "keyboard" | "gamepad" | "touch";
     revealTimer: number;
@@ -3632,6 +3640,7 @@ export function MovementLab() {
   const [frequencyPuzzleOpen, setFrequencyPuzzleOpen] = useState(false);
   const [weldingPuzzleOpen, setWeldingPuzzleOpen] = useState(false);
   const [starCardsOpen, setStarCardsOpen] = useState(false);
+  const [starCardsInitialGamepadMode, setStarCardsInitialGamepadMode] = useState(false);
   const [weldingPuzzleVirtualCursorAvailable, setWeldingPuzzleVirtualCursorAvailable] =
     useState(false);
   const [weldingPuzzleSessionKey, setWeldingPuzzleSessionKey] = useState(0);
@@ -3986,6 +3995,9 @@ export function MovementLab() {
     inventoryOpenRef.current = false;
     setOptionsOpen(false);
     setInventoryOpen(false);
+    const openedWithGamepad = questPromptInputModeRef.current === "gamepad";
+    starCardsInitialGamepadModeRef.current = openedWithGamepad;
+    setStarCardsInitialGamepadMode(openedWithGamepad);
     starCardsOpenRef.current = true;
     setStarCardsOpen(true);
     bgmDirectorRef.current?.setMinigameState("star-cards", "playing");
@@ -6583,6 +6595,15 @@ export function MovementLab() {
         setStoryFlowActive(active);
         if (!active) {
           setCenteredTextHoldSkipPromptVisible(false);
+          const pendingChapterStart = pendingChapterStartRef.current;
+          if (pendingChapterStart && storyEventManagerRef.current) {
+            pendingChapterStartRef.current = null;
+            void storyEventManagerRef.current.emit(
+              "chapterStarted",
+              pendingChapterStart,
+            );
+            return;
+          }
           if (keepBlackAfterComplete) return;
           // ChapterFlowManager 已結束就不應再留下任何劇情遮罩。
           // 這是 UI 層的最後保險，避免 SKIP 完成與 React 狀態更新
@@ -6600,21 +6621,53 @@ export function MovementLab() {
     });
   }
   const chapterFlowManager = chapterFlowManagerRef.current;
+  const resumeAfterSkippedChapterOpen = () => {
+    fadeBlackScreen(0, 1000, () => {
+      storyInputLockedRef.current = false;
+      setStoryInputLocked(false);
+      setBlackScreenOpacity(0);
+    });
+  };
 
   if (!storyEventManagerRef.current) {
     const events = new StoryEventManager();
     events.on("gameReady", ({ currentChapter }) =>
       events.emit("chapterStarted", { chapter: currentChapter }));
-    events.on("chapterStarted", async ({ chapter }) => {
+    events.on("chapterStarted", async ({ chapter, blackAlreadyVisible }) => {
       bgmDirectorRef.current?.setChapter(chapter);
       requestStoryTriggerContactCheckRef.current();
-      if (chapter !== 3) {
-        fadeBlackScreen(0, 1000);
+      if (chapter === 3) {
+        const started = await chapterFlowManager.run(CHAPTER_3_START_FLOW);
+        if (!started) resumeAfterSkippedChapterOpen();
         return;
       }
-      const started = await chapterFlowManager.run(CHAPTER_3_START_FLOW);
+
+      const scriptId = getChapterOpenScriptId(chapter);
+      const script = findStorySubtitleEventById(STORY_CHAPTERS, scriptId);
+      if (!script) {
+        console.info(
+          `[ChapterStart] No ${scriptId} script is registered; continuing without it.`,
+        );
+        resumeAfterSkippedChapterOpen();
+        return;
+      }
+
+      const completedCount = getStorySubtitleCompletedCount(
+        storyProgressRef.current.completedEventIds,
+        script.event.id,
+      );
+      if (completedCount >= Math.max(1, script.event.triggerCount)) {
+        resumeAfterSkippedChapterOpen();
+        return;
+      }
+      const started = await chapterFlowManager.run(createStorySubtitleFlow(
+        chapter,
+        script.event,
+        completedCount + 1,
+        { blackAlreadyVisible },
+      ));
       if (!started) {
-        fadeBlackScreen(0, 1000);
+        resumeAfterSkippedChapterOpen();
       }
     });
     events.on("storyZoneEntered", async ({ zoneId }) => {
@@ -6869,6 +6922,18 @@ export function MovementLab() {
     storyProgressRef.current = nextStory;
     saveStoryProgress(nextStory);
     bgmDirectorRef.current?.setChapter(CHAPTER04_NUMBER);
+    if (SCENE_DATA.sceneId === CHAPTER04_START_LOCATION.sceneId) {
+      scheduleQuestTeleport(CHAPTER04_START_LOCATION.teleportPointId, 0);
+    } else {
+      console.warn(
+        `[ChapterStartTeleport] Expected scene ${CHAPTER04_START_LOCATION.sceneId}, ` +
+          `but Chapter 4 started in ${SCENE_DATA.sceneId}.`,
+      );
+    }
+    pendingChapterStartRef.current = {
+      chapter: CHAPTER04_NUMBER,
+      blackAlreadyVisible: true,
+    };
     requestStoryTriggerContactCheckRef.current();
     if (optionsOpenRef.current) setOptionsPanelOpen(false);
     const resolve = chapter04SaveCheckpointResolveRef.current;
@@ -8031,6 +8096,7 @@ export function MovementLab() {
     let virtualCursorVisible = false;
     let gamepadCursorActive = false;
     let gamepadInputCursorHidden = false;
+    let starCardsCursorShownForSession = false;
     let powerPuzzleCursorShownForSession = false;
     let campPowerConfirmationCursorShownForSession = false;
     let chapter04SavePromptCursorShownForSession = false;
@@ -11093,7 +11159,7 @@ export function MovementLab() {
       }
 
       return element.closest(
-        ".new-player-tutorial-overlay, .inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .survival-game-over, .dialogue-box, .quest-hud",
+        ".new-player-tutorial-overlay, .inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .star-cards-overlay, .star-cards-dialog, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .survival-game-over, .dialogue-box, .quest-hud",
       )
         ? "blocked"
         : "none";
@@ -12829,6 +12895,17 @@ export function MovementLab() {
         activateGamepadCursor();
         powerPuzzleCursorShownForSession = true;
       }
+      if (!starCardsOpenRef.current) {
+        starCardsCursorShownForSession = false;
+      } else if (
+        gamepadInput.connected &&
+        starCardsInitialGamepadModeRef.current &&
+        !starCardsCursorShownForSession
+      ) {
+        virtualCursorVisible = true;
+        activateGamepadCursor();
+        starCardsCursorShownForSession = true;
+      }
       if (!campPowerConfirmationOpenRef.current) {
         campPowerConfirmationCursorShownForSession = false;
       } else if (
@@ -12940,7 +13017,8 @@ export function MovementLab() {
         activateSceneConnectionConfirmationDpadMode();
       }
       const menuCursorCanTakeControl =
-        !starCardsOpenRef.current &&
+        (!starCardsOpenRef.current ||
+          cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD) &&
         (!optionsOpenRef.current ||
           shouldOptionsCursorTakeControl(
             optionsGamepadModeRef.current,
@@ -13014,6 +13092,19 @@ export function MovementLab() {
           marginY,
           viewportHeight - marginY,
         );
+        if (starCardsOpenRef.current) {
+          const cursorBounds = canvas.getBoundingClientRect();
+          const cursorElement = document.elementFromPoint(
+            cursorBounds.left + virtualCursor.x,
+            cursorBounds.top + virtualCursor.y,
+          );
+          const handCard = cursorElement instanceof HTMLElement
+            ? cursorElement.closest<HTMLElement>("[data-star-cards-hand-card-id]")
+            : null;
+          window.dispatchEvent(new CustomEvent("echoes:star-cards-cursor", {
+            detail: { cardId: handCard?.dataset.starCardsHandCardId ?? null },
+          }));
+        }
       }
 
       const startJustPressed =
@@ -13145,6 +13236,7 @@ export function MovementLab() {
         !itemUseConfirmationMenuOpen &&
         !sceneConnectionConfirmationMenuOpen &&
         !campPowerConfirmationMenuOpen &&
+        !starCardsMenuOpen &&
         !powerPuzzleMenuOpen &&
         !optionsMenuOpen &&
         !newPlayerTutorialMenuOpen &&
@@ -13167,6 +13259,20 @@ export function MovementLab() {
           !wasGamepadConfirmPressed
         ) {
           closeInventoryItemInspect();
+        }
+      } else if (starCardsMenuOpen) {
+        gameplayHotbarDpadX = 0;
+        heldGamepadDpadX = 0;
+        heldGamepadDpadY = 0;
+        gamepadDpadXRepeatSeconds = 0;
+        gamepadDpadYRepeatSeconds = 0;
+        if (
+          gamepadInput.connected &&
+          gamepadInput.confirmPressed &&
+          !wasGamepadConfirmPressed &&
+          document.querySelector(".star-cards-dialog[data-navigation-mode='pointer']")
+        ) {
+          activateVirtualCursorUi();
         }
       } else if (chapter04SavePromptMenuOpen) {
         gameplayHotbarDpadX = 0;
@@ -14796,6 +14902,9 @@ export function MovementLab() {
     ? ITEM_BY_ID.get(itemUseConfirmation.itemId) ?? null
     : null;
   const campPowerRefillItem = ITEM_BY_ID.get(CAMP_POWER_REFILL_ITEM_ID) ?? null;
+  const campPowerRefillArtwork = campPowerRefillItem
+    ? getInventoryItemArtworkPreview(campPowerRefillItem.id)
+    : null;
   const campPowerPreviewCurrent = Math.max(
     0,
     Math.min(CAMP_POWER_CAPACITY, Math.floor(campPowerState.current)),
@@ -14851,16 +14960,24 @@ export function MovementLab() {
         })
       : [];
   const questItemSubmissionSources: ItemChangeVisualEntry[] =
-    questItemSubmissionPrompt?.requirements.map((requirement) => ({
-      item: ITEM_BY_ID.get(requirement.itemId) ?? null,
-      label: requirement.itemName,
-      quantity: requirement.quantity,
-      state: requirement.completed
-        ? "submitted"
-        : (playerInventory[requirement.itemId] ?? 0) >= requirement.quantity
-          ? "available"
-          : "missing",
-    })) ?? [];
+    questItemSubmissionPrompt?.requirements.map((requirement) => {
+      const item = ITEM_BY_ID.get(requirement.itemId) ?? null;
+      const artwork = item ? getInventoryItemArtworkPreview(item.id) : null;
+      return {
+        item,
+        label: requirement.itemName,
+        quantity: requirement.quantity,
+        state: requirement.completed
+          ? "submitted"
+          : (playerInventory[requirement.itemId] ?? 0) >= requirement.quantity
+            ? "available"
+            : "missing",
+        imageSrc:
+          questItemSubmissionPrompt.interactable.id === COMMUNICATION_ARRAY_INTERACTION_ID
+            ? artwork?.iconPath
+            : undefined,
+      };
+    }) ?? [];
   const questItemSubmissionTargets: ItemChangeVisualEntry[] = questItemSubmissionPrompt
     ? [{
         label:
@@ -15884,6 +16001,7 @@ export function MovementLab() {
         <StarCardsGame
           onClose={closeStarCardsGame}
           audioEvents={audioEventManagerRef.current}
+          initialGamepadMode={starCardsInitialGamepadMode}
         />
       ) : null}
 
@@ -16125,7 +16243,15 @@ export function MovementLab() {
               >
                 <div className="camp-power-refill-item">
                   <span className="camp-power-refill-item-icon" aria-hidden="true">
-                    {campPowerRefillItem?.symbol ?? "◆"}
+                    {campPowerRefillArtwork?.iconPath ? (
+                      <img
+                        src={campPowerRefillArtwork.iconPath}
+                        alt=""
+                        draggable={false}
+                      />
+                    ) : (
+                      campPowerRefillItem?.symbol ?? "◆"
+                    )}
                   </span>
                   <strong>{campPowerRefillItem?.name ?? "藍色晶體碎片"}</strong>
                 </div>
@@ -16847,7 +16973,7 @@ export function MovementLab() {
 
       <canvas
         ref={cursorCanvasRef}
-        className={`cursor-layer${powerPuzzleOpen || itemUseConfirmation || campPowerConfirmationOpen || sceneConnectionConfirmation || chapter04SavePromptOpen ? " is-over-modal" : ""}${weldingPuzzleOpen && !weldingPuzzleVirtualCursorAvailable ? " is-hidden-for-welding" : ""}${starCardsOpen ? " is-hidden-for-star-cards" : ""}`}
+        className={`cursor-layer${powerPuzzleOpen || itemUseConfirmation || campPowerConfirmationOpen || sceneConnectionConfirmation || chapter04SavePromptOpen ? " is-over-modal" : ""}${weldingPuzzleOpen && !weldingPuzzleVirtualCursorAvailable ? " is-hidden-for-welding" : ""}${starCardsOpen ? " is-over-star-cards" : ""}`}
         aria-hidden="true"
       />
       </main>
