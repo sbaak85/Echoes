@@ -814,14 +814,14 @@ test("星際牌發射池與分層爆炸池集中登記且允許多路重疊", as
   assert.equal(flipped.playLimitWindowMs, 200);
   assert.equal(flipped.maxOverlappingVoices, 6);
 
-  assert.deepEqual(laneChanged.sourceAssetPaths, ["Assets/Audio/換格.mp3"]);
+  assert.deepEqual(laneChanged.sourceAssetPaths, ["Assets/Audio/換格2.mp3"]);
   assert.deepEqual(laneChanged.sources, ["./audio/star-cards-lane-changed.mp3"]);
   assert.equal(laneChanged.volume, 0.5);
   assert.match(laneChanged.trigger, /A、B、C 任一格/);
   assert.match(laneChanged.trigger, /停留在同一格內不重複播放/);
   assert.deepEqual(
     await readFile(new URL("../public/audio/star-cards-lane-changed.mp3", import.meta.url)),
-    await readFile(new URL("../Assets/Audio/換格.mp3", import.meta.url)),
+    await readFile(new URL("../Assets/Audio/換格2.mp3", import.meta.url)),
   );
 
   const laserSourceAssets = [

@@ -162,9 +162,14 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.doesNotMatch(source, /star-card-secret/);
   assert.match(source, /star-card-back-point/);
   assert.match(source, /star-card-back-attribute/);
-  assert.match(source, /StarCardAttributeIcon/);
+  assert.match(source, /starCardsAssetUrl\(`b-\$\{card\.points\}\.png`\)/);
+  assert.match(source, /starCardsAssetUrl\(`\$\{card\.attribute\}2\.png`\)/);
+  assert.doesNotMatch(source, /StarCardAttributeIcon/);
   assert.match(styles, /\.star-card-back-point/);
   assert.match(styles, /\.star-card-back-attribute/);
+  assert.match(styles, /\.star-card-back-point \{[^}]*top: 4\.3%;[^}]*width: 20\.5%/);
+  assert.match(styles, /\.star-card-back-attribute \{[^}]*top: 5%;[^}]*width: 20\.5%/);
+  assert.match(styles, /\.star-card-back-hints\.is-laser \.star-card-back-attribute \{[^}]*top: 6%;[^}]*width: 16\.8%/);
   assert.match(styles, /\.star-card-back \{[^}]*background: transparent/);
   assert.doesNotMatch(styles, /\.star-card-back \{[^}]*background: #100424/);
   assert.match(styles, /@keyframes star-card-back-hints-in/);
@@ -227,6 +232,12 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(styles, /\.star-cards-stack-status/);
   assert.match(source, /const PLAYER_HAND_X = \[33\.4, 50, 66\.6\]/);
   assert.match(source, /const PLAYER_HAND_BOTTOM = \[5\.9, 10\.6, 5\.9\]/);
+  assert.match(source, /const PLAYER_HAND_ROTATION = \[-5, 0, 5\]/);
+  assert.match(source, /"--hand-idle-angle": `\$\{handRotation\}deg`/);
+  assert.match(
+    styles,
+    /\.star-card-shell\.is-hand \{[^}]*transform: translateX\(-50%\) rotate\(var\(--hand-idle-angle, 0deg\)\)/,
+  );
   assert.match(source, /type PlacementPromptState/);
   assert.match(source, /showPlacementPrompt\("initial"\)/);
   assert.match(source, /showPlacementPrompt\("draw"\)/);
@@ -261,6 +272,29 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /is-drag-source/);
   assert.match(styles, /\.star-cards-lane\.is-drag-source \{ z-index: 255; \}/);
   assert.match(source, /starCardsAssetUrl\("drop-lane-highlight\.png"\)/);
+  assert.match(source, /const \[activatedPlayerLanes, setActivatedPlayerLanes\] = useState<StarCardLane\[]>\(\[\]\)/);
+  assert.match(source, /setActivatedPlayerLanes\(\(current\) =>[\s\S]*current\.includes\(lane\)/);
+  assert.match(source, /setActivatedPlayerLanes\(\[\]\)/);
+  assert.match(source, /starCardsAssetUrl\(`zone-\$\{laneIndex \+ 1\}\.png`\)/);
+  assert.match(source, /activatedPlayerLanes\.includes\(lane\) \? " has-been-used"/);
+  assert.match(
+    styles,
+    /\.star-cards-zone-title {[\s\S]*top: 18\.913%;[\s\S]*left: calc\(50% \+ var\(--card-idle-x, 0px\) \+ var\(--zone-title-offset-x, 0px\)\)[\s\S]*width: 55\.44%;[\s\S]*pointer-events: none/,
+  );
+  assert.match(styles, /data-lane="A"[^}]*--zone-title-offset-x: 1\.787vw/);
+  assert.match(styles, /data-lane="B"[^}]*--zone-title-offset-x: -0\.211vw/);
+  assert.match(styles, /data-lane="C"[^}]*--zone-title-offset-x: -1\.535vw/);
+  assert.match(
+    styles,
+    /\.star-cards-zone-title \.is-echo \{[\s\S]*animation: star-cards-zone-title-teleport 2s ease-out infinite/,
+  );
+  assert.match(styles, /\.star-cards-zone-title \.is-second \{[\s\S]*animation-delay: -1s/);
+  assert.match(
+    styles,
+    /\.star-cards-zone-title\.has-been-used \.is-main \{[\s\S]*star-cards-zone-title-settle 1s ease-out both/,
+  );
+  assert.match(styles, /@keyframes star-cards-zone-title-teleport[\s\S]*translateY\(-34px\)[\s\S]*opacity: 0/);
+  assert.match(styles, /@keyframes star-cards-zone-title-settle[\s\S]*opacity: 0\.5;[\s\S]*filter: none/);
   assert.doesNotMatch(source, /star-cards-zone-labels|ZONE \{laneIndex \+ 1\}/);
   assert.doesNotMatch(styles, /\.star-cards-zone-labels/);
   assert.match(source, /hoveredLane \? ` is-\$\{hoveredLane\.toLowerCase\(\)\}`/);
@@ -416,6 +450,8 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.doesNotMatch(source, /setDragging\(\(current\)/);
   assert.match(source, /originX: originBounds\.left \+ originBounds\.width \/ 2/);
   assert.match(source, /originY: originBounds\.top \+ originBounds\.height \/ 2/);
+  assert.match(source, /originRotationDeg/);
+  assert.match(source, /rotate\(\$\{activeDrag\.originRotationDeg\}deg\)/);
   assert.match(source, /const returnDraggedCardToIdle = useCallback/);
   assert.match(source, /element\.animate\([\s\S]*activeDrag\.originX[\s\S]*activeDrag\.originY[\s\S]*duration: STAR_CARD_REJECT_RETURN_MS/);
   assert.match(source, /laneCardCount >= 3[\s\S]*showFullLaneFeedback\(\)[\s\S]*return false/);
@@ -437,6 +473,10 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
     /\.star-cards-lane\.is-player-lane \.star-card-shell\.is-placed\.is-dragging \{[^}]*position: fixed;[^}]*top: 0;[^}]*left: 0;[^}]*bottom: auto;/,
   );
   assert.match(styles, /animation: star-card-snap 280ms/);
+  assert.match(
+    styles,
+    /@keyframes star-card-deal-player \{[\s\S]*rotate\(calc\(var\(--hand-idle-angle, 0deg\) \+ 5deg\)\)[\s\S]*rotate\(var\(--hand-idle-angle, 0deg\)\)/,
+  );
   assert.match(styles, /\.star-cards-image-button\.is-ready::before[\s\S]*star-cards-button-backlight-pulse/);
   assert.match(styles, /\.star-cards-image-button\.is-ready::after[\s\S]*star-cards-button-glow-sweep/);
   assert.match(
@@ -553,9 +593,9 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(styles, /is-ai-lane\[data-lane="B"\] \{ --card-idle-x: -0\.5vw; \}/);
   assert.match(styles, /is-ai-lane\[data-lane="C"\] \{ --card-idle-x: -0\.3vw; \}/);
   assert.match(styles, /--player-card-idle-y: 1\.3vh/);
-  assert.match(styles, /is-player-lane\[data-lane="A"\] \{ --card-idle-x: -3\.7vw; \}/);
-  assert.match(styles, /is-player-lane\[data-lane="B"\] \{ --card-idle-x: -0\.5vw; \}/);
-  assert.match(styles, /is-player-lane\[data-lane="C"\] \{ --card-idle-x: 2\.4vw; \}/);
+  assert.match(styles, /is-player-lane\[data-lane="A"\] \{[^}]*--card-idle-x: -3\.7vw/);
+  assert.match(styles, /is-player-lane\[data-lane="B"\] \{[^}]*--card-idle-x: -0\.5vw/);
+  assert.match(styles, /is-player-lane\[data-lane="C"\] \{[^}]*--card-idle-x: 2\.4vw/);
   assert.match(styles, /width: min\(13\.528vw, 24\.03vh\)/);
   assert.match(styles, /translateX\(calc\(-50% \+ var\(--card-idle-x, 0px\)\)\)/);
   assert.match(source, /stackDepth: laneCards\.length - stackIndex - 1/);
@@ -582,6 +622,15 @@ test("all StarCards runtime assets are present", () => {
     "score-panel.png",
     "match-wins-panel.png",
     "CardF1.png",
+    "zone-1.png",
+    "zone-2.png",
+    "zone-3.png",
+    "b-1.png",
+    "b-2.png",
+    "b-3.png",
+    "shield2.png",
+    "missile2.png",
+    "laser2.png",
     ...STAR_CARD_DECK.map((card) => card.image.split("/").at(-1)),
   ]) {
     assert.equal(existsSync(new URL(name, assetRoot)), true, `${name} should exist`);

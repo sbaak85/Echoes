@@ -238,7 +238,7 @@ export const AUDIO_EVENT_CONFIG = (
       "label": "星際牌拖曳換格",
       "trigger": "玩家拖曳卡牌進入 A、B、C 任一格，使該格亮框由未亮或其他格切換為亮起時播放一次；停留在同一格內不重複播放。",
       "sourceAssetPaths": [
-        "Assets/Audio/換格.mp3"
+        "Assets/Audio/換格2.mp3"
       ],
       "sources": [
         "./audio/star-cards-lane-changed.mp3"

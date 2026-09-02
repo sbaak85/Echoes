@@ -9016,10 +9016,73 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   height: 41%;
   cursor: default;
 }
-.star-cards-lane.is-player-lane[data-lane="A"] { --card-idle-x: -3.7vw; }
-.star-cards-lane.is-player-lane[data-lane="B"] { --card-idle-x: -0.5vw; }
-.star-cards-lane.is-player-lane[data-lane="C"] { --card-idle-x: 2.4vw; }
+.star-cards-lane.is-player-lane[data-lane="A"] {
+  --card-idle-x: -3.7vw;
+  --zone-title-offset-x: 1.787vw;
+}
+.star-cards-lane.is-player-lane[data-lane="B"] {
+  --card-idle-x: -0.5vw;
+  --zone-title-offset-x: -0.211vw;
+}
+.star-cards-lane.is-player-lane[data-lane="C"] {
+  --card-idle-x: 2.4vw;
+  --zone-title-offset-x: -1.535vw;
+}
 .star-cards-lane.is-drag-source { z-index: 255; }
+
+.star-cards-zone-title {
+  position: absolute;
+  z-index: 2;
+  top: 18.913%;
+  left: calc(50% + var(--card-idle-x, 0px) + var(--zone-title-offset-x, 0px));
+  display: block;
+  width: 55.44%;
+  aspect-ratio: 3 / 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.star-cards-zone-title > img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.star-cards-zone-title .is-main {
+  z-index: 1;
+  opacity: 0.94;
+  animation: star-cards-zone-title-glow 1.65s ease-in-out infinite alternate;
+  will-change: filter, opacity;
+}
+
+.star-cards-zone-title .is-echo {
+  z-index: 0;
+  opacity: 0;
+  filter:
+    brightness(1.2)
+    drop-shadow(0 0 7px rgba(98, 228, 255, 0.7));
+  mix-blend-mode: screen;
+  animation: star-cards-zone-title-teleport 2s ease-out infinite;
+  will-change: opacity, transform;
+}
+
+.star-cards-zone-title .is-second {
+  animation-delay: -1s;
+}
+
+.star-cards-zone-title.has-been-used .is-main {
+  animation: star-cards-zone-title-settle 1s ease-out both;
+}
+
+.star-cards-zone-title.has-been-used .is-echo {
+  animation: none;
+  opacity: 0;
+}
 
 .star-cards-lane.is-player-lane::before {
   position: absolute;
@@ -9138,7 +9201,8 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   bottom: var(--hand-bottom, 7.1%);
   left: var(--hand-x);
   cursor: grab;
-  transform: translateX(-50%);
+  transform: translateX(-50%) rotate(var(--hand-idle-angle, 0deg));
+  transform-origin: center;
 }
 
 .star-card-shell.is-ai-pending {
@@ -9248,52 +9312,31 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 .star-card-back-point,
 .star-card-back-attribute {
   position: absolute;
-  top: 5.5%;
-  display: grid;
-  width: 18.5%;
-  aspect-ratio: 1;
-  place-items: center;
-  color: currentColor;
-  filter: drop-shadow(0 0 5px currentColor) drop-shadow(0 0 10px currentColor);
+  z-index: 1;
+  display: block;
+  height: auto;
+  object-fit: contain;
   pointer-events: none;
+  user-select: none;
 }
 
 .star-card-back-point {
-  left: 5.5%;
-  background: currentColor;
-  clip-path: polygon(50% 0, 94% 20%, 100% 66%, 50% 100%, 0 66%, 6% 20%);
+  top: 4.3%;
+  left: 4.25%;
+  width: 20.5%;
 }
 
-.star-card-back-point::before {
-  position: absolute;
-  inset: 3px;
-  background: rgba(9, 5, 31, 0.9);
-  clip-path: inherit;
-  content: "";
+.star-card-back-attribute {
+  top: 5%;
+  right: 4.85%;
+  width: 20.5%;
 }
 
-.star-card-back-point b {
-  position: relative;
-  z-index: 1;
-  color: #fff;
-  font: 900 clamp(14px, 2.25cqw, 40px)/1 "Arial Black", sans-serif;
-  text-shadow: 0 0 6px currentColor;
+.star-card-back-hints.is-laser .star-card-back-attribute {
+  top: 6%;
+  right: 8.1%;
+  width: 16.8%;
 }
-
-.star-card-back-attribute { right: 5.5%; }
-
-.star-card-back-attribute svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  fill: currentColor;
-  stroke: rgba(255, 255, 255, 0.78);
-  stroke-width: 1.15;
-}
-
-.star-card-back-hints.is-missile { color: #ff62d0; }
-.star-card-back-hints.is-shield { color: #5ee7ff; }
-.star-card-back-hints.is-laser { color: #ff77ef; }
 
 .star-card-shell.is-dealing.is-hand:not(.is-dragging) {
   animation: star-card-deal-player 620ms cubic-bezier(0.18, 0.82, 0.22, 1.08) var(--deal-delay) both;
@@ -9901,10 +9944,10 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 @keyframes star-card-deal-player {
   0% {
     opacity: 0;
-    transform: translate(calc(-50% + var(--deal-x)), 35vh) scale(0.25) rotate(5deg);
+    transform: translate(calc(-50% + var(--deal-x)), 35vh) scale(0.25) rotate(calc(var(--hand-idle-angle, 0deg) + 5deg));
   }
   68% { opacity: 1; }
-  100% { opacity: 1; transform: translateX(-50%) scale(1) rotate(0); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1) rotate(var(--hand-idle-angle, 0deg)); }
 }
 
 @keyframes star-cards-placement-prompt-fade-in {
@@ -9979,6 +10022,46 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
   30% { transform: translate(-50%, -50%) scale(1.55); }
   62% { transform: translate(-50%, -50%) scale(0.92); }
   100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes star-cards-zone-title-glow {
+  from {
+    opacity: 0.86;
+    filter:
+      brightness(0.98)
+      drop-shadow(0 0 4px rgba(107, 226, 255, 0.32));
+  }
+  to {
+    opacity: 1;
+    filter:
+      brightness(1.12)
+      drop-shadow(0 0 9px rgba(107, 226, 255, 0.62));
+  }
+}
+
+@keyframes star-cards-zone-title-teleport {
+  0% {
+    opacity: 0;
+    transform: translateY(2px) scale(0.98);
+  }
+  12% { opacity: 0.38; }
+  100% {
+    opacity: 0;
+    transform: translateY(-34px) scale(1.045);
+  }
+}
+
+@keyframes star-cards-zone-title-settle {
+  from {
+    opacity: 1;
+    filter:
+      brightness(1.12)
+      drop-shadow(0 0 9px rgba(107, 226, 255, 0.62));
+  }
+  to {
+    opacity: 0.5;
+    filter: none;
+  }
 }
 
 @keyframes star-card-deal-ai {

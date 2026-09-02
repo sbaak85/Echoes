@@ -62,6 +62,7 @@ type DragState = {
   y: number;
   originX: number;
   originY: number;
+  originRotationDeg: number;
   source: "hand" | "placed-draw";
   originalLane?: StarCardLane;
 };
@@ -186,6 +187,7 @@ type StarCardsAudioEventName =
 
 const PLAYER_HAND_X = [33.4, 50, 66.6] as const;
 const PLAYER_HAND_BOTTOM = [5.9, 10.6, 5.9] as const;
+const PLAYER_HAND_ROTATION = [-5, 0, 5] as const;
 const STAR_CARDS_MAX_GAMES = 5;
 const STAR_CARDS_WINS_TO_MATCH = 3;
 const STAR_CARD_PLACE_FEEDBACK_MS = 320;
@@ -216,35 +218,6 @@ function createOwnerDeck(owner: StarCardsOwner, gameNumber = 1) {
     ...card,
     id: `${owner}-game-${gameNumber}-${card.id}`,
   }));
-}
-
-function StarCardAttributeIcon({
-  attribute,
-}: {
-  attribute: StarCardDefinition["attribute"];
-}) {
-  if (attribute === "shield") {
-    return (
-      <svg viewBox="0 0 48 48" aria-hidden="true">
-        <path d="M24 3 42 10v12c0 11.7-7.2 19.2-18 23C13.2 41.2 6 33.7 6 22V10L24 3Z" />
-        <path d="M24 9 36 14v8c0 7.7-4.4 13-12 16.3C16.4 35 12 29.7 12 22v-8l12-5Z" />
-      </svg>
-    );
-  }
-  if (attribute === "laser") {
-    return (
-      <svg viewBox="0 0 48 48" aria-hidden="true">
-        <path d="m5 38 14-6 17-23 7-4-3 8-17 23-10 9 3-9-11 2Z" />
-        <path d="m21 27 6 5-4 4-7-5 5-4Zm7-9 6 5-4 5-6-5 4-5Z" />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 48 48" aria-hidden="true">
-      <path d="M6 35 20 21l9-16 7 7-16 9L6 35Zm17-11 7 7-9 3-4-4 6-6Zm10-10 6-6 2 2-6 6-2-2Z" />
-      <path d="m7 38 8-3-5 8-3-5Zm9-1 5-2-3 7-2-5Z" />
-    </svg>
-  );
 }
 
 function getPhaseMessage(phase: StarCardsPhase) {
@@ -283,6 +256,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     })),
   );
   const [playerPlaced, setPlayerPlaced] = useState<PlacedStarCard[]>([]);
+  const [activatedPlayerLanes, setActivatedPlayerLanes] = useState<StarCardLane[]>([]);
   const [aiPlaced, setAiPlaced] = useState<PlacedStarCard[]>(() =>
     aiInitialDeck.slice(0, 3).map((card, dealIndex) => ({
       card,
@@ -597,7 +571,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
           transform: `translate3d(${releasePoint.x}px, ${releasePoint.y}px, 0) translate(-50%, -50%) scale(1.035) rotate(-1.2deg)`,
         },
         {
-          transform: `translate3d(${activeDrag.originX}px, ${activeDrag.originY}px, 0) translate(-50%, -50%) scale(1) rotate(0deg)`,
+          transform: `translate3d(${activeDrag.originX}px, ${activeDrag.originY}px, 0) translate(-50%, -50%) scale(1) rotate(${activeDrag.originRotationDeg}deg)`,
         },
       ],
       {
@@ -667,6 +641,9 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       ];
       playStarCardsAudio("starCardsCardFlipped");
       setPlayerPlaced(nextPlaced);
+      setActivatedPlayerLanes((current) =>
+        current.includes(lane) ? current : [...current, lane],
+      );
       const nextHand = playerHand.filter((candidate) => candidate.card.id !== cardId);
       setPlayerHand(nextHand);
       setSelectedHandIndex((current) => Math.min(current, Math.max(0, nextHand.length - 1)));
@@ -790,6 +767,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       drawCard: false,
     })));
     setPlayerPlaced([]);
+    setActivatedPlayerLanes([]);
     setAiPlaced(nextAiDeck.slice(0, 3).map((card, dealIndex) => ({
       card,
       owner: "ai",
@@ -1222,6 +1200,9 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     setHeldCardId(null);
     const dragPoint = { x: event.clientX, y: event.clientY };
     const originBounds = event.currentTarget.getBoundingClientRect();
+    const originRotationDeg = Number.parseFloat(
+      window.getComputedStyle(event.currentTarget).getPropertyValue("--hand-idle-angle"),
+    ) || 0;
     const nextDragging: DragState = {
       cardId,
       pointerId: event.pointerId,
@@ -1229,6 +1210,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       y: dragPoint.y,
       originX: originBounds.left + originBounds.width / 2,
       originY: originBounds.top + originBounds.height / 2,
+      originRotationDeg,
       source,
       originalLane,
     };
@@ -1292,6 +1274,9 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
       const destination = lane && destinationCount < 3 ? lane : activeDrag.originalLane;
       if (destination) {
         playStarCardsAudio("starCardsCardFlipped");
+        setActivatedPlayerLanes((current) =>
+          current.includes(destination) ? current : [...current, destination],
+        );
         setPlayerPlaced((cards) => cards.map((placed) =>
           placed.card.id === activeDrag.cardId
             ? { ...placed, lane: destination, faceDown: true }
@@ -1381,6 +1366,9 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
     const handBottom = hand?.drawCard
       ? 7.1
       : PLAYER_HAND_BOTTOM[hand?.dealIndex ?? 1] ?? 7.1;
+    const handRotation = hand?.drawCard
+      ? 0
+      : PLAYER_HAND_ROTATION[hand?.dealIndex ?? 1] ?? 0;
     const stackDepth = options.stackDepth ?? 0;
     const stackInwardDirection = options.laneIndex === 0
       ? 1
@@ -1398,6 +1386,7 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
         ? {
             "--hand-x": `${handX}%`,
             "--hand-bottom": `${handBottom}%`,
+            "--hand-idle-angle": `${handRotation}deg`,
             "--deal-x": `${dealX}vw`,
             "--deal-delay": `${hand.dealIndex * 90}ms`,
           }
@@ -1467,12 +1456,20 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
                   className={`star-card-back-hints is-${card.attribute}`}
                   aria-label={`${card.points} 點 ${card.attributeLabel}`}
                 >
-                  <span className="star-card-back-point" aria-hidden="true">
-                    <b>{card.points}</b>
-                  </span>
-                  <span className="star-card-back-attribute" aria-hidden="true">
-                    <StarCardAttributeIcon attribute={card.attribute} />
-                  </span>
+                  <img
+                    className="star-card-back-point"
+                    src={starCardsAssetUrl(`b-${card.points}.png`)}
+                    alt=""
+                    aria-hidden="true"
+                    draggable={false}
+                  />
+                  <img
+                    className="star-card-back-attribute"
+                    src={starCardsAssetUrl(`${card.attribute}2.png`)}
+                    alt=""
+                    aria-hidden="true"
+                    draggable={false}
+                  />
                 </div>
               ) : null}
             </div>
@@ -1642,6 +1639,29 @@ export function StarCardsGame({ onClose, audioEvents }: StarCardsGameProps) {
                 }
               }}
             >
+              <span
+                className={`star-cards-zone-title${activatedPlayerLanes.includes(lane) ? " has-been-used" : ""}`}
+                aria-hidden="true"
+              >
+                <img
+                  className="is-main"
+                  src={starCardsAssetUrl(`zone-${laneIndex + 1}.png`)}
+                  alt=""
+                  draggable={false}
+                />
+                <img
+                  className="is-echo is-first"
+                  src={starCardsAssetUrl(`zone-${laneIndex + 1}.png`)}
+                  alt=""
+                  draggable={false}
+                />
+                <img
+                  className="is-echo is-second"
+                  src={starCardsAssetUrl(`zone-${laneIndex + 1}.png`)}
+                  alt=""
+                  draggable={false}
+                />
+              </span>
               <span className="star-cards-lane-label">{lane}</span>
               {laneCards.map((placed, stackIndex) =>
                 renderCard(placed.card, {
