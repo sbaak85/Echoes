@@ -12,6 +12,7 @@ import {
   createStarCardsImpactParticleLayout,
   createStarCardsMissileTrailLayout,
   getStarCardBattleScore,
+  shouldAnimateStarCardsZone,
   shuffleStarCardDeck,
 } from "../app/star-cards-game.ts";
 
@@ -125,6 +126,16 @@ test("initial placement requires an empty lane while the drawn card may stack", 
   assert.equal(canPlaceStarCard("draw-placement", 1), true);
   assert.equal(canPlaceStarCard("draw-placement", 2), true);
   assert.equal(canPlaceStarCard("draw-placement", 3), false);
+});
+
+test("Zone tween follows a waiting hand card and each lane's legal capacity", () => {
+  assert.equal(shouldAnimateStarCardsZone("initial-placement", 3, 0), true);
+  assert.equal(shouldAnimateStarCardsZone("initial-placement", 2, 1), false);
+  assert.equal(shouldAnimateStarCardsZone("draw-placement", 1, 0), true);
+  assert.equal(shouldAnimateStarCardsZone("draw-placement", 1, 2), true);
+  assert.equal(shouldAnimateStarCardsZone("draw-placement", 1, 3), false);
+  assert.equal(shouldAnimateStarCardsZone("draw-placement", 0, 2), false);
+  assert.equal(shouldAnimateStarCardsZone(null, 1, 0), false);
 });
 
 test("battle resolves fixed attribute counters before same-attribute points", () => {
@@ -283,11 +294,11 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /is-drag-source/);
   assert.match(styles, /\.star-cards-lane\.is-drag-source \{ z-index: 255; \}/);
   assert.match(source, /starCardsAssetUrl\("drop-lane-highlight\.png"\)/);
-  assert.match(source, /const \[activatedPlayerLanes, setActivatedPlayerLanes\] = useState<StarCardLane\[]>\(\[\]\)/);
-  assert.match(source, /setActivatedPlayerLanes\(\(current\) =>[\s\S]*current\.includes\(lane\)/);
-  assert.match(source, /setActivatedPlayerLanes\(\[\]\)/);
   assert.match(source, /starCardsAssetUrl\(`zone-\$\{laneIndex \+ 1\}\.png`\)/);
-  assert.match(source, /activatedPlayerLanes\.includes\(lane\) \? " has-been-used"/);
+  assert.match(source, /const pendingHandPlacementPhase =[\s\S]*phase === "initial-placement" \|\| phase === "draw-placement" \? phase : null/);
+  assert.match(source, /shouldAnimateStarCardsZone\([\s\S]*pendingHandPlacementPhase,[\s\S]*playerHand\.length,[\s\S]*laneCards\.length/);
+  assert.match(source, /zonePlacementTweenActive \? " is-placement-active" : " is-placement-inactive"/);
+  assert.doesNotMatch(source, /activatedPlayerLanes|has-been-used/);
   assert.match(
     styles,
     /\.star-cards-zone-title {[\s\S]*top: 18\.913%;[\s\S]*left: calc\(50% \+ var\(--card-idle-x, 0px\) \+ var\(--zone-title-offset-x, 0px\)\)[\s\S]*width: 55\.44%;[\s\S]*pointer-events: none/,
@@ -297,12 +308,12 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(styles, /data-lane="C"[^}]*--zone-title-offset-x: -1\.535vw/);
   assert.match(
     styles,
-    /\.star-cards-zone-title \.is-echo \{[\s\S]*animation: star-cards-zone-title-teleport 2s ease-out infinite/,
+    /\.star-cards-zone-title\.is-placement-active \.is-echo \{[\s\S]*animation: star-cards-zone-title-teleport 2s ease-out infinite/,
   );
-  assert.match(styles, /\.star-cards-zone-title \.is-second \{[\s\S]*animation-delay: -1s/);
+  assert.match(styles, /\.star-cards-zone-title\.is-placement-active \.is-second \{[\s\S]*animation-delay: -1s/);
   assert.match(
     styles,
-    /\.star-cards-zone-title\.has-been-used \.is-main \{[\s\S]*star-cards-zone-title-settle 1s ease-out both/,
+    /\.star-cards-zone-title\.is-placement-inactive \.is-main \{[\s\S]*star-cards-zone-title-settle 1s ease-out both/,
   );
   assert.match(styles, /@keyframes star-cards-zone-title-teleport[\s\S]*translateY\(-34px\)[\s\S]*opacity: 0/);
   assert.match(styles, /@keyframes star-cards-zone-title-settle[\s\S]*opacity: 0\.5;[\s\S]*filter: none/);

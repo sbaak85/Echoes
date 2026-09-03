@@ -96,6 +96,9 @@ internal static class Program
 
     private static void RunSelfTest(string projectRoot)
     {
+        if (new QuestObjectiveDefinition().ShowProgress)
+            throw new InvalidDataException("新建任務目標的「顯示進度」預設值必須為 False。");
+
         var source = QuestDataStore.CreateDefault();
         var quest = new QuestDefinition
         {

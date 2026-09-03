@@ -19,6 +19,7 @@ import {
   createStarCardsImpactParticleLayout,
   createStarCardsMissileTrailLayout,
   getStarCardBattleScore,
+  shouldAnimateStarCardsZone,
   shuffleStarCardDeck,
   starCardsAssetUrl,
   type StarCardDefinition,
@@ -269,7 +270,6 @@ export function StarCardsGame({
     })),
   );
   const [playerPlaced, setPlayerPlaced] = useState<PlacedStarCard[]>([]);
-  const [activatedPlayerLanes, setActivatedPlayerLanes] = useState<StarCardLane[]>([]);
   const [aiPlaced, setAiPlaced] = useState<PlacedStarCard[]>(() =>
     aiInitialDeck.slice(0, 3).map((card, dealIndex) => ({
       card,
@@ -662,9 +662,6 @@ export function StarCardsGame({
       ];
       playStarCardsAudio("starCardsCardFlipped");
       setPlayerPlaced(nextPlaced);
-      setActivatedPlayerLanes((current) =>
-        current.includes(lane) ? current : [...current, lane],
-      );
       const nextHand = playerHand.filter((candidate) => candidate.card.id !== cardId);
       setPlayerHand(nextHand);
       setSelectedHandIndex((current) => Math.min(current, Math.max(0, nextHand.length - 1)));
@@ -799,7 +796,6 @@ export function StarCardsGame({
       drawCard: false,
     })));
     setPlayerPlaced([]);
-    setActivatedPlayerLanes([]);
     setAiPlaced(nextAiDeck.slice(0, 3).map((card, dealIndex) => ({
       card,
       owner: "ai",
@@ -1420,9 +1416,6 @@ export function StarCardsGame({
       const destination = lane && destinationCount < 3 ? lane : activeDrag.originalLane;
       if (destination) {
         playStarCardsAudio("starCardsCardFlipped");
-        setActivatedPlayerLanes((current) =>
-          current.includes(destination) ? current : [...current, destination],
-        );
         setPlayerPlaced((cards) => cards.map((placed) =>
           placed.card.id === activeDrag.cardId
             ? { ...placed, lane: destination, faceDown: true }
@@ -1685,6 +1678,8 @@ export function StarCardsGame({
       ? STAR_CARD_LANES[selectedLaneIndex]
       : null;
   const activeDropHighlightLane = hoveredLane ?? directionalLaneHighlight;
+  const pendingHandPlacementPhase =
+    phase === "initial-placement" || phase === "draw-placement" ? phase : null;
   const handPreselectionActive =
     Boolean(heldCardId) || (
       Boolean(hoveredHandCardId) ||
@@ -1838,6 +1833,11 @@ export function StarCardsGame({
 
         {STAR_CARD_LANES.map((lane, laneIndex) => {
           const laneCards = getLaneCards("player", lane);
+          const zonePlacementTweenActive = shouldAnimateStarCardsZone(
+            pendingHandPlacementPhase,
+            playerHand.length,
+            laneCards.length,
+          );
           const laneContainsDraggingCard = laneCards.some(
             (placed) => placed.card.id === dragging?.cardId,
           );
@@ -1867,7 +1867,7 @@ export function StarCardsGame({
               }}
             >
               <span
-                className={`star-cards-zone-title${activatedPlayerLanes.includes(lane) ? " has-been-used" : ""}`}
+                className={`star-cards-zone-title${zonePlacementTweenActive ? " is-placement-active" : " is-placement-inactive"}`}
                 aria-hidden="true"
               >
                 <img

@@ -9105,8 +9105,8 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
 
 .star-cards-zone-title .is-main {
   z-index: 1;
-  opacity: 0.94;
-  animation: star-cards-zone-title-glow 1.65s ease-in-out infinite alternate;
+  opacity: 0.5;
+  filter: none;
   will-change: filter, opacity;
 }
 
@@ -9117,19 +9117,27 @@ html.dialogue-cursor-active .welding-puzzle-dialog.is-success button,
     brightness(1.2)
     drop-shadow(0 0 7px rgba(98, 228, 255, 0.7));
   mix-blend-mode: screen;
-  animation: star-cards-zone-title-teleport 2s ease-out infinite;
   will-change: opacity, transform;
 }
 
-.star-cards-zone-title .is-second {
+.star-cards-zone-title.is-placement-active .is-main {
+  opacity: 0.94;
+  animation: star-cards-zone-title-glow 1.65s ease-in-out infinite alternate;
+}
+
+.star-cards-zone-title.is-placement-active .is-echo {
+  animation: star-cards-zone-title-teleport 2s ease-out infinite;
+}
+
+.star-cards-zone-title.is-placement-active .is-second {
   animation-delay: -1s;
 }
 
-.star-cards-zone-title.has-been-used .is-main {
+.star-cards-zone-title.is-placement-inactive .is-main {
   animation: star-cards-zone-title-settle 1s ease-out both;
 }
 
-.star-cards-zone-title.has-been-used .is-echo {
+.star-cards-zone-title.is-placement-inactive .is-echo {
   animation: none;
   opacity: 0;
 }

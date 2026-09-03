@@ -196,11 +196,23 @@ export function createStarCardsMissileTrailLayout(
   return trails as StarCardsMissileTrailLayout;
 }
 
+export type StarCardsPlacementPhase = "initial-placement" | "draw-placement";
+
 export function canPlaceStarCard(
-  phase: "initial-placement" | "draw-placement",
+  phase: StarCardsPlacementPhase,
   laneCardCount: number,
 ) {
   return (phase === "draw-placement" && laneCardCount < 3) || laneCardCount === 0;
+}
+
+export function shouldAnimateStarCardsZone(
+  phase: StarCardsPlacementPhase | null,
+  pendingHandCardCount: number,
+  laneCardCount: number,
+) {
+  return phase !== null &&
+    pendingHandCardCount > 0 &&
+    canPlaceStarCard(phase, laneCardCount);
 }
 
 export type StarCardBattleResult = "first" | "second" | "tie";

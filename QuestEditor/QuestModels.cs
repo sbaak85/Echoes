@@ -458,7 +458,7 @@ public sealed class QuestObjectiveDefinition
     public InteractionObjectiveMode InteractionMode { get; set; } = InteractionObjectiveMode.Succeeded;
 
     [Category("介面"), DisplayName("顯示進度")]
-    public bool ShowProgress { get; set; } = true;
+    public bool ShowProgress { get; set; } = false;
 
     [Category("介面"), DisplayName("顯示提示圖示")]
     public bool ShowHintIcon { get; set; }
