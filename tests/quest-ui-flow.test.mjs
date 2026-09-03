@@ -279,9 +279,35 @@ test("quest HUD result animations start their managed audio once", () => {
   );
   assert.match(
     objectiveUnlockTween,
-    /questObjectiveUnlockTweenTimerRef\.current !== null[\s\S]*?window\.clearTimeout\(questObjectiveUnlockTweenTimerRef\.current\)/,
+    /questObjectiveUnlockTweenTimerRefs\.current\.get\(tweenKey\)[\s\S]*?window\.clearTimeout\(existingTimer\)/,
   );
-  assert.match(objectiveUnlockTween, /setQuestObjectiveUnlockTween\(null\);[\s\S]*?}, 1000\);/);
+  assert.match(
+    objectiveUnlockTween,
+    /setQuestObjectiveUnlockTweens\(\(current\) => \(\{[\s\S]*?\.\.\.current,[\s\S]*?\[tweenKey\]: tween/,
+  );
+  assert.match(
+    objectiveUnlockTween,
+    /current\[tweenKey\]\?\.sequence !== sequence[\s\S]*?delete next\[tweenKey\][\s\S]*?}, 1000\);/,
+  );
+  assert.match(
+    objectiveUnlockTween,
+    /questObjectiveUnlockTweenTimerRefs\.current\.set\(tweenKey, timer\)/,
+  );
+});
+
+test("simultaneously activated objectives each keep an independent unlock Tween", () => {
+  assert.match(
+    source,
+    /const questObjectiveUnlockTweenTimerRefs = useRef\(new Map<string, number>\(\)\)/,
+  );
+  assert.match(
+    source,
+    /const \[questObjectiveUnlockTweens, setQuestObjectiveUnlockTweens\] = useState<[\s\S]*?Record<string, QuestObjectiveTween>[\s\S]*?>\(\{\}\)/,
+  );
+  assert.match(
+    source,
+    /const objectiveUnlockTween = questObjectiveUnlockTweens\[[\s\S]*?getQuestObjectiveTweenKey\(activeQuestHud!\.id, objective\.id\)[\s\S]*?\]/,
+  );
 });
 
 test("stage completion presentation keeps the completed HUD and reveals delayed Stage OBJ only once", () => {

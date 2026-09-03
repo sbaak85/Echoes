@@ -348,6 +348,30 @@ test("available automatic quests are truly accepted by the reusable grant pass",
   assert.deepEqual(manager.startAvailableAutomaticQuests(3, 421), []);
 });
 
+test("automatic quest grant pass can be limited to the current chapter", () => {
+  const chapterDocument = structuredClone(document);
+  chapterDocument.chapters.push({ id: "CH04", name: "天外世界", completionQuestIds: [] });
+  const chapterFourQuest = structuredClone(chapterDocument.quests[0]);
+  chapterFourQuest.id = "QUEST_CH04_TEST";
+  chapterFourQuest.chapterId = "CH04";
+  chapterFourQuest.stages[0].id = "QUEST_CH04_TEST_STAGE_01";
+  chapterFourQuest.stages[0].objectives[0].id = "QUEST_CH04_TEST_OBJ_01";
+  chapterFourQuest.stages[1].id = "QUEST_CH04_TEST_STAGE_02";
+  chapterFourQuest.stages[1].objectives[0].id = "QUEST_CH04_TEST_OBJ_02";
+  chapterDocument.quests.push(chapterFourQuest);
+
+  const manager = new QuestRuntimeManager(chapterDocument);
+  assert.deepEqual(
+    manager.startAvailableAutomaticQuests(3, 360, "CH03"),
+    ["QUEST_TEST"],
+  );
+  assert.equal(manager.getQuestState("QUEST_CH04_TEST"), "available");
+  assert.deepEqual(
+    manager.startAvailableAutomaticQuests(4, 360, "ch04"),
+    ["QUEST_CH04_TEST"],
+  );
+});
+
 test("quest start requests wait for the configured real-time delay", () => {
   const delayedDocument = structuredClone(document);
   delayedDocument.quests[0].startDelaySeconds = 1;

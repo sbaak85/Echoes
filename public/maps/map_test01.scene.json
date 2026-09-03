@@ -1901,14 +1901,19 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "interaction-007-line-001",
             "speaker": "Sbaak",
-            "text": "\u5947\u7279\u7684\u5916\u661F\u679C\u6A39\uFF0C\u6BCF\u5929\u90FD\u6703\u7D50\u51FA\u4E00\u9846\u679C\u5BE6\uFF0C"
+            "text": "\u5947\u7279\u7684\u5916\u661F\u679C\u6A39\uFF0C\u9577\u5728\u9019\u88E1\u592A\u525B\u597D\u4E86\u5427?"
           },
           {
-            "lineId": "",
+            "lineId": "interaction-007-line-003",
             "speaker": "Sbaak",
-            "text": "\u5473\u9053\u5F9E\u4F86\u6C92\u5403\u904E\uFF0C\u4F46\u80FD\u8B93\u6211\u98FD\u8179\u3002"
+            "text": "\u70BA\u4EC0\u9EBC\u56DB\u5468\u90FD\u6C92\u6709\u5176\u4ED6\u7684\u679C\u6A39\u5C31\u53EA\u6709\u9019\u4E00\u68F5\u5462..."
+          },
+          {
+            "lineId": "interaction-007-line-002",
+            "speaker": "Sbaak",
+            "text": "\u679C\u5BE6\u7684\u5473\u9053\u5F9E\u4F86\u6C92\u5403\u904E\uFF0C\u4F46\u80FD\u8B93\u6211\u98FD\u8179\u3002"
           }
         ]
       },
@@ -1920,21 +1925,21 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "interaction-007-failure-line-001",
             "speaker": "Sbaak",
-            "text": "\u9019\u68F5\u6A39\u4E00\u5929\u53EA\u6703\u7D50\u4E00\u6B21\u679C\u5BE6\u3002",
+            "text": "\u9019\u68F5\u6A39\u4E00\u5929\u597D\u50CF\u53EA\u6703\u7D50\u4E00\u6B21\u679C\u5BE6\u3002",
             "randomGroupId": "random-group-1",
             "weight": 2
           },
           {
-            "lineId": "",
+            "lineId": "interaction-007-failure-line-002",
             "speaker": "Sbaak",
             "text": "\u770B\u8D77\u4F86\u5B83\u4ECA\u5929\u5DF2\u7D93\u4E0D\u6703\u518D\u7D50\u679C\u4E86\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
-            "lineId": "",
+            "lineId": "interaction-007-failure-line-003",
             "speaker": "Sbaak",
             "text": "\u4F3C\u4E4E\u9084\u8981\u7B49\u5230\u660E\u5929\u624D\u6703\u518D\u7D50\u679C\u4E86\u3002",
             "randomGroupId": "random-group-1",

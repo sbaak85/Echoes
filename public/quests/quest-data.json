@@ -16,7 +16,7 @@
       "id": "CH04",
       "name": "\u7B2C\u56DB\u7AE0",
       "startCondition": "",
-      "openingEventFlowId": "chapter04-start-flow",
+      "openingEventFlowId": "",
       "completionQuestIds": [],
       "endingEventFlowId": "",
       "nextChapterId": ""
@@ -1097,7 +1097,7 @@
           "completionDelaySeconds": 0,
           "completionPresentationDelaySeconds": 3,
           "completionMode": "all",
-          "startEventFlowId": "",
+          "startEventFlowId": "chapter04-start-flow",
           "completionEventFlowId": "",
           "nextStageId": "QUEST_CH04_MAIN_001_STAGE_02",
           "objectives": [
@@ -1134,10 +1134,53 @@
               "activationEventId": "",
               "blocksStageCompletion": true,
               "type": "haveItem",
-              "targetId": "",
+              "targetId": "T0004",
               "itemRequirements": [],
               "targetState": "",
               "requiredAmount": 1,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": false,
+              "showHintIcon": false,
+              "completionEventFlowId": "",
+              "unlockDialogueId": ""
+            },
+            {
+              "id": "QUEST_CH04_MAIN_001_OBJ_03",
+              "displayText": "\u651C\u5E36\u8DB3\u5920\u7684\u88DC\u7D66\u54C1",
+              "startDelaySeconds": 0,
+              "startPresentationDelaySeconds": 0,
+              "completionDelaySeconds": 0,
+              "completionPresentationDelaySeconds": 0,
+              "activationMode": "event",
+              "activationEventId": "",
+              "blocksStageCompletion": true,
+              "type": "compoundCollectItem",
+              "targetId": "",
+              "itemRequirements": [
+                {
+                  "itemId": "R0004",
+                  "requiredAmount": 1
+                },
+                {
+                  "itemId": "R0005",
+                  "requiredAmount": 1
+                },
+                {
+                  "itemId": "R0012",
+                  "requiredAmount": 1
+                },
+                {
+                  "itemId": "R0016",
+                  "requiredAmount": 1
+                },
+                {
+                  "itemId": "R0017",
+                  "requiredAmount": 1
+                }
+              ],
+              "targetState": "",
+              "requiredAmount": 2,
               "countMode": "accumulated",
               "interactionMode": "succeeded",
               "showProgress": true,
@@ -1146,23 +1189,23 @@
               "unlockDialogueId": ""
             },
             {
-              "id": "QUEST_CH04_MAIN_001_OBJ_03",
+              "id": "QUEST_CH04_MAIN_001_OBJ_13",
               "displayText": "\u524D\u5F80\u5357\u65B9\u51FA\u5165\u53E3",
               "startDelaySeconds": 0,
               "startPresentationDelaySeconds": 0,
               "completionDelaySeconds": 0,
               "completionPresentationDelaySeconds": 0,
-              "activationMode": "immediate",
+              "activationMode": "event",
               "activationEventId": "",
               "blocksStageCompletion": true,
-              "type": "interactionSucceeded",
+              "type": "dialogueCompleted",
               "targetId": "",
               "itemRequirements": [],
               "targetState": "",
               "requiredAmount": 1,
               "countMode": "accumulated",
               "interactionMode": "succeeded",
-              "showProgress": true,
+              "showProgress": false,
               "showHintIcon": false,
               "completionEventFlowId": "",
               "unlockDialogueId": ""

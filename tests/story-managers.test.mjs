@@ -3,6 +3,13 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { ChapterFlowManager } from "../app/chapter-flow-manager.ts";
+import {
+  CHAPTER04_START_DIALOGUE_ID,
+  CHAPTER04_START_FLOW,
+  CHAPTER04_START_FLOW_ID,
+  CHAPTER04_START_OBJECTIVE_IDS,
+  QUEST_STAGE_EVENT_FLOWS,
+} from "../app/chapter04-quest-flow.ts";
 import { DialogueManager } from "../app/dialogue-manager.ts";
 import {
   CHAPTER_3_START_DIALOGUE,
@@ -253,6 +260,144 @@ test("章末存檔保持黑幕，下一章字幕直接接手並只在最後淡�
   await chapterOpen;
   assert.equal(calls.filter((call) => call === "fade-to").length, 1);
   assert.equal(calls.filter((call) => call === "fade-from").length, 1);
+});
+
+test("chapter04-Open 完整歸屬第四章頁籤", async () => {
+  const chapterThree = STORY_CHAPTERS.find((chapter) => chapter.id === "chapter03");
+  const chapterFour = STORY_CHAPTERS.find((chapter) => chapter.id === "chapter04");
+  assert.ok(chapterThree);
+  assert.ok(chapterFour);
+  assert.equal(
+    chapterThree.subtitleEvents.some((event) => event.id === "chapter04-Open"),
+    false,
+  );
+
+  const event = chapterFour.subtitleEvents.find(
+    (candidate) => candidate.id === "chapter04-Open",
+  );
+  assert.deepEqual(event, {
+    id: "chapter04-Open",
+    name: "第四章開場",
+    text: "第四章\r\nChapter.4",
+    lines: [{ text: "第四章\r\nChapter.4", fontSizePx: 38 }],
+    triggerType: "chapterStart",
+    triggerValue: "",
+    triggerCount: 1,
+    delayBeforeMs: 0,
+    fadeInMs: 1000,
+    holdMs: 2000,
+    fadeOutMs: 2000,
+    delayAfterMs: 100,
+    keepBlack: false,
+    lockInput: true,
+    chapterStartTimeMode: "clock",
+    chapterStartElapsedMinutes: 0,
+    chapterStartClockMinuteOfDay: 420,
+  });
+
+  const source = await readFile(
+    new URL("../app/story-content.ts", import.meta.url),
+    "utf8",
+  );
+  const encoded = source.match(
+    /\/\* CHAPTER_SCRIPT_EDITOR_DATA_BEGIN\s+([A-Za-z0-9+/=\r\n]+?)\s+CHAPTER_SCRIPT_EDITOR_DATA_END \*\//,
+  )?.[1];
+  assert.ok(encoded);
+  const document = JSON.parse(
+    Buffer.from(encoded.replace(/\s/g, ""), "base64").toString("utf8"),
+  );
+  const embeddedChapterThree = document.chapters.find(
+    (chapter) => chapter.id === "chapter03",
+  );
+  const embeddedChapterFour = document.chapters.find(
+    (chapter) => chapter.id === "chapter04",
+  );
+  assert.equal(
+    embeddedChapterThree.subtitleEvents.some(
+      (candidate) => candidate.id === "chapter04-Open",
+    ),
+    false,
+  );
+  assert.deepEqual(
+    embeddedChapterFour.subtitleEvents.find(
+      (candidate) => candidate.id === "chapter04-Open",
+    ),
+    event,
+  );
+});
+
+test("第四章首階段延遲播放開場腳本並在結束後啟用 OBJ 02、03", async () => {
+  const questDocument = JSON.parse(await readFile(
+    new URL("../public/quests/quest-data.json", import.meta.url),
+    "utf8",
+  ));
+  const quest = questDocument.quests.find(
+    (candidate) => candidate.id === "QUEST_CH04_MAIN_001",
+  );
+  const chapter = questDocument.chapters.find(
+    (candidate) => candidate.id === "CH04",
+  );
+  const stage = quest?.stages.find(
+    (candidate) => candidate.id === "QUEST_CH04_MAIN_001_STAGE_01",
+  );
+  assert.ok(stage);
+  assert.equal(chapter?.openingEventFlowId, "");
+  assert.equal(stage.startEventFlowId, CHAPTER04_START_FLOW_ID);
+  assert.equal(
+    stage.objectives.find(
+      (objective) => objective.id === "QUEST_CH04_MAIN_001_OBJ_01",
+    )?.activationMode,
+    "immediate",
+  );
+  for (const objectiveId of CHAPTER04_START_OBJECTIVE_IDS) {
+    assert.equal(
+      stage.objectives.find((objective) => objective.id === objectiveId)
+        ?.activationMode,
+      "event",
+    );
+  }
+
+  assert.equal(QUEST_STAGE_EVENT_FLOWS[CHAPTER04_START_FLOW_ID], CHAPTER04_START_FLOW);
+  assert.ok(STORY_DIALOGUES[CHAPTER04_START_DIALOGUE_ID]);
+  assert.deepEqual(CHAPTER04_START_FLOW.actions, [
+    { type: "wait", durationMs: 3000 },
+    { type: "playDialogue", dialogueId: "chapter04-start" },
+    { type: "wait", durationMs: 500 },
+    { type: "activateObjective", objectiveId: "QUEST_CH04_MAIN_001_OBJ_02" },
+    { type: "activateObjective", objectiveId: "QUEST_CH04_MAIN_001_OBJ_03" },
+  ]);
+  assert.deepEqual(CHAPTER04_START_FLOW.skipActions, [
+    { type: "wait", durationMs: 500 },
+    { type: "activateObjective", objectiveId: "QUEST_CH04_MAIN_001_OBJ_02" },
+    { type: "activateObjective", objectiveId: "QUEST_CH04_MAIN_001_OBJ_03" },
+  ]);
+});
+
+test("ChapterFlowManager 的任務腳本可依序啟用多個 OBJ", async () => {
+  const activated = [];
+  const manager = new ChapterFlowManager({
+    setInputLocked: () => {},
+    setBlack: () => {},
+    fadeToBlack: () => {},
+    fadeFromBlack: () => {},
+    showCenteredText: () => {},
+    hideCenteredText: () => {},
+    playDialogue: async () => {},
+    activateObjective: async (objectiveId) => activated.push(objectiveId),
+    cancelDialogue: () => {},
+    markCompleted: () => {},
+    isCompleted: () => false,
+  });
+
+  await manager.run({
+    id: "activate-objectives-test",
+    chapter: 4,
+    actions: [
+      { type: "activateObjective", objectiveId: "OBJ_02" },
+      { type: "activateObjective", objectiveId: "OBJ_03" },
+    ],
+  });
+  assert.deepEqual(activated, ["OBJ_02", "OBJ_03"]);
 });
 
 test("blank dialogue speaker stays blank instead of inheriting the previous line", async () => {

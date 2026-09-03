@@ -579,10 +579,16 @@ export class QuestRuntimeManager {
   startAvailableAutomaticQuests(
     day: number | null = null,
     time: number | null = null,
+    chapterId?: string,
   ): string[] {
     const started: string[] = [];
+    const normalizedChapterId = chapterId?.trim().toLocaleLowerCase() ?? "";
     for (const definition of this.definitions.values()) {
       if (definition.grantMethod !== "automatic") continue;
+      if (
+        normalizedChapterId &&
+        definition.chapterId.trim().toLocaleLowerCase() !== normalizedChapterId
+      ) continue;
       const entry = this.requireEntry(definition.id);
       if (entry.state !== "available") continue;
       if (this.requestQuestStart(definition.id, day, time)) started.push(definition.id);

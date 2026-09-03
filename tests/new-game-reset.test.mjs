@@ -116,3 +116,27 @@ test("重新開始會阻擋舊 AUTO 回灌，並讓全新進度排在舊存檔�
     /queuePortableSaveWrite\("autosave", "auto"\)[\s\S]{0,180}if \(backend\) clearNewGameResetPending\(\)/,
   );
 });
+
+test("重新開始播放第三章字幕時不會提前啟動其他章節的自動任務", async () => {
+  const source = await readFile(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  const questHydrationSource = source.slice(
+    source.indexOf("questRuntimeManagerRef.current.syncCurrentInventory"),
+    source.indexOf("const currentQuestSave", source.indexOf("questRuntimeManagerRef.current.syncCurrentInventory")),
+  );
+  assert.doesNotMatch(questHydrationSource, /startAvailableAutomaticQuests/);
+  assert.match(
+    source,
+    /const startAutomaticQuestsForChapter[\s\S]*?startAvailableAutomaticQuests\([\s\S]*?`CH\$\{String\(chapter\)\.padStart\(2, "0"\)\}`/,
+  );
+  assert.match(
+    source,
+    /await chapterFlowManager\.run\(createStorySubtitleFlow\([\s\S]*?startAutomaticQuestsForChapter\(chapter\)/,
+  );
+  assert.match(
+    source,
+    /onQuestCompleted[\s\S]*?startAvailableAutomaticQuests\([\s\S]*?currentStoryChapterRef\.current/,
+  );
+});

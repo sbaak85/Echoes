@@ -267,6 +267,7 @@ import {
   CHAPTER04_START_LOCATION,
   createChapter04EntryStoryProgress,
 } from "./chapter04-transition";
+import { QUEST_STAGE_EVENT_FLOWS } from "./chapter04-quest-flow";
 import {
   QuestRuntimeManager,
   loadQuestSaveData,
@@ -369,6 +370,15 @@ type QuestHudEvent = {
   questId: string;
   sequence: number;
 };
+type QuestObjectiveTween = {
+  questId: string;
+  objectiveId: string;
+  sequence: number;
+};
+
+function getQuestObjectiveTweenKey(questId: string, objectiveId: string) {
+  return `${questId}:${objectiveId}`;
+}
 
 function buildQuestHudView(
   questId: string,
@@ -3544,7 +3554,7 @@ export function MovementLab() {
   const questHudEventTimerRef = useRef<number | null>(null);
   const questHudEventFinishedRef = useRef<(() => void) | null>(null);
   const questObjectiveTweenTimerRef = useRef<number | null>(null);
-  const questObjectiveUnlockTweenTimerRef = useRef<number | null>(null);
+  const questObjectiveUnlockTweenTimerRefs = useRef(new Map<string, number>());
   const questStageTransitionTimerRef = useRef<number | null>(null);
   const questStageEnteringTimerRef = useRef<number | null>(null);
   const questPresentationTimerRefs = useRef<number[]>([]);
@@ -3757,11 +3767,9 @@ export function MovementLab() {
     objectiveId: string;
     sequence: number;
   } | null>(null);
-  const [questObjectiveUnlockTween, setQuestObjectiveUnlockTween] = useState<{
-    questId: string;
-    objectiveId: string;
-    sequence: number;
-  } | null>(null);
+  const [questObjectiveUnlockTweens, setQuestObjectiveUnlockTweens] = useState<
+    Record<string, QuestObjectiveTween>
+  >({});
   const [questStageEntering, setQuestStageEntering] = useState(false);
   const [questStageEntryPending, setQuestStageEntryPending] = useState(false);
   const [questEventNotice, setQuestEventNotice] = useState<{
@@ -4534,8 +4542,17 @@ export function MovementLab() {
     if (questObjectiveTweenTimerRef.current !== null) {
       window.clearTimeout(questObjectiveTweenTimerRef.current);
     }
-    if (questObjectiveUnlockTweenTimerRef.current !== null) {
-      window.clearTimeout(questObjectiveUnlockTweenTimerRef.current);
+    const unlockTweenKey = getQuestObjectiveTweenKey(view.id, objectiveId);
+    const unlockTweenTimer = questObjectiveUnlockTweenTimerRefs.current.get(unlockTweenKey);
+    if (unlockTweenTimer !== undefined) {
+      window.clearTimeout(unlockTweenTimer);
+      questObjectiveUnlockTweenTimerRefs.current.delete(unlockTweenKey);
+      setQuestObjectiveUnlockTweens((current) => {
+        if (!(unlockTweenKey in current)) return current;
+        const next = { ...current };
+        delete next[unlockTweenKey];
+        return next;
+      });
     }
     questHudEventSequenceRef.current += 1;
     setActiveQuestHud(view);
@@ -4557,21 +4574,32 @@ export function MovementLab() {
   ) => {
     const currentView = getFirstActiveQuestHud();
     if (currentView?.id === view.id && currentView.stageId !== view.stageId) return;
-    if (questObjectiveUnlockTweenTimerRef.current !== null) {
-      window.clearTimeout(questObjectiveUnlockTweenTimerRef.current);
+    const tweenKey = getQuestObjectiveTweenKey(view.id, objectiveId);
+    const existingTimer = questObjectiveUnlockTweenTimerRefs.current.get(tweenKey);
+    if (existingTimer !== undefined) {
+      window.clearTimeout(existingTimer);
     }
     questHudEventSequenceRef.current += 1;
+    const sequence = questHudEventSequenceRef.current;
+    const tween = { questId: view.id, objectiveId, sequence };
     setActiveQuestHud(view);
     revealQuestHudForAutomaticPresentation();
-    setQuestObjectiveUnlockTween({
-      questId: view.id,
-      objectiveId,
-      sequence: questHudEventSequenceRef.current,
-    });
-    questObjectiveUnlockTweenTimerRef.current = window.setTimeout(() => {
-      questObjectiveUnlockTweenTimerRef.current = null;
-      setQuestObjectiveUnlockTween(null);
+    setQuestObjectiveUnlockTweens((current) => ({
+      ...current,
+      [tweenKey]: tween,
+    }));
+    const timer = window.setTimeout(() => {
+      if (questObjectiveUnlockTweenTimerRefs.current.get(tweenKey) === timer) {
+        questObjectiveUnlockTweenTimerRefs.current.delete(tweenKey);
+      }
+      setQuestObjectiveUnlockTweens((current) => {
+        if (current[tweenKey]?.sequence !== sequence) return current;
+        const next = { ...current };
+        delete next[tweenKey];
+        return next;
+      });
     }, 1000);
+    questObjectiveUnlockTweenTimerRefs.current.set(tweenKey, timer);
   };
 
   const triggerQuestStageTransition = (
@@ -4805,7 +4833,8 @@ export function MovementLab() {
               return result.completed;
             }
 
-            const flow = STORY_EVENT_FLOWS[triggerId];
+            const flow = STORY_EVENT_FLOWS[triggerId] ??
+              QUEST_STAGE_EVENT_FLOWS[triggerId];
             if (!flow) return false;
             return await chapterFlowManagerRef.current?.run(flow) === true;
           },
@@ -4813,7 +4842,8 @@ export function MovementLab() {
           // registered story flow ID or a registered dialogue ID. Resolve both
           // here so an Objective completion script is not silently discarded.
           runEventFlow: async (eventFlowId) => {
-            const flow = STORY_EVENT_FLOWS[eventFlowId];
+            const flow = STORY_EVENT_FLOWS[eventFlowId] ??
+              QUEST_STAGE_EVENT_FLOWS[eventFlowId];
             if (flow) {
               return await chapterFlowManagerRef.current?.run(flow) === true;
             }
@@ -4995,6 +5025,7 @@ export function MovementLab() {
               currentManager.startAvailableAutomaticQuests(
                 clock.day,
                 clock.hour * 60 + clock.minute,
+                `CH${String(currentStoryChapterRef.current).padStart(2, "0")}`,
               );
               saveQuestSaveData(currentManager.exportSave());
             });
@@ -5011,11 +5042,6 @@ export function MovementLab() {
         loadedQuestSave,
       );
       questRuntimeManagerRef.current.syncCurrentInventory(loadedInventory);
-      const clock = getGameClock(loadedSurvivalState.gameMinutes);
-      questRuntimeManagerRef.current.startAvailableAutomaticQuests(
-        clock.day,
-        clock.hour * 60 + clock.minute,
-      );
       const currentQuestSave = questRuntimeManagerRef.current.exportSave();
       saveQuestSaveData(currentQuestSave);
       bgmDirectorRef.current?.syncQuestSnapshot(currentQuestSave.quests);
@@ -5235,9 +5261,10 @@ export function MovementLab() {
     if (questObjectiveTweenTimerRef.current !== null) {
       window.clearTimeout(questObjectiveTweenTimerRef.current);
     }
-    if (questObjectiveUnlockTweenTimerRef.current !== null) {
-      window.clearTimeout(questObjectiveUnlockTweenTimerRef.current);
+    for (const timer of questObjectiveUnlockTweenTimerRefs.current.values()) {
+      window.clearTimeout(timer);
     }
+    questObjectiveUnlockTweenTimerRefs.current.clear();
     if (questStageTransitionTimerRef.current !== null) {
       window.clearTimeout(questStageTransitionTimerRef.current);
     }
@@ -6615,6 +6642,15 @@ export function MovementLab() {
           clock.hour * 60 + clock.minute,
         );
       },
+      activateObjective: (objectiveId) => {
+        const manager = questRuntimeManagerRef.current;
+        if (!manager) return;
+        if (!manager.activateObjective(
+          objectiveId,
+          chapterFlowManagerRef.current?.getActiveFlowId() ?? undefined,
+        )) return;
+        saveQuestSaveData(manager.exportSave());
+      },
       showMainObjectiveMarker: (durationMs) => {
         if (mainObjectiveMarkerTimerRef.current !== null) {
           window.clearTimeout(mainObjectiveMarkerTimerRef.current);
@@ -6666,6 +6702,17 @@ export function MovementLab() {
     });
   }
   const chapterFlowManager = chapterFlowManagerRef.current;
+  const startAutomaticQuestsForChapter = (chapter: number) => {
+    const manager = questRuntimeManagerRef.current;
+    if (!manager) return;
+    const clock = getGameClock(survivalStateRef.current.gameMinutes);
+    const started = manager.startAvailableAutomaticQuests(
+      clock.day,
+      clock.hour * 60 + clock.minute,
+      `CH${String(chapter).padStart(2, "0")}`,
+    );
+    if (started.length > 0) saveQuestSaveData(manager.exportSave());
+  };
   const resumeAfterSkippedChapterOpen = () => {
     fadeBlackScreen(0, 1000, () => {
       storyInputLockedRef.current = false;
@@ -6694,6 +6741,7 @@ export function MovementLab() {
       }
       if (chapter === 3) {
         const started = await chapterFlowManager.run(CHAPTER_3_START_FLOW);
+        startAutomaticQuestsForChapter(chapter);
         if (!started) resumeAfterSkippedChapterOpen();
         return;
       }
@@ -6702,6 +6750,7 @@ export function MovementLab() {
         console.info(
           `[ChapterStart] No ${scriptId} script is registered; continuing without it.`,
         );
+        startAutomaticQuestsForChapter(chapter);
         resumeAfterSkippedChapterOpen();
         return;
       }
@@ -6711,6 +6760,7 @@ export function MovementLab() {
         script.event.id,
       );
       if (completedCount >= Math.max(1, script.event.triggerCount)) {
+        startAutomaticQuestsForChapter(chapter);
         resumeAfterSkippedChapterOpen();
         return;
       }
@@ -6720,6 +6770,7 @@ export function MovementLab() {
         completedCount + 1,
         { blackAlreadyVisible },
       ));
+      startAutomaticQuestsForChapter(chapter);
       if (!started) {
         resumeAfterSkippedChapterOpen();
       }
@@ -9649,10 +9700,13 @@ export function MovementLab() {
             window.clearTimeout(timer);
           }
           questPresentationTimerRefs.current = [];
+          for (const timer of questObjectiveUnlockTweenTimerRefs.current.values()) {
+            window.clearTimeout(timer);
+          }
+          questObjectiveUnlockTweenTimerRefs.current.clear();
           for (const timerRef of [
             questHudEventTimerRef,
             questObjectiveTweenTimerRef,
-            questObjectiveUnlockTweenTimerRef,
             questStageTransitionTimerRef,
             questStageEnteringTimerRef,
           ]) {
@@ -9661,7 +9715,7 @@ export function MovementLab() {
           }
           setQuestHudEvent(null);
           setQuestObjectiveTween(null);
-          setQuestObjectiveUnlockTween(null);
+          setQuestObjectiveUnlockTweens({});
           setQuestStageEntering(false);
           setQuestStageEntryPending(false);
 
@@ -15028,6 +15082,7 @@ export function MovementLab() {
             Math.floor(Number(itemUseConfirmationAction.consumeQuantity) || 1),
           ),
           state: "available",
+          imageSrc: getInventoryItemArtworkPreview(itemUseConfirmationItem.id)?.iconPath,
         }]
       : [];
   const itemUseConfirmationTargets: ItemChangeVisualEntry[] =
@@ -15039,6 +15094,9 @@ export function MovementLab() {
             label: item?.name ?? reward.itemId,
             quantity: reward.quantity,
             state: "result" as const,
+            imageSrc: item
+              ? getInventoryItemArtworkPreview(item.id)?.iconPath
+              : undefined,
           };
         })
       : [];
@@ -15577,12 +15635,14 @@ export function MovementLab() {
             {activeQuestHud!.objectives.map((objective) => {
               const progress = Math.min(1, objective.current / objective.required);
               const isCompletionPop = activeQuestObjectiveTween?.objectiveId === objective.id;
-              const isUnlockEnter = questObjectiveUnlockTween?.questId === activeQuestHud!.id &&
-                questObjectiveUnlockTween.objectiveId === objective.id;
+              const objectiveUnlockTween = questObjectiveUnlockTweens[
+                getQuestObjectiveTweenKey(activeQuestHud!.id, objective.id)
+              ];
+              const isUnlockEnter = objectiveUnlockTween !== undefined;
               return (
                 <div
                   className={`quest-objective${isCompletionPop ? " is-completion-pop" : ""}${isUnlockEnter ? " is-unlock-enter" : ""}`}
-                  key={`${objective.id}-${isCompletionPop ? activeQuestObjectiveTween.sequence : 0}-${isUnlockEnter ? questObjectiveUnlockTween.sequence : 0}`}
+                  key={`${objective.id}-${isCompletionPop ? activeQuestObjectiveTween.sequence : 0}-${objectiveUnlockTween?.sequence ?? 0}`}
                 >
                   <span
                     className={`quest-objective-check${objective.completed ? " is-complete" : ""}`}

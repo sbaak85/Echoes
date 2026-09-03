@@ -28,6 +28,7 @@ export type ChapterFlowAction =
     }
   | { type: "playDialogue"; dialogueId: string }
   | { type: "startQuest"; questId: string }
+  | { type: "activateObjective"; objectiveId: string }
   | { type: "fadeFromBlack"; durationMs: number }
   | { type: "showMainObjectiveMarker"; durationMs: number };
 
@@ -54,6 +55,7 @@ export type ChapterFlowHost = {
   setCenteredTextHoldSkipPrompt?: (visible: boolean) => void;
   playDialogue: (dialogueId: string) => Promise<unknown>;
   startQuest?: (questId: string) => void | Promise<void>;
+  activateObjective?: (objectiveId: string) => void | Promise<void>;
   showMainObjectiveMarker?: (durationMs: number) => void;
   cancelDialogue: () => void;
   runBlackSubtitleCheckpoint?: (
@@ -318,6 +320,9 @@ export class ChapterFlowManager {
           break;
         case "startQuest":
           await this.host.startQuest?.(action.questId);
+          break;
+        case "activateObjective":
+          await this.host.activateObjective?.(action.objectiveId);
           break;
         case "fadeFromBlack":
           this.host.fadeFromBlack(action.durationMs);

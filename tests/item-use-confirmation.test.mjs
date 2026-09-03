@@ -160,6 +160,14 @@ test("useAction 與任務投入共用 Item 變化圖示，通訊陣列採用 240
   assert.match(source, /function ItemChangeVisualization/);
   assert.match(source, /sources=\{itemUseConfirmationSources\}/);
   assert.match(source, /targets=\{itemUseConfirmationTargets\}/);
+  assert.match(
+    source,
+    /itemUseConfirmationSources[\s\S]*?imageSrc:\s*getInventoryItemArtworkPreview\(itemUseConfirmationItem\.id\)\?\.iconPath/,
+  );
+  assert.match(
+    source,
+    /itemUseConfirmationTargets[\s\S]*?getInventoryItemArtworkPreview\(item\.id\)\?\.iconPath/,
+  );
   assert.match(source, /sources=\{questItemSubmissionSources\}/);
   assert.match(source, /targets=\{questItemSubmissionTargets\}/);
   assert.match(source, /communication-array-tower-icon\.png/);
