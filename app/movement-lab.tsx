@@ -257,7 +257,9 @@ import {
   findStorySubtitleEvents,
   getChapterOpenScriptId,
   getStorySubtitleCompletedCount,
+  type StorySubtitleEventDefinition,
 } from "./story-subtitle-flow";
+import { getChapterStartElapsedMinutes } from "./chapter-start-time";
 import {
   CHAPTER04_ID,
   CHAPTER04_NAME,
@@ -1557,6 +1559,12 @@ type SaveDataDialogMode = "save" | "actions" | "load" | "overwrite" | "delete";
 type SaveDataDialog = { slotId: SaveDataSlotId; mode: SaveDataDialogMode };
 type SaveDataDialogChoice = "cancel" | "load" | "overwrite" | "delete" | "confirm";
 type Chapter04SaveChoice = "manual" | "autosave";
+type ChapterStartRuntimeSnapshot = {
+  elapsedMinutes: number;
+  survival: SurvivalGameState;
+  campPower: CampPowerState;
+  interactionUsage: InteractionUsageState;
+};
 
 const SAVE_DATA_SLOT_IDS: SaveDataSlotId[] = [
   "autosave",
@@ -3574,6 +3582,7 @@ export function MovementLab() {
   const pendingChapterStartRef = useRef<{
     chapter: number;
     blackAlreadyVisible: boolean;
+    chapterStartTimeAlreadyApplied?: boolean;
   } | null>(null);
   const storySkipHoldRef = useRef<{
     source: "keyboard" | "gamepad" | "touch";
@@ -6510,6 +6519,42 @@ export function MovementLab() {
     requestPortableAutosaveRef.current("story-flag-changed");
   };
 
+  const createChapterStartRuntimeSnapshot = (
+    event: StorySubtitleEventDefinition | null,
+  ): ChapterStartRuntimeSnapshot => {
+    const currentSurvival = survivalStateRef.current;
+    const elapsedMinutes = event
+      ? getChapterStartElapsedMinutes(currentSurvival.gameMinutes, event)
+      : 0;
+    const survival = elapsedMinutes > 0
+      ? advanceSurvivalByGameMinutes(currentSurvival, elapsedMinutes)
+      : currentSurvival;
+    return {
+      elapsedMinutes,
+      survival,
+      campPower: elapsedMinutes > 0
+        ? advanceCampPowerToGameMinutes(campPowerStateRef.current, survival.gameMinutes)
+        : campPowerStateRef.current,
+      interactionUsage: elapsedMinutes > 0
+        ? ensureInteractionUsageCycle(interactionUsageRef.current, survival.gameMinutes)
+        : interactionUsageRef.current,
+    };
+  };
+
+  const commitChapterStartRuntimeSnapshot = (
+    snapshot: ChapterStartRuntimeSnapshot,
+  ) => {
+    survivalStateRef.current = snapshot.survival;
+    setSurvivalState(snapshot.survival);
+    saveSurvivalState(snapshot.survival);
+    campPowerStateRef.current = snapshot.campPower;
+    setCampPowerState(snapshot.campPower);
+    saveCampPowerState(snapshot.campPower);
+    interactionUsageRef.current = snapshot.interactionUsage;
+    saveInteractionUsageState(snapshot.interactionUsage);
+    requestStoryTriggerContactCheckRef.current();
+  };
+
   if (!chapterFlowManagerRef.current) {
     chapterFlowManagerRef.current = new ChapterFlowManager({
       setInputLocked: (locked) => {
@@ -6633,17 +6678,26 @@ export function MovementLab() {
     const events = new StoryEventManager();
     events.on("gameReady", ({ currentChapter }) =>
       events.emit("chapterStarted", { chapter: currentChapter }));
-    events.on("chapterStarted", async ({ chapter, blackAlreadyVisible }) => {
+    events.on("chapterStarted", async ({
+      chapter,
+      blackAlreadyVisible,
+      chapterStartTimeAlreadyApplied,
+    }) => {
       bgmDirectorRef.current?.setChapter(chapter);
       requestStoryTriggerContactCheckRef.current();
+      const scriptId = getChapterOpenScriptId(chapter);
+      const script = findStorySubtitleEventById(STORY_CHAPTERS, scriptId);
+      if (script && !chapterStartTimeAlreadyApplied) {
+        commitChapterStartRuntimeSnapshot(
+          createChapterStartRuntimeSnapshot(script.event),
+        );
+      }
       if (chapter === 3) {
         const started = await chapterFlowManager.run(CHAPTER_3_START_FLOW);
         if (!started) resumeAfterSkippedChapterOpen();
         return;
       }
 
-      const scriptId = getChapterOpenScriptId(chapter);
-      const script = findStorySubtitleEventById(STORY_CHAPTERS, scriptId);
       if (!script) {
         console.info(
           `[ChapterStart] No ${scriptId} script is registered; continuing without it.`,
@@ -6838,6 +6892,7 @@ export function MovementLab() {
   const buildPortableSave = (
     slotKind: "auto" | "manual",
     storyProgress: StoryProgress = storyProgressRef.current,
+    runtimeSnapshot?: ChapterStartRuntimeSnapshot,
   ): EchoesSaveData | null => {
     const manager = questRuntimeManagerRef.current;
     if (!portableSaveHydratedRef.current || !manager) return null;
@@ -6850,12 +6905,13 @@ export function MovementLab() {
       summary,
       progress: {
         sceneId: SCENE_DATA.sceneId,
-        survival: survivalStateRef.current,
+        survival: runtimeSnapshot?.survival ?? survivalStateRef.current,
         inventory: playerInventoryRef.current,
         quest: questSave,
         story: storyProgress,
-        campPower: campPowerStateRef.current,
-        interactionUsage: interactionUsageRef.current,
+        campPower: runtimeSnapshot?.campPower ?? campPowerStateRef.current,
+        interactionUsage:
+          runtimeSnapshot?.interactionUsage ?? interactionUsageRef.current,
         itemPointProgress: itemPointProgressRef.current,
         collectedWorldItemIds: Array.from(collectedWorldItemIdsRef.current),
         droppedWorldItems: droppedWorldItemsRef.current,
@@ -6874,8 +6930,9 @@ export function MovementLab() {
     slotId: SaveDataSlotId,
     slotKind: "auto" | "manual",
     storyProgress: StoryProgress = storyProgressRef.current,
+    runtimeSnapshot?: ChapterStartRuntimeSnapshot,
   ) => {
-    const save = buildPortableSave(slotKind, storyProgress);
+    const save = buildPortableSave(slotKind, storyProgress, runtimeSnapshot);
     if (!save) return Promise.resolve<SaveDataBackend | null>(null);
     let result: SaveDataBackend | null = null;
     const operation = async () => {
@@ -6904,7 +6961,18 @@ export function MovementLab() {
       chapter04SaveCheckpointFlowIdRef.current,
     );
 
-  const completeChapter04SaveCheckpoint = (nextStory: StoryProgress) => {
+  const getPendingChapter04RuntimeSnapshot = () => {
+    const script = findStorySubtitleEventById(
+      STORY_CHAPTERS,
+      getChapterOpenScriptId(CHAPTER04_NUMBER),
+    );
+    return createChapterStartRuntimeSnapshot(script?.event ?? null);
+  };
+
+  const completeChapter04SaveCheckpoint = (
+    nextStory: StoryProgress,
+    runtimeSnapshot: ChapterStartRuntimeSnapshot,
+  ) => {
     chapter04TransitionCompletingRef.current = true;
     // Quest fast-forward uses an isolated runtime so ordinary background
     // autosaves cannot overwrite the player's real progress. Reaching this
@@ -6921,6 +6989,7 @@ export function MovementLab() {
     currentStoryChapterRef.current = CHAPTER04_NUMBER;
     storyProgressRef.current = nextStory;
     saveStoryProgress(nextStory);
+    commitChapterStartRuntimeSnapshot(runtimeSnapshot);
     bgmDirectorRef.current?.setChapter(CHAPTER04_NUMBER);
     if (SCENE_DATA.sceneId === CHAPTER04_START_LOCATION.sceneId) {
       scheduleQuestTeleport(CHAPTER04_START_LOCATION.teleportPointId, 0);
@@ -6933,6 +7002,7 @@ export function MovementLab() {
     pendingChapterStartRef.current = {
       chapter: CHAPTER04_NUMBER,
       blackAlreadyVisible: true,
+      chapterStartTimeAlreadyApplied: true,
     };
     requestStoryTriggerContactCheckRef.current();
     if (optionsOpenRef.current) setOptionsPanelOpen(false);
@@ -6964,13 +7034,19 @@ export function MovementLab() {
     setChapter04TransitionBusy(true);
     setChapter04TransitionStatus("正在寫入自動存檔…");
     const nextStory = getPendingChapter04StoryProgress();
+    const runtimeSnapshot = getPendingChapter04RuntimeSnapshot();
     try {
-      const backend = await queuePortableSaveWrite("autosave", "auto", nextStory);
+      const backend = await queuePortableSaveWrite(
+        "autosave",
+        "auto",
+        nextStory,
+        runtimeSnapshot,
+      );
       if (!backend) throw new Error("chapter04-autosave-not-ready");
       void refreshSaveDataSlots().catch((error) => {
         console.warn("[Echoes SaveData] 第四章自動存檔完成，但清單重新整理失敗：", error);
       });
-      completeChapter04SaveCheckpoint(nextStory);
+      completeChapter04SaveCheckpoint(nextStory, runtimeSnapshot);
     } catch (error) {
       console.error("[Echoes SaveData] 第四章自動存檔失敗：", error);
       chapter04TransitionBusyRef.current = false;
@@ -7126,11 +7202,15 @@ export function MovementLab() {
         )
           ? getPendingChapter04StoryProgress()
           : null;
+        const chapter04RuntimeSnapshot = chapter04Story
+          ? getPendingChapter04RuntimeSnapshot()
+          : undefined;
         setSaveDataStatus("正在儲存…");
         const backend = await queuePortableSaveWrite(
           dialog.slotId,
           "manual",
           chapter04Story ?? storyProgressRef.current,
+          chapter04RuntimeSnapshot,
         );
         if (!backend) throw new Error("manual-save-not-ready");
         setSaveDataStatus(dialog.mode === "overwrite" ? "存檔已覆蓋。" : "存檔完成。 ");
@@ -7139,7 +7219,10 @@ export function MovementLab() {
           void refreshSaveDataSlots().catch((error) => {
             console.warn("[Echoes SaveData] 第四章手動存檔完成，但清單重新整理失敗：", error);
           });
-          completeChapter04SaveCheckpoint(chapter04Story);
+          completeChapter04SaveCheckpoint(
+            chapter04Story,
+            chapter04RuntimeSnapshot!,
+          );
         } else {
           await refreshSaveDataSlots();
         }

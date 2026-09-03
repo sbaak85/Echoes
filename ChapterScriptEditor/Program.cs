@@ -149,6 +149,41 @@ internal static class Program
         lineGrid.EndEdit();
         lineGrid.CurrentCell = null;
 
+        var disabledChapterStartMode = Descendants(subtitleForm)
+            .OfType<ComboBox>()
+            .Single(control => control.Name == "chapterStartTimeMode");
+        if (disabledChapterStartMode.Enabled)
+        {
+            throw new InvalidDataException("非章節開始字幕不應啟用章節起始時間設定。");
+        }
+
+        var chapterOpen = document.Chapters
+            .SelectMany(chapter => chapter.SubtitleEvents)
+            .First(item => item.Id == "chapter03-Open");
+        using var chapterOpenForm = new SubtitleEventEditorForm(chapterOpen);
+        chapterOpenForm.CreateControl();
+        chapterOpenForm.PerformLayout();
+        var chapterStartMode = Descendants(chapterOpenForm)
+            .OfType<ComboBox>()
+            .Single(control => control.Name == "chapterStartTimeMode");
+        var elapsedHours = Descendants(chapterOpenForm)
+            .OfType<NumericUpDown>()
+            .Single(control => control.Name == "chapterStartElapsedHours");
+        var clockHour = Descendants(chapterOpenForm)
+            .OfType<NumericUpDown>()
+            .Single(control => control.Name == "chapterStartClockHour");
+        if (!chapterStartMode.Enabled || elapsedHours.Enabled || clockHour.Enabled)
+        {
+            throw new InvalidDataException("章節起始時間的預設延續模式控制狀態不正確。");
+        }
+        chapterStartMode.SelectedItem = chapterStartMode.Items
+            .Cast<ChapterStartTimeModeItem>()
+            .Single(item => item.Id == ChapterStartTimeModeItem.Elapsed);
+        if (!elapsedHours.Enabled || clockHour.Enabled)
+        {
+            throw new InvalidDataException("章節起始時間的經過時數模式未正確切換控制欄位。");
+        }
+
         var sectionNine = document.Chapters
             .SelectMany(chapter => chapter.DialogueSections)
             .Single(section => section.Id == "chapter03-section-9");
@@ -249,6 +284,10 @@ internal static class Program
             new() { Text = "逐句字級往返測試", FontSizePx = 21 },
         };
         endSubtitle.Text = string.Join("\n", endSubtitle.Lines.Select(line => line.Text));
+        var chapterOpen = thirdChapter.SubtitleEvents.Single(subtitle =>
+            subtitle.Id == "chapter03-Open");
+        chapterOpen.ChapterStartTimeMode = ChapterStartTimeModeItem.Clock;
+        chapterOpen.ChapterStartClockMinuteOfDay = 8 * 60 + 30;
 
         var source = File.ReadAllText(storyContentPath, Encoding.UTF8);
         var generated = StoryContentCodec.GenerateSource(source, document);
@@ -259,6 +298,8 @@ internal static class Program
             !generated.Contains("fontSizesPx", StringComparison.Ordinal) ||
             !generated.Contains("chapter03-section-9-line-010", StringComparison.Ordinal) ||
             !generated.Contains("durationMs: 1500", StringComparison.Ordinal) ||
+            !generated.Contains("\"chapterStartTimeMode\": \"clock\"", StringComparison.Ordinal) ||
+            !generated.Contains("\"chapterStartClockMinuteOfDay\": 510", StringComparison.Ordinal) ||
             !generated.Contains("chapter03-lower-left-not-ready", StringComparison.Ordinal) ||
             generated.Contains("LOWER_LEFT_STORY_ZONE_DIALOGUE_ID", StringComparison.Ordinal))
         {
@@ -289,6 +330,13 @@ internal static class Program
             reloadedEndSubtitle.Lines[1].FontSizePx != 21)
         {
             throw new InvalidDataException("逐句字幕文字與字級未通過儲存與重新讀取測試。");
+        }
+        var reloadedChapterOpen = reloaded.Chapters[2].SubtitleEvents.Single(subtitle =>
+            subtitle.Id == "chapter03-Open");
+        if (reloadedChapterOpen.ChapterStartTimeMode != ChapterStartTimeModeItem.Clock ||
+            reloadedChapterOpen.ChapterStartClockMinuteOfDay != 510)
+        {
+            throw new InvalidDataException("章節起始時間未通過儲存與重新讀取測試。");
         }
 
         Console.WriteLine("ChapterScriptEditor self-test passed.");

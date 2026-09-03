@@ -15,6 +15,7 @@ internal sealed class MainForm : Form
     private readonly TreeView _questTree = new();
     private readonly ListBox _stageList = new();
     private readonly DataGridView _objectiveGrid = new();
+    private readonly BindingSource _objectiveBinding = new();
     private readonly PropertyGrid _propertyGrid = new();
     private readonly ComboBox _referenceCombo = new();
     private readonly Label _referenceLabel = new();
@@ -236,6 +237,7 @@ internal sealed class MainForm : Form
         _objectiveGrid.SelectionChanged += (_, _) => OnObjectiveSelectionChanged();
         _objectiveGrid.CellEnter += (_, _) => OnObjectiveSelectionChanged();
         _objectiveGrid.CellEndEdit += (_, _) => OnObjectiveGridEditCommitted();
+        _objectiveGrid.DataSource = _objectiveBinding;
         panel.Controls.Add(_objectiveGrid, 0, 4);
 
         var objectiveButtons = ButtonRow();
@@ -383,7 +385,7 @@ internal sealed class MainForm : Form
         try
         {
             _stageList.DataSource = null;
-            _objectiveGrid.DataSource = null;
+            _objectiveBinding.DataSource = null;
             _objectiveGrid.ClearSelection();
             _objectiveGrid.CurrentCell = null;
 
@@ -411,8 +413,9 @@ internal sealed class MainForm : Form
         _rebuilding = true;
         try
         {
-            _objectiveGrid.DataSource = null;
-            _objectiveGrid.DataSource = stage.Objectives;
+            _objectiveBinding.DataSource = null;
+            _objectiveBinding.DataSource = stage.Objectives;
+            _objectiveBinding.Position = -1;
             // 顯示階段的目標，但保留右側為階段屬性，直到使用者真的點選目標。
             _objectiveGrid.ClearSelection();
             _objectiveGrid.CurrentCell = null;
@@ -567,10 +570,8 @@ internal sealed class MainForm : Form
     private void CommitPendingObjectiveEdit()
     {
         _objectiveGrid.EndEdit();
-        if (_objectiveGrid.DataSource is not null &&
-            BindingContext[_objectiveGrid.DataSource] is CurrencyManager manager &&
-            manager.Position >= 0 && manager.Position < manager.Count)
-            manager.EndCurrentEdit();
+        if (_objectiveBinding.Position >= 0 && _objectiveBinding.Position < _objectiveBinding.Count)
+            _objectiveBinding.EndEdit();
     }
 
     private void AddChapter()
@@ -718,11 +719,9 @@ internal sealed class MainForm : Form
         _rebuilding = true;
         try
         {
-            var previousBinding = _objectiveGrid.DataSource as BindingSource;
-            _objectiveGrid.DataSource = null;
-            previousBinding?.Dispose();
-            var objectiveBinding = new BindingSource { DataSource = stage.Objectives };
-            _objectiveGrid.DataSource = objectiveBinding;
+            _objectiveBinding.DataSource = null;
+            _objectiveBinding.DataSource = stage.Objectives;
+            _objectiveBinding.Position = -1;
             _objectiveGrid.ClearSelection();
             _objectiveGrid.CurrentCell = null;
 
@@ -731,7 +730,7 @@ internal sealed class MainForm : Form
                 var index = stage.Objectives.IndexOf(selection);
                 if (index >= 0)
                 {
-                    objectiveBinding.Position = index;
+                    _objectiveBinding.Position = index;
                     _objectiveGrid.CurrentCell = _objectiveGrid.Rows[index].Cells[0];
                 }
             }
@@ -779,7 +778,7 @@ internal sealed class MainForm : Form
         _validationList.DataSource = null;
         _validationList.Items.Clear();
         _validationList.ForeColor = Theme.Muted;
-        _statusText.Text = "資料尚未驗證；可繼續編輯，儲存或按【驗證資料】時才會檢查。";
+        _statusText.Text = "資料尚未驗證；可繼續編輯，儲存、按【驗證資料】或關閉前才會檢查。";
     }
 
     private void ValidateDocument()
@@ -827,14 +826,13 @@ internal sealed class MainForm : Form
         _propertyGrid.Refresh();
         var issues = QuestValidator.Validate(_document, _references);
         DisplayValidationIssues(issues);
-        if (issues.Any(issue => issue.Severity == ValidationSeverity.Error) &&
-            MessageBox.Show("資料仍有錯誤。要保留草稿並繼續儲存嗎？", "任務資料驗證", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
-            return;
         QuestDataStore.Save(_dataPath, _document);
         _dirty = false;
         UpdateTitle();
-        ValidateDocument();
-        _statusText.Text = $"已儲存：{_dataPath}";
+        var errorCount = issues.Count(issue => issue.Severity == ValidationSeverity.Error);
+        _statusText.Text = errorCount == 0
+            ? $"已儲存：{_dataPath}"
+            : $"已儲存草稿：{_dataPath}（仍有 {errorCount} 個錯誤，關閉前會再提醒）";
     }
 
     private void OpenDocument()
@@ -857,6 +855,24 @@ internal sealed class MainForm : Form
 
     private void OnFormClosing(object? sender, FormClosingEventArgs eventArgs)
     {
+        CommitPendingObjectiveEdit();
+        var issues = QuestValidator.Validate(_document, _references);
+        DisplayValidationIssues(issues);
+        var errorCount = issues.Count(issue => issue.Severity == ValidationSeverity.Error);
+        if (errorCount > 0)
+        {
+            var unsavedNote = _dirty ? "\n\n目前還有未儲存的變更，關閉後會一併放棄。" : "";
+            if (MessageBox.Show(
+                    $"任務資料仍有 {errorCount} 個錯誤。{unsavedNote}\n\n仍要關閉任務編輯器嗎？",
+                    "關閉前檢查",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning) != DialogResult.Yes)
+            {
+                eventArgs.Cancel = true;
+            }
+            return;
+        }
+
         if (!ConfirmDiscardChanges()) eventArgs.Cancel = true;
     }
 
@@ -999,6 +1015,18 @@ internal sealed class MainForm : Form
         {
             throw new InvalidOperationException("新建任務選取 Stage 後直接新增 Objective 失敗。");
         }
+        var incompleteObjective = newQuest.Stages[0].Objectives[0];
+        var otherQuest = _document.Quests.First(quest => !ReferenceEquals(quest, newQuest));
+        RebuildTree(otherQuest);
+        RebuildTree(newQuest);
+        _stageList.SelectedItem = newQuest.Stages[0];
+        _objectiveGrid.CurrentCell = _objectiveGrid.Rows[0].Cells[0];
+        Application.DoEvents();
+        if (!ReferenceEquals(_propertyGrid.SelectedObject, incompleteObjective))
+            throw new InvalidOperationException("切換任務後無法重新選取尚未設定完成的 Objective。");
+        SaveDocument();
+        if (_dirty)
+            throw new InvalidOperationException("尚未設定完成的 Objective 無法儲存為草稿。");
         RebuildTree(newQuest);
         if (_questTree.Nodes.Cast<TreeNode>().SelectMany(node => node.Nodes.Cast<TreeNode>()).Count() != _document.Quests.Count)
             throw new InvalidOperationException("任務樹重新整理失敗。");

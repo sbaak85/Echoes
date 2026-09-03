@@ -28,6 +28,9 @@ export type StorySubtitleEventDefinition = {
   delayAfterMs: number;
   keepBlack: boolean;
   lockInput: boolean;
+  chapterStartTimeMode?: "inherit" | "elapsed" | "clock" | string;
+  chapterStartElapsedMinutes?: number;
+  chapterStartClockMinuteOfDay?: number;
 };
 
 export type StorySubtitleChapter = {

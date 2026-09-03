@@ -169,7 +169,18 @@ test("chapter03-End 儲存確認介面阻擋黑幕淡出並支援手把操作", 
   ]);
   assert.match(movementLabSource, /要手動儲存目前的遊戲進度嗎\?/);
   assert.match(movementLabSource, />自動儲存</);
-  assert.match(movementLabSource, /queuePortableSaveWrite\("autosave", "auto", nextStory\)/);
+  assert.match(
+    movementLabSource,
+    /const runtimeSnapshot = getPendingChapter04RuntimeSnapshot\(\);[\s\S]*queuePortableSaveWrite\([\s\S]*"autosave",[\s\S]*"auto",[\s\S]*nextStory,[\s\S]*runtimeSnapshot,[\s\S]*\)[\s\S]*completeChapter04SaveCheckpoint\(nextStory, runtimeSnapshot\)/,
+  );
+  assert.match(
+    movementLabSource,
+    /commitChapterStartRuntimeSnapshot\(runtimeSnapshot\);[\s\S]*pendingChapterStartRef\.current = \{[\s\S]*chapterStartTimeAlreadyApplied: true/,
+  );
+  assert.match(
+    movementLabSource,
+    /survival: runtimeSnapshot\?\.survival \?\? survivalStateRef\.current[\s\S]*campPower: runtimeSnapshot\?\.campPower[\s\S]*interactionUsage:[\s\S]*runtimeSnapshot\?\.interactionUsage/,
+  );
   assert.match(movementLabSource, /chapter04ManualSaveActiveRef\.current = true;[\s\S]*setOptionsPanelOpen\(true\)/);
   assert.match(movementLabSource, /chapter04SavePromptMenuOpen[\s\S]*gamepadInput\.confirmPressed[\s\S]*activateChapter04SaveChoice/);
   assert.match(flowSource, /afterSubtitleFadeOutCheckpointId[\s\S]*await this\.wait\(action\.fadeOutMs[\s\S]*await this\.host\.runBlackSubtitleCheckpoint/);
