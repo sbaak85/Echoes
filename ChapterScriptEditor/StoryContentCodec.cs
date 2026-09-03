@@ -347,6 +347,7 @@ public static class StoryContentCodec
         builder.AppendLine("    { type: \"setBlack\", visible: true },");
         foreach (var subtitle in chapterThree?.SubtitleEvents
                      .Where(item => item.TriggerType.Equals("chapterStart", StringComparison.OrdinalIgnoreCase))
+                     .Where(item => item.Id.StartsWith("chapter03-", StringComparison.OrdinalIgnoreCase))
                      .OrderBy(item => item.Id.Equals("chapter03-Open", StringComparison.OrdinalIgnoreCase) ? 0 :
                          item.Id.Equals("chapter03-opening-card", StringComparison.OrdinalIgnoreCase) ? 1 : 2)
                      ?? Enumerable.Empty<SubtitleEventDefinition>())
@@ -414,7 +415,7 @@ public static class StoryContentCodec
 
     private static void Normalize(ChapterScriptDocument document)
     {
-        document.SchemaVersion = 3;
+        document.SchemaVersion = 4;
         document.Chapters ??= new List<ChapterDefinition>();
         var dialogueLineIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var chapter in document.Chapters)
@@ -434,6 +435,18 @@ public static class StoryContentCodec
                     : "manual";
                 subtitle.TriggerValue ??= "";
                 subtitle.Text ??= "";
+                subtitle.ChapterStartTimeMode = ChapterStartTimeModeItem.All.Any(
+                    item => item.Id == subtitle.ChapterStartTimeMode)
+                    ? subtitle.ChapterStartTimeMode
+                    : ChapterStartTimeModeItem.Inherit;
+                subtitle.ChapterStartElapsedMinutes = Math.Clamp(
+                    subtitle.ChapterStartElapsedMinutes,
+                    0,
+                    720 * 60);
+                subtitle.ChapterStartClockMinuteOfDay = Math.Clamp(
+                    subtitle.ChapterStartClockMinuteOfDay,
+                    0,
+                    24 * 60 - 1);
                 subtitle.Lines ??= new List<SubtitleLineDefinition>();
                 if (subtitle.Lines.Count == 0)
                 {

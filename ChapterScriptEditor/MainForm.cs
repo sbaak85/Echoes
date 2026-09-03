@@ -712,6 +712,9 @@ public sealed class MainForm : Form
         DelayAfterMs = source.DelayAfterMs,
         KeepBlack = source.KeepBlack,
         LockInput = source.LockInput,
+        ChapterStartTimeMode = source.ChapterStartTimeMode,
+        ChapterStartElapsedMinutes = source.ChapterStartElapsedMinutes,
+        ChapterStartClockMinuteOfDay = source.ChapterStartClockMinuteOfDay,
     };
 }
 

@@ -4,6 +4,10 @@ export const CHAPTER04_NUMBER = 4;
 export const CHAPTER04_ID = "chapter04";
 export const CHAPTER04_NAME = "第四章";
 export const CHAPTER04_ENTERED_FLAG_ID = "chapter04-entered";
+export const CHAPTER04_START_LOCATION = {
+  sceneId: "Scene_3",
+  teleportPointId: "chapter04-start",
+} as const;
 
 export function createChapter04EntryStoryProgress(
   current: StoryProgress,

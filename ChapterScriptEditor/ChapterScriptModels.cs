@@ -4,7 +4,7 @@ namespace Echoes.ChapterScriptEditor;
 
 public sealed class ChapterScriptDocument
 {
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
     public List<ChapterDefinition> Chapters { get; set; } = new();
 }
 
@@ -35,6 +35,9 @@ public sealed class SubtitleEventDefinition
     public int DelayAfterMs { get; set; } = 2000;
     public bool KeepBlack { get; set; }
     public bool LockInput { get; set; } = true;
+    public string ChapterStartTimeMode { get; set; } = ChapterStartTimeModeItem.Inherit;
+    public int ChapterStartElapsedMinutes { get; set; }
+    public int ChapterStartClockMinuteOfDay { get; set; } = 6 * 60;
 }
 
 public sealed class SubtitleLineDefinition
@@ -62,4 +65,21 @@ public sealed record TriggerTypeItem(string Id, string Label)
         new("elapsedDays", "經過指定遊戲日數"),
         new("manual", "由程式或其他系統手動觸發"),
     };
+}
+
+public sealed record ChapterStartTimeModeItem(string Id, string Label)
+{
+    public const string Inherit = "inherit";
+    public const string Elapsed = "elapsed";
+    public const string Clock = "clock";
+
+    public override string ToString() => Label;
+
+    public static readonly IReadOnlyList<ChapterStartTimeModeItem> All =
+        new ChapterStartTimeModeItem[]
+        {
+            new(Inherit, "延續上一章時間"),
+            new(Elapsed, "距離上一章結束後經過"),
+            new(Clock, "直接推進至指定時刻"),
+        };
 }

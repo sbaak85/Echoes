@@ -1,7 +1,11 @@
 export type StoryEventMap = {
   gameReady: { currentChapter: number };
   newGameStarted: { currentChapter: number };
-  chapterStarted: { chapter: number };
+  chapterStarted: {
+    chapter: number;
+    blackAlreadyVisible?: boolean;
+    chapterStartTimeAlreadyApplied?: boolean;
+  };
   storyZoneEntered: { zoneId: string };
   interactionCompleted: { interactionId: string };
   sleepCompleted: { elapsedMinutes: number };

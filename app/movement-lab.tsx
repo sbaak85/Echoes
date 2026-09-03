@@ -253,13 +253,18 @@ import {
 import {
   CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID,
   createStorySubtitleFlow,
+  findStorySubtitleEventById,
   findStorySubtitleEvents,
+  getChapterOpenScriptId,
   getStorySubtitleCompletedCount,
+  type StorySubtitleEventDefinition,
 } from "./story-subtitle-flow";
+import { getChapterStartElapsedMinutes } from "./chapter-start-time";
 import {
   CHAPTER04_ID,
   CHAPTER04_NAME,
   CHAPTER04_NUMBER,
+  CHAPTER04_START_LOCATION,
   createChapter04EntryStoryProgress,
 } from "./chapter04-transition";
 import {
@@ -1554,6 +1559,12 @@ type SaveDataDialogMode = "save" | "actions" | "load" | "overwrite" | "delete";
 type SaveDataDialog = { slotId: SaveDataSlotId; mode: SaveDataDialogMode };
 type SaveDataDialogChoice = "cancel" | "load" | "overwrite" | "delete" | "confirm";
 type Chapter04SaveChoice = "manual" | "autosave";
+type ChapterStartRuntimeSnapshot = {
+  elapsedMinutes: number;
+  survival: SurvivalGameState;
+  campPower: CampPowerState;
+  interactionUsage: InteractionUsageState;
+};
 
 const SAVE_DATA_SLOT_IDS: SaveDataSlotId[] = [
   "autosave",
@@ -3431,6 +3442,7 @@ export function MovementLab() {
   const frequencyPuzzleOpenRef = useRef(false);
   const weldingPuzzleOpenRef = useRef(false);
   const starCardsOpenRef = useRef(false);
+  const starCardsInitialGamepadModeRef = useRef(false);
   const weldingPuzzleVirtualCursorAvailableRef = useRef(false);
   const powerPuzzleSessionRef = useRef<PowerPuzzleSession | null>(null);
   const powerPuzzleControllerRef = useRef<PowerRoutingPuzzleController | null>(null);
@@ -3567,6 +3579,11 @@ export function MovementLab() {
   const storyReadyEmittedRef = useRef(false);
   const storyInputLockedRef = useRef(false);
   const storyFlowActiveRef = useRef(false);
+  const pendingChapterStartRef = useRef<{
+    chapter: number;
+    blackAlreadyVisible: boolean;
+    chapterStartTimeAlreadyApplied?: boolean;
+  } | null>(null);
   const storySkipHoldRef = useRef<{
     source: "keyboard" | "gamepad" | "touch";
     revealTimer: number;
@@ -3632,6 +3649,7 @@ export function MovementLab() {
   const [frequencyPuzzleOpen, setFrequencyPuzzleOpen] = useState(false);
   const [weldingPuzzleOpen, setWeldingPuzzleOpen] = useState(false);
   const [starCardsOpen, setStarCardsOpen] = useState(false);
+  const [starCardsInitialGamepadMode, setStarCardsInitialGamepadMode] = useState(false);
   const [weldingPuzzleVirtualCursorAvailable, setWeldingPuzzleVirtualCursorAvailable] =
     useState(false);
   const [weldingPuzzleSessionKey, setWeldingPuzzleSessionKey] = useState(0);
@@ -3986,6 +4004,9 @@ export function MovementLab() {
     inventoryOpenRef.current = false;
     setOptionsOpen(false);
     setInventoryOpen(false);
+    const openedWithGamepad = questPromptInputModeRef.current === "gamepad";
+    starCardsInitialGamepadModeRef.current = openedWithGamepad;
+    setStarCardsInitialGamepadMode(openedWithGamepad);
     starCardsOpenRef.current = true;
     setStarCardsOpen(true);
     bgmDirectorRef.current?.setMinigameState("star-cards", "playing");
@@ -6498,6 +6519,42 @@ export function MovementLab() {
     requestPortableAutosaveRef.current("story-flag-changed");
   };
 
+  const createChapterStartRuntimeSnapshot = (
+    event: StorySubtitleEventDefinition | null,
+  ): ChapterStartRuntimeSnapshot => {
+    const currentSurvival = survivalStateRef.current;
+    const elapsedMinutes = event
+      ? getChapterStartElapsedMinutes(currentSurvival.gameMinutes, event)
+      : 0;
+    const survival = elapsedMinutes > 0
+      ? advanceSurvivalByGameMinutes(currentSurvival, elapsedMinutes)
+      : currentSurvival;
+    return {
+      elapsedMinutes,
+      survival,
+      campPower: elapsedMinutes > 0
+        ? advanceCampPowerToGameMinutes(campPowerStateRef.current, survival.gameMinutes)
+        : campPowerStateRef.current,
+      interactionUsage: elapsedMinutes > 0
+        ? ensureInteractionUsageCycle(interactionUsageRef.current, survival.gameMinutes)
+        : interactionUsageRef.current,
+    };
+  };
+
+  const commitChapterStartRuntimeSnapshot = (
+    snapshot: ChapterStartRuntimeSnapshot,
+  ) => {
+    survivalStateRef.current = snapshot.survival;
+    setSurvivalState(snapshot.survival);
+    saveSurvivalState(snapshot.survival);
+    campPowerStateRef.current = snapshot.campPower;
+    setCampPowerState(snapshot.campPower);
+    saveCampPowerState(snapshot.campPower);
+    interactionUsageRef.current = snapshot.interactionUsage;
+    saveInteractionUsageState(snapshot.interactionUsage);
+    requestStoryTriggerContactCheckRef.current();
+  };
+
   if (!chapterFlowManagerRef.current) {
     chapterFlowManagerRef.current = new ChapterFlowManager({
       setInputLocked: (locked) => {
@@ -6583,6 +6640,15 @@ export function MovementLab() {
         setStoryFlowActive(active);
         if (!active) {
           setCenteredTextHoldSkipPromptVisible(false);
+          const pendingChapterStart = pendingChapterStartRef.current;
+          if (pendingChapterStart && storyEventManagerRef.current) {
+            pendingChapterStartRef.current = null;
+            void storyEventManagerRef.current.emit(
+              "chapterStarted",
+              pendingChapterStart,
+            );
+            return;
+          }
           if (keepBlackAfterComplete) return;
           // ChapterFlowManager 已結束就不應再留下任何劇情遮罩。
           // 這是 UI 層的最後保險，避免 SKIP 完成與 React 狀態更新
@@ -6600,21 +6666,62 @@ export function MovementLab() {
     });
   }
   const chapterFlowManager = chapterFlowManagerRef.current;
+  const resumeAfterSkippedChapterOpen = () => {
+    fadeBlackScreen(0, 1000, () => {
+      storyInputLockedRef.current = false;
+      setStoryInputLocked(false);
+      setBlackScreenOpacity(0);
+    });
+  };
 
   if (!storyEventManagerRef.current) {
     const events = new StoryEventManager();
     events.on("gameReady", ({ currentChapter }) =>
       events.emit("chapterStarted", { chapter: currentChapter }));
-    events.on("chapterStarted", async ({ chapter }) => {
+    events.on("chapterStarted", async ({
+      chapter,
+      blackAlreadyVisible,
+      chapterStartTimeAlreadyApplied,
+    }) => {
       bgmDirectorRef.current?.setChapter(chapter);
       requestStoryTriggerContactCheckRef.current();
-      if (chapter !== 3) {
-        fadeBlackScreen(0, 1000);
+      const scriptId = getChapterOpenScriptId(chapter);
+      const script = findStorySubtitleEventById(STORY_CHAPTERS, scriptId);
+      if (script && !chapterStartTimeAlreadyApplied) {
+        commitChapterStartRuntimeSnapshot(
+          createChapterStartRuntimeSnapshot(script.event),
+        );
+      }
+      if (chapter === 3) {
+        const started = await chapterFlowManager.run(CHAPTER_3_START_FLOW);
+        if (!started) resumeAfterSkippedChapterOpen();
         return;
       }
-      const started = await chapterFlowManager.run(CHAPTER_3_START_FLOW);
+
+      if (!script) {
+        console.info(
+          `[ChapterStart] No ${scriptId} script is registered; continuing without it.`,
+        );
+        resumeAfterSkippedChapterOpen();
+        return;
+      }
+
+      const completedCount = getStorySubtitleCompletedCount(
+        storyProgressRef.current.completedEventIds,
+        script.event.id,
+      );
+      if (completedCount >= Math.max(1, script.event.triggerCount)) {
+        resumeAfterSkippedChapterOpen();
+        return;
+      }
+      const started = await chapterFlowManager.run(createStorySubtitleFlow(
+        chapter,
+        script.event,
+        completedCount + 1,
+        { blackAlreadyVisible },
+      ));
       if (!started) {
-        fadeBlackScreen(0, 1000);
+        resumeAfterSkippedChapterOpen();
       }
     });
     events.on("storyZoneEntered", async ({ zoneId }) => {
@@ -6785,6 +6892,7 @@ export function MovementLab() {
   const buildPortableSave = (
     slotKind: "auto" | "manual",
     storyProgress: StoryProgress = storyProgressRef.current,
+    runtimeSnapshot?: ChapterStartRuntimeSnapshot,
   ): EchoesSaveData | null => {
     const manager = questRuntimeManagerRef.current;
     if (!portableSaveHydratedRef.current || !manager) return null;
@@ -6797,12 +6905,13 @@ export function MovementLab() {
       summary,
       progress: {
         sceneId: SCENE_DATA.sceneId,
-        survival: survivalStateRef.current,
+        survival: runtimeSnapshot?.survival ?? survivalStateRef.current,
         inventory: playerInventoryRef.current,
         quest: questSave,
         story: storyProgress,
-        campPower: campPowerStateRef.current,
-        interactionUsage: interactionUsageRef.current,
+        campPower: runtimeSnapshot?.campPower ?? campPowerStateRef.current,
+        interactionUsage:
+          runtimeSnapshot?.interactionUsage ?? interactionUsageRef.current,
         itemPointProgress: itemPointProgressRef.current,
         collectedWorldItemIds: Array.from(collectedWorldItemIdsRef.current),
         droppedWorldItems: droppedWorldItemsRef.current,
@@ -6821,8 +6930,9 @@ export function MovementLab() {
     slotId: SaveDataSlotId,
     slotKind: "auto" | "manual",
     storyProgress: StoryProgress = storyProgressRef.current,
+    runtimeSnapshot?: ChapterStartRuntimeSnapshot,
   ) => {
-    const save = buildPortableSave(slotKind, storyProgress);
+    const save = buildPortableSave(slotKind, storyProgress, runtimeSnapshot);
     if (!save) return Promise.resolve<SaveDataBackend | null>(null);
     let result: SaveDataBackend | null = null;
     const operation = async () => {
@@ -6851,7 +6961,18 @@ export function MovementLab() {
       chapter04SaveCheckpointFlowIdRef.current,
     );
 
-  const completeChapter04SaveCheckpoint = (nextStory: StoryProgress) => {
+  const getPendingChapter04RuntimeSnapshot = () => {
+    const script = findStorySubtitleEventById(
+      STORY_CHAPTERS,
+      getChapterOpenScriptId(CHAPTER04_NUMBER),
+    );
+    return createChapterStartRuntimeSnapshot(script?.event ?? null);
+  };
+
+  const completeChapter04SaveCheckpoint = (
+    nextStory: StoryProgress,
+    runtimeSnapshot: ChapterStartRuntimeSnapshot,
+  ) => {
     chapter04TransitionCompletingRef.current = true;
     // Quest fast-forward uses an isolated runtime so ordinary background
     // autosaves cannot overwrite the player's real progress. Reaching this
@@ -6868,7 +6989,21 @@ export function MovementLab() {
     currentStoryChapterRef.current = CHAPTER04_NUMBER;
     storyProgressRef.current = nextStory;
     saveStoryProgress(nextStory);
+    commitChapterStartRuntimeSnapshot(runtimeSnapshot);
     bgmDirectorRef.current?.setChapter(CHAPTER04_NUMBER);
+    if (SCENE_DATA.sceneId === CHAPTER04_START_LOCATION.sceneId) {
+      scheduleQuestTeleport(CHAPTER04_START_LOCATION.teleportPointId, 0);
+    } else {
+      console.warn(
+        `[ChapterStartTeleport] Expected scene ${CHAPTER04_START_LOCATION.sceneId}, ` +
+          `but Chapter 4 started in ${SCENE_DATA.sceneId}.`,
+      );
+    }
+    pendingChapterStartRef.current = {
+      chapter: CHAPTER04_NUMBER,
+      blackAlreadyVisible: true,
+      chapterStartTimeAlreadyApplied: true,
+    };
     requestStoryTriggerContactCheckRef.current();
     if (optionsOpenRef.current) setOptionsPanelOpen(false);
     const resolve = chapter04SaveCheckpointResolveRef.current;
@@ -6899,13 +7034,19 @@ export function MovementLab() {
     setChapter04TransitionBusy(true);
     setChapter04TransitionStatus("正在寫入自動存檔…");
     const nextStory = getPendingChapter04StoryProgress();
+    const runtimeSnapshot = getPendingChapter04RuntimeSnapshot();
     try {
-      const backend = await queuePortableSaveWrite("autosave", "auto", nextStory);
+      const backend = await queuePortableSaveWrite(
+        "autosave",
+        "auto",
+        nextStory,
+        runtimeSnapshot,
+      );
       if (!backend) throw new Error("chapter04-autosave-not-ready");
       void refreshSaveDataSlots().catch((error) => {
         console.warn("[Echoes SaveData] 第四章自動存檔完成，但清單重新整理失敗：", error);
       });
-      completeChapter04SaveCheckpoint(nextStory);
+      completeChapter04SaveCheckpoint(nextStory, runtimeSnapshot);
     } catch (error) {
       console.error("[Echoes SaveData] 第四章自動存檔失敗：", error);
       chapter04TransitionBusyRef.current = false;
@@ -7061,11 +7202,15 @@ export function MovementLab() {
         )
           ? getPendingChapter04StoryProgress()
           : null;
+        const chapter04RuntimeSnapshot = chapter04Story
+          ? getPendingChapter04RuntimeSnapshot()
+          : undefined;
         setSaveDataStatus("正在儲存…");
         const backend = await queuePortableSaveWrite(
           dialog.slotId,
           "manual",
           chapter04Story ?? storyProgressRef.current,
+          chapter04RuntimeSnapshot,
         );
         if (!backend) throw new Error("manual-save-not-ready");
         setSaveDataStatus(dialog.mode === "overwrite" ? "存檔已覆蓋。" : "存檔完成。 ");
@@ -7074,7 +7219,10 @@ export function MovementLab() {
           void refreshSaveDataSlots().catch((error) => {
             console.warn("[Echoes SaveData] 第四章手動存檔完成，但清單重新整理失敗：", error);
           });
-          completeChapter04SaveCheckpoint(chapter04Story);
+          completeChapter04SaveCheckpoint(
+            chapter04Story,
+            chapter04RuntimeSnapshot!,
+          );
         } else {
           await refreshSaveDataSlots();
         }
@@ -8031,6 +8179,7 @@ export function MovementLab() {
     let virtualCursorVisible = false;
     let gamepadCursorActive = false;
     let gamepadInputCursorHidden = false;
+    let starCardsCursorShownForSession = false;
     let powerPuzzleCursorShownForSession = false;
     let campPowerConfirmationCursorShownForSession = false;
     let chapter04SavePromptCursorShownForSession = false;
@@ -11093,7 +11242,7 @@ export function MovementLab() {
       }
 
       return element.closest(
-        ".new-player-tutorial-overlay, .inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .survival-game-over, .dialogue-box, .quest-hud",
+        ".new-player-tutorial-overlay, .inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .star-cards-overlay, .star-cards-dialog, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .survival-game-over, .dialogue-box, .quest-hud",
       )
         ? "blocked"
         : "none";
@@ -12829,6 +12978,17 @@ export function MovementLab() {
         activateGamepadCursor();
         powerPuzzleCursorShownForSession = true;
       }
+      if (!starCardsOpenRef.current) {
+        starCardsCursorShownForSession = false;
+      } else if (
+        gamepadInput.connected &&
+        starCardsInitialGamepadModeRef.current &&
+        !starCardsCursorShownForSession
+      ) {
+        virtualCursorVisible = true;
+        activateGamepadCursor();
+        starCardsCursorShownForSession = true;
+      }
       if (!campPowerConfirmationOpenRef.current) {
         campPowerConfirmationCursorShownForSession = false;
       } else if (
@@ -12940,7 +13100,8 @@ export function MovementLab() {
         activateSceneConnectionConfirmationDpadMode();
       }
       const menuCursorCanTakeControl =
-        !starCardsOpenRef.current &&
+        (!starCardsOpenRef.current ||
+          cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD) &&
         (!optionsOpenRef.current ||
           shouldOptionsCursorTakeControl(
             optionsGamepadModeRef.current,
@@ -13014,6 +13175,19 @@ export function MovementLab() {
           marginY,
           viewportHeight - marginY,
         );
+        if (starCardsOpenRef.current) {
+          const cursorBounds = canvas.getBoundingClientRect();
+          const cursorElement = document.elementFromPoint(
+            cursorBounds.left + virtualCursor.x,
+            cursorBounds.top + virtualCursor.y,
+          );
+          const handCard = cursorElement instanceof HTMLElement
+            ? cursorElement.closest<HTMLElement>("[data-star-cards-hand-card-id]")
+            : null;
+          window.dispatchEvent(new CustomEvent("echoes:star-cards-cursor", {
+            detail: { cardId: handCard?.dataset.starCardsHandCardId ?? null },
+          }));
+        }
       }
 
       const startJustPressed =
@@ -13145,6 +13319,7 @@ export function MovementLab() {
         !itemUseConfirmationMenuOpen &&
         !sceneConnectionConfirmationMenuOpen &&
         !campPowerConfirmationMenuOpen &&
+        !starCardsMenuOpen &&
         !powerPuzzleMenuOpen &&
         !optionsMenuOpen &&
         !newPlayerTutorialMenuOpen &&
@@ -13167,6 +13342,20 @@ export function MovementLab() {
           !wasGamepadConfirmPressed
         ) {
           closeInventoryItemInspect();
+        }
+      } else if (starCardsMenuOpen) {
+        gameplayHotbarDpadX = 0;
+        heldGamepadDpadX = 0;
+        heldGamepadDpadY = 0;
+        gamepadDpadXRepeatSeconds = 0;
+        gamepadDpadYRepeatSeconds = 0;
+        if (
+          gamepadInput.connected &&
+          gamepadInput.confirmPressed &&
+          !wasGamepadConfirmPressed &&
+          document.querySelector(".star-cards-dialog[data-navigation-mode='pointer']")
+        ) {
+          activateVirtualCursorUi();
         }
       } else if (chapter04SavePromptMenuOpen) {
         gameplayHotbarDpadX = 0;
@@ -14796,6 +14985,9 @@ export function MovementLab() {
     ? ITEM_BY_ID.get(itemUseConfirmation.itemId) ?? null
     : null;
   const campPowerRefillItem = ITEM_BY_ID.get(CAMP_POWER_REFILL_ITEM_ID) ?? null;
+  const campPowerRefillArtwork = campPowerRefillItem
+    ? getInventoryItemArtworkPreview(campPowerRefillItem.id)
+    : null;
   const campPowerPreviewCurrent = Math.max(
     0,
     Math.min(CAMP_POWER_CAPACITY, Math.floor(campPowerState.current)),
@@ -14851,16 +15043,24 @@ export function MovementLab() {
         })
       : [];
   const questItemSubmissionSources: ItemChangeVisualEntry[] =
-    questItemSubmissionPrompt?.requirements.map((requirement) => ({
-      item: ITEM_BY_ID.get(requirement.itemId) ?? null,
-      label: requirement.itemName,
-      quantity: requirement.quantity,
-      state: requirement.completed
-        ? "submitted"
-        : (playerInventory[requirement.itemId] ?? 0) >= requirement.quantity
-          ? "available"
-          : "missing",
-    })) ?? [];
+    questItemSubmissionPrompt?.requirements.map((requirement) => {
+      const item = ITEM_BY_ID.get(requirement.itemId) ?? null;
+      const artwork = item ? getInventoryItemArtworkPreview(item.id) : null;
+      return {
+        item,
+        label: requirement.itemName,
+        quantity: requirement.quantity,
+        state: requirement.completed
+          ? "submitted"
+          : (playerInventory[requirement.itemId] ?? 0) >= requirement.quantity
+            ? "available"
+            : "missing",
+        imageSrc:
+          questItemSubmissionPrompt.interactable.id === COMMUNICATION_ARRAY_INTERACTION_ID
+            ? artwork?.iconPath
+            : undefined,
+      };
+    }) ?? [];
   const questItemSubmissionTargets: ItemChangeVisualEntry[] = questItemSubmissionPrompt
     ? [{
         label:
@@ -15884,6 +16084,7 @@ export function MovementLab() {
         <StarCardsGame
           onClose={closeStarCardsGame}
           audioEvents={audioEventManagerRef.current}
+          initialGamepadMode={starCardsInitialGamepadMode}
         />
       ) : null}
 
@@ -16125,7 +16326,15 @@ export function MovementLab() {
               >
                 <div className="camp-power-refill-item">
                   <span className="camp-power-refill-item-icon" aria-hidden="true">
-                    {campPowerRefillItem?.symbol ?? "◆"}
+                    {campPowerRefillArtwork?.iconPath ? (
+                      <img
+                        src={campPowerRefillArtwork.iconPath}
+                        alt=""
+                        draggable={false}
+                      />
+                    ) : (
+                      campPowerRefillItem?.symbol ?? "◆"
+                    )}
                   </span>
                   <strong>{campPowerRefillItem?.name ?? "藍色晶體碎片"}</strong>
                 </div>
@@ -16847,7 +17056,7 @@ export function MovementLab() {
 
       <canvas
         ref={cursorCanvasRef}
-        className={`cursor-layer${powerPuzzleOpen || itemUseConfirmation || campPowerConfirmationOpen || sceneConnectionConfirmation || chapter04SavePromptOpen ? " is-over-modal" : ""}${weldingPuzzleOpen && !weldingPuzzleVirtualCursorAvailable ? " is-hidden-for-welding" : ""}${starCardsOpen ? " is-hidden-for-star-cards" : ""}`}
+        className={`cursor-layer${powerPuzzleOpen || itemUseConfirmation || campPowerConfirmationOpen || sceneConnectionConfirmation || chapter04SavePromptOpen ? " is-over-modal" : ""}${weldingPuzzleOpen && !weldingPuzzleVirtualCursorAvailable ? " is-hidden-for-welding" : ""}${starCardsOpen ? " is-over-star-cards" : ""}`}
         aria-hidden="true"
       />
       </main>

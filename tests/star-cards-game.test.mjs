@@ -308,7 +308,8 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(styles, /@keyframes star-cards-zone-title-settle[\s\S]*opacity: 0\.5;[\s\S]*filter: none/);
   assert.doesNotMatch(source, /star-cards-zone-labels|ZONE \{laneIndex \+ 1\}/);
   assert.doesNotMatch(styles, /\.star-cards-zone-labels/);
-  assert.match(source, /hoveredLane \? ` is-\$\{hoveredLane\.toLowerCase\(\)\}`/);
+  assert.match(source, /const activeDropHighlightLane = hoveredLane \?\? directionalLaneHighlight/);
+  assert.match(source, /activeDropHighlightLane \? ` is-\$\{activeDropHighlightLane\.toLowerCase\(\)\}`/);
   assert.match(styles, /\.star-cards-drop-highlight\.is-a[\s\S]*clip-path: inset\(0 62% 0 0\)/);
   assert.match(styles, /\.star-cards-drop-highlight\.is-b[\s\S]*clip-path: inset\(0 38%\)/);
   assert.match(styles, /\.star-cards-drop-highlight\.is-c[\s\S]*clip-path: inset\(0 0 0 62%\)/);
@@ -335,6 +336,31 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(styles, /\.star-cards-advantage-panel/);
   assert.match(source, /data-gamepad-selected/);
   assert.match(source, /navigator\.getGamepads/);
+  assert.match(source, /initialGamepadMode\?: boolean/);
+  assert.match(source, /const \[selectedHandIndex, setSelectedHandIndex\] = useState\(1\)/);
+  assert.match(source, /Math\.max\(0, Math\.min\(playerHand\.length - 1, current \+ direction\)\)/);
+  assert.match(source, /Math\.max\(0, Math\.min\(STAR_CARD_LANES\.length - 1, current \+ direction\)\)/);
+  assert.match(source, /const \[hoveredHandCardId, setHoveredHandCardId\]/);
+  assert.match(source, /event\.pointerType !== "mouse"/);
+  assert.match(source, /isPreselectedHand \? " is-preselected"/);
+  assert.match(source, /data-navigation-mode=\{navigationMode\}/);
+  assert.match(source, /echoes:star-cards-cursor/);
+  assert.match(source, /className="star-card-selection-motion"/);
+  assert.match(source, /const handFloatMotionRef = useRef<Map<string, HandFloatMotion>>/);
+  assert.match(source, /preselectedHandCardIdRef\.current = heldCardId \?\?/);
+  assert.match(source, /targetRate = cardId === preselectedHandCardIdRef\.current \? 1\.2 : 1/);
+  assert.match(source, /\(now - motion\.rateBlendStartedAt\) \/ 280/);
+  assert.match(source, /motion\.phase = \(motion\.phase \+ deltaSeconds \* motion\.playbackRate/);
+  assert.match(source, /hoverLayer\.style\.transform/);
+  assert.match(styles, /\.star-card-shell\.is-hand:not\(\.is-dragging\) \.star-card-hover \{\s*animation: none/);
+  assert.match(styles, /\.star-card-hover \{[\s\S]*transition: filter 280ms ease/);
+  assert.match(styles, /\.star-card-selection-motion \{[\s\S]*transition: transform 280ms/);
+  assert.match(styles, /\.star-card-shell\.is-preselected \.star-card-selection-motion[\s\S]*translateY\(-15px\)/);
+  assert.doesNotMatch(styles, /@keyframes star-card-preselected-float/);
+  assert.doesNotMatch(styles, /\.star-cards-lane\.is-gamepad-selected::before/);
+  assert.match(movementLabSource, /initialGamepadMode=\{starCardsInitialGamepadMode\}/);
+  assert.match(movementLabSource, /starCardsOpen \? " is-over-star-cards"/);
+  assert.match(movementLabSource, /echoes:star-cards-cursor/);
   assert.match(styles, /@keyframes star-card-deal-player/);
   assert.match(styles, /@keyframes star-card-deal-ai/);
   assert.match(
@@ -346,7 +372,8 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
     styles,
     /\.star-card-shell\.is-hand \.star-card-hover \{[^}]*drop-shadow\(0 0 8px #fff\)[^}]*drop-shadow\(0 0 15px #43dfff\)[^}]*drop-shadow\(0 0 28px rgba\(73, 255, 218, 0\.72\)\)[^}]*brightness\(1\.1\)/,
   );
-  assert.match(styles, /@keyframes star-card-held-pulse/);
+  assert.match(source, /const handPreselectionActive =\s*Boolean\(heldCardId\) \|\|/);
+  assert.doesNotMatch(styles, /star-card-held-pulse/);
   assert.match(styles, /@keyframes star-card-place-back/);
   assert.match(source, /const STAR_CARD_REVEAL_FRONT_MS = 300/);
   assert.match(source, /const \[revealingFrontCardIds, setRevealingFrontCardIds\] = useState<string\[\]>\(\[\]\)/);
@@ -470,6 +497,10 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /playStarCardsAudio\("interactionDenied"\)/);
   assert.match(source, /STAR_CARD_DROP_FEEDBACK_MS = 1100/);
   assert.match(source, /hand\?\.drawCard && !settledHandCardIds\.includes\(card\.id\)/);
+  assert.match(
+    source,
+    /event\.animationName !== "star-card-deal-player"[\s\S]*setSettledHandCardIds/,
+  );
   assert.match(
     styles,
     /\.star-cards-drop-feedback \{[\s\S]*animation: star-cards-drop-feedback 1100ms linear both/,

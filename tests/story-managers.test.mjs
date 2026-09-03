@@ -112,12 +112,12 @@ test("chapter03-End 由章節編輯器在 section-9 後播放黑幕白字幕", a
       fadeInMs: 500,
       holdMs: 4000,
       fadeOutMs: 2000,
-      keepBlack: false,
+      keepBlack: true,
       fadeOnly: true,
       afterSubtitleFadeOutCheckpointId: CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID,
     },
-    { type: "unlockInput" },
   ]);
+  assert.equal(flow.keepBlackAfterComplete, true);
   assert.equal(
     getStorySubtitleCompletedCount([flow.id], "chapter03-End"),
     1,
@@ -144,6 +144,7 @@ test("chapter03-End 由章節編輯器在 section-9 後播放黑幕白字幕", a
     holdMs: 4000,
     fadeOutMs: 2000,
     keepBlack: false,
+    fadeOnly: true,
   });
   const legacyFlow = createStorySubtitleFlow(
     chapterNumber,
@@ -162,6 +163,7 @@ test("chapter03-End 由章節編輯器在 section-9 後播放黑幕白字幕", a
     holdMs: 4000,
     fadeOutMs: 2000,
     keepBlack: false,
+    fadeOnly: true,
   });
 
   const [storyContentSource, movementLabSource, globalsSource] = await Promise.all([
@@ -189,7 +191,7 @@ test("chapter03-End 由章節編輯器在 section-9 後播放黑幕白字幕", a
   assert.match(globalsSource, /\.story-centered-text p \{[\s\S]*?white-space: pre-line;/);
 });
 
-test("章末字幕先淡出並保持黑幕，存檔完成後才再次淡出點亮", async () => {
+test("章末存檔保持黑幕，下一章字幕直接接手並只在最後淡出點亮", async () => {
   const calls = [];
   let releaseCheckpoint;
   const checkpoint = new Promise((resolve) => { releaseCheckpoint = resolve; });
@@ -210,19 +212,21 @@ test("章末字幕先淡出並保持黑幕，存檔完成後才再次淡出點�
     },
   });
 
-  const running = manager.run({
-    id: "story-subtitle:chapter03-End:1",
-    chapter: 3,
-    actions: [{
-      type: "showBlackSubtitle",
-      lines: ["第三章結束"],
-      fadeInMs: 0,
-      holdMs: 0,
-      fadeOutMs: 20,
-      keepBlack: false,
-      afterSubtitleFadeOutCheckpointId: CHAPTER04_ENTRY_SAVE_CHECKPOINT_ID,
-    }],
-  });
+  const running = manager.run(createStorySubtitleFlow(3, {
+    id: "chapter03-End",
+    name: "第三章結束",
+    text: "第三章結束",
+    triggerType: "afterDialogue",
+    triggerValue: "chapter03-section-9",
+    triggerCount: 1,
+    delayBeforeMs: 0,
+    fadeInMs: 0,
+    holdMs: 0,
+    fadeOutMs: 20,
+    delayAfterMs: 0,
+    keepBlack: false,
+    lockInput: true,
+  }, 1));
   await new Promise((resolve) => setTimeout(resolve, 5));
   assert.equal(calls.some((call) => call.startsWith("checkpoint:")), false);
   await new Promise((resolve) => setTimeout(resolve, 40));
@@ -231,7 +235,24 @@ test("章末字幕先淡出並保持黑幕，存檔完成後才再次淡出點�
   assert.ok(calls.indexOf("text:hide") < calls.findIndex((call) => call.startsWith("checkpoint:")));
   releaseCheckpoint();
   await running;
-  assert.equal(calls.includes("fade-from"), true);
+  assert.equal(calls.includes("fade-from"), false);
+
+  const chapterOpen = manager.run({
+    id: "story-subtitle:chapter04-Open:1",
+    chapter: 4,
+    actions: [{
+      type: "showBlackSubtitle",
+      lines: ["第四章\nChapter.4"],
+      fadeInMs: 10,
+      holdMs: 0,
+      fadeOutMs: 10,
+      keepBlack: false,
+      blackAlreadyVisible: true,
+    }],
+  });
+  await chapterOpen;
+  assert.equal(calls.filter((call) => call === "fade-to").length, 1);
+  assert.equal(calls.filter((call) => call === "fade-from").length, 1);
 });
 
 test("blank dialogue speaker stays blank instead of inheriting the previous line", async () => {
@@ -413,6 +434,14 @@ test("第三章開場腳本與流程符合第一版規格", () => {
   assert.ok(chapterOpenIndex >= 0);
   assert.ok(openingCardIndex > chapterOpenIndex);
   assert.equal(CHAPTER_3_START_FLOW.actions[chapterOpenIndex].fadeOnly, true);
+  assert.equal(
+    CHAPTER_3_START_FLOW.actions.some(
+      (action) =>
+        action.type === "showCenteredText" &&
+        action.lines.some((line) => line.includes("Chapter.4")),
+    ),
+    false,
+  );
 
   const fadeIndex = CHAPTER_3_START_FLOW.actions.findIndex(
     (action) => action.type === "fadeFromBlack",
@@ -641,11 +670,25 @@ test("開場字幕微略過使用純淡入淡出並維持編輯器輸出設定",
   assert.match(movementLabSource, /centeredTextHoldSkipResult === "unavailable"/);
   assert.match(globalsSource, /story-centered-text\.is-fade-only/);
   assert.match(globalsSource, /story-centered-text-fade-only-in/);
+  const centeredTextIn = globalsSource.match(
+    /@keyframes story-centered-text-in\s*\{([\s\S]*?)\n\}/,
+  )?.[1] ?? "";
+  const centeredTextOut = globalsSource.match(
+    /@keyframes story-centered-text-out\s*\{([\s\S]*?)\n\}/,
+  )?.[1] ?? "";
+  assert.doesNotMatch(centeredTextIn, /calc\(|translateY|scale\(|rotate\(/);
+  assert.doesNotMatch(centeredTextOut, /calc\(|translateY|scale\(|rotate\(/);
+  assert.match(centeredTextIn, /from \{ opacity: 0; transform: translate\(-50%, -50%\); \}/);
+  assert.match(centeredTextOut, /to \{ opacity: 0; transform: translate\(-50%, -50%\); \}/);
   assert.match(globalsSource, /story-centered-text-hold-skip-prompt/);
   assert.match(movementLabSource, /story-centered-text-hold-skip-prompt[\s\S]*?<span aria-hidden="true">SKIP<\/span>/);
   assert.doesNotMatch(globalsSource, /story-centered-text-hold-skip-prompt > span \{[^}]*border-bottom:/);
   assert.match(editorCodecSource, /chapter03-opening-card/);
   assert.match(editorCodecSource, /holdSkipConfirmAfterMs: 2000/);
+  assert.match(
+    editorCodecSource,
+    /item\.Id\.StartsWith\("chapter03-", StringComparison\.OrdinalIgnoreCase\)/,
+  );
 });
 
 test("ChapterFlowManager 從暫停狀態 SKIP 後仍會關閉黑幕並解鎖", async () => {
