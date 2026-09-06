@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Echoes 回顧模糊獨立效能測試</title>
+<link rel="stylesheet" href="/runtime.css">
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07131a}
+#bench{position:relative;width:100vw;height:100vh;overflow:hidden;isolation:isolate}
+#world,#blur-layer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#blur-layer{z-index:1;opacity:0}
+.dialogue-history-overlay{z-index:2;backdrop-filter:none!important}
+</style>
+<main id="bench"><canvas id="world"></canvas></main>
+<script>
+const world=document.querySelector('#world'),root=document.querySelector('#bench');
+const width=1440,height=900;
+world.width=width;world.height=height;
+const context=world.getContext('2d',{alpha:false});
+let background,frame=0,sceneTime=0,mode='',layer,raf=0;
+const afterPaint=()=>new Promise(resolve=>requestAnimationFrame(()=>setTimeout(()=>resolve(performance.now()),0)));
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+function draw(time){
+  sceneTime=time;
+  const scale=Math.max(width/background.width,height/background.height);
+  const w=background.width*scale,h=background.height*scale;
+  context.drawImage(background,(width-w)/2,(height-h)/2,w,h);
+  // Identical moving background workload in both variants. Snapshot freezes this.
+  const x=width*.56+Math.sin(time/1500)*45,y=height*.66;
+  const glow=context.createRadialGradient(x,y,0,x,y,60);
+  glow.addColorStop(0,'rgba(255,180,65,.45)');glow.addColorStop(1,'rgba(255,180,65,0)');
+  context.fillStyle=glow;context.fillRect(x-60,y-60,120,120);
+  context.fillStyle='rgba(4,18,23,.85)';context.fillRect(28,28,250,116);
+  context.font='18px "Microsoft JhengHei",sans-serif';context.fillStyle='#d7e1de';
+  context.fillText('生存狀態　　Day 1',44,56);
+  ['#9bdfc8','#efb775','#5bd5e4','#bc83e1'].forEach((color,i)=>{context.fillStyle=color;context.fillRect(44,70+i*16,180-i*12,5)});
+  context.fillStyle='rgba(4,18,23,.85)';context.fillRect(330,738,780,136);
+  context.fillStyle='#ffe36a';context.fillText('Sbaak',350,772);
+  context.fillStyle='#f3f7ed';context.fillText('前方的道路還很長，先確認目前掌握的線索。',350,806);
+  frame++;raf=requestAnimationFrame(draw);
+}
+window.setup=async(name,backgroundId)=>{
+  mode=name;background=await createImageBitmap(await(await fetch('/background/'+backgroundId)).blob());
+  requestAnimationFrame(draw);
+  await document.fonts.ready;await wait(700);await afterPaint();
+};
+window.prepare=async()=>{
+  const start=performance.now();let bytes=0;
+  if(mode==='snapshot'){
+    // Capture only this explicitly composited test backdrop, including its HUD.
+    // Edge replication avoids dark/transparent blur fringes.
+    const pad=28,padded=document.createElement('canvas');
+    padded.width=width+2*pad;padded.height=height+2*pad;
+    const p=padded.getContext('2d',{alpha:false});
+    p.drawImage(world,pad,pad);
+    p.drawImage(world,0,0,1,height,0,pad,pad,height);
+    p.drawImage(world,width-1,0,1,height,pad+width,pad,pad,height);
+    p.drawImage(padded,0,pad,padded.width,1,0,0,padded.width,pad);
+    p.drawImage(padded,0,pad+height-1,padded.width,1,0,pad+height,padded.width,pad);
+    const blurred=document.createElement('canvas');blurred.width=width;blurred.height=height;
+    const b=blurred.getContext('2d',{alpha:false});b.filter='blur(7px)';b.drawImage(padded,-pad,-pad);
+    // Blob + bitmap force completion; preparation time includes readback/encoding/decode.
+    const blob=await new Promise(resolve=>blurred.toBlob(resolve,'image/png'));
+    if(!blob)throw new Error('Snapshot generation failed');
+    const bitmap=await createImageBitmap(blob);
+    layer=document.createElement('canvas');layer.width=width;layer.height=height;
+    layer.getContext('2d',{alpha:false}).drawImage(bitmap,0,0);bitmap.close();
+    bytes=blob.size;layer.id='blur-layer';root.append(layer);
+  }else{
+    layer=document.createElement('div');layer.id='blur-layer';
+    layer.style.backdropFilter='blur(7px)';root.append(layer);
+    if(mode==='warm'){
+      layer.style.willChange='backdrop-filter, opacity';
+      // A nonzero 1% opacity performs a real filter warmup. Fully transparent
+      // or display:none elements may be culled and cannot prove filter readiness.
+      layer.style.opacity='.01';
+      await afterPaint();await afterPaint();
+    }
+  }
+  const prepEnd=performance.now();
+  // All runs receive the same additional preparation lead time.
+  await wait(500);
+  return {prepareMs:prepEnd-start,leadTimeMs:500,snapshotPngBytes:bytes};
+};
+window.measureOpen=async()=>{
+  const gaps=[],begin=performance.now();let last=begin;
+  const monitor=now=>{gaps.push(now-last);last=now;if(now-begin<350)requestAnimationFrame(monitor)};
+  requestAnimationFrame(monitor);
+  performance.mark('blur-open-start');
+  const start=performance.now();
+  layer.style.opacity='1';
+  const overlay=document.createElement('section');overlay.className='dialogue-history-overlay';
+  overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');
+  overlay.innerHTML='<div class="dialogue-history-panel"><header class="dialogue-history-header"><strong>訊息回顧</strong></header><div class="dialogue-history-list">'+
+    Array.from({length:18},(_,i)=>'<article class="dialogue-history-entry"><strong>'+(i%2?'Echo':'Sbaak')+'</strong><p>'+['營地的能源讀數已經恢復，接下來需要尋找通往遺跡的道路。','這裡的植物與地球不同，請記錄沿途的環境與物資。','前方可能存在新的訊號來源，我們需要進一步確認。'][i%3]+'</p></article>').join('')+
+    '</div><button class="dialogue-history-close" type="button">關閉訊息回顧</button></div>';
+  root.append(overlay);
+  const list=overlay.querySelector('.dialogue-history-list');list.scrollTop=list.scrollHeight;
+  overlay.querySelector('button').focus({preventScroll:true});
+  const firstPaintOpportunityMs=(await afterPaint())-start;
+  performance.mark('blur-open-first-opportunity');
+  await wait(150);
+  const settledAfterPaintMs=(await afterPaint())-start;
+  await wait(230);
+  return {firstPaintOpportunityMs,settledAfterPaintMs,maxFrameGapMs:Math.max(...gaps),backgroundFrames:frame,backgroundTimeAtOpen:sceneTime};
+};
+</script></html>

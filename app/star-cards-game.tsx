@@ -1,5 +1,7 @@
 "use client";
 
+import { GamepadHint } from "./gamepad-button-icon";
+
 /* eslint-disable @next/next/no-img-element -- game sprites must preserve exact pixels and alpha */
 
 import {
@@ -118,6 +120,7 @@ type StarCardsGameProps = {
   onClose: () => void;
   audioEvents: Pick<AudioEventManager, "play"> | null;
   initialGamepadMode?: boolean;
+  gamepadMode?: boolean;
 };
 
 type PlacementPromptState = {
@@ -257,6 +260,7 @@ export function StarCardsGame({
   onClose,
   audioEvents,
   initialGamepadMode = false,
+  gamepadMode = initialGamepadMode,
 }: StarCardsGameProps) {
   const [playerInitialDeck] = useState(() => createOwnerDeck("player", 1));
   const [aiInitialDeck] = useState(() => createOwnerDeck("ai", 1));
@@ -2035,9 +2039,9 @@ export function StarCardsGame({
 
         <div className="star-cards-status" role="status" aria-live="polite">
           <strong>{getPhaseMessage(phase)}</strong>
-          <span>{announcement}</span>
+          <span><GamepadHint text={announcement} enabled={gamepadMode} /></span>
         </div>
-        <div className="star-cards-exit-hint" aria-hidden="true">ESC／B　離開測試</div>
+        <div className="star-cards-exit-hint" aria-hidden="true"><GamepadHint text="ESC／B　離開測試" enabled={gamepadMode} /></div>
       </section>
     </div>
   );

@@ -1,0 +1,14 @@
+{
+  "before": {
+    "app/movement-lab.tsx": "397ad783061db5ed5bad4b1d8b69163b7688877fb0b3e5d05a19b08e06afa48c",
+    "app/globals.css": "7bd407aca9fe74af7919b05d91b3b4e8cfe3af7069dd4bebf0f7a2b403cf9f1e",
+    "app/dialogue-history.ts": "942f65664c69d49a12ed6bf3f4f173f9856c18d3df432b394860a3fa34ae3dd6",
+    "app/ui-asset-warmup.ts": "37d4c33071ff44d00ffbf354397a5d16375ebcfba323ce1bd8e259a8b160b801"
+  },
+  "after": {
+    "app/movement-lab.tsx": "397ad783061db5ed5bad4b1d8b69163b7688877fb0b3e5d05a19b08e06afa48c",
+    "app/globals.css": "7bd407aca9fe74af7919b05d91b3b4e8cfe3af7069dd4bebf0f7a2b403cf9f1e",
+    "app/dialogue-history.ts": "942f65664c69d49a12ed6bf3f4f173f9856c18d3df432b394860a3fa34ae3dd6",
+    "app/ui-asset-warmup.ts": "37d4c33071ff44d00ffbf354397a5d16375ebcfba323ce1bd8e259a8b160b801"
+  }
+}

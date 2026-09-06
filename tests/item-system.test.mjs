@@ -21,7 +21,7 @@ import {
   useSurvivalInventoryItem,
   validateItemDatabase,
 } from "../app/item-database.ts";
-import { createInitialSurvivalState } from "../app/survival-manager.ts";
+import { advanceSurvivalState, createInitialSurvivalState } from "../app/survival-manager.ts";
 import {
   WORLD_ITEM_PLACEMENTS,
   loadCollectedWorldItemIds,
@@ -383,6 +383,34 @@ test("回復目標已滿時無法使用且不消耗道具，未設定效果也�
   );
   assert.equal(unconfiguredResult.status, "not-configured");
   assert.equal(unconfiguredResult.inventory.T0005, 2);
+});
+
+test("滿值後的逐幀微量衰減不會再次開放消耗回復道具", () => {
+  const survival = advanceSurvivalState(createInitialSurvivalState(), 0.016);
+  assert.ok(survival.values.thirst < 100 && survival.values.thirst > 99);
+  for (const item of ITEM_DEFINITIONS.filter(item =>
+    Object.values(item.survivalEffects).some(value => value > 0))) {
+    const inventory = { [item.id]: 2 };
+    const result = useSurvivalInventoryItem(inventory, survival, item.id);
+    assert.equal(result.status, "full", item.id);
+    assert.equal(result.inventory, inventory);
+    assert.equal(result.survival, survival);
+  }
+});
+
+test("回復門檻只看該道具的回復目標，至少缺少一點才消耗", () => {
+  const survival = createInitialSurvivalState();
+  survival.values.stamina = 20;
+  survival.values.thirst = 99.001;
+  const inventory = { R0004: 2 };
+  assert.equal(useSurvivalInventoryItem(inventory, survival, "R0004").status, "full");
+  survival.values.thirst = 99;
+  const result = useSurvivalInventoryItem(inventory, survival, "R0004");
+  assert.equal(result.status, "success");
+  assert.equal(result.inventory.R0004, 1);
+  assert.equal(result.survival.values.thirst, 100);
+  assert.equal(result.survival.values.stamina, 20);
+  assert.equal(useSurvivalInventoryItem(result.inventory, result.survival, "R0004").status, "full");
 });
 
 test("複數回復道具只要任一目標未滿仍可使用，並且不會超過100", () => {

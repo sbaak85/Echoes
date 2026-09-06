@@ -908,6 +908,20 @@ export const AUDIO_EVENT_CONFIG = (
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
+    "questObjectiveProgressed": {
+      "label": "任務 OBJ 進度推進",
+      "trigger": "需求數量大於 1 且「顯示進度」為 True 的任務 OBJ，在實際進度值增加時播放一次；重複互動、進度倒退、讀檔還原與啟用時同步既有背包數量不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/進度推進1.mp3"
+      ],
+      "sources": [
+        "./audio/quest-objective-progress-1.mp3"
+      ],
+      "volume": 1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
     "questObjectiveCompleted": {
       "label": "任務 OBJ 核取完成",
       "trigger": "任務 OBJ 真正開始播放核取方塊打勾與完成 Pop Tween 時播放一次；讀檔恢復已完成狀態、沒有顯示完成 Tween，或延遲期間已切換至其他 Stage 時不播放。",
@@ -918,6 +932,20 @@ export const AUDIO_EVENT_CONFIG = (
         "./audio/quest-objective-complete.mp3"
       ],
       "volume": 0.35,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "hotbarItemAssigned": {
+      "label": "道具置入快捷工具列",
+      "trigger": "玩家從背包的「快捷」指令確認將仍持有的道具指派或取代至快捷工具列時播放一次；選格、取消、道具已不存在或重複確認不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/置入快捷.mp3"
+      ],
+      "sources": [
+        "./audio/hotbar-item-assigned.mp3"
+      ],
+      "volume": 0.5,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0

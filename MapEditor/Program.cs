@@ -146,6 +146,42 @@ internal static class Program
                     WindowState = FormWindowState.Minimized,
                     Opacity = 0,
                 };
+            using var questObjectiveRequirementEditor =
+                new QuestStageRequirementEditorForm(
+                    new[]
+                    {
+                        new QuestCatalogEntry(
+                            "QUEST_UI_TEST",
+                            "UI 測試任務",
+                            new[]
+                            {
+                                new QuestStageCatalogEntry(
+                                    "QUEST_UI_TEST_STAGE_01",
+                                    "第一階段"),
+                            }),
+                    },
+                    new[]
+                    {
+                        new QuestObjectiveCatalogEntry(
+                            "QUEST_UI_TEST_OBJ_02",
+                            "第二目標",
+                            "QUEST_UI_TEST",
+                            "QUEST_UI_TEST_STAGE_01"),
+                    },
+                    new InteractionUseRequirement
+                    {
+                        Kind = "questStage",
+                        QuestId = "QUEST_UI_TEST",
+                        StageId = "QUEST_UI_TEST_STAGE_01",
+                        StageMode = "UnlockUntilCondition",
+                        ObjectiveId = "QUEST_UI_TEST_OBJ_02",
+                        ObjectiveState = "completed",
+                    })
+                {
+                    ShowInTaskbar = false,
+                    WindowState = FormWindowState.Minimized,
+                    Opacity = 0,
+                };
             using var dialogueEditor = new DialogueEditorForm(
                 new DialogueScript
                 {
@@ -202,6 +238,31 @@ internal static class Program
                     itemPointSpawnRequirementEditor.Show();
                     System.Windows.Forms.Application.DoEvents();
                     itemPointSpawnRequirementEditor.Close();
+                    questObjectiveRequirementEditor.Show();
+                    System.Windows.Forms.Application.DoEvents();
+                    var objectiveCombo = questObjectiveRequirementEditor.Controls
+                        .Find("enableObjective", true)
+                        .OfType<ComboBox>()
+                        .Single();
+                    var objectiveStateCombo = questObjectiveRequirementEditor.Controls
+                        .Find("enableObjectiveState", true)
+                        .OfType<ComboBox>()
+                        .Single();
+                    var disableQuestCombo = questObjectiveRequirementEditor.Controls
+                        .Find("disableQuest", true)
+                        .OfType<ComboBox>()
+                        .Single();
+                    if (objectiveCombo.SelectedItem is not QuestObjectiveCatalogEntry
+                            { Id: "QUEST_UI_TEST_OBJ_02" } ||
+                        !objectiveStateCombo.Enabled ||
+                        !objectiveStateCombo.Text.Contains("完成", StringComparison.Ordinal) ||
+                        !disableQuestCombo.Enabled ||
+                        !disableQuestCombo.Text.Contains("尚未指定", StringComparison.Ordinal))
+                    {
+                        throw new InvalidDataException(
+                            "任務階段啟用條件未正確載入 OBJ，或不能保留待設定的關閉條件。");
+                    }
+                    questObjectiveRequirementEditor.Close();
                     dialogueEditor.Show();
                     System.Windows.Forms.Application.DoEvents();
                     dialogueEditor.RunCellEditingUiSelfTest();
@@ -673,6 +734,7 @@ internal static class EditorSelfTest
         }
         interactionPoints.Add(new InteractionPoint { X = 200, Y = 200, Facing = "N" });
         multiPointInteractable.InteractionHintPoint = new ScenePoint(150, 150);
+        multiPointInteractable.ShowOnMinimap = true;
         multiPointInteractable.Type = "gather";
         multiPointInteractable.SurvivalRequirements = new SurvivalRequirements
         {
@@ -757,8 +819,12 @@ internal static class EditorSelfTest
                 QuestId = "QUEST_TEST_ACTIVE",
                 StageId = "QUEST_TEST_ACTIVE_STAGE_02",
                 StageMode = "UnlockUntilCondition",
+                ObjectiveId = "QUEST_TEST_ACTIVE_OBJ_02",
+                ObjectiveState = "completed",
                 DisableQuestId = "QUEST_TEST_CLOSE",
                 DisableStageId = "QUEST_TEST_CLOSE_STAGE_01",
+                DisableObjectiveId = "QUEST_TEST_CLOSE_OBJ_01",
+                DisableObjectiveState = "unlocked",
             },
         };
         multiPointInteractable.AllowAttemptWhenRequirementsUnmet = true;
@@ -770,6 +836,7 @@ internal static class EditorSelfTest
             expectedInteractionPointCount ||
             multiPointRoundTrip.Interactables[0].Dialogue.Lines[0].Speaker != "" ||
             multiPointRoundTrip.Interactables[0].InteractionHintPoint is not { X: 150, Y: 150 } ||
+            !multiPointRoundTrip.Interactables[0].ShowOnMinimap ||
             multiPointRoundTrip.Interactables[0].SurvivalRequirements is not
                 { Mode: "any", Stamina: { Comparison: "atMost", Value: 99 } } ||
             multiPointRoundTrip.Interactables[0].SurvivalEffects.Stamina != -4 ||
@@ -815,13 +882,40 @@ internal static class EditorSelfTest
                     QuestId: "QUEST_TEST_ACTIVE",
                     StageId: "QUEST_TEST_ACTIVE_STAGE_02",
                     StageMode: "UnlockUntilCondition",
+                    ObjectiveId: "QUEST_TEST_ACTIVE_OBJ_02",
+                    ObjectiveState: "completed",
                     DisableQuestId: "QUEST_TEST_CLOSE",
                     DisableStageId: "QUEST_TEST_CLOSE_STAGE_01",
+                    DisableObjectiveId: "QUEST_TEST_CLOSE_OBJ_01",
+                    DisableObjectiveState: "unlocked",
                 }
         )
         {
             throw new InvalidDataException(
                 "Interaction Points, hint Point, survival settings, item reward, requirements, dialogue phases, or weighted dialogue groups did not survive JSON round-trip.");
+        }
+
+        var pendingCloseDocument = SceneJson.Deserialize(SceneJson.Serialize(multiPointRoundTrip));
+        var pendingCloseRequirement = pendingCloseDocument.Interactables[0]
+            .UseRequirements![4];
+        pendingCloseRequirement.DisableQuestId = "QUEST_NOT_FINISHED_YET";
+        pendingCloseRequirement.DisableStageId = "";
+        pendingCloseRequirement.DisableObjectiveId = "QUEST_NOT_FINISHED_YET_OBJ_01";
+        pendingCloseRequirement.DisableObjectiveState = "completed";
+        var normalizedPendingClose = SceneJson.Deserialize(
+            SceneJson.Serialize(pendingCloseDocument));
+        SceneJson.Validate(normalizedPendingClose);
+        if (normalizedPendingClose.Interactables[0].UseRequirements?[4] is not
+            {
+                StageMode: "UnlockUntilCondition",
+                DisableQuestId: "",
+                DisableStageId: "",
+                DisableObjectiveId: null,
+                DisableObjectiveState: null,
+            })
+        {
+            throw new InvalidDataException(
+                "UnlockUntilCondition 未能保留待設定狀態，或殘留了不完整關閉條件。");
         }
 
         using (var requirementsEditor = new SurvivalEffectEditorForm(
@@ -856,7 +950,20 @@ internal static class EditorSelfTest
             new[] { "QUEST_TEST_CLOSE" },
             showQuestStartOptions: true,
             allowAttemptWhenRequirementsUnmet:
-                multiPointRoundTrip.Interactables[0].AllowAttemptWhenRequirementsUnmet))
+                multiPointRoundTrip.Interactables[0].AllowAttemptWhenRequirementsUnmet,
+            objectives: new[]
+            {
+                new QuestObjectiveCatalogEntry(
+                    "QUEST_TEST_ACTIVE_OBJ_02",
+                    "啟用目標",
+                    "QUEST_TEST_ACTIVE",
+                    "QUEST_TEST_ACTIVE_STAGE_02"),
+                new QuestObjectiveCatalogEntry(
+                    "QUEST_TEST_CLOSE_OBJ_01",
+                    "關閉目標",
+                    "QUEST_TEST_CLOSE",
+                    "QUEST_TEST_CLOSE_STAGE_01"),
+            }))
         {
             if (
                 !requirementsEditor.AllowAttemptWhenRequirementsUnmet ||
@@ -873,8 +980,12 @@ internal static class EditorSelfTest
                         QuestId: "QUEST_TEST_ACTIVE",
                         StageId: "QUEST_TEST_ACTIVE_STAGE_02",
                         StageMode: "UnlockUntilCondition",
+                        ObjectiveId: "QUEST_TEST_ACTIVE_OBJ_02",
+                        ObjectiveState: "completed",
                         DisableQuestId: "QUEST_TEST_CLOSE",
                         DisableStageId: "QUEST_TEST_CLOSE_STAGE_01",
+                        DisableObjectiveId: "QUEST_TEST_CLOSE_OBJ_01",
+                        DisableObjectiveState: "unlocked",
                     } ||
                 requirementsEditor.ItemRewards.Count != 2 ||
                 requirementsEditor.ItemRewards[0] is not
@@ -955,6 +1066,21 @@ internal static class EditorSelfTest
             }
         }
 
+        var exitScriptFixture = SceneJson.Deserialize(SceneJson.Serialize(roundTrip));
+        exitScriptFixture.Connections.Add(new SceneConnection {
+            Id = "exit-script-roundtrip", TargetSceneId = "Scene_6", TargetEntryPointId = "test-entry",
+            TriggerMode = "manual", TransitionMode = "blackout",
+            Area = new() { new(1, 1), new(5, 1), new(5, 5) },
+            InteractionHintPoint = new(3, 2),
+            FailureDialogue = new() { Lines = new() { new() { Text = "缺少道具" } } },
+            SurvivalFailureDialogue = new() { Lines = new() { new() { Text = "體力不足" } } },
+            CompletionDialogue = new() { Lines = new() { new() { Text = "抵達" } } },
+        });
+        var savedExit = SceneJson.Deserialize(SceneJson.Serialize(exitScriptFixture)).Connections.Last();
+        if (savedExit.InteractionHintPoint?.X != 3 || savedExit.FailureDialogue.Lines[0].Text != "缺少道具" ||
+            savedExit.SurvivalFailureDialogue?.Lines[0].Text != "體力不足" ||
+            savedExit.CompletionDialogue?.Lines[0].Text != "抵達" || savedExit.TransitionMode != "blackout")
+            throw new InvalidDataException("Exit scripts and hint point did not survive serialization.");
         using var canvas = new EditorCanvas();
         canvas.RunNodeEditingSelfTest(roundTrip);
         Console.WriteLine(

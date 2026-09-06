@@ -72,6 +72,11 @@ internal static class QuestReferenceProvider
             {
                 using var document = JsonDocument.Parse(File.ReadAllText(path));
                 var rootElement = document.RootElement;
+                var sceneId = rootElement.TryGetProperty("sceneId", out var sceneIdElement)
+                    ? sceneIdElement.GetString() ?? "" : "";
+                catalog.Add("Scene", sceneId, Path.GetFileNameWithoutExtension(path));
+                if (sceneId.Length > 0)
+                    AddArray(rootElement, "connections", $"SceneConnection:{sceneId}", catalog);
                 AddArray(rootElement, "interactables", "Interaction", catalog);
                 AddArray(rootElement, "storyTriggers", "Area", catalog);
                 AddArray(rootElement, "storyTriggers", "StoryTrigger", catalog);

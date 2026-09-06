@@ -10,6 +10,7 @@ import {
   validateQuestDebugConfiguration,
 } from "../app/quest-debug-scenario.ts";
 import { QuestRuntimeManager } from "../app/quest-runtime-manager.ts";
+import { QUEST_OBJECTIVE_COMPLETION_RULES } from "../app/chapter04-quest-flow.ts";
 
 const questDocument = JSON.parse(
   readFileSync(new URL("../public/quests/quest-data.json", import.meta.url), "utf8"),
@@ -18,7 +19,11 @@ const movementLabSource = readFileSync(
   new URL("../app/movement-lab.tsx", import.meta.url),
   "utf8",
 );
-const sceneDocuments = ["map_test01.scene.json", "map_test02.scene.json"].map((name) =>
+const sceneDocuments = [
+  "map_test01.scene.json",
+  "map_test02.scene.json",
+  "map_scene_06B.scene.json",
+].map((name) =>
   JSON.parse(readFileSync(new URL(`../public/maps/${name}`, import.meta.url), "utf8")),
 );
 const survivalEffects = Object.fromEntries(
@@ -40,6 +45,7 @@ function createState() {
 function build(command, state = createState()) {
   return buildQuestDebugScenarioPlan(questDocument, command, state, {
     itemSurvivalEffects: survivalEffects,
+    objectiveCompletionRules: QUEST_OBJECTIVE_COMPLETION_RULES,
   });
 }
 
@@ -153,6 +159,70 @@ test("Quest Stage Next crosses from a final stage to the next quest Stage 1", ()
   assert.equal(nextQuest.questSave.quests.QUEST_CH03_MAIN_005.state, "completed");
   assert.equal(nextQuest.targetQuestId, "QUEST_CH03_MAIN_006");
   assert.equal(nextQuest.targetStageId, "QUEST_CH03_MAIN_006_STAGE_01");
+});
+
+test("Quest Stage Next crosses Chapter 3 into Chapter 4 and settles every Stage 1 requirement", async () => {
+  const chapterThreeFinalStage = build({ kind: "goto", questRef: "6", stageRef: "3" });
+  const chapterFourStageOne = build({ kind: "stage-next" }, {
+    ...createState(),
+    questSave: chapterThreeFinalStage.questSave,
+    inventory: chapterThreeFinalStage.inventory,
+    survival: chapterThreeFinalStage.survival,
+    story: chapterThreeFinalStage.story,
+    interactionUsage: chapterThreeFinalStage.interactionUsage,
+    campPowerCurrent: chapterThreeFinalStage.campPowerCurrent,
+  });
+  assert.equal(chapterFourStageOne.questSave.quests.QUEST_CH03_MAIN_006.state, "completed");
+  assert.equal(chapterFourStageOne.targetQuestId, "QUEST_CH04_MAIN_001");
+  assert.equal(chapterFourStageOne.targetStageId, "QUEST_CH04_MAIN_001_STAGE_01");
+
+  const chapterFourStageTwo = build({ kind: "stage-next" }, {
+    ...createState(),
+    questSave: chapterFourStageOne.questSave,
+    inventory: chapterFourStageOne.inventory,
+    survival: chapterFourStageOne.survival,
+    story: chapterFourStageOne.story,
+    interactionUsage: chapterFourStageOne.interactionUsage,
+    campPowerCurrent: chapterFourStageOne.campPowerCurrent,
+  });
+  const chapterFourEntry = chapterFourStageTwo.questSave.quests.QUEST_CH04_MAIN_001;
+  assert.equal(chapterFourStageTwo.targetStageId, "QUEST_CH04_MAIN_001_STAGE_02");
+  for (const objectiveId of [
+    "QUEST_CH04_MAIN_001_OBJ_01",
+    "QUEST_CH04_MAIN_001_OBJ_02",
+    "QUEST_CH04_MAIN_001_OBJ_03",
+    "QUEST_CH04_MAIN_001_OBJ_13",
+  ]) {
+    assert.equal(chapterFourEntry.objectives[objectiveId].completed, true, objectiveId);
+  }
+  assert.ok(chapterFourStageTwo.inventory.T0004 >= 1);
+  assert.ok(chapterFourStageTwo.inventory.R0004 >= 1);
+  assert.ok(chapterFourStageTwo.inventory.R0005 >= 1);
+  assert.ok(chapterFourStageTwo.story.completedEventIds.includes("chapter04-section-3"));
+  assert.ok(chapterFourStageTwo.story.completedEventIds.includes("chapter04-section-1"));
+  assert.equal(
+    chapterFourEntry.objectiveCompletionRules["chapter04-preparation-complete"].completed,
+    true,
+  );
+
+  const replayedFlows = [];
+  const manager = new QuestRuntimeManager(questDocument, {
+    objectiveCompletionRules: QUEST_OBJECTIVE_COMPLETION_RULES,
+    scheduleQuestStart: (_delay, callback) => callback(),
+    runEventFlow: (flowId) => {
+      replayedFlows.push(flowId);
+      return true;
+    },
+  });
+  manager.replaceSaveData(chapterFourStageTwo.questSave, false);
+  manager.handleEvent({
+    type: "interactionSucceeded",
+    targetId: "scene6-interaction-009",
+    eventId: "debug-stage-two-first-interaction",
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(replayedFlows.includes("chapter04-section-1"), false);
 });
 
 test("Quest Goto 6 Stage 2 materializes the implicit chain and required welding items", () => {
@@ -303,6 +373,23 @@ test("validator reports malformed quest references while keeping valid scenarios
       (issue) =>
         issue.code === "missing-objective-target" &&
         issue.objectiveId === "QUEST_CH03_MAIN_006_OBJ_05",
+    ),
+    false,
+  );
+  assert.equal(
+    issues.some(
+      (issue) =>
+        issue.severity === "error" &&
+        issue.objectiveId === "QUEST_CH04_MAIN_001_OBJ_04",
+    ),
+    false,
+  );
+  assert.equal(
+    issues.some(
+      (issue) =>
+        issue.severity === "warning" &&
+        issue.code === "missing-objective-target" &&
+        issue.objectiveId === "QUEST_CH04_MAIN_001_OBJ_05",
     ),
     false,
   );

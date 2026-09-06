@@ -588,6 +588,35 @@ test("任務 COMPLETE、NEXT、新增 OBJ 與 OBJ 過關使用集中管理的單
   assert.equal(objectiveCompleted.loop, undefined);
   assert.match(objectiveCompleted.trigger, /核取方塊打勾/);
   assert.match(objectiveCompleted.trigger, /讀檔恢復已完成狀態.*不播放/);
+
+  const objectiveProgressed = AUDIO_EVENT_CONFIG.questObjectiveProgressed;
+  assert.deepEqual(objectiveProgressed.sourceAssetPaths, ["Assets/Audio/進度推進1.mp3"]);
+  assert.deepEqual(objectiveProgressed.sources, ["./audio/quest-objective-progress-1.mp3"]);
+  assert.equal(objectiveProgressed.volume, 1);
+  assert.equal(objectiveProgressed.delaySeconds, 0);
+  assert.match(objectiveProgressed.trigger, /顯示進度.*True/);
+  assert.match(objectiveProgressed.trigger, /讀檔還原.*不播放/);
+
+  const hotbarAssigned = AUDIO_EVENT_CONFIG.hotbarItemAssigned;
+  assert.deepEqual(hotbarAssigned.sourceAssetPaths, ["Assets/Audio/置入快捷.mp3"]);
+  assert.deepEqual(hotbarAssigned.sources, ["./audio/hotbar-item-assigned.mp3"]);
+  assert.equal(hotbarAssigned.volume, 0.5);
+  assert.equal(hotbarAssigned.delaySeconds, 0);
+  assert.match(hotbarAssigned.trigger, /「快捷」指令確認/);
+});
+
+test("任務進度與快捷配置音效的公開素材和 AudioEventManager 登記一致", async () => {
+  const pairs = [
+    ["../Assets/Audio/進度推進1.mp3", "../public/audio/quest-objective-progress-1.mp3"],
+    ["../Assets/Audio/置入快捷.mp3", "../public/audio/hotbar-item-assigned.mp3"],
+  ];
+  for (const [source, publicAsset] of pairs) {
+    const [sourceBytes, publicBytes] = await Promise.all([
+      readFile(new URL(source, import.meta.url)),
+      readFile(new URL(publicAsset, import.meta.url)),
+    ]);
+    assert.deepEqual(publicBytes, sourceBytes);
+  }
 });
 
 test("互動失敗紅圈第一次繪製時統一播放否定音效", async () => {

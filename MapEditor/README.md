@@ -93,6 +93,9 @@ Included in version 1:
   failure dialogue until it becomes true. Existing scene data without a purpose
   keeps the original `提示＋互動` behavior. The legacy global option for showing
   an unmet interaction remains available as an explicit visibility override.
+- 互動多邊形的「互動設定」可勾選「在小地圖標記」。標記位置直接使用
+  互動提示點，並沿用提示點的啟用、任務條件與使用次數可見狀態；沒有
+  互動提示點時不會產生小地圖標記。
 - Story Trigger polygons reuse the same requirements and completion-effects
   editor. Their automatic entry trigger can be gated by survival meters,
   inventory items, chapter, active quest, quest stage, and daily/one-time use.
@@ -112,7 +115,11 @@ Included in version 1:
   可儲存的場景資料與編輯介面，實際延遲及任務派發流程由遊戲端接線。
 - 任務階段需求同樣從 `quest-data.json` 讀取 Quest 與 Stage，可設定
   `CurrentStageOnly`（僅指定階段）、`UnlockFromStage`（到達後持續啟用）
-  或 `UnlockUntilCondition`（到達後啟用，直到另一個任務階段成立）。
+  或 `UnlockUntilCondition`（到達後啟用，直到另一個任務階段成立）。啟用端
+  與關閉端都能再選填該 Stage 內的 OBJ，並指定在 OBJ 已啟用／顯示後，
+  或完成／核取後才讓條件成立；OBJ 留空時維持原本只判斷 Stage 的行為。
+  `UnlockUntilCondition` 也可先不指定關閉 Quest／Stage，此時等同啟用後
+  持續有效；日後補齊關閉條件即可開始依該條件停用。
 - ItemPoint 圖層提供「Spawn 需求設定…」：未設定時照原有規則從一開始
   生成；可設定 `CurrentStageOnly`（只在指定階段生成）或
   `UnlockFromStage`（到達指定階段後持續允許生成）。任務階段資格會先於

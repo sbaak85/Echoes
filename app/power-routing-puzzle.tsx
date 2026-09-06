@@ -1,5 +1,7 @@
 "use client";
 
+import { GamepadButtonIcon } from "./gamepad-button-icon";
+
 import {
   forwardRef,
   useEffect,
@@ -343,7 +345,7 @@ export const PowerRoutingPuzzle = forwardRef<
             }}
           >
             {gamepadMode ? (
-              <span className="power-trigger-key" aria-hidden="true">RT</span>
+              <GamepadButtonIcon button="RT" />
             ) : (
               <span aria-hidden="true">▣</span>
             )}

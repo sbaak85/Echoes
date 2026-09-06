@@ -443,6 +443,21 @@ public sealed class EditorCanvas : Control
         StatusChanged?.Invoke(this, "已更新出入口的生存、任務進度與道具需求。");
     }
 
+    public void UpdateSelectedConnectionDialogues(DialogueScript success, DialogueScript failure,
+        DialogueScript? survivalFailure, DialogueScript? completion, bool skipSuccess)
+    {
+        var connection = SelectedSceneConnection;
+        if (connection is null) return;
+        PerformMutation(() => {
+            connection.Dialogue = success.Clone();
+            connection.FailureDialogue = failure.Clone();
+            connection.SurvivalFailureDialogue = survivalFailure?.Clone();
+            connection.CompletionDialogue = completion?.Clone();
+            connection.SkipSuccessDialogue = skipSuccess;
+        });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public void UpdateSceneIdentity(string sceneId, string displayName)
     {
         sceneId = sceneId.Trim();
@@ -732,7 +747,10 @@ public sealed class EditorCanvas : Control
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void UpdateSelectedInteractable(string type, string verb)
+    public void UpdateSelectedInteractable(
+        string type,
+        string verb,
+        bool? showOnMinimap = null)
     {
         var interactable = SelectedInteractable;
         if (interactable is null) return;
@@ -743,6 +761,10 @@ public sealed class EditorCanvas : Control
         {
             interactable.Type = type;
             interactable.Verb = verb;
+            if (showOnMinimap is bool showMarker)
+            {
+                interactable.ShowOnMinimap = showMarker;
+            }
         });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -1264,6 +1286,24 @@ public sealed class EditorCanvas : Control
                 DrawSelectionHandles(selectionGraphics);
             }
 
+            var exit = new SceneConnection {
+                Id = "overlap-exit-test", TargetSceneId = "Scene_6", TargetEntryPointId = "test",
+                Area = new() { new(100, 100), new(300, 100), new(300, 300), new(100, 300) },
+            };
+            _document.Connections.Add(exit);
+            _document.Interactables.Add(new SceneInteractable {
+                Id = "overlap-exit-cover", Points = exit.Area.Select(p => p.Clone()).ToList(),
+            });
+            _selection = new LayerSelection(SceneLayerKind.SceneConnection, _document.Connections.Count - 1);
+            var interior = new PointF(200, 200);
+            if (!IsSelectedConnectionContextTarget(interior) || !PrepareNodeContextMenu(interior))
+                throw new InvalidOperationException("Selected overlapping exit cannot open its interior context menu.");
+            SetInteractionHintPointAtContext();
+            if (exit.InteractionHintPoint is not { X: 200, Y: 200 })
+                throw new InvalidOperationException("Exit hint point was not set on the selected exit.");
+            DeleteSelectedInteractionHintPoint();
+            if (exit.InteractionHintPoint is not null)
+                throw new InvalidOperationException("Exit hint point was not removed.");
             SceneJson.Validate(_document);
         }
         finally
@@ -1532,6 +1572,22 @@ public sealed class EditorCanvas : Control
             if (interactable.InteractionHintPoint is { } interactionHintPoint)
             {
                 DrawInteractionHintPoint(graphics, interactionHintPoint);
+                if (interactable.ShowOnMinimap)
+                {
+                    var radius = 13f / _zoom;
+                    using var minimapPen = new Pen(
+                        Color.FromArgb(230, 94, 247, 236),
+                        1.5f / _zoom)
+                    {
+                        DashStyle = DashStyle.Dot,
+                    };
+                    graphics.DrawEllipse(
+                        minimapPen,
+                        interactionHintPoint.X - radius,
+                        interactionHintPoint.Y - radius,
+                        radius * 2,
+                        radius * 2);
+                }
             }
         }
     }
@@ -1633,6 +1689,8 @@ public sealed class EditorCanvas : Control
             var connection = _document.Connections[index];
             var points = ToPointFArray(connection.Area);
             if (points.Length < 3) continue;
+            if (connection.InteractionHintPoint is { } hintPoint)
+                DrawInteractionHintPoint(graphics, hintPoint);
             graphics.FillPolygon(fill, points);
             graphics.DrawPolygon(outline, points);
             if (_selection == new LayerSelection(SceneLayerKind.SceneConnection, index))
@@ -2791,6 +2849,7 @@ public sealed class EditorCanvas : Control
     private bool TryShowWorldPointContextMenu(Point screenLocation, PointF world)
     {
         if (!IsInsideWorld(world)) return false;
+        if (IsSelectedConnectionContextTarget(world)) return false;
         _contextWorldPoint = SnapAndClamp(world);
         var topmostHit = HitTest(world);
         _contextItemPointIndex = topmostHit.Kind == SceneLayerKind.ItemPoint
@@ -2935,6 +2994,10 @@ public sealed class EditorCanvas : Control
         return -1;
     }
 
+    private bool IsSelectedConnectionContextTarget(PointF world) =>
+        SelectedSceneConnection is { } connection &&
+        (PointInPolygon(world, connection.Area) || HitSelectedHandle(world) >= 0);
+
     private void ShowNodeContextMenu(Point screenLocation, PointF world)
     {
         if (!IsInsideWorld(world)) return;
@@ -2943,7 +3006,7 @@ public sealed class EditorCanvas : Control
         // explicit editing target. Otherwise, right-click follows the same top-to-bottom
         // order as drawing so an underlying NavMesh cannot steal another layer's menu.
         var selectedHandleHit = HitSelectedHandle(world) >= 0;
-        if (!selectedHandleHit)
+        if (!selectedHandleHit && !IsSelectedConnectionContextTarget(world))
         {
             var hit = HitTest(world);
             if (hit != _selection)
@@ -2970,9 +3033,11 @@ public sealed class EditorCanvas : Control
             interactionSelected && _contextInteractionPointIndex >= 0;
         _deleteInteractionPointContextItem.Enabled =
             interactionSelected && _contextInteractionPointIndex >= 0;
-        var hasInteractionHintPoint = interactionSelected &&
-            _document.Interactables[_selection.Index].InteractionHintPoint is not null;
-        _interactionHintPointContextItem.Visible = interactionSelected;
+        var connectionSelected = SelectedSceneConnection is not null;
+        var hasInteractionHintPoint = (interactionSelected &&
+            _document.Interactables[_selection.Index].InteractionHintPoint is not null) ||
+            SelectedSceneConnection?.InteractionHintPoint is not null;
+        _interactionHintPointContextItem.Visible = interactionSelected || connectionSelected;
         _interactionHintPointContextItem.Text = hasInteractionHintPoint
             ? "移動互動提示點至此"
             : "新增互動提示點";
@@ -3063,7 +3128,8 @@ public sealed class EditorCanvas : Control
 
         if (!TryFindNearestSelectedEdge(world, out var edgeIndex, out var insertionPoint))
         {
-            if (_selection.Kind != SceneLayerKind.Interactable || !PointInPolygon(world, points)) return false;
+            if ((_selection.Kind != SceneLayerKind.Interactable &&
+                 _selection.Kind != SceneLayerKind.SceneConnection) || !PointInPolygon(world, points)) return false;
             SetSelectedVertex(-1);
             _contextSelection = _selection;
             _contextEdgeIndex = -1;
@@ -3148,6 +3214,12 @@ public sealed class EditorCanvas : Control
 
     private void SetInteractionHintPointAtContext()
     {
+        if (SelectedSceneConnection is { } connection && _contextSelection == _selection)
+        {
+            PerformMutation(() => connection.InteractionHintPoint = new ScenePoint(_contextInteractionHintPoint.X, _contextInteractionHintPoint.Y));
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
         var interactable = SelectedInteractable;
         if (interactable is null || _contextSelection != _selection) return;
         var point = _contextInteractionHintPoint;
@@ -3161,6 +3233,12 @@ public sealed class EditorCanvas : Control
 
     private void DeleteSelectedInteractionHintPoint()
     {
+        if (SelectedSceneConnection is { } connection)
+        {
+            PerformMutation(() => connection.InteractionHintPoint = null);
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
         var interactable = SelectedInteractable;
         if (interactable?.InteractionHintPoint is null) return;
         PerformMutation(() => interactable.InteractionHintPoint = null);

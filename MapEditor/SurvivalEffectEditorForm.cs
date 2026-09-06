@@ -720,7 +720,10 @@ public sealed class SurvivalEffectEditorForm : Form
 
     private void EditStageRequirement(UseRequirementControls controls)
     {
-        using var editor = new QuestStageRequirementEditorForm(_quests, controls.StageRequirement);
+        using var editor = new QuestStageRequirementEditorForm(
+            _quests,
+            _objectives,
+            controls.StageRequirement);
         if (editor.ShowDialog(this) != DialogResult.OK) return;
         controls.StageRequirement = editor.Requirement;
         RefreshStageRequirementButton(controls);
@@ -737,9 +740,17 @@ public sealed class SurvivalEffectEditorForm : Form
     private static void RefreshStageRequirementButton(UseRequirementControls controls)
     {
         var requirement = controls.StageRequirement;
+        var modeLabel = requirement.StageMode == "UnlockUntilCondition" &&
+            (string.IsNullOrWhiteSpace(requirement.DisableQuestId) ||
+             string.IsNullOrWhiteSpace(requirement.DisableStageId))
+            ? "持續（待設關閉）"
+            : ModeShortLabel(requirement.StageMode);
         controls.StageSettings.Text = string.IsNullOrWhiteSpace(requirement.StageId)
             ? "設定…"
-            : $"{ModeShortLabel(requirement.StageMode)}｜{requirement.StageId}";
+            : $"{modeLabel}｜{requirement.StageId}" +
+              (string.IsNullOrWhiteSpace(requirement.ObjectiveId)
+                  ? ""
+                  : $"｜{requirement.ObjectiveId}:{ObjectiveStateShortLabel(requirement.ObjectiveState)}");
     }
 
     private static void RefreshStateRequirementButton(UseRequirementControls controls)
@@ -765,6 +776,9 @@ public sealed class SurvivalEffectEditorForm : Form
         "UnlockUntilCondition" => "直到關閉",
         _ => "本階段",
     };
+
+    private static string ObjectiveStateShortLabel(string? state) =>
+        state == "completed" ? "已完成" : "已啟用";
 
     private void BuildEffectsPage(
         Control page,

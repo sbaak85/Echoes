@@ -344,7 +344,7 @@ test("quest TAB prompt follows the latest keyboard, gamepad, or mobile input", (
   assert.match(promptRenderer, /label\.includes\("\[TAB\]"\)/);
   assert.match(promptRenderer, /split\(\/\(\\\[TAB\\\]\)\/g\)/);
   assert.match(promptRenderer, /inputMode === "keyboard-mouse"[\s\S]*?>\[TAB\]</);
-  assert.match(promptRenderer, /inputMode === "gamepad"[\s\S]*?>\[B鍵\]</);
+  assert.match(promptRenderer, /inputMode === "gamepad"[\s\S]*?<GamepadHint text=\{label\.replaceAll\("\[TAB\]", "\[B\]"\)\}/);
   assert.match(promptRenderer, /className="quest-input-key-prompt"/);
   assert.match(promptRenderer, /className="quest-input-backpack-prompt"/);
   assert.match(promptRenderer, /className="inventory-trigger-icon"/);

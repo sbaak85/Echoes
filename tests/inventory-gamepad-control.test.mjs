@@ -5,8 +5,26 @@ import test from "node:test";
 import {
   getClampedInventoryCategoryIndex,
   getInventoryCategoryOffsetForBumper,
+  getInventoryHorizontalTarget,
   getVirtualCursorInventoryItemAction,
+  moveInventorySelectedAction,
 } from "../app/inventory-gamepad-control.ts";
+
+test("道具格向右越過頁尾時優先進入下一頁第一格", () => {
+  assert.deepEqual(getInventoryHorizontalTarget(15, 16, 1, true), { position: 0, pageOffset: 1 });
+  assert.deepEqual(getInventoryHorizontalTarget(14, 16, 1, true), { position: 15, pageOffset: 0 });
+  assert.deepEqual(getInventoryHorizontalTarget(15, 16, 1, false), { position: 0, pageOffset: 0 });
+  assert.deepEqual(getInventoryHorizontalTarget(3, 4, 1, false), { position: 0, pageOffset: 0 });
+  assert.deepEqual(getInventoryHorizontalTarget(0, 16, -1, true), { position: 15, pageOffset: 0 });
+  assert.deepEqual(getInventoryHorizontalTarget(0, 0, 1, false), { position: 0, pageOffset: 0 });
+});
+
+test("道具格向左越過頁首時回上一頁，沒有上一頁才在本頁循環", () => {
+  assert.deepEqual(getInventoryHorizontalTarget(0, 4, -1, false, true), { position: 0, pageOffset: -1 });
+  assert.deepEqual(getInventoryHorizontalTarget(0, 16, -1, true, true), { position: 0, pageOffset: -1 });
+  assert.deepEqual(getInventoryHorizontalTarget(1, 16, -1, true, true), { position: 0, pageOffset: 0 });
+  assert.deepEqual(getInventoryHorizontalTarget(0, 4, -1, false, false), { position: 3, pageOffset: 0 });
+});
 
 test("背包 LB 向左、RB 向右切換道具類型頁籤", () => {
   assert.equal(getInventoryCategoryOffsetForBumper("LB"), -1);
@@ -38,10 +56,50 @@ test("背包固定使用全部、食物、資源、工具、任務道具五個�
   assert.match(categories, /category === "main" \? "quest" : category/);
 });
 
-test("虛擬游標第一次點道具只選定，再點同一道具才使用", () => {
+test("虛擬游標第一次點道具只選定，再點同一道具進入功能區而非使用", () => {
   assert.equal(getVirtualCursorInventoryItemAction(2, 5), "select");
-  assert.equal(getVirtualCursorInventoryItemAction(5, 5), "use");
+  assert.equal(getVirtualCursorInventoryItemAction(5, 5), "actions");
   assert.equal(getVirtualCursorInventoryItemAction(5, 2), "select");
+});
+
+test("功能按鈕焦點依 2 × 2 方向切換、循環並略過停用功能", () => {
+  const all = ["use", "inspect", "quick", "discard"];
+  assert.equal(moveInventorySelectedAction("use", 1, 0, all), "inspect");
+  assert.equal(moveInventorySelectedAction("inspect", 0, 1, all), "discard");
+  assert.equal(moveInventorySelectedAction("discard", 1, 0, all), "use");
+  assert.equal(moveInventorySelectedAction("use", 0, -1, all), "quick");
+  assert.equal(moveInventorySelectedAction("use", 1, 0, ["use", "quick"]), "quick");
+  assert.equal(moveInventorySelectedAction("quick", 0, 1, ["use", "quick"]), "use");
+  assert.equal(
+    moveInventorySelectedAction("inspect", 0, 1, ["use", "inspect", "quick"]),
+    "quick",
+  );
+});
+
+test("十字鍵模式在道具格按 A 先進入功能區，再按 A 才點擊選定功能", () => {
+  const source = readFileSync(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  const inventoryInputStart = source.indexOf("} else if (inventoryMenuOpen) {");
+  const inventoryInputEnd = source.indexOf("} else {\n        const centeredTextHoldSkipResult", inventoryInputStart);
+  const inventoryInput = source.slice(inventoryInputStart, inventoryInputEnd);
+  const enterStart = source.indexOf("const enterInventorySelectedActions = () => {");
+  const enterEnd = source.indexOf("const getEnabledInventorySelectedActions", enterStart);
+  const enterAction = source.slice(enterStart, enterEnd);
+  const activateStart = source.indexOf("const activateInventorySelectedAction = () => {");
+  const activateEnd = source.indexOf("const activateInventoryItem =", activateStart);
+  const activateAction = source.slice(activateStart, activateEnd);
+
+  assert.match(inventoryInput, /inventoryGamepadFocusRef\.current === "actions"[\s\S]*activateInventorySelectedAction\(\)[\s\S]*enterInventorySelectedActions\(\)/);
+  assert.doesNotMatch(
+    inventoryInput.slice(inventoryInput.indexOf('inventoryGamepadModeRef.current === "cursor"') + 1),
+    /activateInventoryItem\(selectedInventoryIndexRef\.current\)/,
+  );
+  assert.match(enterAction, /setInventorySelectedActionValue\("use"\)[\s\S]*setInventoryGamepadFocusValue\("actions"\)/);
+  assert.match(activateAction, /data-inventory-action=[^\n]+inventorySelectedActionRef\.current[\s\S]*button\.click\(\)/);
+  for (const action of ["use", "inspect", "quick", "discard"])
+    assert.match(source, new RegExp(`data-inventory-action="${action}"`));
 });
 
 test("背包十字鍵選取只移動選定框，不顯示真實游標或重設虛擬游標", () => {
@@ -87,6 +145,31 @@ test("對話與背包同時開啟時，手把 B 會先關閉背包", () => {
     backPrioritySource,
     /else if \(inventoryOpenRef\.current && backJustPressed\) \{[\s\S]*setInventoryPanelOpen\(false\)/,
   );
+});
+
+test("腳本對話開始顯示前會自動關閉背包及其附屬操作狀態", () => {
+  const source = readFileSync(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  const presenterStart = source.indexOf("dialogueManager.setPresenter((request, complete) => {");
+  const presenterEnd = source.indexOf("});", presenterStart);
+  const presenter = source.slice(presenterStart, presenterEnd);
+  const inventorySetterStart = source.indexOf("const setInventoryPanelOpen = (open: boolean) => {");
+  const inventorySetterEnd = source.indexOf("const setSpeedValue =", inventorySetterStart);
+  const inventorySetter = source.slice(inventorySetterStart, inventorySetterEnd);
+
+  assert.ok(presenterStart >= 0 && presenterEnd > presenterStart, "應能找到共用對話呈現入口");
+  assert.match(presenter, /if \(inventoryOpenRef\.current\) \{\s*setInventoryPanelOpen\(false\);\s*\}/);
+  assert.ok(
+    presenter.indexOf("setInventoryPanelOpen(false)") < presenter.indexOf("presentDialogue("),
+    "背包必須先關閉，才顯示對話",
+  );
+  assert.match(inventorySetter, /clearInventoryItemInspectImmediately\(\)/);
+  assert.match(inventorySetter, /pendingInventoryDragRef\.current = null/);
+  assert.match(inventorySetter, /setInventoryDrag\(null\)/);
+  assert.match(inventorySetter, /setHotbarDropTarget\(null\)/);
+  assert.match(inventorySetter, /setInventoryContextMenu\(null\)/);
 });
 
 test("背包與阻擋型介面開啟時，虛擬游標不會命中後方世界物件", () => {
@@ -154,6 +237,7 @@ test("有大圖素材的道具分離使用 280 Icon 與 640 查看圖，且 PNG 
     ["R0017", "invigorating-supply-drink"],
     ["T0001", "utility-rope"],
     ["T0003", "repair-kit"],
+    ["T0004", "tracking-module"],
     ["T0005", "medkit"],
     ["T0006", "lantern"],
     ["T0007", "welding-tool"],

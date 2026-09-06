@@ -412,7 +412,9 @@ export function canApplySurvivalEffects(
     (metric) => Number(effects?.[metric] ?? 0) > 0,
   );
   if (recoveryMetrics.length === 0) return true;
-  return recoveryMetrics.some((metric) => values[metric] < 100);
+  // Natural decay may settle immediately after recovery. Require a whole missing
+  // point so a freshly restored meter cannot immediately consume again.
+  return recoveryMetrics.some((metric) => values[metric] <= 99);
 }
 
 export function getSurvivalSpeedMultiplier(values: SurvivalValues) {

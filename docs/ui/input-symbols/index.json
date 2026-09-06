@@ -1,0 +1,1047 @@
+{
+  "schemaVersion": 1,
+  "baselineDate": "2026-09-05",
+  "reservePolicy": "All 27 keyboard/mouse candidates are reserve-only by default. Only apply the specific symbols the user explicitly requests to replace. Approved runtime mouse.left and explicitly authorized mouse.right are separate baselines.",
+  "authority": "Current worktree runtime source + approved fixture. Archived keyboard/mouse preview is explicitly not a runtime baseline.",
+  "sources": [
+    {
+      "path": "app/gamepad-glyph.ts",
+      "sha256": "18f04bf6a5e8508f25a280fe97448315ad3ae7062b46017ed95a026ccddf4a44"
+    },
+    {
+      "path": "app/gamepad-button-icon.tsx",
+      "sha256": "8e7226f87efadf264d49c971c4dce634652700cd1b695a36ac3c1302183fbaba"
+    },
+    {
+      "path": "public/ui/input/mouse-left.svg",
+      "sha256": "6979a5263e6b8de0c93f729c75d390f2565ac71df4277d14fa6664a3428e4fc4"
+    },
+    {
+      "path": "public/ui/input/mouse-right.svg",
+      "sha256": "e67b13573fac50a3c26240180261853a4106de125e73fad4a63d3f4f58c76820"
+    },
+    {
+      "path": "tests/fixtures/gamepad-glyph-approved.json",
+      "sha256": "1d5ba704375e3efb97ae77dfe008a4b4920c0f953f2266f981a30f22db85961a"
+    },
+    {
+      "path": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "sha256": "e4625344c18640cd887b241197e6b14a30737012df24d661d086324356512eb2"
+    }
+  ],
+  "gamepad": [
+    {
+      "id": "gamepad.A",
+      "label": "手把 A 鍵",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "A",
+          "attributes": {
+            "x": "20",
+            "y": "18",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "25",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "f1abb8b2d191b23dfcd47bb8694c57ace85f42323fb83f5d9d2fa312bd9e0927",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><circle cx=\"20\" cy=\"21\" r=\"16\" fill=\"#090e0b\"/><circle cx=\"20\" cy=\"18.5\" r=\"16\" fill=\"url(#surface)\" stroke=\"#d4b975\" stroke-width=\"1.2\"/><path d=\"M8 27Q20 37 32 27\" fill=\"none\" stroke=\"#101711\" stroke-width=\"2\"/><text x=\"20\" y=\"18\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"25\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">A</text></svg>"
+    },
+    {
+      "id": "gamepad.B",
+      "label": "手把 B 鍵",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "B",
+          "attributes": {
+            "x": "20",
+            "y": "18",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "25",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "0487f5153c81d1e671da2ba24047cceddce806f0498316c51d9f80d902a3d7f5",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><circle cx=\"20\" cy=\"21\" r=\"16\" fill=\"#090e0b\"/><circle cx=\"20\" cy=\"18.5\" r=\"16\" fill=\"url(#surface)\" stroke=\"#d4b975\" stroke-width=\"1.2\"/><path d=\"M8 27Q20 37 32 27\" fill=\"none\" stroke=\"#101711\" stroke-width=\"2\"/><text x=\"20\" y=\"18\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"25\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">B</text></svg>"
+    },
+    {
+      "id": "gamepad.X",
+      "label": "手把 X 鍵",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "X",
+          "attributes": {
+            "x": "20",
+            "y": "18",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "25",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "cef706adeec7fdf79983e962ab11b908767157a5a904f8fcfd916b8b0806cfdf",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><circle cx=\"20\" cy=\"21\" r=\"16\" fill=\"#090e0b\"/><circle cx=\"20\" cy=\"18.5\" r=\"16\" fill=\"url(#surface)\" stroke=\"#d4b975\" stroke-width=\"1.2\"/><path d=\"M8 27Q20 37 32 27\" fill=\"none\" stroke=\"#101711\" stroke-width=\"2\"/><text x=\"20\" y=\"18\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"25\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">X</text></svg>"
+    },
+    {
+      "id": "gamepad.Y",
+      "label": "手把 Y 鍵",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "Y",
+          "attributes": {
+            "x": "20",
+            "y": "18",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "25",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "9300f31b798e6e4e39b66614130bd49a4b0117cda7f5e7a9f5fa85eb0dbf2025",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><circle cx=\"20\" cy=\"21\" r=\"16\" fill=\"#090e0b\"/><circle cx=\"20\" cy=\"18.5\" r=\"16\" fill=\"url(#surface)\" stroke=\"#d4b975\" stroke-width=\"1.2\"/><path d=\"M8 27Q20 37 32 27\" fill=\"none\" stroke=\"#101711\" stroke-width=\"2\"/><text x=\"20\" y=\"18\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"25\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">Y</text></svg>"
+    },
+    {
+      "id": "gamepad.LB",
+      "label": "手把 LB 鍵",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "LB",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "19.5",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "79abec042af5f855ae2e9d1f88c7fda588390efa11817f54a45550dee608082e",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/>\n<rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/>\n<path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#surface)\"/>\n<path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/>\n<text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"19.5\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">LB</text>\n<rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "gamepad.RB",
+      "label": "手把 RB 鍵",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "RB",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "19.5",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "2da2054d26749387072f543f5c6a2e9a63294469a5c2cbc5bd18dc3cc8aae069",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/>\n<rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/>\n<path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#surface)\"/>\n<path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/>\n<text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"19.5\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">RB</text>\n<rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "gamepad.LT",
+      "label": "手把 LT 鍵",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "LT",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "19.5",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "0193284352e5180bdf3ec819d82359cdb40e29ff44e56f85800016a8c707537c",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/>\n<rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/>\n<path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#surface)\"/>\n<path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/>\n<text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"19.5\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">LT</text>\n<rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "gamepad.RT",
+      "label": "手把 RT 鍵",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "RT",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "19.5",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "150b5e1acaf7fdd675427e6f54a0aae7bc453750f4c4c816b8c01d19a4501910",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/>\n<rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/>\n<path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#surface)\"/>\n<path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/>\n<text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"19.5\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">RT</text>\n<rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "gamepad.LS",
+      "label": "左搖桿",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "L",
+          "attributes": {
+            "x": "20",
+            "y": "11",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "12",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "f20ed6916fe6851794c1441e18e2bde1b00c55d3b290bf66f058bdce9dd1c936",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><g transform=\"translate(0 0)\"><ellipse cx=\"20\" cy=\"32\" rx=\"13\" ry=\"4\" fill=\"#76633d\"/><ellipse cx=\"20\" cy=\"29\" rx=\"13\" ry=\"4\" fill=\"url(#surface)\" stroke=\"#d2ba80\" stroke-width=\"1.8\"/><path d=\"M20 18V29\" stroke=\"#e8cf8b\" stroke-width=\"4\"/><ellipse cx=\"20\" cy=\"14\" rx=\"11\" ry=\"8\" fill=\"#8b7649\"/><ellipse cx=\"20\" cy=\"11\" rx=\"11\" ry=\"8\" fill=\"url(#surface)\" stroke=\"#ffe6a0\" stroke-width=\"1.8\"/><text x=\"20\" y=\"11\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"12\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">L</text></g></svg>"
+    },
+    {
+      "id": "gamepad.RS",
+      "label": "右搖桿",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "R",
+          "attributes": {
+            "x": "20",
+            "y": "11",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "12",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "9defb333922d3cb8492ecb0f9edfe07fa2a6be7f83495b40f57ad060c24ce151",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><g transform=\"translate(0 0)\"><ellipse cx=\"20\" cy=\"32\" rx=\"13\" ry=\"4\" fill=\"#76633d\"/><ellipse cx=\"20\" cy=\"29\" rx=\"13\" ry=\"4\" fill=\"url(#surface)\" stroke=\"#d2ba80\" stroke-width=\"1.8\"/><path d=\"M20 18V29\" stroke=\"#e8cf8b\" stroke-width=\"4\"/><ellipse cx=\"20\" cy=\"14\" rx=\"11\" ry=\"8\" fill=\"#8b7649\"/><ellipse cx=\"20\" cy=\"11\" rx=\"11\" ry=\"8\" fill=\"url(#surface)\" stroke=\"#ffe6a0\" stroke-width=\"1.8\"/><text x=\"20\" y=\"11\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"12\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">R</text></g></svg>"
+    },
+    {
+      "id": "gamepad.L3",
+      "label": "左搖桿按下",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "L",
+          "attributes": {
+            "x": "20",
+            "y": "16",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "12",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "e340c6c9f00f2b432a744a7733f6badd880c48d2311353adbccebfe22e41c9e8",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><g transform=\"translate(-3 0)\"><ellipse cx=\"20\" cy=\"32\" rx=\"13\" ry=\"4\" fill=\"#76633d\"/><ellipse cx=\"20\" cy=\"29\" rx=\"13\" ry=\"4\" fill=\"url(#surface)\" stroke=\"#d2ba80\" stroke-width=\"1.8\"/><path d=\"M20 18V29\" stroke=\"#e8cf8b\" stroke-width=\"4\"/><ellipse cx=\"20\" cy=\"19\" rx=\"11\" ry=\"8\" fill=\"#8b7649\"/><ellipse cx=\"20\" cy=\"16\" rx=\"11\" ry=\"8\" fill=\"url(#surface)\" stroke=\"#ffe6a0\" stroke-width=\"1.8\"/><text x=\"20\" y=\"16\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"12\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">L</text></g><path d=\"M35 7V20M31 16L35 21L39 16\" fill=\"none\" stroke=\"#ffe6a0\" stroke-width=\"2\" stroke-linejoin=\"round\"/></svg>"
+    },
+    {
+      "id": "gamepad.R3",
+      "label": "右搖桿按下",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "R",
+          "attributes": {
+            "x": "20",
+            "y": "16",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "12",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "36d99cfe2fca84415592e4535a803414d9ddbd67c3d5f2f0ebdba831798e480e",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><g transform=\"translate(-3 0)\"><ellipse cx=\"20\" cy=\"32\" rx=\"13\" ry=\"4\" fill=\"#76633d\"/><ellipse cx=\"20\" cy=\"29\" rx=\"13\" ry=\"4\" fill=\"url(#surface)\" stroke=\"#d2ba80\" stroke-width=\"1.8\"/><path d=\"M20 18V29\" stroke=\"#e8cf8b\" stroke-width=\"4\"/><ellipse cx=\"20\" cy=\"19\" rx=\"11\" ry=\"8\" fill=\"#8b7649\"/><ellipse cx=\"20\" cy=\"16\" rx=\"11\" ry=\"8\" fill=\"url(#surface)\" stroke=\"#ffe6a0\" stroke-width=\"1.8\"/><text x=\"20\" y=\"16\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"12\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">R</text></g><path d=\"M35 7V20M31 16L35 21L39 16\" fill=\"none\" stroke=\"#ffe6a0\" stroke-width=\"2\" stroke-linejoin=\"round\"/></svg>"
+    },
+    {
+      "id": "gamepad.DPad",
+      "label": "十字鍵",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "477136f43c3eb53947d5f3ab71237d369ac600b7ea777e2a3c09e62b9f86e5d0",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><path d=\"M14 3H26V13H36V25H26V35H14V25H4V13H14Z\" transform=\"translate(0 3)\" fill=\"#6b5632\" stroke=\"#8e7749\" stroke-width=\"1.1\"/><path d=\"M14 3H26V13H36V25H26V35H14V25H4V13H14Z\" fill=\"url(#surface)\" stroke=\"#d0b779\" stroke-width=\"1.3\"/><path d=\"M15 4H25M5 14V24M15 26V34\" stroke=\"#f4d99a\" stroke-opacity=\".4\" fill=\"none\"/><circle cx=\"20\" cy=\"19\" r=\"2\" fill=\"#ffe6a0\"/></svg>"
+    },
+    {
+      "id": "gamepad.DPadLeft",
+      "label": "十字鍵左",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "95c448e287046cd0c8c5b2d8e8ed9bc95eead732842a89d1c7b1258b0aa97abb",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><path d=\"M14 3H26V13H36V25H26V35H14V25H4V13H14Z\" transform=\"translate(0 3)\" fill=\"#6b5632\" stroke=\"#8e7749\" stroke-width=\"1.1\"/><path d=\"M14 3H26V13H36V25H26V35H14V25H4V13H14Z\" fill=\"url(#surface)\" stroke=\"#d0b779\" stroke-width=\"1.3\"/><path d=\"M15 4H25M5 14V24M15 26V34\" stroke=\"#f4d99a\" stroke-opacity=\".4\" fill=\"none\"/><path d=\"M8 19L13 15V23Z\" fill=\"#ffe6a0\"/></svg>"
+    },
+    {
+      "id": "gamepad.DPadRight",
+      "label": "十字鍵右",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "e16ea9be031b995feb96d84aa95f01715bc2bdea311e17ee879bbe6285601aeb",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><path d=\"M14 3H26V13H36V25H26V35H14V25H4V13H14Z\" transform=\"translate(0 3)\" fill=\"#6b5632\" stroke=\"#8e7749\" stroke-width=\"1.1\"/><path d=\"M14 3H26V13H36V25H26V35H14V25H4V13H14Z\" fill=\"url(#surface)\" stroke=\"#d0b779\" stroke-width=\"1.3\"/><path d=\"M15 4H25M5 14V24M15 26V34\" stroke=\"#f4d99a\" stroke-opacity=\".4\" fill=\"none\"/><path d=\"M32 19L27 15V23Z\" fill=\"#ffe6a0\"/></svg>"
+    },
+    {
+      "id": "gamepad.DPadUp",
+      "label": "十字鍵上",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "a1f20f6322081ec56bad6e897d00748ab5927172c6ce39fa7a1dc6393d488170",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><path d=\"M14 3H26V13H36V25H26V35H14V25H4V13H14Z\" transform=\"translate(0 3)\" fill=\"#6b5632\" stroke=\"#8e7749\" stroke-width=\"1.1\"/><path d=\"M14 3H26V13H36V25H26V35H14V25H4V13H14Z\" fill=\"url(#surface)\" stroke=\"#d0b779\" stroke-width=\"1.3\"/><path d=\"M15 4H25M5 14V24M15 26V34\" stroke=\"#f4d99a\" stroke-opacity=\".4\" fill=\"none\"/><path d=\"M20 7L16 12H24Z\" fill=\"#ffe6a0\"/></svg>"
+    },
+    {
+      "id": "gamepad.DPadDown",
+      "label": "十字鍵下",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "14d128072b085f298bc3409e3b00ac58046ade20a348457ad0169169a80ab7b5",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><path d=\"M14 3H26V13H36V25H26V35H14V25H4V13H14Z\" transform=\"translate(0 3)\" fill=\"#6b5632\" stroke=\"#8e7749\" stroke-width=\"1.1\"/><path d=\"M14 3H26V13H36V25H26V35H14V25H4V13H14Z\" fill=\"url(#surface)\" stroke=\"#d0b779\" stroke-width=\"1.3\"/><path d=\"M15 4H25M5 14V24M15 26V34\" stroke=\"#f4d99a\" stroke-opacity=\".4\" fill=\"none\"/><path d=\"M20 31L16 26H24Z\" fill=\"#ffe6a0\"/></svg>"
+    },
+    {
+      "id": "gamepad.Start",
+      "label": "Start 鍵",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "7f35be74dcd4f0b6dbb938eae777abe796fd12eaa53d2ef47046f8e0894d9fff",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/>\n<rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/>\n<path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#surface)\"/>\n<path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/>\n<g transform=\"translate(0 -1)\"><path d=\"M12 13H28M12 20H28M12 27H28\" stroke=\"#ffe6a0\" stroke-width=\"2\"/></g>\n<rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "gamepad.Select",
+      "label": "Select 鍵",
+      "status": "runtime-approved",
+      "source": "app/gamepad-glyph.ts",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "3517dfd5cc9daac0ca32f8dd02d062f4af1d1c5a923ed20bcf5d77e453218ee3",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"surface\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/>\n<rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/>\n<path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#surface)\"/>\n<path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/>\n<g transform=\"translate(0 -1)\"><rect x=\"10\" y=\"11\" width=\"14\" height=\"11\" rx=\"1\" fill=\"#282e23\" stroke=\"#ffe6a0\" stroke-width=\"1.5\"/><rect x=\"16\" y=\"17\" width=\"14\" height=\"11\" rx=\"1\" fill=\"#282e23\" stroke=\"#ffe6a0\" stroke-width=\"1.5\"/></g>\n<rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    }
+  ],
+  "mouse": [
+    {
+      "id": "mouse.left",
+      "label": "滑鼠左鍵（確認版 5）",
+      "status": "runtime-approved",
+      "source": "public/ui/input/mouse-left.svg",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "6979a5263e6b8de0c93f729c75d390f2565ac71df4277d14fa6664a3428e4fc4",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"hybridLarge\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"7\" y=\"5\" width=\"26\" height=\"32\" rx=\"6\" fill=\"#090e0b\"/><rect x=\"7\" y=\"3\" width=\"26\" height=\"32\" rx=\"6\" fill=\"#111810\"/><rect x=\"8\" y=\"4\" width=\"24\" height=\"27\" rx=\"5\" fill=\"url(#hybridLarge)\"/><path d=\"M13 4H20V19H8V9A5 5 0 0 1 13 4Z\" fill=\"#ffe6a0\"/><path d=\"M20 3V19M8 19H32\" stroke=\"#d4b975\" stroke-width=\"1.2\"/><rect x=\"7\" y=\"3\" width=\"26\" height=\"32\" rx=\"6\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "mouse.right",
+      "label": "滑鼠右鍵",
+      "status": "runtime-approved",
+      "source": "public/ui/input/mouse-right.svg",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "ac1d32d29290ef439faa20e0304aae4c96fad9af6787166bb00f59d85d9644c5",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g48\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"7\" y=\"5\" width=\"26\" height=\"32\" rx=\"6\" fill=\"#090e0b\"/><rect x=\"7\" y=\"3\" width=\"26\" height=\"32\" rx=\"6\" fill=\"#111810\"/><rect x=\"8\" y=\"4\" width=\"24\" height=\"27\" rx=\"5\" fill=\"url(#g48)\"/><path d=\"M20 4H27A5 5 0 0 1 32 9V19H20Z\" fill=\"#ffe6a0\"/><path d=\"M20 3V19M8 19H32\" stroke=\"#d4b975\" stroke-width=\"1.2\"/><rect x=\"7\" y=\"3\" width=\"26\" height=\"32\" rx=\"6\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    }
+  ],
+  "keyboardMousePreview": [
+    {
+      "id": "preview.E",
+      "label": "互動 E",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "E",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "39b8c663bf3e29dc4452da34a8d0611538d02dc5f34e909ad598f6f31055d30f",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g0\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g0)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">E</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.M",
+      "label": "地圖 M",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "M",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "fb6cf4b5d8b3788e80e5bbe9cffb01560379714e91b9e0c6eebecdfe17a891cf",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g2\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g2)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">M</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.Q",
+      "label": "任務 Q",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "Q",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "1c41180052768774f0a901bddedbed6f689729eaa41d940b6d4e93e787994b75",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g4\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g4)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">Q</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.R",
+      "label": "生存值 R",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "R",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "d403e3ed7880b71d1bba43501d960b2adb7ffb97092f66c48437570fcc0583ff",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g6\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g6)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">R</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.Tab",
+      "label": "背包 Tab",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 64 40",
+      "text": [
+        {
+          "content": "Tab",
+          "attributes": {
+            "x": "32",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "17",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "f4961a30781ec23a9761b2287c94b5f36bc1582b1bab499d45b38e36c97fe4b7",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"64\" height=\"40\" viewBox=\"0 0 64 40\"><defs><linearGradient id=\"g8\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"62\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"62\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H59Q63 4 63 8V26Q63 29 59 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g8)\"/><path d=\"M3 27Q4 29 7 29H57Q60 29 61 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"32\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"17\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">Tab</text><rect x=\"1\" y=\"4\" width=\"62\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.Space",
+      "label": "空白鍵",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 100 40",
+      "text": [
+        {
+          "content": "Space",
+          "attributes": {
+            "x": "50",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "17",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "979b82f2748eabce342a76e736fb356c69f634b80da0068b8f0c68bdc4443e3e",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"40\" viewBox=\"0 0 100 40\"><defs><linearGradient id=\"g10\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"98\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"98\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H95Q99 4 99 8V26Q99 29 95 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g10)\"/><path d=\"M3 27Q4 29 7 29H93Q96 29 97 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"50\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"17\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">Space</text><rect x=\"1\" y=\"4\" width=\"98\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.Enter",
+      "label": "確認 Enter",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 88 40",
+      "text": [
+        {
+          "content": "Enter",
+          "attributes": {
+            "x": "44",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "17",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "8342ee9f2a8c1f6733fa1e552e1d2421721f8a10690dc2e6daf5fe6843e02f61",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"88\" height=\"40\" viewBox=\"0 0 88 40\"><defs><linearGradient id=\"g12\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"86\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"86\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H83Q87 4 87 8V26Q87 29 83 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g12)\"/><path d=\"M3 27Q4 29 7 29H81Q84 29 85 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"44\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"17\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">Enter</text><rect x=\"1\" y=\"4\" width=\"86\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.Escape",
+      "label": "取消 Esc",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 64 40",
+      "text": [
+        {
+          "content": "Esc",
+          "attributes": {
+            "x": "32",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "17",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "b6990f66086450dca0fe7fd4b413547f7168da6087b3150bff55b5e1df146012",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"64\" height=\"40\" viewBox=\"0 0 64 40\"><defs><linearGradient id=\"g14\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"62\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"62\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H59Q63 4 63 8V26Q63 29 59 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g14)\"/><path d=\"M3 27Q4 29 7 29H57Q60 29 61 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"32\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"17\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">Esc</text><rect x=\"1\" y=\"4\" width=\"62\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.W",
+      "label": "W",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "W",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "edb9392a672a15acc5570abfd17e625cebe96b8219be06c7c2a29f6f4aa86c84",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g16\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g16)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">W</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.A",
+      "label": "A",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "A",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "30bdbb5e2f37aaa9b03ded97f13f80cc7dc9313fcae3c6cc36930d1f67afab7f",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g18\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g18)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">A</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.S",
+      "label": "S",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "S",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "74e1e82b2081d32fe49e70869ed59c35d8c2dc614726ec61316d0ef7481fe64d",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g20\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g20)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">S</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.D",
+      "label": "D",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "D",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "ea5b4415b4e0058de7f1634e6739ff31daa95a3417603c816ea7290933edfab9",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g22\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g22)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">D</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.ArrowUp",
+      "label": "↑ 上",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "67db4c74eb73217e1ea72b6a026d36bd2bd6ab28d3f099f58b5f350994f565c9",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g24\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g24)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><path d=\"M20 27V10M13 17L20 10L27 17\" fill=\"none\" stroke=\"#ffe6a0\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.ArrowDown",
+      "label": "↓ 下",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "3dc10f7c97c173fc2ae947727e7d99af0af17d47955f2f02b8580703159e25e9",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g26\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g26)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><path d=\"M20 9V26M13 19L20 26L27 19\" fill=\"none\" stroke=\"#ffe6a0\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.ArrowLeft",
+      "label": "← 左",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "01cad636913616aafb3bdc6eb5d2bd381521f84d537b8e88335fd13c253ec2b3",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g28\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g28)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><path d=\"M29 18H11M18 11L11 18L18 25\" fill=\"none\" stroke=\"#ffe6a0\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.ArrowRight",
+      "label": "→ 右",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "7acd0759f340c445733587cfb59c5a311f9e624186bd5f2ce9923129b4a6f0dc",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g30\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g30)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><path d=\"M11 18H29M22 11L29 18L22 25\" fill=\"none\" stroke=\"#ffe6a0\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.1",
+      "label": "1",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "1",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "ee2a968e046f5de9f9caae0504c391f6190e9126046840d749bcca09446d20ca",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g32\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g32)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">1</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.2",
+      "label": "2",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "2",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "8f0b6243f365ba4055753e4d17c18672a67c64115278e961aab4e79ad24c4142",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g34\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g34)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">2</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.3",
+      "label": "3",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "3",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "de7be11e946f92ecf69b5239883237da2234ef0cc64efa5e230d5186f977f241",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g36\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g36)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">3</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.4",
+      "label": "4",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "4",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "fec48a4090f29f6312ccad15f7d263d5618b81b3d9e8e02f4f41d5db8bc371db",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g38\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g38)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">4</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.5",
+      "label": "5",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "5",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "d35757b215801a7143d5fadc2cae5fda508d80b8c18f535a39bde5d73825d813",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g40\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g40)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">5</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.6",
+      "label": "6",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "6",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "3c37953773371b6d7d1746616f07e6ab8e512920b6ea7b594f8fb88448fcb51a",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g42\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g42)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">6</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.7",
+      "label": "7",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [
+        {
+          "content": "7",
+          "attributes": {
+            "x": "20",
+            "y": "17",
+            "fill": "#ffe6a0",
+            "font-family": "Consolas,monospace",
+            "font-size": "22",
+            "font-weight": "700",
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+          }
+        }
+      ],
+      "sha256": "52bb50debc9e2174d054c134abb721634723e269795de0bb88df676ff5cd9dca",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g44\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"1\" y=\"6\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#090e0b\"/><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"#111810\"/><path d=\"M5 4H35Q39 4 39 8V26Q39 29 35 29H5Q1 29 1 26V8Q1 4 5 4Z\" fill=\"url(#g44)\"/><path d=\"M3 27Q4 29 7 29H33Q36 29 37 27\" fill=\"none\" stroke=\"#5a5b43\" stroke-opacity=\".45\" stroke-width=\".7\"/><text x=\"20\" y=\"17\" fill=\"#ffe6a0\" font-family=\"Consolas,monospace\" font-size=\"22\" font-weight=\"700\" text-anchor=\"middle\" dominant-baseline=\"central\">7</text><rect x=\"1\" y=\"4\" width=\"38\" height=\"29\" rx=\"4\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.MouseLeft",
+      "label": "左鍵（確認版 5）",
+      "status": "preview-copy-of-approved-mouse-left",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "509197c4f4070a844fa4d11e1862b23221fab2cf19a09be86a19e9ea8e97a78f",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g46\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"7\" y=\"5\" width=\"26\" height=\"32\" rx=\"6\" fill=\"#090e0b\"/><rect x=\"7\" y=\"3\" width=\"26\" height=\"32\" rx=\"6\" fill=\"#111810\"/><rect x=\"8\" y=\"4\" width=\"24\" height=\"27\" rx=\"5\" fill=\"url(#g46)\"/><path d=\"M13 4H20V19H8V9A5 5 0 0 1 13 4Z\" fill=\"#ffe6a0\"/><path d=\"M20 3V19M8 19H32\" stroke=\"#d4b975\" stroke-width=\"1.2\"/><rect x=\"7\" y=\"3\" width=\"26\" height=\"32\" rx=\"6\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.MouseRight",
+      "label": "右鍵",
+      "status": "preview-copy-of-approved-mouse-right",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "ac1d32d29290ef439faa20e0304aae4c96fad9af6787166bb00f59d85d9644c5",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g48\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"7\" y=\"5\" width=\"26\" height=\"32\" rx=\"6\" fill=\"#090e0b\"/><rect x=\"7\" y=\"3\" width=\"26\" height=\"32\" rx=\"6\" fill=\"#111810\"/><rect x=\"8\" y=\"4\" width=\"24\" height=\"27\" rx=\"5\" fill=\"url(#g48)\"/><path d=\"M20 4H27A5 5 0 0 1 32 9V19H20Z\" fill=\"#ffe6a0\"/><path d=\"M20 3V19M8 19H32\" stroke=\"#d4b975\" stroke-width=\"1.2\"/><rect x=\"7\" y=\"3\" width=\"26\" height=\"32\" rx=\"6\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/></svg>"
+    },
+    {
+      "id": "preview.MouseHoldLeft",
+      "label": "長按左鍵",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 40",
+      "text": [],
+      "sha256": "46d06ecd7efb1a6e3a837fd94528e6244fbbdf91432b3b8e1201fffead1570d5",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><defs><linearGradient id=\"g50\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"7\" y=\"5\" width=\"26\" height=\"32\" rx=\"6\" fill=\"#090e0b\"/><rect x=\"7\" y=\"3\" width=\"26\" height=\"32\" rx=\"6\" fill=\"#111810\"/><rect x=\"8\" y=\"4\" width=\"24\" height=\"27\" rx=\"5\" fill=\"url(#g50)\"/><path d=\"M13 4H20V19H8V9A5 5 0 0 1 13 4Z\" fill=\"#ffe6a0\"/><path d=\"M20 3V19M8 19H32\" stroke=\"#d4b975\" stroke-width=\"1.2\"/><rect x=\"7\" y=\"3\" width=\"26\" height=\"32\" rx=\"6\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/><circle cx=\"32\" cy=\"29\" r=\"7\" fill=\"#10262c\" stroke=\"#d4b975\" stroke-width=\"1.2\"/><path d=\"M32 24V29L35 31\" fill=\"none\" stroke=\"#ffe6a0\" stroke-width=\"1.5\" stroke-linecap=\"round\"/></svg>"
+    },
+    {
+      "id": "preview.MouseDragLeft",
+      "label": "拖曳左鍵",
+      "status": "preview-only-not-runtime-approved",
+      "source": "docs/ui/input-symbols/keyboard-mouse-preview-source.html",
+      "viewBox": "0 0 40 44",
+      "text": [],
+      "sha256": "cf9c1430be37cd3af560387e0d3cd6cc6958096c2a0093c95d34c57881a432f5",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"44\" viewBox=\"0 0 40 44\"><defs><linearGradient id=\"g52\" x2=\".2\" y2=\"1\"><stop stop-color=\"#494c3e\"/><stop offset=\".55\" stop-color=\"#30362b\"/><stop offset=\"1\" stop-color=\"#171e18\"/></linearGradient></defs><rect x=\"7\" y=\"5\" width=\"26\" height=\"32\" rx=\"6\" fill=\"#090e0b\"/><rect x=\"7\" y=\"3\" width=\"26\" height=\"32\" rx=\"6\" fill=\"#111810\"/><rect x=\"8\" y=\"4\" width=\"24\" height=\"27\" rx=\"5\" fill=\"url(#g52)\"/><path d=\"M13 4H20V19H8V9A5 5 0 0 1 13 4Z\" fill=\"#ffe6a0\"/><path d=\"M20 3V19M8 19H32\" stroke=\"#d4b975\" stroke-width=\"1.2\"/><rect x=\"7\" y=\"3\" width=\"26\" height=\"32\" rx=\"6\" fill=\"none\" stroke=\"#d4b975\" stroke-width=\"1.1\"/><g fill=\"none\" stroke=\"#ffe6a0\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 39H28M15 36L12 39L15 42M25 36L28 39L25 42\"/></g></svg>"
+    }
+  ],
+  "runtimeKeyboard": {
+    "representation": "Text hints and CSS WASD keycaps; no shared keyboard SVG renderer in this baseline.",
+    "keycaps": [
+      "W",
+      "A",
+      "S",
+      "D"
+    ],
+    "sources": [
+      "app/movement-lab.tsx",
+      "app/globals.css"
+    ],
+    "debugPolicy": "Preserve debug keyboard text; do not automatically replace."
+  },
+  "layout": {
+    "source": "app/globals.css",
+    "cssRules": [
+      {
+        "selector": "/* Passive control glyphs: shared by all hints; never own focus or pointer input. */\r\nimg.gamepad-button-icon",
+        "declarations": "display: inline-block;\r\n  position: static;\r\n  width: 1.65em;\r\n  height: 1.65em;\r\n  min-width: 1.65em;\r\n  max-width: none;\r\n  margin: -0.2em 0.1em;\r\n  padding: 0;\r\n  border: 0;\r\n  background: none;\r\n  box-shadow: none;\r\n  object-fit: contain;\r\n  vertical-align: -0.4em;\r\n  pointer-events: none;\r\n  user-select: none;\r\n  flex: 0 0 auto;"
+      },
+      {
+        "selector": ".gamepad-glyph-group",
+        "declarations": "display: inline; white-space: nowrap;"
+      },
+      {
+        "selector": ".frequency-puzzle-footer img.gamepad-button-icon,\r\n.power-puzzle-apply img.gamepad-button-icon",
+        "declarations": "margin-right: 0.35em;"
+      },
+      {
+        "selector": ".options-footer:has(.gamepad-button-icon)",
+        "declarations": "flex-wrap: wrap; gap: 8px 18px; line-height: 2;"
+      },
+      {
+        "selector": ".new-player-tutorial-actions:has(.gamepad-button-icon)",
+        "declarations": "line-height: 1.8;"
+      },
+      {
+        "selector": ".dialogue-history-trigger .gamepad-button-icon",
+        "declarations": "width: 24px;\n  height: 24px;"
+      },
+      {
+        "selector": ".dialogue-history-panel .gamepad-button-icon",
+        "declarations": "width: 24px;\n  height: 24px;"
+      },
+      {
+        "selector": ".quest-objective-label img.gamepad-button-icon",
+        "declarations": "position: relative;\n  top: -2px;"
+      },
+      {
+        "selector": ".new-player-tutorial-hint img.gamepad-button-icon",
+        "declarations": "transform: translateY(-2px);"
+      },
+      {
+        "selector": ".inventory-item-inspect-exit img",
+        "declarations": "display: inline-block;\n  width: 1.5em;\n  height: 1.5em;\n  margin: 0;\n  object-fit: contain;\n  transform: translateY(1px);\n  vertical-align: middle;\n  pointer-events: none;"
+      },
+      {
+        "selector": ".inventory-pages img.gamepad-button-icon",
+        "declarations": "width: 28px;\n  min-width: 28px;\n  height: 28px;\n  margin: 0;\n  transform: translateY(1px);"
+      },
+      {
+        "selector": ".keyboard-input-hint",
+        "declarations": "position: absolute;\r\n  z-index: 3;\r\n  top: 70%;\r\n  left: clamp(72px, 13%, calc(100% - 72px));\r\n  pointer-events: none;\r\n  transform: translate(-50%, -50%);\r\n  animation: keyboard-hint-enter 110ms ease-out;"
+      },
+      {
+        "selector": ".keycap",
+        "declarations": "display: grid;\r\n  place-items: center;\r\n  border: 1px solid rgba(255, 255, 255, 0.13);\r\n  border-bottom-color: rgba(255, 255, 255, 0.23);\r\n  border-radius: 4px;\r\n  background: #172024;\r\n  color: #dce6e7;\r\n  font-family: Consolas, monospace;\r\n  font-size: 11px;\r\n  transition: transform 75ms ease, border-color 75ms ease, background 75ms ease, color 75ms ease;"
+      },
+      {
+        "selector": ".keycap.is-active",
+        "declarations": "border-color: #8ff5e9;\r\n  background: rgba(78, 223, 207, 0.34);\r\n  box-shadow: 0 0 15px rgba(87, 230, 214, 0.56), inset 0 0 9px rgba(211, 255, 249, 0.18);\r\n  color: #f2fffd;\r\n  transform: translateY(1px) scale(0.94);"
+      },
+      {
+        "selector": ".keycap.w",
+        "declarations": "grid-column: 2;"
+      },
+      {
+        "selector": ".keycap.a",
+        "declarations": "grid-column: 1;"
+      },
+      {
+        "selector": ".keycap.s",
+        "declarations": "grid-column: 2;"
+      },
+      {
+        "selector": ".keycap.d",
+        "declarations": "grid-column: 3;"
+      },
+      {
+        "selector": ".keyboard-input-hint",
+        "declarations": "top: 70%;\r\n    left: clamp(72px, 13%, calc(100% - 72px));"
+      }
+    ]
+  }
+}

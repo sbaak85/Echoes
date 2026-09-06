@@ -188,6 +188,100 @@ internal static class Program
         var issues = QuestValidator.Validate(loaded, QuestReferenceProvider.Load(projectRoot));
         if (issues.Any(issue => issue.Severity == ValidationSeverity.Error))
             throw new InvalidDataException(string.Join(Environment.NewLine, issues));
+        if (loaded.Quests[0].Stages[0].Objectives[0].CompoundMatchMode != CompoundItemMatchMode.All)
+            throw new InvalidDataException("舊任務未設定複合模式時，必須預設全部道具達標。");
+
+        var compound = loaded.Quests[0].Stages[0].Objectives[0];
+        compound.Type = ObjectiveType.CompoundCollectItem;
+        compound.TargetId = "";
+        compound.CompoundMatchMode = CompoundItemMatchMode.AnyN;
+        compound.RequiredAmount = 2;
+        compound.ItemRequirements = new()
+        {
+            new() { ItemId = "R0004", RequiredAmount = 2 },
+            new() { ItemId = "R0005", RequiredAmount = 1 },
+            new() { ItemId = "R0012", RequiredAmount = 1 },
+        };
+        QuestDataStore.Save(path, loaded);
+        var compoundRoundtrip = QuestDataStore.Load(path);
+        var roundtripObjective = compoundRoundtrip.Quests[0].Stages[0].Objectives[0];
+        if (roundtripObjective.CompoundMatchMode != CompoundItemMatchMode.AnyN ||
+            roundtripObjective.RequiredAmount != 2 ||
+            roundtripObjective.ItemRequirements[0].RequiredAmount != 2 ||
+            !File.ReadAllText(path).Contains("\"compoundMatchMode\": \"anyN\""))
+            throw new InvalidDataException("任選 N 種 JSON 儲存讀取失敗。");
+        var references = QuestReferenceProvider.Load(projectRoot);
+        if (QuestValidator.Validate(compoundRoundtrip, references).Any(issue => issue.Severity == ValidationSeverity.Error))
+            throw new InvalidDataException("合法的任選 N 種設定被錯誤阻擋。");
+        roundtripObjective.RequiredAmount = 4;
+        if (!QuestValidator.Validate(compoundRoundtrip, references).Any(issue => issue.Message.Contains("任選種類數 N")))
+            throw new InvalidDataException("任選種類數超過集合種類數時，必須在驗證時警告。");
+        roundtripObjective.RequiredAmount = 0;
+        if (!QuestValidator.Validate(compoundRoundtrip, references).Any(issue => issue.Message.Contains("需求數量必須大於 0")))
+            throw new InvalidDataException("任選種類數為零時，必須在驗證時警告。");
+        roundtripObjective.RequiredAmount = 2;
+        roundtripObjective.ItemRequirements.Add(new() { ItemId = "R0004", RequiredAmount = 1 });
+        if (!QuestValidator.Validate(compoundRoundtrip, references).Any(issue => issue.Message.Contains("重複 Item ID")))
+            throw new InvalidDataException("複合道具集合不應接受重複 Item ID。");
+        roundtripObjective.Type = ObjectiveType.InteractionSucceeded;
+        roundtripObjective.TargetId = "";
+        roundtripObjective.TargetIds = new()
+        {
+            "scene6-interaction-009",
+            "scene6-interaction-010",
+            "scene6-interaction-011",
+        };
+        roundtripObjective.RequiredAmount = 3;
+        roundtripObjective.ItemRequirements.Clear();
+        QuestDataStore.Save(path, compoundRoundtrip);
+        var interactionDocument = QuestDataStore.Load(path);
+        var interaction = interactionDocument.Quests[0].Stages[0].Objectives[0];
+        if (interaction.TargetIds.Count != 3 ||
+            interaction.TargetIds[0] != "scene6-interaction-009" ||
+            !File.ReadAllText(path).Contains("\"targetIds\": ["))
+            throw new InvalidDataException("多目標互動 JSON 往返測試失敗。");
+        if (QuestValidator.Validate(interactionDocument, references).Any(issue => issue.Severity == ValidationSeverity.Error))
+            throw new InvalidDataException("合法的多目標互動設定被錯誤阻擋。");
+        interaction.TargetIds.Add("scene6-interaction-009");
+        if (!QuestValidator.Validate(interactionDocument, references).Any(issue => issue.Message.Contains("空白或重複 ID")))
+            throw new InvalidDataException("多目標互動不應接受重複 Interaction ID。");
+        interaction.TargetIds.RemoveAt(interaction.TargetIds.Count - 1);
+        interaction.RequiredAmount = 4;
+        if (!QuestValidator.Validate(interactionDocument, references).Any(issue => issue.Message.Contains("不可超過指定互動 ID 數量")))
+            throw new InvalidDataException("多目標互動需求數量超過清單時必須警告。");
+        interaction.RequiredAmount = 3;
+        roundtripObjective = interaction;
+        roundtripObjective.Type = ObjectiveType.SceneTransferCompleted;
+        roundtripObjective.TargetId = "Scene_6";
+        roundtripObjective.TargetIds.Clear();
+        roundtripObjective.SourceSceneId = "Scene_3";
+        roundtripObjective.SourceConnectionId = "scene-exit-001";
+        roundtripObjective.RequiredAmount = 1;
+        roundtripObjective.ItemRequirements.Clear();
+        QuestDataStore.Save(path, interactionDocument);
+        var transferDocument = QuestDataStore.Load(path);
+        var transfer = transferDocument.Quests[0].Stages[0].Objectives[0];
+        if (transfer.Type != ObjectiveType.SceneTransferCompleted || transfer.TargetId != "Scene_6" ||
+            transfer.SourceSceneId != "Scene_3" || transfer.SourceConnectionId != "scene-exit-001" ||
+            !File.ReadAllText(path).Contains("\"type\": \"sceneTransferCompleted\""))
+            throw new InvalidDataException("完成場景轉移 JSON 往返測試失敗。");
+        if (QuestValidator.Validate(transferDocument, references).Any(issue => issue.Severity == ValidationSeverity.Error))
+            throw new InvalidDataException("合法的場景轉移設定被錯誤阻擋。");
+        transfer.TargetId = "";
+        if (!QuestValidator.Validate(transferDocument, references).Any(issue => issue.Message.Contains("Scene Target ID")))
+            throw new InvalidDataException("未設定抵達場景時必須驗證警告。");
+        transfer.TargetId = "Scene_6";
+        transfer.SourceSceneId = "";
+        if (!QuestValidator.Validate(transferDocument, references).Any(issue => issue.Message.Contains("同時指定來源場景")))
+            throw new InvalidDataException("出口必須指定其來源場景。");
+        transfer.SourceSceneId = "Scene_3";
+        transfer.SourceConnectionId = "missing-exit";
+        if (!QuestValidator.Validate(transferDocument, references).Any(issue => issue.Message.Contains("找不到出口 ID")))
+            throw new InvalidDataException("必須驗證出口屬於指定來源場景。");
+        transfer.SourceSceneId = null;
+        transfer.SourceConnectionId = null;
+        if (QuestValidator.Validate(transferDocument, references).Any(issue => issue.Severity == ValidationSeverity.Error))
+            throw new InvalidDataException("只指定目標場景的通用設定應有效。");
         Console.WriteLine("QuestEditor self-test passed.");
     }
 }

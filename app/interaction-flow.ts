@@ -69,14 +69,20 @@ export type InteractionUseRequirement =
       questId: string;
       stageId: string;
       stageMode: InteractionStageMode;
+      objectiveId?: string;
+      objectiveState?: InteractionObjectiveState;
       disableQuestId?: string;
       disableStageId?: string;
+      disableObjectiveId?: string;
+      disableObjectiveState?: InteractionObjectiveState;
     });
 
 export type InteractionStageMode =
   | "CurrentStageOnly"
   | "UnlockFromStage"
   | "UnlockUntilCondition";
+
+export type InteractionObjectiveState = "unlocked" | "completed";
 
 export type InteractionQuestState =
   | "locked"
@@ -94,19 +100,38 @@ export function evaluateInteractionStageRequirement(
   requirement: Extract<InteractionUseRequirement, { kind: "questStage" }>,
   isQuestAtStage: (questId: string, stageId: string) => boolean,
   hasQuestReachedStage: (questId: string, stageId: string) => boolean,
+  hasObjectiveReachedState: (
+    questId: string,
+    objectiveId: string,
+    state: InteractionObjectiveState,
+  ) => boolean = () => false,
 ): boolean {
-  if (requirement.stageMode === "CurrentStageOnly") {
-    return isQuestAtStage(requirement.questId, requirement.stageId);
-  }
+  const stageRequirementMet = requirement.stageMode === "CurrentStageOnly"
+    ? isQuestAtStage(requirement.questId, requirement.stageId)
+    : hasQuestReachedStage(requirement.questId, requirement.stageId);
+  if (!stageRequirementMet) return false;
+  if (
+    requirement.objectiveId &&
+    !hasObjectiveReachedState(
+      requirement.questId,
+      requirement.objectiveId,
+      requirement.objectiveState ?? "unlocked",
+    )
+  ) return false;
   if (
     requirement.stageMode === "UnlockUntilCondition" &&
     requirement.disableQuestId &&
     requirement.disableStageId &&
-    hasQuestReachedStage(requirement.disableQuestId, requirement.disableStageId)
+    hasQuestReachedStage(requirement.disableQuestId, requirement.disableStageId) &&
+    (!requirement.disableObjectiveId || hasObjectiveReachedState(
+      requirement.disableQuestId,
+      requirement.disableObjectiveId,
+      requirement.disableObjectiveState ?? "completed",
+    ))
   ) {
     return false;
   }
-  return hasQuestReachedStage(requirement.questId, requirement.stageId);
+  return true;
 }
 
 export function shouldCompleteAfterDialogue(
@@ -272,13 +297,30 @@ export function normalizeInteractionUseRequirements(
       const disableStageId = typeof candidate.disableStageId === "string"
         ? candidate.disableStageId.trim()
         : "";
+      const objectiveId = typeof candidate.objectiveId === "string"
+        ? candidate.objectiveId.trim()
+        : "";
+      const objectiveState: InteractionObjectiveState =
+        candidate.objectiveState === "completed" ? "completed" : "unlocked";
+      const disableObjectiveId = typeof candidate.disableObjectiveId === "string"
+        ? candidate.disableObjectiveId.trim()
+        : "";
+      const disableObjectiveState: InteractionObjectiveState =
+        candidate.disableObjectiveState === "unlocked" ? "unlocked" : "completed";
       return [{
         kind: "questStage",
         questId,
         stageId,
         stageMode,
+        ...(objectiveId ? { objectiveId, objectiveState } : {}),
         ...(stageMode === "UnlockUntilCondition" && disableQuestId && disableStageId
-          ? { disableQuestId, disableStageId }
+          ? {
+              disableQuestId,
+              disableStageId,
+              ...(disableObjectiveId
+                ? { disableObjectiveId, disableObjectiveState }
+                : {}),
+            }
           : {}),
         ...scope,
       }];

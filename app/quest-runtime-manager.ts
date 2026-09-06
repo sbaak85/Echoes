@@ -16,6 +16,7 @@ export type QuestObjectiveType =
   | "interactionStarted"
   | "interactionSucceeded"
   | "enterArea"
+  | "sceneTransferCompleted"
   | "puzzleCompleted"
   | "dialogueCompleted"
   | "objectStateReached"
@@ -41,7 +42,14 @@ export type QuestObjectiveDefinition = {
   completionTeleportDelaySeconds?: number;
   type: QuestObjectiveType;
   targetId: string;
+  /** Distinct accepted targets for an accumulated interaction objective. */
+  targetIds?: string[];
+  /** Scene transfer destination is targetId; blank source filters allow any route. */
+  sourceSceneId?: string;
+  sourceConnectionId?: string;
   itemRequirements?: QuestItemRequirement[];
+  /** Omitted means all requirements. anyN counts distinct items meeting their own quantity. */
+  compoundMatchMode?: "all" | "anyN";
   targetState?: string;
   requiredAmount: number;
   countMode: "accumulated" | "currentInventory";
@@ -137,6 +145,7 @@ export type QuestGameEvent = {
     | "interactionStarted"
     | "interactionSucceeded"
     | "areaEntered"
+    | "sceneTransferCompleted"
     | "puzzleCompleted"
     | "dialogueCompleted"
     | "storyTriggerCompleted"
@@ -148,6 +157,8 @@ export type QuestGameEvent = {
     | "questCompleted";
   targetId: string;
   itemId?: string;
+  sourceSceneId?: string;
+  sourceConnectionId?: string;
   amount?: number;
   result?: string | number | boolean;
   questId?: string;
@@ -165,12 +176,22 @@ export type QuestObjectiveRuntime = {
   /** Event target that actually unlocked this objective. */
   activatedByEventId?: string;
   itemAmounts?: Record<string, number>;
+  /** Distinct interaction IDs already counted for a multi-target objective. */
+  matchedTargetIds?: string[];
   availableAtEpochMs?: number;
   completionAvailableAtEpochMs?: number;
   completionPresented?: boolean;
   /** True only after the Objective completion dialogue/event has really finished. */
   completionEventCompleted?: boolean;
   startActionsPresented?: boolean;
+};
+
+export type QuestObjectiveCompletionRule = {
+  id: string;
+  questId: string;
+  objectiveIds: readonly string[];
+  delaySeconds: number;
+  eventFlowId: string;
 };
 
 export type QuestRuntimeEntry = {
@@ -191,6 +212,11 @@ export type QuestRuntimeEntry = {
   completionTriggerCompleted?: boolean;
   /** Persistent counters used by conditional objective activation rules. */
   eventCounters?: Record<string, number>;
+  /** Once-only grouped OBJ handoffs, including the saved deadline for reloads. */
+  objectiveCompletionRules?: Record<string, {
+    availableAtEpochMs: number;
+    completed: boolean;
+  }>;
 };
 
 export type QuestSaveData = {
@@ -221,6 +247,7 @@ export function saveQuestSaveData(saveData: QuestSaveData): void {
 }
 
 export type QuestRuntimeHost = {
+  objectiveCompletionRules?: readonly QuestObjectiveCompletionRule[];
   requestTeleport?: (
     pointId: string,
     delayMilliseconds: number,
@@ -264,6 +291,15 @@ export type QuestRuntimeHost = {
     entry: QuestRuntimeEntry,
     objective: QuestObjectiveDefinition,
   ) => void;
+  onObjectiveProgressed?: (
+    questId: string,
+    objectiveId: string,
+    stageId: string,
+    entry: QuestRuntimeEntry,
+    objective: QuestObjectiveDefinition,
+    previousAmount: number,
+    currentAmount: number,
+  ) => void;
   onStageTransitionStarted?: (
     questId: string,
     currentStageId: string,
@@ -286,6 +322,7 @@ export class QuestRuntimeManager {
   private readonly pendingQuestStarts = new Set<string>();
   private readonly pendingCompletionTriggers = new Set<string>();
   private readonly pendingObjectiveCompletionEvents = new Set<string>();
+  private readonly pendingObjectiveCompletionRules = new Map<string, QuestRuntimeEntry>();
   private currentInventorySnapshot: Readonly<Record<string, number>> | null = null;
   private saveData: QuestSaveData;
 
@@ -311,6 +348,7 @@ export class QuestRuntimeManager {
       if (!entry) continue;
       if (entry.state === "active") this.restoreStageActivation(definition, entry);
       this.restoreCompletionScheduling(definition, entry);
+      this.scheduleObjectiveCompletionRules(definition.id, entry);
     }
   }
 
@@ -323,7 +361,10 @@ export class QuestRuntimeManager {
    * active `haveItem` objective in the active Quest stages. Locked event
    * objectives keep the snapshot without progressing until they are unlocked.
    */
-  syncCurrentInventory(inventory: Readonly<Record<string, number>>): void {
+  syncCurrentInventory(
+    inventory: Readonly<Record<string, number>>,
+    notifyProgress = true,
+  ): void {
     this.currentInventorySnapshot = Object.fromEntries(
       Object.entries(inventory).map(([itemId, amount]) => [
         itemId,
@@ -333,7 +374,7 @@ export class QuestRuntimeManager {
     for (const definition of this.definitions.values()) {
       const entry = this.requireEntry(definition.id);
       if (entry.state !== "active") continue;
-      this.refreshCurrentInventoryObjectives(definition, entry);
+      this.refreshCurrentInventoryObjectives(definition, entry, notifyProgress);
     }
   }
 
@@ -347,6 +388,7 @@ export class QuestRuntimeManager {
     this.pendingQuestStarts.clear();
     this.pendingCompletionTriggers.clear();
     this.pendingObjectiveCompletionEvents.clear();
+    this.pendingObjectiveCompletionRules.clear();
     this.saveData = structuredClone(saveData);
     this.saveData.processedEventIds ??= [];
     for (const definition of this.definitions.values()) this.ensureEntry(definition);
@@ -396,6 +438,30 @@ export class QuestRuntimeManager {
     const progress = this.requireEntry(questId).objectives[objectiveId];
     if (!progress) throw new Error(`Unknown objective: ${questId}/${objectiveId}`);
     return structuredClone(progress);
+  }
+
+  isObjectiveInProgress(questId: string, objectiveId: string): boolean {
+    const entry = this.saveData.quests[questId];
+    if (!entry || entry.state !== "active") return false;
+    const stage = this.definitions.get(questId)?.stages.find(stage => stage.id === entry.currentStageId);
+    const progress = entry.objectives[objectiveId];
+    return Boolean(stage?.objectives.some(objective => objective.id === objectiveId) &&
+      progress && !progress.completed && progress.state !== "completed" &&
+      this.isObjectiveActive(entry, progress));
+  }
+
+  hasObjectiveReachedState(
+    questId: string,
+    objectiveId: string,
+    state: "unlocked" | "completed",
+  ): boolean {
+    const progress = this.saveData.quests[questId]?.objectives[objectiveId];
+    if (!progress) return false;
+    if (state === "completed") {
+      return progress.completed === true && progress.completionPresented !== false;
+    }
+    return this.isObjectiveUnlocked(progress) &&
+      (progress.availableAtEpochMs ?? 0) <= this.now();
   }
 
   getEventCounter(questId: string, counterId: string): number {
@@ -720,7 +786,7 @@ export class QuestRuntimeManager {
     const progress = entry.objectives[objectiveId];
     if (!this.isObjectiveActive(entry, progress)) return false;
     if (progress.completed) return false;
-    progress.currentAmount = Math.max(progress.currentAmount, objective.requiredAmount);
+    progress.currentAmount = Math.max(progress.currentAmount, getQuestObjectiveRequiredAmount(objective));
     if (objective.type === "compoundCollectItem") {
       progress.itemAmounts = Object.fromEntries(
         normalizeItemRequirements(objective).map((requirement) => [
@@ -746,7 +812,9 @@ export class QuestRuntimeManager {
     const objective = this.findObjective(definition, objectiveId);
     const progress = entry.objectives[objectiveId];
     if (!this.isObjectiveActive(entry, progress)) return false;
+    const previousAmount = progress.currentAmount;
     progress.currentAmount = Math.max(0, amount);
+    this.notifyObjectiveProgressed(definition, entry, objective, previousAmount);
     let completedNow = false;
     if (!progress.completed && progress.currentAmount >= objective.requiredAmount) {
       progress.completed = true;
@@ -794,6 +862,7 @@ export class QuestRuntimeManager {
         }
         if (entry.state !== "active" || entry.currentStageId !== stage.id) continue;
         if (!this.isObjectiveActive(entry, progress)) continue;
+        if (objective.type === "sceneTransferCompleted" && progress.completed) continue;
         if (objective.type === "compoundCollectItem") {
           if (event.type !== "itemCollected") continue;
           const requirement = normalizeItemRequirements(objective).find(
@@ -808,6 +877,17 @@ export class QuestRuntimeManager {
             event.targetId,
             event.amount ?? 1,
           );
+          continue;
+        }
+        if ((objective.type === "interactionStarted" || objective.type === "interactionSucceeded") &&
+            normalizeObjectiveTargetIds(objective).length > 0) {
+          const expectedEvent = objective.type === "interactionStarted"
+            ? "interactionStarted"
+            : "interactionSucceeded";
+          if (event.type !== expectedEvent ||
+              !normalizeObjectiveTargetIds(objective).includes(event.targetId)) continue;
+          matchedObjective = true;
+          this.addDistinctInteractionProgress(definition, entry, objective, event.targetId);
           continue;
         }
         const update = evaluateQuestObjective(objective, event);
@@ -826,6 +906,32 @@ export class QuestRuntimeManager {
     }
   }
 
+  private addDistinctInteractionProgress(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+    objective: QuestObjectiveDefinition,
+    interactionId: string,
+  ) {
+    const progress = entry.objectives[objective.id];
+    if (!progress || progress.completed) return;
+    const targetIds = normalizeObjectiveTargetIds(objective);
+    if (!targetIds.includes(interactionId)) return;
+    const matched = new Set(
+      (progress.matchedTargetIds ?? []).filter(id => targetIds.includes(id)),
+    );
+    if (matched.has(interactionId)) return;
+    const previousAmount = progress.currentAmount;
+    matched.add(interactionId);
+    progress.matchedTargetIds = [...matched];
+    progress.currentAmount = matched.size;
+    this.notifyObjectiveProgressed(definition, entry, objective, previousAmount);
+    if (progress.currentAmount >= getQuestObjectiveRequiredAmount(objective)) {
+      this.recordObjectiveCompletion(definition, entry, objective);
+      return;
+    }
+    this.notify(definition.id);
+  }
+
   private addCompoundItemProgress(
     definition: QuestDefinition,
     entry: QuestRuntimeEntry,
@@ -838,21 +944,16 @@ export class QuestRuntimeManager {
     const requirements = normalizeItemRequirements(objective);
     const requirement = requirements.find((candidate) => candidate.itemId === itemId);
     if (!requirement) return;
+    const previousAmount = progress.currentAmount;
     progress.itemAmounts ??= {};
     progress.itemAmounts[itemId] = Math.min(
       requirement.requiredAmount,
       Math.max(0, (progress.itemAmounts[itemId] ?? 0) + Math.max(0, amount)),
     );
-    progress.currentAmount = requirements.reduce(
-      (total, candidate) => total + Math.min(
-        candidate.requiredAmount,
-        progress.itemAmounts?.[candidate.itemId] ?? 0,
-      ),
-      0,
-    );
-    if (requirements.length > 0 && requirements.every(
-      (candidate) => (progress.itemAmounts?.[candidate.itemId] ?? 0) >= candidate.requiredAmount,
-    )) {
+    const result = getCompoundItemProgress(objective, progress.itemAmounts);
+    progress.currentAmount = result.currentAmount;
+    this.notifyObjectiveProgressed(definition, entry, objective, previousAmount);
+    if (result.completed) {
       progress.completed = true;
       this.recordObjectiveCompletion(definition, entry, objective);
       return;
@@ -1063,6 +1164,19 @@ export class QuestRuntimeManager {
             : "active";
         if (objective.type === "compoundCollectItem") {
           progress.itemAmounts ??= {};
+          if (!progress.completed) {
+            progress.currentAmount = getCompoundItemProgress(objective, progress.itemAmounts).currentAmount;
+          }
+        }
+        const targetIds = normalizeObjectiveTargetIds(objective);
+        if ((objective.type === "interactionStarted" || objective.type === "interactionSucceeded") &&
+            targetIds.length > 0) {
+          const matched = [...new Set(progress.matchedTargetIds ?? [])]
+            .filter(id => targetIds.includes(id));
+          progress.matchedTargetIds = matched;
+          if (!progress.completed) progress.currentAmount = matched.length;
+        } else {
+          progress.matchedTargetIds = undefined;
         }
       }
     }
@@ -1455,12 +1569,13 @@ export class QuestRuntimeManager {
   private refreshCurrentInventoryObjectives(
     definition: QuestDefinition,
     entry: QuestRuntimeEntry,
+    notifyProgress = false,
   ) {
     if (!this.currentInventorySnapshot || entry.state !== "active") return;
     const stage = definition.stages.find(candidate => candidate.id === entry.currentStageId);
     if (!stage) return;
     for (const objective of stage.objectives) {
-      this.refreshCurrentInventoryObjective(definition, entry, objective);
+      this.refreshCurrentInventoryObjective(definition, entry, objective, notifyProgress);
       if (entry.state !== "active" || entry.currentStageId !== stage.id) return;
     }
   }
@@ -1469,16 +1584,53 @@ export class QuestRuntimeManager {
     definition: QuestDefinition,
     entry: QuestRuntimeEntry,
     objective: QuestObjectiveDefinition,
+    notifyProgress = false,
   ) {
     if (!this.currentInventorySnapshot || objective.type !== "haveItem") return;
+    const targetId = (objective.targetId ?? "").trim();
+    if (!targetId) return;
     const progress = entry.objectives[objective.id];
     if (!progress || progress.completed || !this.isObjectiveActive(entry, progress)) return;
     const amount = Math.max(
       0,
-      Math.floor(Number(this.currentInventorySnapshot[objective.targetId]) || 0),
+      Math.floor(Number(this.currentInventorySnapshot[targetId]) || 0),
     );
     if (progress.currentAmount === amount && amount < objective.requiredAmount) return;
-    this.setObjectiveProgress(definition.id, objective.id, amount);
+    if (notifyProgress) {
+      this.setObjectiveProgress(definition.id, objective.id, amount);
+      return;
+    }
+    const previousAmount = progress.currentAmount;
+    progress.currentAmount = Math.max(0, amount);
+    if (!progress.completed && progress.currentAmount >= objective.requiredAmount) {
+      progress.completed = true;
+      this.recordObjectiveCompletion(definition, entry, objective);
+    } else if (progress.currentAmount !== previousAmount) {
+      this.notify(definition.id);
+    }
+  }
+
+  private notifyObjectiveProgressed(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+    objective: QuestObjectiveDefinition,
+    previousAmount: number,
+  ) {
+    const currentAmount = entry.objectives[objective.id]?.currentAmount ?? previousAmount;
+    if (
+      !objective.showProgress ||
+      getQuestObjectiveRequiredAmount(objective) <= 1 ||
+      currentAmount <= previousAmount
+    ) return;
+    this.host.onObjectiveProgressed?.(
+      definition.id,
+      objective.id,
+      entry.currentStageId,
+      structuredClone(entry),
+      structuredClone(objective),
+      previousAmount,
+      currentAmount,
+    );
   }
 
   private createEntry(definition: QuestDefinition): QuestRuntimeEntry {
@@ -1505,6 +1657,7 @@ export class QuestRuntimeManager {
       unlocked: !this.isEventActivatedObjective(objective),
       activationDefinitionKey: this.objectiveActivationDefinitionKey(objective),
       ...(objective.type === "compoundCollectItem" ? { itemAmounts: {} } : {}),
+      ...(normalizeObjectiveTargetIds(objective).length > 0 ? { matchedTargetIds: [] } : {}),
     };
   }
 
@@ -1528,8 +1681,56 @@ export class QuestRuntimeManager {
     throw new Error(`Unknown objective: ${definition.id}/${objectiveId}`);
   }
 
+  private scheduleObjectiveCompletionRules(questId: string, entry: QuestRuntimeEntry) {
+    if (entry.state !== "active" || !this.host.runEventFlow) return;
+    for (const rule of this.host.objectiveCompletionRules ?? []) {
+      if (rule.questId !== questId || rule.objectiveIds.length === 0) continue;
+      const ready = () => rule.objectiveIds.every((id) => {
+        const progress = entry.objectives[id];
+        return progress?.completed === true && progress.completionPresented !== false;
+      });
+      if (!ready()) continue;
+      entry.objectiveCompletionRules ??= {};
+      const state = entry.objectiveCompletionRules[rule.id] ??= {
+        availableAtEpochMs: this.now() + this.delayMilliseconds(rule.delaySeconds),
+        completed: false,
+      };
+      const key = `${questId}:${rule.id}`;
+      if (state.completed || this.pendingObjectiveCompletionRules.has(key)) continue;
+      this.pendingObjectiveCompletionRules.set(key, entry);
+      this.scheduleAt(state.availableAtEpochMs, () => {
+        // A restart/debug jump replaces the entry; its old timer must do nothing.
+        if (this.saveData.quests[questId] !== entry || entry.state !== "active" || !ready()) {
+          if (this.pendingObjectiveCompletionRules.get(key) === entry) {
+            this.pendingObjectiveCompletionRules.delete(key);
+          }
+          return;
+        }
+        void Promise.resolve().then(() => {
+          if (this.saveData.quests[questId] !== entry || entry.state !== "active") return false;
+          return this.host.runEventFlow!(rule.eventFlowId);
+        })
+          .then((completed) => {
+            if (this.saveData.quests[questId] !== entry || completed === false) return;
+            state.completed = true;
+            this.notify(questId);
+          })
+          .catch(() => {
+            // A cancelled/failed dialogue remains retryable, without unlocking its OBJ.
+          })
+          .finally(() => {
+            if (this.pendingObjectiveCompletionRules.get(key) === entry) {
+              this.pendingObjectiveCompletionRules.delete(key);
+            }
+          });
+      });
+    }
+  }
+
   private notify(questId: string) {
-    this.host.onStateChanged?.(questId, structuredClone(this.requireEntry(questId)));
+    const entry = this.requireEntry(questId);
+    this.scheduleObjectiveCompletionRules(questId, entry);
+    this.host.onStateChanged?.(questId, structuredClone(entry));
   }
 }
 
@@ -1537,13 +1738,59 @@ function normalizeItemRequirements(
   objective: QuestObjectiveDefinition,
 ): QuestItemRequirement[] {
   if (!Array.isArray(objective.itemRequirements)) return [];
-  return objective.itemRequirements.flatMap((requirement) => {
+  const distinctRequirements = new Map<string, QuestItemRequirement>();
+  for (const requirement of objective.itemRequirements) {
     const itemId = typeof requirement?.itemId === "string"
       ? requirement.itemId.trim()
       : "";
     const requiredAmount = Math.max(1, Math.floor(Number(requirement?.requiredAmount) || 1));
-    return itemId ? [{ itemId, requiredAmount }] : [];
-  });
+    if (!itemId) continue;
+    // Defensive handling for hand-edited JSON: duplicate IDs never count as extra kinds.
+    const existing = distinctRequirements.get(itemId);
+    distinctRequirements.set(itemId, {
+      itemId,
+      requiredAmount: Math.max(existing?.requiredAmount ?? 0, requiredAmount),
+    });
+  }
+  return [...distinctRequirements.values()];
+}
+
+export function normalizeObjectiveTargetIds(
+  objective: QuestObjectiveDefinition,
+): string[] {
+  if (!Array.isArray(objective.targetIds)) return [];
+  return [...new Set(objective.targetIds
+    .map(targetId => typeof targetId === "string" ? targetId.trim() : "")
+    .filter(Boolean))];
+}
+
+export function getQuestObjectiveRequiredAmount(objective: QuestObjectiveDefinition): number {
+  if (objective.type === "compoundCollectItem" && objective.compoundMatchMode !== "anyN") {
+    return Math.max(1, normalizeItemRequirements(objective).reduce(
+      (total, requirement) => total + requirement.requiredAmount, 0,
+    ));
+  }
+  return Math.max(1, Math.floor(Number(objective.requiredAmount) || 1));
+}
+
+export function getCompoundItemProgress(
+  objective: QuestObjectiveDefinition,
+  itemAmounts: Readonly<Record<string, number>>,
+) {
+  const requirements = normalizeItemRequirements(objective);
+  const anyN = objective.compoundMatchMode === "anyN";
+  const currentAmount = requirements.reduce((total, requirement) => {
+    const amount = Math.max(0, itemAmounts[requirement.itemId] ?? 0);
+    return total + (anyN
+      ? Number(amount >= requirement.requiredAmount)
+      : Math.min(requirement.requiredAmount, amount));
+  }, 0);
+  const requiredAmount = getQuestObjectiveRequiredAmount(objective);
+  return {
+    currentAmount,
+    requiredAmount,
+    completed: requirements.length > 0 && currentAmount >= requiredAmount,
+  };
 }
 
 type ObjectiveUpdate =
@@ -1555,8 +1802,10 @@ export function evaluateQuestObjective(
   objective: QuestObjectiveDefinition,
   event: QuestGameEvent,
 ): ObjectiveUpdate | null {
-  const targetMatches = !objective.targetId || objective.targetId === event.targetId;
-  if (!targetMatches) return null;
+  // An unfinished target setting is not a wildcard. Compound collection uses
+  // its own item requirements and is handled separately by handleEvent.
+  const targetId = (objective.targetId ?? "").trim();
+  if (!targetId || targetId !== event.targetId) return null;
   switch (objective.type) {
     case "collectItem":
       return event.type === "itemCollected" ? { mode: "add", amount: event.amount ?? 1 } : null;
@@ -1580,6 +1829,16 @@ export function evaluateQuestObjective(
       return event.type === "interactionSucceeded" ? { mode: "complete" } : null;
     case "enterArea":
       return event.type === "areaEntered" ? { mode: "complete" } : null;
+    case "sceneTransferCompleted": {
+      if (event.type !== "sceneTransferCompleted") return null;
+      const sourceSceneId = (objective.sourceSceneId ?? "").trim();
+      const sourceConnectionId = (objective.sourceConnectionId ?? "").trim();
+      // Exit IDs are scoped to their scene, never global wildcard IDs.
+      if (sourceConnectionId && !sourceSceneId) return null;
+      if (sourceSceneId && sourceSceneId !== event.sourceSceneId) return null;
+      if (sourceConnectionId && sourceConnectionId !== event.sourceConnectionId) return null;
+      return { mode: "add", amount: 1 };
+    }
     case "puzzleCompleted":
       return event.type === "puzzleCompleted" ? { mode: "complete" } : null;
     case "dialogueCompleted":

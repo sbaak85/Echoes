@@ -1,5 +1,7 @@
 "use client";
 
+import { GamepadButtonIcon } from "./gamepad-button-icon";
+
 import {
   forwardRef,
   useEffect,
@@ -142,8 +144,8 @@ function drawFrequencyWaveform(
   canvas: HTMLCanvasElement,
   state: FrequencyCalibrationState,
   phase: number,
+  bounds: { width: number; height: number },
 ) {
-  const bounds = canvas.getBoundingClientRect();
   const ratio = Math.min(2, window.devicePixelRatio || 1);
   const width = Math.max(320, Math.round(bounds.width * ratio));
   const height = Math.max(220, Math.round(bounds.height * ratio));
@@ -525,16 +527,21 @@ export const FrequencyCalibrationPuzzle = forwardRef<
     if (!canvas) return;
     let animationFrame = 0;
     let lastDraw = 0;
+    // ResizeObserver reports layout size, unaffected by the entrance transform.
+    // Measuring the transformed rect every frame repeatedly reallocates the bitmap.
+    let layoutSize: { width: number; height: number } | null = null;
     const draw = (time: number) => {
-      if (time - lastDraw >= 34) {
-        drawFrequencyWaveform(canvas, stateRef.current, time * 0.0015);
+      if (layoutSize && time - lastDraw >= 34) {
+        drawFrequencyWaveform(canvas, stateRef.current, time * 0.0015, layoutSize);
         lastDraw = time;
       }
       animationFrame = window.requestAnimationFrame(draw);
     };
     animationFrame = window.requestAnimationFrame(draw);
-    const observer = new ResizeObserver(() => {
-      drawFrequencyWaveform(canvas, stateRef.current, performance.now() * 0.0015);
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      layoutSize = { width: entry.contentRect.width, height: entry.contentRect.height };
+      lastDraw = 0;
     });
     observer.observe(canvas);
     return () => {
@@ -748,7 +755,7 @@ export const FrequencyCalibrationPuzzle = forwardRef<
         <footer className="frequency-puzzle-footer">
           <p className={feedbackTone === "error" ? "is-error" : undefined} aria-live="polite"><span aria-hidden="true">⌁</span>{feedback}</p>
           <button type="button" onClick={reset}>
-            {gamepadMode ? <span className="frequency-trigger-key" aria-hidden="true">LT</span> : <span aria-hidden="true">↻</span>}
+            {gamepadMode ? <GamepadButtonIcon button="LT" /> : <span aria-hidden="true">↻</span>}
             重設頻率
           </button>
           <button
@@ -760,7 +767,7 @@ export const FrequencyCalibrationPuzzle = forwardRef<
             }}
             onClick={lockFrequency}
           >
-            {gamepadMode ? <span className="frequency-trigger-key" aria-hidden="true">RT</span> : <span aria-hidden="true">▣</span>}
+            {gamepadMode ? <GamepadButtonIcon button="RT" /> : <span aria-hidden="true">▣</span>}
             {locked ? "頻率已鎖定" : "鎖定頻率"}
           </button>
         </footer>

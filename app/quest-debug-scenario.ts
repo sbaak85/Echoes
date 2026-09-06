@@ -2,9 +2,14 @@ import type {
   QuestDefinition,
   QuestDocument,
   QuestObjectiveDefinition,
+  QuestObjectiveCompletionRule,
   QuestObjectiveRuntime,
   QuestRuntimeEntry,
   QuestSaveData,
+} from "./quest-runtime-manager.ts";
+import {
+  getQuestObjectiveRequiredAmount,
+  normalizeObjectiveTargetIds,
 } from "./quest-runtime-manager.ts";
 import type { PlayerInventory } from "./item-database.ts";
 import {
@@ -125,6 +130,15 @@ export const CHAPTER_3_QUEST_DEBUG_SCENARIOS: readonly QuestDebugScenarioMetadat
       },
     },
   },
+  {
+    questId: "QUEST_CH04_MAIN_001",
+    implicitPrerequisiteQuestIds: ["QUEST_CH03_MAIN_006"],
+    stageOutcomes: {
+      QUEST_CH04_MAIN_001_STAGE_02: {
+        completedEventIds: ["chapter04-section-1"],
+      },
+    },
+  },
 ] as const;
 
 export function isQuestDebugCommand(command: string): boolean {
@@ -149,17 +163,34 @@ export function buildQuestDebugScenarioPlan(
   state: QuestDebugScenarioState,
   options: {
     itemSurvivalEffects?: Readonly<Record<string, SurvivalEffects | undefined>>;
+    objectiveCompletionRules?: readonly QuestObjectiveCompletionRule[];
     metadata?: readonly QuestDebugScenarioMetadata[];
   } = {},
 ): QuestDebugScenarioPlan {
   const metadata = options.metadata ?? CHAPTER_3_QUEST_DEBUG_SCENARIOS;
   const metadataByQuestId = new Map(metadata.map((entry) => [entry.questId, entry]));
   const target = resolveQuestDebugTarget(document, command, state.questSave, metadataByQuestId);
-  const completedQuestIds = collectQuestDependencies(
+  const completedQuestIdSet = new Set(collectQuestDependencies(
     document,
     target.quest.id,
     metadataByQuestId,
-  );
+  ));
+  if (command.kind !== "goto") {
+    for (const quest of document.quests) {
+      if (state.questSave?.quests[quest.id]?.state === "completed") {
+        completedQuestIdSet.add(quest.id);
+      }
+    }
+    const activeMainQuest = document.quests.find(
+      (quest) => quest.type === "main" && state.questSave?.quests[quest.id]?.state === "active",
+    );
+    if (activeMainQuest && activeMainQuest.id !== target.quest.id) {
+      completedQuestIdSet.add(activeMainQuest.id);
+    }
+  }
+  const completedQuestIds = document.quests
+    .filter((quest) => completedQuestIdSet.has(quest.id) && quest.id !== target.quest.id)
+    .map((quest) => quest.id);
   const completedQuestSet = new Set(completedQuestIds);
   const targetStageIndex = target.quest.stages.findIndex(
     (stage) => stage.id === target.stage.id,
@@ -267,6 +298,7 @@ export function buildQuestDebugScenarioPlan(
             inventory,
             survival,
             interactionUsage,
+            story,
             options.itemSurvivalEffects,
           );
         }
@@ -294,6 +326,7 @@ export function buildQuestDebugScenarioPlan(
         inventory,
         survival,
         interactionUsage,
+        story,
         options.itemSurvivalEffects,
       );
     }
@@ -302,6 +335,11 @@ export function buildQuestDebugScenarioPlan(
   const targetMetadata = metadataByQuestId.get(target.quest.id);
   applyOutcome(targetMetadata?.startOutcome);
   applyOutcome(targetMetadata?.stageOutcomes?.[target.stage.id]);
+  settleObjectiveCompletionRules(
+    questSave,
+    options.objectiveCompletionRules ?? [],
+    story,
+  );
 
   changes.push(
     completedQuestIds.length > 0
@@ -673,16 +711,25 @@ function createObjectiveProgress(
   const activationEventId = (objective.activationEventId ?? objective.unlockDialogueId ?? "").trim();
   const eventActivated = objective.activationMode === "event" || activationEventId.length > 0;
   const unlocked = completed || !eventActivated;
+  const completedCompoundItemIds = objective.compoundMatchMode === "anyN"
+    ? new Set(
+        (objective.itemRequirements ?? [])
+          .slice(0, getQuestObjectiveRequiredAmount(objective))
+          .map((requirement) => requirement.itemId),
+      )
+    : null;
   const itemAmounts = objective.type === "compoundCollectItem"
     ? Object.fromEntries(
         (objective.itemRequirements ?? []).map((requirement) => [
           requirement.itemId,
-          completed ? requirement.requiredAmount : 0,
+          completed && (!completedCompoundItemIds || completedCompoundItemIds.has(requirement.itemId))
+            ? requirement.requiredAmount
+            : 0,
         ]),
       )
     : undefined;
   return {
-    currentAmount: completed ? Math.max(1, objective.requiredAmount) : 0,
+    currentAmount: completed ? getQuestObjectiveRequiredAmount(objective) : 0,
     completed,
     state: completed ? "completed" : unlocked ? "active" : "locked",
     unlocked,
@@ -706,6 +753,7 @@ function applyCompletedObjectiveOutcome(
   inventory: PlayerInventory,
   survival: SurvivalGameState,
   interactionUsage: InteractionUsageState,
+  story: StoryProgress,
   itemSurvivalEffects?: Readonly<Record<string, SurvivalEffects | undefined>>,
 ): SurvivalGameState {
   if (
@@ -716,7 +764,10 @@ function applyCompletedObjectiveOutcome(
       ensureInventoryItem(inventory, objective.targetId, objective.requiredAmount);
     }
   } else if (objective.type === "compoundCollectItem") {
-    for (const requirement of objective.itemRequirements ?? []) {
+    const requirements = objective.compoundMatchMode === "anyN"
+      ? (objective.itemRequirements ?? []).slice(0, getQuestObjectiveRequiredAmount(objective))
+      : (objective.itemRequirements ?? []);
+    for (const requirement of requirements) {
       ensureInventoryItem(inventory, requirement.itemId, requirement.requiredAmount);
     }
   } else if (objective.type === "itemUsed") {
@@ -731,8 +782,14 @@ function applyCompletedObjectiveOutcome(
     }
   }
 
+  if (objective.type === "dialogueCompleted" && objective.targetId) {
+    story.completedEventIds = unique([
+      ...story.completedEventIds,
+      objective.targetId,
+    ]);
+  }
+
   if (
-    objective.targetId &&
     [
       "interactionStarted",
       "interactionSucceeded",
@@ -740,14 +797,21 @@ function applyCompletedObjectiveOutcome(
       "submitItemAtInteraction",
     ].includes(objective.type)
   ) {
-    interactionUsage.completedOnceIds = unique([
-      ...interactionUsage.completedOnceIds,
-      objective.targetId,
-    ]);
-    interactionUsage.counts[objective.targetId] = Math.max(
-      interactionUsage.counts[objective.targetId] ?? 0,
-      Math.max(1, objective.requiredAmount),
-    );
+    const distinctTargetIds = normalizeObjectiveTargetIds(objective);
+    const targetIds = unique([
+      ...(objective.targetId ? [objective.targetId] : []),
+      ...distinctTargetIds,
+    ]).slice(0, getQuestObjectiveRequiredAmount(objective));
+    for (const targetId of targetIds) {
+      interactionUsage.completedOnceIds = unique([
+        ...interactionUsage.completedOnceIds,
+        targetId,
+      ]);
+      interactionUsage.counts[targetId] = Math.max(
+        interactionUsage.counts[targetId] ?? 0,
+        distinctTargetIds.length > 0 ? 1 : getQuestObjectiveRequiredAmount(objective),
+      );
+    }
   }
   return survival;
 }
@@ -773,6 +837,31 @@ function applySurvivalEffectValues(
     },
     gameOverReason: null,
   };
+}
+
+function settleObjectiveCompletionRules(
+  questSave: QuestSaveData,
+  rules: readonly QuestObjectiveCompletionRule[],
+  story: StoryProgress,
+) {
+  for (const rule of rules) {
+    const entry = questSave.quests[rule.questId];
+    if (!entry || rule.objectiveIds.length === 0) continue;
+    if (!rule.objectiveIds.every((objectiveId) => entry.objectives[objectiveId]?.completed)) {
+      continue;
+    }
+    entry.objectiveCompletionRules ??= {};
+    entry.objectiveCompletionRules[rule.id] = {
+      availableAtEpochMs: 0,
+      completed: true,
+    };
+    if (rule.eventFlowId.trim()) {
+      story.completedEventIds = unique([
+        ...story.completedEventIds,
+        rule.eventFlowId.trim(),
+      ]);
+    }
+  }
 }
 
 function ensureInventoryItem(
@@ -833,7 +922,7 @@ function validateObjectiveTarget(
   objective: QuestObjectiveDefinition,
   context: QuestDebugValidationContext,
 ) {
-  const targetId = objective.targetId.trim();
+  const targetId = (objective.targetId ?? "").trim();
   if (
     ["collectItem", "haveItem", "itemUsed"].includes(objective.type) &&
     (!targetId || (context.itemIds && !context.itemIds.has(targetId)))
@@ -856,19 +945,35 @@ function validateObjectiveTarget(
       "puzzleCompleted",
       "submitItemAtInteraction",
     ].includes(objective.type) &&
-    context.interactionIds &&
-    (!targetId || !context.interactionIds.has(targetId))
+    context.interactionIds
   ) {
-    issues.push({
-      severity: "error",
-      code: targetId ? "unknown-objective-interaction" : "missing-objective-target",
-      questId: quest.id,
-      stageId,
-      objectiveId: objective.id,
-      message: targetId
-        ? `${objective.id} 引用了不存在的互動 ${targetId}`
-        : `${objective.id}（${objective.type}）缺少 targetId`,
-    });
+    const targetIds = unique([
+      ...(targetId ? [targetId] : []),
+      ...normalizeObjectiveTargetIds(objective),
+    ]);
+    if (targetIds.length === 0) {
+      const isDormantPlaceholder = objective.activationMode === "event" &&
+        !(objective.activationEventId ?? objective.unlockDialogueId ?? "").trim();
+      issues.push({
+        severity: isDormantPlaceholder ? "warning" : "error",
+        code: "missing-objective-target",
+        questId: quest.id,
+        stageId,
+        objectiveId: objective.id,
+        message: `${objective.id}（${objective.type}）缺少 targetId／targetIds`,
+      });
+    }
+    for (const interactionId of targetIds) {
+      if (context.interactionIds.has(interactionId)) continue;
+      issues.push({
+        severity: "error",
+        code: "unknown-objective-interaction",
+        questId: quest.id,
+        stageId,
+        objectiveId: objective.id,
+        message: `${objective.id} 引用了不存在的互動 ${interactionId}`,
+      });
+    }
   }
   for (const requirement of objective.itemRequirements ?? []) {
     if (context.itemIds && !context.itemIds.has(requirement.itemId)) {

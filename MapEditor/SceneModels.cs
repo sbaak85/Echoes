@@ -201,6 +201,9 @@ public sealed class SceneInteractable : ITriggerConfiguration
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ScenePoint? InteractionHintPoint { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ShowOnMinimap { get; set; }
+
     public float ActivationDistance { get; set; } = 52;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -385,8 +388,16 @@ public sealed class InteractionUseRequirement
     public string? QuestState { get; set; }
     public string StageId { get; set; } = "";
     public string StageMode { get; set; } = "CurrentStageOnly";
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ObjectiveId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ObjectiveState { get; set; }
     public string DisableQuestId { get; set; } = "";
     public string DisableStageId { get; set; } = "";
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DisableObjectiveId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DisableObjectiveState { get; set; }
     public int Quantity { get; set; } = 1;
     public int Chapter { get; set; } = 1;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -401,8 +412,12 @@ public sealed class InteractionUseRequirement
         QuestState = QuestState,
         StageId = StageId,
         StageMode = StageMode,
+        ObjectiveId = ObjectiveId,
+        ObjectiveState = ObjectiveState,
         DisableQuestId = DisableQuestId,
         DisableStageId = DisableStageId,
+        DisableObjectiveId = DisableObjectiveId,
+        DisableObjectiveState = DisableObjectiveState,
         Quantity = Quantity,
         Chapter = Chapter,
         MinimumPower = MinimumPower,
@@ -476,7 +491,7 @@ public static class ItemCatalog
         new("T0001", "繩索"),
         new("T0002", "掃描器零件"),
         new("T0003", "多功能工具箱"),
-        new("T0004", "訊號模組"),
+        new("T0004", "訊號探測儀"),
         new("T0005", "醫療包"),
         new("T0006", "照明燈"),
         new("T0007", "銲槍工具"),
@@ -777,6 +792,12 @@ public sealed class StoryTriggerZone : ITriggerConfiguration
 
 public sealed class SceneConnection
 {
+    public ScenePoint? InteractionHintPoint { get; set; }
+    public DialogueScript Dialogue { get; set; } = new();
+    public DialogueScript FailureDialogue { get; set; } = DialogueScript.CreateFailureDefault();
+    public DialogueScript? SurvivalFailureDialogue { get; set; }
+    public DialogueScript? CompletionDialogue { get; set; }
+    public bool SkipSuccessDialogue { get; set; }
     public string Id { get; set; } = "";
     public string Label { get; set; } = "地圖出入口";
     public string Type { get; set; } = "exit";
@@ -1058,8 +1079,33 @@ public static class SceneJson
                             "UnlockUntilCondition" => "UnlockUntilCondition",
                             _ => "CurrentStageOnly",
                         };
+                        requirement.ObjectiveId = requirement.ObjectiveId?.Trim();
+                        if (string.IsNullOrWhiteSpace(requirement.ObjectiveId))
+                        {
+                            requirement.ObjectiveId = null;
+                            requirement.ObjectiveState = null;
+                        }
+                        else
+                        {
+                            requirement.ObjectiveState = requirement.ObjectiveState == "completed"
+                                ? "completed"
+                                : "unlocked";
+                        }
                         requirement.DisableQuestId = requirement.DisableQuestId.Trim();
                         requirement.DisableStageId = requirement.DisableStageId.Trim();
+                        requirement.DisableObjectiveId = requirement.DisableObjectiveId?.Trim();
+                        if (string.IsNullOrWhiteSpace(requirement.DisableObjectiveId))
+                        {
+                            requirement.DisableObjectiveId = null;
+                            requirement.DisableObjectiveState = null;
+                        }
+                        else
+                        {
+                            requirement.DisableObjectiveState =
+                                requirement.DisableObjectiveState == "unlocked"
+                                    ? "unlocked"
+                                    : "completed";
+                        }
                         requirement.Quantity = 1;
                         requirement.Chapter = 1;
                         requirement.MinimumPower = 0;
@@ -1068,16 +1114,14 @@ public static class SceneJson
                             throw new InvalidDataException(
                                 $"互動多邊形 {interactable.Id} 的任務階段條件不可空白。");
                         }
-                        if (requirement.StageMode == "UnlockUntilCondition" &&
-                            (requirement.DisableQuestId.Length == 0 || requirement.DisableStageId.Length == 0))
-                        {
-                            throw new InvalidDataException(
-                                $"互動多邊形 {interactable.Id} 的關閉任務階段條件不可空白。");
-                        }
-                        if (requirement.StageMode != "UnlockUntilCondition")
+                        if (requirement.StageMode != "UnlockUntilCondition" ||
+                            requirement.DisableQuestId.Length == 0 ||
+                            requirement.DisableStageId.Length == 0)
                         {
                             requirement.DisableQuestId = "";
                             requirement.DisableStageId = "";
+                            requirement.DisableObjectiveId = null;
+                            requirement.DisableObjectiveState = null;
                         }
                         continue;
                     }
@@ -1320,6 +1364,12 @@ public static class SceneJson
                 ? $"地圖出入口 {index + 1}"
                 : connection.Label.Trim();
             connection.Type = "exit";
+            connection.Dialogue ??= new DialogueScript();
+            connection.FailureDialogue ??= DialogueScript.CreateFailureDefault();
+            NormalizeOptionalDialogue(connection.Dialogue);
+            NormalizeDialogue(connection.FailureDialogue, "目前無法使用。");
+            if (connection.SurvivalFailureDialogue is not null) NormalizeOptionalDialogue(connection.SurvivalFailureDialogue);
+            if (connection.CompletionDialogue is not null) NormalizeOptionalDialogue(connection.CompletionDialogue);
             connection.Area ??= new List<ScenePoint>();
             if (connection.Area.Count < 3)
             {
@@ -1591,8 +1641,33 @@ public static class SceneJson
                     "UnlockUntilCondition" => "UnlockUntilCondition",
                     _ => "CurrentStageOnly",
                 };
+                requirement.ObjectiveId = requirement.ObjectiveId?.Trim();
+                if (string.IsNullOrWhiteSpace(requirement.ObjectiveId))
+                {
+                    requirement.ObjectiveId = null;
+                    requirement.ObjectiveState = null;
+                }
+                else
+                {
+                    requirement.ObjectiveState = requirement.ObjectiveState == "completed"
+                        ? "completed"
+                        : "unlocked";
+                }
                 requirement.DisableQuestId = requirement.DisableQuestId.Trim();
                 requirement.DisableStageId = requirement.DisableStageId.Trim();
+                requirement.DisableObjectiveId = requirement.DisableObjectiveId?.Trim();
+                if (string.IsNullOrWhiteSpace(requirement.DisableObjectiveId))
+                {
+                    requirement.DisableObjectiveId = null;
+                    requirement.DisableObjectiveState = null;
+                }
+                else
+                {
+                    requirement.DisableObjectiveState =
+                        requirement.DisableObjectiveState == "unlocked"
+                            ? "unlocked"
+                            : "completed";
+                }
                 requirement.Quantity = 1;
                 requirement.Chapter = 1;
                 requirement.MinimumPower = 0;
@@ -1601,16 +1676,14 @@ public static class SceneJson
                     throw new InvalidDataException(
                         $"{ownerLabel} {trigger.Id} has an incomplete quest-stage requirement.");
                 }
-                if (requirement.StageMode == "UnlockUntilCondition" &&
-                    (requirement.DisableQuestId.Length == 0 || requirement.DisableStageId.Length == 0))
-                {
-                    throw new InvalidDataException(
-                        $"{ownerLabel} {trigger.Id} has an incomplete disable-stage condition.");
-                }
-                if (requirement.StageMode != "UnlockUntilCondition")
+                if (requirement.StageMode != "UnlockUntilCondition" ||
+                    requirement.DisableQuestId.Length == 0 ||
+                    requirement.DisableStageId.Length == 0)
                 {
                     requirement.DisableQuestId = "";
                     requirement.DisableStageId = "";
+                    requirement.DisableObjectiveId = null;
+                    requirement.DisableObjectiveState = null;
                 }
                 continue;
             }

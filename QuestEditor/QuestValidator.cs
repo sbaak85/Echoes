@@ -246,7 +246,62 @@ internal static class QuestValidator
                 if (requirement.RequiredAmount < 1)
                     issues.Add(new(ValidationSeverity.Error, $"{objective.Id}/{requirement.ItemId} 的需求數量必須大於 0", objective));
             }
-            if (objective.Type == ObjectiveType.CompoundCollectItem) return;
+            if (objective.Type == ObjectiveType.CompoundCollectItem)
+            {
+                var distinctIds = objective.ItemRequirements
+                    .Select(requirement => requirement.ItemId?.Trim() ?? "")
+                    .Where(id => id.Length > 0)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+                if (distinctIds.Count != objective.ItemRequirements.Count)
+                    issues.Add(new(ValidationSeverity.Error,
+                        $"{objective.Id} 的複合道具需求不可包含空白或重複 Item ID；同一種道具請合併設定數量", objective));
+                if (objective.CompoundMatchMode == CompoundItemMatchMode.AnyN &&
+                    objective.RequiredAmount > distinctIds.Count)
+                    issues.Add(new(ValidationSeverity.Error,
+                        $"{objective.Id} 的任選種類數 N 不可超過道具需求中的不同種類數（{distinctIds.Count}）", objective));
+                return;
+            }
+        }
+        if (objective.Type == ObjectiveType.SceneTransferCompleted)
+        {
+            var sourceScene = objective.SourceSceneId?.Trim() ?? "";
+            var sourceConnection = objective.SourceConnectionId?.Trim() ?? "";
+            if (sourceScene.Length > 0 && !references.Contains("Scene", sourceScene))
+                issues.Add(new(ValidationSeverity.Error, $"找不到來源場景 ID：{sourceScene}", objective));
+            if (sourceConnection.Length > 0)
+            {
+                if (sourceScene.Length == 0)
+                    issues.Add(new(ValidationSeverity.Error, "指定來源出口時必須同時指定來源場景 ID", objective));
+                else if (!references.Contains($"SceneConnection:{sourceScene}", sourceConnection))
+                    issues.Add(new(ValidationSeverity.Error, $"來源場景 {sourceScene} 找不到出口 ID：{sourceConnection}", objective));
+            }
+        }
+        var objectiveTargetIds = objective.TargetIds ?? new List<string>();
+        if (objectiveTargetIds.Count > 0)
+        {
+            if (objective.Type != ObjectiveType.InteractionStarted &&
+                objective.Type != ObjectiveType.InteractionSucceeded)
+            {
+                issues.Add(new(ValidationSeverity.Error,
+                    $"{objective.Id} 的指定互動 ID 清單只適用於互動開始或互動成功", objective));
+                return;
+            }
+            var distinctTargets = objectiveTargetIds
+                .Select(id => id?.Trim() ?? "")
+                .Where(id => id.Length > 0)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            if (distinctTargets.Count != objectiveTargetIds.Count)
+                issues.Add(new(ValidationSeverity.Error,
+                    $"{objective.Id} 的指定互動 ID 清單不可包含空白或重複 ID", objective));
+            foreach (var target in distinctTargets)
+                if (references.Get("Interaction").Count > 0 && !references.Contains("Interaction", target))
+                    issues.Add(new(ValidationSeverity.Error, $"找不到 Interaction ID：{target}", objective));
+            if (objective.RequiredAmount > distinctTargets.Count)
+                issues.Add(new(ValidationSeverity.Error,
+                    $"{objective.Id} 的需求數量不可超過指定互動 ID 數量（{distinctTargets.Count}）", objective));
+            return;
         }
         var kind = ReferenceKind(objective.Type);
         if (kind is null) return;
@@ -294,6 +349,7 @@ internal static class QuestValidator
         ObjectiveType.InteractionStarted or ObjectiveType.InteractionSucceeded or
             ObjectiveType.SubmitItemAtInteraction => "Interaction",
         ObjectiveType.EnterArea => "Area",
+        ObjectiveType.SceneTransferCompleted => "Scene",
         ObjectiveType.PuzzleCompleted => "Puzzle",
         ObjectiveType.DialogueCompleted => "Dialogue",
         ObjectiveType.ObjectStateReached => "WorldObject",

@@ -212,7 +212,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
     item: {
       id: "T0004",
       englishName: "tracking-module",
-      name: "訊號模組",
+      name: "訊號探測儀",
       symbol: "◈",
       category: "tool",
       description: "能夠標定近距離異常訊號來源。",
@@ -804,6 +804,7 @@ export function useSurvivalInventoryItem(
   inventory: PlayerInventory,
   survival: SurvivalGameState,
   itemId: string,
+  options: { allowFullRecovery?: boolean } = {},
 ): SurvivalItemUseResult {
   const item = ITEM_BY_ID.get(itemId) ?? null;
   if (!item || (inventory[itemId] ?? 0) <= 0) {
@@ -815,7 +816,7 @@ export function useSurvivalInventoryItem(
   if (!item.usable || !hasConfiguredSurvivalEffects(item.survivalEffects)) {
     return { status: "not-configured", inventory, survival, item };
   }
-  if (!canApplySurvivalEffects(survival.values, item.survivalEffects)) {
+  if (!options.allowFullRecovery && !canApplySurvivalEffects(survival.values, item.survivalEffects)) {
     return { status: "full", inventory, survival, item };
   }
   return {

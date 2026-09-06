@@ -344,6 +344,83 @@ test("互動 Tween 優先使用互動提示點，未設定時才回到多邊形�
   assert.equal(selectInteractionFeedbackPoint(undefined, center), center);
 });
 
+test("任務階段需求可再限制啟用與關閉 OBJ 狀態", () => {
+  const requirement = {
+    kind: "questStage",
+    questId: "QUEST_CH04_MAIN_001",
+    stageId: "QUEST_CH04_MAIN_001_STAGE_01",
+    stageMode: "UnlockUntilCondition",
+    objectiveId: "QUEST_CH04_MAIN_001_OBJ_02",
+    objectiveState: "completed",
+    disableQuestId: "QUEST_CH04_MAIN_001",
+    disableStageId: "QUEST_CH04_MAIN_001_STAGE_02",
+    disableObjectiveId: "QUEST_CH04_MAIN_001_OBJ_05",
+    disableObjectiveState: "unlocked",
+  };
+  const reachedStage = (_questId, stageId) =>
+    stageId.endsWith("STAGE_01") || stageId.endsWith("STAGE_02");
+
+  assert.equal(
+    evaluateInteractionStageRequirement(
+      requirement,
+      () => false,
+      reachedStage,
+      (_questId, objectiveId, state) =>
+        objectiveId.endsWith("OBJ_02") && state === "completed",
+    ),
+    true,
+  );
+  assert.equal(
+    evaluateInteractionStageRequirement(
+      requirement,
+      () => false,
+      reachedStage,
+      (_questId, objectiveId) =>
+        objectiveId.endsWith("OBJ_02") || objectiveId.endsWith("OBJ_05"),
+    ),
+    false,
+  );
+  assert.equal(
+    evaluateInteractionStageRequirement(
+      requirement,
+      () => false,
+      reachedStage,
+      () => false,
+    ),
+    false,
+  );
+
+  assert.deepEqual(
+    normalizeInteractionUseRequirements([requirement], () => null),
+    [requirement],
+  );
+
+  const pendingCloseRequirement = {
+    kind: "questStage",
+    questId: "QUEST_CH04_MAIN_001",
+    stageId: "QUEST_CH04_MAIN_001_STAGE_01",
+    stageMode: "UnlockUntilCondition",
+    disableQuestId: "QUEST_NOT_FINISHED_YET",
+  };
+  assert.deepEqual(
+    normalizeInteractionUseRequirements([pendingCloseRequirement], () => null),
+    [{
+      kind: "questStage",
+      questId: "QUEST_CH04_MAIN_001",
+      stageId: "QUEST_CH04_MAIN_001_STAGE_01",
+      stageMode: "UnlockUntilCondition",
+    }],
+  );
+  assert.equal(
+    evaluateInteractionStageRequirement(
+      pendingCloseRequirement,
+      () => false,
+      () => true,
+    ),
+    true,
+  );
+});
+
 test("所有互動失敗都由失敗對話入口統一建立紅圈 Tween", () => {
   const source = readFileSync(
     new URL("../app/movement-lab.tsx", import.meta.url),

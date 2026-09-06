@@ -8,6 +8,7 @@ export type StoryEventMap = {
   };
   storyZoneEntered: { zoneId: string };
   interactionCompleted: { interactionId: string };
+  interactionSettled: { interactionId: string };
   sleepCompleted: { elapsedMinutes: number };
   objectiveCompleted: { objectiveId: string };
 };

@@ -4,6 +4,10 @@ namespace Echoes.QuestEditor;
 
 internal sealed class MainForm : Form
 {
+    private const double QuestTreeWidthRatio = 0.19;
+    private const double StageObjectiveWidthRatio = 0.66;
+    private const float ObjectiveIdColumnFillWeight = 39F;
+
     private readonly string _projectRoot;
     private string _dataPath;
     private QuestDocument _document;
@@ -140,9 +144,11 @@ internal sealed class MainForm : Form
         if (_rootSplit.Height > 260)
             _rootSplit.SplitterDistance = Math.Clamp((int)(_rootSplit.Height * 0.76), 360, _rootSplit.Height - 130);
         if (_leftSplit.Width > 700)
-            _leftSplit.SplitterDistance = Math.Clamp((int)(_leftSplit.Width * 0.22), 270, _leftSplit.Width - 700);
+            _leftSplit.SplitterDistance = Math.Clamp(
+                (int)(_leftSplit.Width * QuestTreeWidthRatio), 270, _leftSplit.Width - 700);
         if (_middleSplit.Width > 650)
-            _middleSplit.SplitterDistance = Math.Clamp((int)(_middleSplit.Width * 0.62), 470, _middleSplit.Width - 350);
+            _middleSplit.SplitterDistance = Math.Clamp(
+                (int)(_middleSplit.Width * StageObjectiveWidthRatio), 470, _middleSplit.Width - 350);
     }
 
     private Control BuildQuestTreePanel()
@@ -229,7 +235,12 @@ internal sealed class MainForm : Form
         _objectiveGrid.Dock = DockStyle.Fill;
         Theme.StyleGrid(_objectiveGrid);
         _objectiveGrid.AutoGenerateColumns = false;
-        _objectiveGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Id", HeaderText = "目標 ID", FillWeight = 24 });
+        _objectiveGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            DataPropertyName = "Id",
+            HeaderText = "目標 ID",
+            FillWeight = ObjectiveIdColumnFillWeight,
+        });
         _objectiveGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "DisplayText", HeaderText = "顯示文字", FillWeight = 35 });
         _objectiveGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Type", HeaderText = "類型", FillWeight = 24 });
         _objectiveGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "TargetId", HeaderText = "判定目標 ID", FillWeight = 27 });
@@ -462,10 +473,18 @@ internal sealed class MainForm : Form
             var property = _propertyGrid.SelectedGridItem?.PropertyDescriptor;
             var isActivationEventProperty = property?.Name ==
                 nameof(QuestObjectiveDefinition.ActivationEventId);
+            var isSourceSceneProperty = objective?.Type == ObjectiveType.SceneTransferCompleted &&
+                property?.Name == nameof(QuestObjectiveDefinition.SourceSceneId);
+            var isSourceConnectionProperty = objective?.Type == ObjectiveType.SceneTransferCompleted &&
+                property?.Name == nameof(QuestObjectiveDefinition.SourceConnectionId);
             var isTeleportProperty = property?.Name is
                 nameof(QuestDefinition.StartTeleportPointId) or
                 nameof(QuestDefinition.CompletionTeleportPointId);
-            var kind = isActivationEventProperty
+            var kind = isSourceSceneProperty
+                ? "Scene"
+                : isSourceConnectionProperty
+                ? $"SceneConnection:{objective?.SourceSceneId?.Trim()}"
+                : isActivationEventProperty
                 ? "StoryTrigger"
                 : isTeleportProperty
                 ? "TeleportPoint"
@@ -477,7 +496,8 @@ internal sealed class MainForm : Form
                         QuestCompletionTriggerType.EventFlow => "EventFlow",
                         _ => null,
                     };
-            var currentId = (isActivationEventProperty || isTeleportProperty) &&
+            var currentId = (isActivationEventProperty || isTeleportProperty ||
+                isSourceSceneProperty || isSourceConnectionProperty) &&
                 _propertyGrid.SelectedObject is { } selectedObject
                 ? property?.GetValue(selectedObject)?.ToString() ?? ""
                 : objective?.TargetId ?? quest?.CompletionTriggerId ?? "";
@@ -518,6 +538,8 @@ internal sealed class MainForm : Form
         "EventFlow" => "事件流程",
         "WorldObject" => "場景物件",
         "TeleportPoint" => "傳送 Point",
+        "Scene" => "場景",
+        _ when kind.StartsWith("SceneConnection:") => "來源場景出口",
         "Flag" => "旗標",
         _ => kind,
     };
@@ -540,6 +562,14 @@ internal sealed class MainForm : Form
             if (_propertyGrid.SelectedObject is not { } selectedObject ||
                 Equals(property.GetValue(selectedObject), reference.Id)) return;
             property.SetValue(selectedObject, reference.Id);
+        }
+        else if (_propertyGrid.SelectedObject is QuestObjectiveDefinition routeObjective &&
+            routeObjective.Type == ObjectiveType.SceneTransferCompleted &&
+            property?.Name is nameof(QuestObjectiveDefinition.SourceSceneId) or
+                nameof(QuestObjectiveDefinition.SourceConnectionId))
+        {
+            if (Equals(property.GetValue(routeObjective), reference.Id)) return;
+            property.SetValue(routeObjective, reference.Id);
         }
         else if (_propertyGrid.SelectedObject is QuestObjectiveDefinition objective)
         {
@@ -936,6 +966,17 @@ internal sealed class MainForm : Form
     internal void RunSmokeTest()
     {
         if (_questTree.Nodes.Count == 0) throw new InvalidOperationException("章節樹沒有載入資料。");
+        var expectedQuestTreeWidth = Math.Clamp(
+            (int)(_leftSplit.Width * QuestTreeWidthRatio), 270, _leftSplit.Width - 700);
+        var expectedStageObjectiveWidth = Math.Clamp(
+            (int)(_middleSplit.Width * StageObjectiveWidthRatio), 470, _middleSplit.Width - 350);
+        if (Math.Abs(_leftSplit.SplitterDistance - expectedQuestTreeWidth) > 1 ||
+            Math.Abs(_middleSplit.SplitterDistance - expectedStageObjectiveWidth) > 1)
+        {
+            throw new InvalidOperationException("啟動時的任務樹、任務階段與屬性欄比例不正確。");
+        }
+        if (Math.Abs(_objectiveGrid.Columns[0].FillWeight - ObjectiveIdColumnFillWeight) > 0.01F)
+            throw new InvalidOperationException("目標 ID 欄的啟動預設寬度不正確。");
 
         var interactionReferences = _references.Get("Interaction").Take(3).ToArray();
         if (interactionReferences.Length == 3)
@@ -1037,6 +1078,22 @@ internal sealed class MainForm : Form
             .ConvertToString(ObjectiveType.InteractionSucceeded);
         if (localizedObjectiveType != "互動成功")
             throw new InvalidOperationException("屬性選單的中文顯示轉換失敗。");
+        if (TypeDescriptor.GetConverter(typeof(ObjectiveType))
+                .ConvertToString(ObjectiveType.SceneTransferCompleted) != "完成場景轉移" ||
+            QuestValidator.ReferenceKind(ObjectiveType.SceneTransferCompleted) != "Scene")
+            throw new InvalidOperationException("場景轉移類型的中文顯示或場景清單對應失敗。");
+        var routeProperties = TypeDescriptor.GetProperties(incompleteObjective);
+        routeProperties[nameof(QuestObjectiveDefinition.SourceSceneId)]!.SetValue(incompleteObjective, "Scene_3");
+        routeProperties[nameof(QuestObjectiveDefinition.SourceConnectionId)]!.SetValue(incompleteObjective, "scene-exit-001");
+        if (incompleteObjective.SourceSceneId != "Scene_3" || incompleteObjective.SourceConnectionId != "scene-exit-001")
+            throw new InvalidOperationException("來源場景及出口屬性無法設定。");
+        var compoundModeProperty = TypeDescriptor.GetProperties(incompleteObjective)["CompoundMatchMode"];
+        if (compoundModeProperty?.DisplayName != "複合道具判定模式" ||
+            compoundModeProperty.Converter.ConvertToString(CompoundItemMatchMode.AnyN) != "任選 N 種")
+            throw new InvalidOperationException("任選 N 種屬性選單未正確顯示。");
+        compoundModeProperty.SetValue(incompleteObjective, CompoundItemMatchMode.AnyN);
+        if (incompleteObjective.CompoundMatchMode != CompoundItemMatchMode.AnyN)
+            throw new InvalidOperationException("任選 N 種屬性無法設定。");
         var prerequisiteProperty = TypeDescriptor.GetProperties(typeof(QuestDefinition))[
             nameof(QuestDefinition.PrerequisiteQuestIds)];
         if (prerequisiteProperty?.GetEditor(typeof(System.Drawing.Design.UITypeEditor))

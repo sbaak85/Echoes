@@ -92,8 +92,8 @@ test("遊戲提供本機側邊面板試玩入口與完成事件", async () => {
   assert.match(component, /updateDialAngle\(coarseBandToDialAngle\(nextCoarse\)\)/);
   assert.doesNotMatch(component, /updateDialAngle\(dialAngle\)/);
   assert.match(component, />預調頻率</);
-  assert.match(component, /frequency-trigger-key[^>]*>LT</);
-  assert.match(component, /frequency-trigger-key[^>]*>RT</);
+  assert.match(component, /gamepadMode \? <GamepadButtonIcon button="LT"/);
+  assert.match(component, /gamepadMode \? <GamepadButtonIcon button="RT"/);
   assert.match(component, /resetFrequency: reset/);
   assert.match(component, /lockFrequency,/);
   assert.match(component, /FAILED_LOCK_FEEDBACK_MESSAGES/);

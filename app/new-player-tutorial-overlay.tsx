@@ -1,5 +1,7 @@
 "use client";
 
+import { GamepadHint } from "./gamepad-button-icon";
+
 import { useId, type CSSProperties, type PointerEvent } from "react";
 import {
   getNewPlayerTutorialOperationHint,
@@ -197,14 +199,14 @@ export function NewPlayerTutorialOverlay({
           } as CSSProperties}
           onClick={onContinue}
         >
-          <span className="new-player-tutorial-copy">{step.message}</span>
+          <span className="new-player-tutorial-copy"><GamepadHint text={step.message} enabled={inputMode === "gamepad"} /></span>
           <strong className="new-player-tutorial-actions">
             <span className="new-player-tutorial-action-copy">
               <span className="new-player-tutorial-context-action">
-                {operationHint}
+                <GamepadHint text={inputMode === "gamepad" ? operationHint.replace("[M]", "[Select]") : operationHint} enabled={inputMode === "gamepad"} />
               </span>
               <span className="new-player-tutorial-continue">
-                {prompt} {step.actionLabel}
+                <GamepadHint text={prompt} enabled={inputMode === "gamepad"} /> {step.actionLabel}
               </span>
               <b>{step.order} / 4</b>
               <i aria-hidden="true">▶</i>

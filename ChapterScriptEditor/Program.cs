@@ -88,6 +88,38 @@ internal static class Program
         mainForm.CreateControl();
 
         var document = StoryContentCodec.Load(storyContentPath);
+        var expectedChapterIndex = MainForm.FindLatestPopulatedChapterIndex(document);
+        var chapterTabs = Descendants(mainForm)
+            .OfType<TabControl>()
+            .Single(control => control.TabPages.Count == document.Chapters.Count + 1);
+        if (chapterTabs.SelectedIndex != expectedChapterIndex)
+        {
+            throw new InvalidDataException("啟動時沒有開啟最新已有內容的章節頁籤。");
+        }
+
+        var latestChapterSelectionSample = new ChapterScriptDocument
+        {
+            Chapters = Enumerable.Range(1, 5)
+                .Select(number => new ChapterDefinition
+                {
+                    Id = $"chapter{number:00}",
+                    TabName = $"第{number}章",
+                    ChapterNumber = number,
+                })
+                .ToList(),
+        };
+        latestChapterSelectionSample.Chapters[3].Title = "第四章已有進度";
+        if (MainForm.FindLatestPopulatedChapterIndex(latestChapterSelectionSample) != 3)
+        {
+            throw new InvalidDataException("第四章有內容時，啟動頁籤選擇不正確。");
+        }
+        latestChapterSelectionSample.Chapters[4].DialogueSections.Add(
+            new DialogueSectionDefinition { Id = "chapter05-section-1" });
+        if (MainForm.FindLatestPopulatedChapterIndex(latestChapterSelectionSample) != 4)
+        {
+            throw new InvalidDataException("第五章有內容時，啟動頁籤選擇不正確。");
+        }
+
         var subtitle = document.Chapters
             .SelectMany(chapter => chapter.SubtitleEvents)
             .FirstOrDefault(item => item.Id == "chapter03-End")

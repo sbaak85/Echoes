@@ -1,0 +1,124 @@
+{
+  "summary": [
+    {
+      "background": "camp",
+      "cold": {
+        "samples": 1,
+        "openMedianMs": 45.89999997615814,
+        "prepareMedianMs": 0.10000002384185791,
+        "frameMaxMedianMs": 108.40000000000009
+      },
+      "warm": {
+        "samples": 3,
+        "openMedianMs": 45.799999952316284,
+        "prepareMedianMs": 15.5,
+        "frameMaxMedianMs": 58.299999999999955
+      },
+      "snapshot": {
+        "samples": 3,
+        "openMedianMs": 46.5,
+        "prepareMedianMs": 107.40000009536743,
+        "frameMaxMedianMs": 58.40000000000009
+      }
+    },
+    {
+      "background": "scene02",
+      "cold": {
+        "samples": 1,
+        "openMedianMs": 46,
+        "prepareMedianMs": 0.10000002384185791,
+        "frameMaxMedianMs": 100.59999999999991
+      },
+      "warm": {
+        "samples": 3,
+        "openMedianMs": 46,
+        "prepareMedianMs": 15.700000047683716,
+        "frameMaxMedianMs": 58.40000000000009
+      },
+      "snapshot": {
+        "samples": 3,
+        "openMedianMs": 45.90000009536743,
+        "prepareMedianMs": 109.39999997615814,
+        "frameMaxMedianMs": 58.399999999999864
+      }
+    },
+    {
+      "background": "ruins",
+      "cold": {
+        "samples": 1,
+        "openMedianMs": 46.10000002384186,
+        "prepareMedianMs": 0.10000002384185791,
+        "frameMaxMedianMs": 100.09999999999991
+      },
+      "warm": {
+        "samples": 3,
+        "openMedianMs": 46.199999928474426,
+        "prepareMedianMs": 15.600000023841858,
+        "frameMaxMedianMs": 58.700000000000045
+      },
+      "snapshot": {
+        "samples": 3,
+        "openMedianMs": 46.89999997615814,
+        "prepareMedianMs": 102.79999995231628,
+        "frameMaxMedianMs": 58.5
+      }
+    },
+    {
+      "background": "jungleB",
+      "cold": {
+        "samples": 1,
+        "openMedianMs": 52.39999997615814,
+        "prepareMedianMs": 0.19999992847442627,
+        "frameMaxMedianMs": 100.20000000000005
+      },
+      "warm": {
+        "samples": 3,
+        "openMedianMs": 46.5,
+        "prepareMedianMs": 15.599999904632568,
+        "frameMaxMedianMs": 58.5
+      },
+      "snapshot": {
+        "samples": 3,
+        "openMedianMs": 46.5,
+        "prepareMedianMs": 102.29999995231628,
+        "frameMaxMedianMs": 58.40000000000009
+      }
+    },
+    {
+      "background": "jungleC",
+      "cold": {
+        "samples": 1,
+        "openMedianMs": 46.5,
+        "prepareMedianMs": 0.10000002384185791,
+        "frameMaxMedianMs": 108.39999999999986
+      },
+      "warm": {
+        "samples": 3,
+        "openMedianMs": 45.800000071525574,
+        "prepareMedianMs": 15.899999976158142,
+        "frameMaxMedianMs": 58.399999999999864
+      },
+      "snapshot": {
+        "samples": 3,
+        "openMedianMs": 46.40000009536743,
+        "prepareMedianMs": 102.69999992847443,
+        "frameMaxMedianMs": 58.5
+      }
+    }
+  ],
+  "runtimeFilesUnchanged": true,
+  "runtimeBefore": {
+    "app/movement-lab.tsx": "397ad783061db5ed5bad4b1d8b69163b7688877fb0b3e5d05a19b08e06afa48c",
+    "app/globals.css": "7bd407aca9fe74af7919b05d91b3b4e8cfe3af7069dd4bebf0f7a2b403cf9f1e",
+    "app/dialogue-history.ts": "942f65664c69d49a12ed6bf3f4f173f9856c18d3df432b394860a3fa34ae3dd6",
+    "app/gamepad-glyph.ts": "18f04bf6a5e8508f25a280fe97448315ad3ae7062b46017ed95a026ccddf4a44",
+    "app/ui-asset-warmup.ts": "37d4c33071ff44d00ffbf354397a5d16375ebcfba323ce1bd8e259a8b160b801"
+  },
+  "runtimeAfter": {
+    "app/movement-lab.tsx": "397ad783061db5ed5bad4b1d8b69163b7688877fb0b3e5d05a19b08e06afa48c",
+    "app/globals.css": "7bd407aca9fe74af7919b05d91b3b4e8cfe3af7069dd4bebf0f7a2b403cf9f1e",
+    "app/dialogue-history.ts": "942f65664c69d49a12ed6bf3f4f173f9856c18d3df432b394860a3fa34ae3dd6",
+    "app/gamepad-glyph.ts": "18f04bf6a5e8508f25a280fe97448315ad3ae7062b46017ed95a026ccddf4a44",
+    "app/ui-asset-warmup.ts": "37d4c33071ff44d00ffbf354397a5d16375ebcfba323ce1bd8e259a8b160b801"
+  }
+}

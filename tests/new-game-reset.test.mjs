@@ -117,6 +117,16 @@ test("重新開始會阻擋舊 AUTO 回灌，並讓全新進度排在舊存檔�
   );
 });
 
+test("死亡畫面的滑鼠、鍵盤及手把都使用完整新遊戲重置，並阻擋連按", async () => {
+  const source = await readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /restartSurvivalTest/);
+  const overlay = source.slice(source.indexOf('className="survival-game-over"'));
+  assert.match(overlay, /onClick=\{confirmRestartNewGame\}/);
+  assert.match(source, /if \(survivalStateRef\.current\.gameOverReason\) \{[\s\S]*?event\.code === "Enter"[\s\S]*?void confirmRestartNewGame\(\)/);
+  assert.match(source, /survivalStateRef\.current\.gameOverReason &&\s*gamepadInput\.connected &&\s*gamepadInput\.actionPressed &&\s*!wasGamepadActionPressed\s*\) \{\s*void confirmRestartNewGame\(\)/);
+  assert.match(source, /const confirmRestartNewGame = async \(\) => \{\s*if \(newGameRestartInProgressRef\.current\) return;\s*newGameRestartInProgressRef\.current = true;/);
+});
+
 test("重新開始播放第三章字幕時不會提前啟動其他章節的自動任務", async () => {
   const source = await readFile(
     new URL("../app/movement-lab.tsx", import.meta.url),

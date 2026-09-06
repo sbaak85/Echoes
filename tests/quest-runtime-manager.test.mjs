@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { QuestRuntimeManager } from "../app/quest-runtime-manager.ts";
+import { QuestRuntimeManager, evaluateQuestObjective, getCompoundItemProgress, getQuestObjectiveRequiredAmount } from "../app/quest-runtime-manager.ts";
 
 const document = {
   schemaVersion: 1,
@@ -75,17 +75,157 @@ test("quest runtime advances stages and completes the quest", () => {
   });
   assert.equal(manager.getQuestState("QUEST_TEST"), "available");
   assert.equal(manager.startQuest("QUEST_TEST", 3, 360), true);
+  assert.equal(
+    manager.hasObjectiveReachedState("QUEST_TEST", "QUEST_TEST_OBJ_01", "unlocked"),
+    true,
+  );
+  assert.equal(
+    manager.hasObjectiveReachedState("QUEST_TEST", "QUEST_TEST_OBJ_01", "completed"),
+    false,
+  );
   assert.equal(manager.hasQuestReachedStage("QUEST_TEST", "QUEST_TEST_STAGE_01"), true);
   assert.equal(manager.hasQuestReachedStage("QUEST_TEST", "QUEST_TEST_STAGE_02"), false);
   manager.handleEvent({ type: "itemCollected", targetId: "R0001", amount: 1 });
   assert.equal(manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_01").currentAmount, 1);
   manager.handleEvent({ type: "itemCollected", targetId: "R0001", amount: 1 });
   assert.equal(manager.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_02");
+  assert.equal(
+    manager.hasObjectiveReachedState("QUEST_TEST", "QUEST_TEST_OBJ_01", "completed"),
+    true,
+  );
   assert.equal(manager.isQuestAtStage("QUEST_TEST", "QUEST_TEST_STAGE_02"), true);
   assert.equal(manager.hasQuestReachedStage("QUEST_TEST", "QUEST_TEST_STAGE_01"), true);
   manager.handleEvent({ type: "interactionSucceeded", targetId: "interaction-004" });
   assert.equal(manager.getQuestState("QUEST_TEST"), "completed");
   assert.deepEqual(rewards, [["R0004", 1]]);
+});
+
+test("visible multi-step item and interaction objectives report each real increase once", () => {
+  const progressDocument = structuredClone(document);
+  const quest = progressDocument.quests[0];
+  quest.rewardItemId = "";
+  quest.rewardItemAmount = 0;
+  quest.stages = [{
+    id: "QUEST_TEST_STAGE_PROGRESS",
+    name: "累積進度音效測試",
+    completionMode: "all",
+    objectives: [
+      {
+        id: "QUEST_TEST_OBJ_INTERACTIONS",
+        displayText: "調查任兩處",
+        type: "interactionSucceeded",
+        targetId: "",
+        targetIds: ["interaction-a", "interaction-b", "interaction-c"],
+        requiredAmount: 2,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+        showProgress: true,
+        showHintIcon: false,
+      },
+      {
+        id: "QUEST_TEST_OBJ_ITEMS",
+        displayText: "取得兩種材料",
+        type: "compoundCollectItem",
+        targetId: "",
+        itemRequirements: [
+          { itemId: "R0001", requiredAmount: 1 },
+          { itemId: "R0002", requiredAmount: 1 },
+        ],
+        compoundMatchMode: "all",
+        requiredAmount: 2,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+        showProgress: true,
+        showHintIcon: false,
+      },
+    ],
+  }];
+
+  const progressed = [];
+  const manager = new QuestRuntimeManager(progressDocument, {
+    onObjectiveProgressed: (
+      questId,
+      objectiveId,
+      stageId,
+      _entry,
+      _objective,
+      previousAmount,
+      currentAmount,
+    ) => progressed.push({
+      questId,
+      objectiveId,
+      stageId,
+      previousAmount,
+      currentAmount,
+    }),
+  });
+  manager.startQuest("QUEST_TEST");
+
+  manager.handleEvent({ type: "interactionSucceeded", targetId: "interaction-a" });
+  manager.handleEvent({ type: "interactionSucceeded", targetId: "interaction-a" });
+  manager.handleEvent({ type: "interactionSucceeded", targetId: "interaction-b" });
+  manager.handleEvent({ type: "itemCollected", targetId: "R0001", amount: 1 });
+  manager.handleEvent({ type: "itemCollected", targetId: "R0001", amount: 1 });
+  manager.handleEvent({ type: "itemCollected", targetId: "R0002", amount: 1 });
+
+  assert.deepEqual(
+    progressed.map(({ objectiveId, previousAmount, currentAmount }) => [
+      objectiveId,
+      previousAmount,
+      currentAmount,
+    ]),
+    [
+      ["QUEST_TEST_OBJ_INTERACTIONS", 0, 1],
+      ["QUEST_TEST_OBJ_INTERACTIONS", 1, 2],
+      ["QUEST_TEST_OBJ_ITEMS", 0, 1],
+      ["QUEST_TEST_OBJ_ITEMS", 1, 2],
+    ],
+  );
+  assert.ok(progressed.every(({ questId }) => questId === "QUEST_TEST"));
+  assert.ok(progressed.every(({ stageId }) => stageId === "QUEST_TEST_STAGE_PROGRESS"));
+});
+
+test("hidden, single-step and restore-time objective progress does not report audio progress", () => {
+  const progressDocument = structuredClone(document);
+  const objective = progressDocument.quests[0].stages[0].objectives[0];
+  objective.type = "haveItem";
+  objective.targetId = "R0001";
+  objective.requiredAmount = 2;
+  objective.showProgress = true;
+  progressDocument.quests[0].stages = [progressDocument.quests[0].stages[0]];
+  progressDocument.quests[0].stages[0].nextStageId = "";
+  progressDocument.quests[0].rewardItemId = "";
+  progressDocument.quests[0].rewardItemAmount = 0;
+
+  const progressed = [];
+  const manager = new QuestRuntimeManager(progressDocument, {
+    onObjectiveProgressed: (...args) => progressed.push(args),
+  });
+  manager.startQuest("QUEST_TEST");
+  manager.syncCurrentInventory({ R0001: 1 }, false);
+  assert.equal(progressed.length, 0);
+  manager.syncCurrentInventory({ R0001: 2 });
+  assert.equal(progressed.length, 1);
+
+  const hiddenDocument = structuredClone(progressDocument);
+  hiddenDocument.quests[0].stages[0].objectives[0].showProgress = false;
+  const hiddenProgressed = [];
+  const hiddenManager = new QuestRuntimeManager(hiddenDocument, {
+    onObjectiveProgressed: (...args) => hiddenProgressed.push(args),
+  });
+  hiddenManager.startQuest("QUEST_TEST");
+  hiddenManager.syncCurrentInventory({ R0001: 1 });
+  assert.equal(hiddenProgressed.length, 0);
+
+  const singleDocument = structuredClone(progressDocument);
+  singleDocument.quests[0].stages[0].objectives[0].requiredAmount = 1;
+  const singleProgressed = [];
+  const singleManager = new QuestRuntimeManager(singleDocument, {
+    onObjectiveProgressed: (...args) => singleProgressed.push(args),
+  });
+  singleManager.startQuest("QUEST_TEST");
+  singleManager.syncCurrentInventory({ R0001: 1 });
+  assert.equal(singleProgressed.length, 0);
 });
 
 test("quest save restores progress without copying definitions", () => {
@@ -667,7 +807,7 @@ test("持有道具目標啟用後會隨背包目前數量變更完成", () => {
 test("遊戲載入與每次背包狀態變更都同步目前持有量任務", () => {
   assert.match(
     movementLabSource,
-    /questRuntimeManagerRef\.current\.syncCurrentInventory\(loadedInventory\)/,
+    /questRuntimeManagerRef\.current\.syncCurrentInventory\(loadedInventory, false\)/,
   );
   assert.match(
     movementLabSource,
@@ -675,7 +815,7 @@ test("遊戲載入與每次背包狀態變更都同步目前持有量任務", ()
   );
   assert.match(
     movementLabSource,
-    /replaceSaveData\(plan\.questSave, false\);\s*manager\.syncCurrentInventory\(plan\.inventory\)/,
+    /replaceSaveData\(plan\.questSave, false\);\s*manager\.syncCurrentInventory\(plan\.inventory, false\)/,
   );
 });
 
@@ -880,6 +1020,193 @@ test("compound item objective requires every configured item and ignores duplica
   assert.equal(manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_01").completed, true);
   assert.equal(manager.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_02");
   assert.deepEqual(manager.exportSave().processedEventIds, ["pickup:food", "pickup:water"]);
+});
+
+test("unset target IDs never act as wildcards for objective events", () => {
+  const cases = [
+    ["collectItem", "itemCollected"],
+    ["submitItemAtInteraction", "itemSubmitted"],
+    ["haveItem", "inventoryChanged"],
+    ["interfaceOpened", "interfaceOpened"],
+    ["itemUsed", "itemUsed"],
+    ["interactionStarted", "interactionStarted"],
+    ["interactionSucceeded", "interactionSucceeded"],
+    ["enterArea", "areaEntered"],
+    ["sceneTransferCompleted", "sceneTransferCompleted"],
+    ["puzzleCompleted", "puzzleCompleted"],
+    ["dialogueCompleted", "dialogueCompleted"],
+    ["objectStateReached", "objectStateChanged"],
+    ["dayOrTimeReached", "timeChanged"],
+    ["flagCondition", "flagChanged"],
+    ["customProgress", "customQuestProgressAdded"],
+  ];
+  for (const [type, eventType] of cases) {
+    const objective = {
+      ...document.quests[0].stages[0].objectives[0],
+      type, requiredAmount: 1, targetState: "true",
+      itemRequirements: [{ itemId: "R0004", requiredAmount: 1 }],
+    };
+    const event = { type: eventType, targetId: "configured-target", itemId: "R0004", amount: 1, result: true };
+    for (const targetId of ["", " \t ", undefined, null]) {
+      for (const eventTargetId of ["configured-target", "", " \t "]) {
+        assert.equal(evaluateQuestObjective({ ...objective, targetId }, { ...event, targetId: eventTargetId }), null, type);
+      }
+    }
+    assert.equal(evaluateQuestObjective({ ...objective, targetId: "other-target" }, event), null, type);
+    assert.notEqual(evaluateQuestObjective({ ...objective, targetId: "configured-target" }, event), null, type);
+  }
+});
+
+test("blank interaction OBJ remains untouched and does not fire completion callbacks", () => {
+  const data = structuredClone(document);
+  Object.assign(data.quests[0].stages[0].objectives[0], {
+    type: "interactionSucceeded", targetId: "", requiredAmount: 1,
+  });
+  const completed = [];
+  const manager = new QuestRuntimeManager(data, { onObjectiveCompleted: (...args) => completed.push(args) });
+  manager.startQuest("QUEST_TEST");
+  const before = manager.exportSave();
+  for (const targetId of ["interaction-001", "interaction-002", ""]) {
+    manager.handleEvent({ type: "interactionSucceeded", targetId, eventId: `interaction:${targetId}` });
+  }
+  assert.deepEqual(manager.exportSave(), before);
+  assert.deepEqual(completed, []);
+
+  data.quests[0].stages[0].objectives[0].targetId = "interaction-002";
+  const configured = new QuestRuntimeManager(data, {}, before);
+  configured.handleEvent({ type: "interactionSucceeded", targetId: "interaction-001" });
+  assert.equal(configured.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_01").completed, false);
+  configured.handleEvent({ type: "interactionSucceeded", targetId: "interaction-002" });
+  assert.equal(configured.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_01").completed, true);
+});
+
+test("multi-target interaction OBJ counts each configured Interaction once and restores its set", () => {
+  const data = structuredClone(document);
+  Object.assign(data.quests[0].stages[0].objectives[0], {
+    type: "interactionSucceeded",
+    targetId: "",
+    targetIds: ["scene6-interaction-009", "scene6-interaction-010", "scene6-interaction-011"],
+    requiredAmount: 3,
+  });
+  const manager = new QuestRuntimeManager(data);
+  manager.startQuest("QUEST_TEST");
+  manager.handleEvent({ type: "interactionSucceeded", targetId: "scene6-interaction-009", eventId: "a" });
+  manager.handleEvent({ type: "interactionSucceeded", targetId: "scene6-interaction-009", eventId: "b" });
+  manager.handleEvent({ type: "interactionSucceeded", targetId: "unrelated", eventId: "c" });
+  manager.handleEvent({ type: "interactionSucceeded", targetId: "scene6-interaction-010", eventId: "d" });
+  const partial = manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_01");
+  assert.equal(partial.currentAmount, 2);
+  assert.equal(partial.completed, false);
+  assert.deepEqual(partial.matchedTargetIds, ["scene6-interaction-009", "scene6-interaction-010"]);
+
+  const restored = new QuestRuntimeManager(data, {}, manager.exportSave());
+  restored.handleEvent({ type: "interactionSucceeded", targetId: "scene6-interaction-010", eventId: "e" });
+  assert.equal(restored.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_01").currentAmount, 2);
+  restored.handleEvent({ type: "interactionSucceeded", targetId: "scene6-interaction-011", eventId: "f" });
+  const completed = restored.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_01");
+  assert.equal(completed.completed, true);
+  assert.deepEqual(completed.matchedTargetIds, [
+    "scene6-interaction-009", "scene6-interaction-010", "scene6-interaction-011",
+  ]);
+  assert.equal(restored.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_02");
+});
+
+test("inventory synchronization cannot complete a haveItem OBJ with no target", () => {
+  for (const targetId of ["", " \t "]) {
+    const data = structuredClone(document);
+    Object.assign(data.quests[0].stages[0].objectives[0], {
+      type: "haveItem", targetId, requiredAmount: 1,
+    });
+    const manager = new QuestRuntimeManager(data);
+    manager.syncCurrentInventory({ R0004: 99, "": 99, " \t ": 99 });
+    manager.startQuest("QUEST_TEST");
+    const before = manager.exportSave();
+    manager.syncCurrentInventory({ R0004: 100, "": 100, " \t ": 100 });
+    assert.deepEqual(manager.exportSave(), before);
+    assert.equal(manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_01").completed, false);
+  }
+});
+
+function createAnyNDocument(requiredAmount = 2) {
+  const result = structuredClone(document);
+  Object.assign(result.quests[0].stages[0].objectives[0], {
+    type: "compoundCollectItem",
+    compoundMatchMode: "anyN",
+    targetId: "",
+    requiredAmount,
+    itemRequirements: [
+      { itemId: "R0004", requiredAmount: 2 },
+      { itemId: "R0005", requiredAmount: 1 },
+      { itemId: "R0012", requiredAmount: 1 },
+      { itemId: "R0016", requiredAmount: 1 },
+      { itemId: "R0017", requiredAmount: 1 },
+    ],
+  });
+  return result;
+}
+
+test("any N counts distinct satisfied item requirements, not pickups or quantities", () => {
+  const manager = new QuestRuntimeManager(createAnyNDocument());
+  manager.startQuest("QUEST_TEST");
+  const progress = () => manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_01");
+  manager.handleEvent({ type: "itemCollected", targetId: "R0004", amount: 1, eventId: "a" });
+  assert.equal(progress().currentAmount, 0, "未達該道具需求數量 2，仍不算一種");
+  manager.handleEvent({ type: "itemCollected", targetId: "R0004", amount: 1, eventId: "a" });
+  assert.equal(progress().currentAmount, 0, "同一拾取事件不重複累計");
+  manager.handleEvent({ type: "itemCollected", targetId: "R0004", amount: 1, eventId: "b" });
+  assert.equal(progress().currentAmount, 1);
+  manager.handleEvent({ type: "itemCollected", targetId: "R0004", amount: 99 });
+  manager.handleEvent({ type: "itemCollected", targetId: "R9999", amount: 99 });
+  assert.equal(progress().currentAmount, 1, "重複種類與集合外道具不增加種類數");
+  assert.equal(progress().completed, false);
+  manager.handleEvent({ type: "itemCollected", targetId: "R0017", amount: 1 });
+  assert.equal(progress().currentAmount, 2);
+  assert.equal(progress().completed, true);
+  assert.equal(manager.getCurrentStage("QUEST_TEST"), "QUEST_TEST_STAGE_02");
+});
+
+test("any N retains item-level partial progress across save and reload", () => {
+  const data = createAnyNDocument();
+  const manager = new QuestRuntimeManager(data);
+  manager.startQuest("QUEST_TEST");
+  manager.handleEvent({ type: "itemCollected", targetId: "R0004", amount: 1 });
+  manager.handleEvent({ type: "itemCollected", targetId: "R0012", amount: 1 });
+  const restored = new QuestRuntimeManager(data, {}, manager.exportSave());
+  assert.equal(restored.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_01").currentAmount, 1);
+  restored.handleEvent({ type: "itemCollected", targetId: "R0004", amount: 1 });
+  assert.equal(restored.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_01").completed, true);
+});
+
+test("legacy compound mode still requires every item, regardless of outer amount", () => {
+  const data = createAnyNDocument();
+  const objective = data.quests[0].stages[0].objectives[0];
+  delete objective.compoundMatchMode;
+  const manager = new QuestRuntimeManager(data);
+  manager.startQuest("QUEST_TEST");
+  manager.handleEvent({ type: "itemCollected", targetId: "R0004", amount: 2 });
+  manager.handleEvent({ type: "itemCollected", targetId: "R0005", amount: 1 });
+  assert.equal(manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_01").completed, false);
+  assert.equal(getQuestObjectiveRequiredAmount(objective), 6, "全部模式 HUD 使用集合需求總數");
+  for (const itemId of ["R0012", "R0016", "R0017"]) {
+    manager.handleEvent({ type: "itemCollected", targetId: itemId, amount: 1 });
+  }
+  assert.equal(manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_01").completed, true);
+});
+
+test("any N bounds, distinct IDs and HUD denominator stay consistent", () => {
+  const objective = createAnyNDocument().quests[0].stages[0].objectives[0];
+  assert.deepEqual(getCompoundItemProgress(objective, { R0004: 1, R0005: 1 }), {
+    currentAmount: 1, requiredAmount: 2, completed: false,
+  });
+  assert.equal(getCompoundItemProgress({ ...objective, requiredAmount: 1 }, { R0005: 1 }).completed, true);
+  const allItems = { R0004: 2, R0005: 1, R0012: 1, R0016: 1, R0017: 1 };
+  assert.equal(getCompoundItemProgress({ ...objective, requiredAmount: 5 }, allItems).completed, true);
+  assert.equal(getCompoundItemProgress({ ...objective, requiredAmount: 6 }, allItems).completed, false);
+  assert.equal(getCompoundItemProgress({ ...objective, itemRequirements: [] }, allItems).completed, false);
+  const duplicate = { ...objective, itemRequirements: [objective.itemRequirements[1], objective.itemRequirements[1]] };
+  assert.deepEqual(getCompoundItemProgress(duplicate, allItems), {
+    currentAmount: 1, requiredAmount: 2, completed: false,
+  });
 });
 
 test("quest lifecycle host receives distinct accepted, completed, failed and abandoned signals", () => {

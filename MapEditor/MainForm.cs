@@ -65,10 +65,15 @@ public sealed class MainForm : Form
         DropDownStyle = ComboBoxStyle.DropDownList,
     };
     private readonly TextBox _interactionVerbText = new();
-    private readonly GroupBox _interactionGroup = CreateGroup("互動設定", 270);
+    private readonly GroupBox _interactionGroup = CreateGroup("互動設定", 300);
     private readonly Label _dialogueSummaryLabel = new();
     private readonly Label _survivalSummaryLabel = new();
     private readonly Button _dialogueMoreButton = CreateButton("更多...", 176, 152, 159, 30);
+    private readonly CheckBox _interactionShowOnMinimapCheck = new()
+    {
+        Text = "在小地圖標記",
+        AutoSize = true,
+    };
     private readonly GroupBox _movementGuideGroup = CreateGroup("強制引導線設定", 112);
     private readonly NumericUpDown _movementGuideWidthInput = new()
     {
@@ -154,7 +159,7 @@ public sealed class MainForm : Form
         Increment = 0.1m,
         TextAlign = HorizontalAlignment.Right,
     };
-    private readonly GroupBox _sceneConnectionGroup = CreateGroup("地圖出入口設定", 358);
+    private readonly GroupBox _sceneConnectionGroup = CreateGroup("地圖出入口設定", 396);
     private readonly TextBox _sceneConnectionIdText = new();
     private readonly ComboBox _targetSceneCombo = new() { DropDownStyle = ComboBoxStyle.DropDown };
     private readonly ComboBox _targetEntryPointCombo = new() { DropDownStyle = ComboBoxStyle.DropDown };
@@ -654,6 +659,9 @@ public sealed class MainForm : Form
         var connectionRequirementsButton = CreateButton("需求條件...", 10, 280, SidebarContentWidth, 30);
         connectionRequirementsButton.Click += (_, _) => OpenSceneConnectionRequirementEditor();
         _sceneConnectionGroup.Controls.Add(connectionRequirementsButton);
+        var connectionDialogueButton = CreateButton("更多... 對話腳本", 10, 356, SidebarContentWidth, 30);
+        connectionDialogueButton.Click += (_, _) => OpenConnectionDialogueEditor();
+        _sceneConnectionGroup.Controls.Add(connectionDialogueButton);
         var applyConnectionButton = CreateButton("套用出入口設定", 10, 318, SidebarContentWidth, 30);
         applyConnectionButton.Click += (_, _) => ApplySceneConnectionSettings();
         _sceneConnectionGroup.Controls.Add(applyConnectionButton);
@@ -682,7 +690,9 @@ public sealed class MainForm : Form
         _dialogueMoreButton.SetBounds(176, 164, 159, 30);
         _dialogueMoreButton.Click += (_, _) => OpenDialogueEditor();
         _interactionGroup.Controls.Add(_dialogueMoreButton);
-        var survivalButton = CreateButton("需求與完成效果...", 10, 202, SidebarContentWidth, 30);
+        _interactionShowOnMinimapCheck.SetBounds(10, 202, SidebarContentWidth, 24);
+        _interactionGroup.Controls.Add(_interactionShowOnMinimapCheck);
+        var survivalButton = CreateButton("需求與完成效果...", 10, 230, SidebarContentWidth, 30);
         survivalButton.Click += (_, _) => OpenSurvivalEffectEditor();
         _interactionGroup.Controls.Add(survivalButton);
         var resetLabel = new Label
@@ -691,7 +701,7 @@ public sealed class MainForm : Form
             AutoSize = false,
             ForeColor = Color.FromArgb(130, 140, 150),
         };
-        resetLabel.SetBounds(10, 240, SidebarContentWidth, 22);
+        resetLabel.SetBounds(10, 268, SidebarContentWidth, 22);
         _interactionGroup.Controls.Add(resetLabel);
         _interactionGroup.Visible = false;
         sidebar.Controls.Add(_interactionGroup);
@@ -1552,6 +1562,7 @@ public sealed class MainForm : Form
                 _selectionInfoLabel.Text = $"互動 ID：{interactable.Id}{node}";
                 _selectionNameText.Text = interactable.Label;
                 _interactionVerbText.Text = interactable.Verb;
+                _interactionShowOnMinimapCheck.Checked = interactable.ShowOnMinimap;
                 _interactionTypeCombo.SelectedIndex = Math.Max(
                     0,
                     InteractionTypeDefaults.All
@@ -1824,6 +1835,7 @@ public sealed class MainForm : Form
             .Select(requirement => requirement.Clone())
             .ToArray() ?? Array.Empty<InteractionUseRequirement>();
         var quests = QuestCatalog.Load(_projectRoot);
+        var objectives = QuestCatalog.LoadObjectives(_projectRoot);
         SetCanvasRedraw(false);
         try
         {
@@ -1837,7 +1849,8 @@ public sealed class MainForm : Form
                 Array.Empty<InteractionItemReward>(),
                 quests,
                 showAllowAttemptOption: false,
-                showEffectsPage: false);
+                showEffectsPage: false,
+                objectives: objectives);
             if (editor.ShowDialog(this) != DialogResult.OK) return;
             _canvas.UpdateSelectedSceneConnectionRequirements(
                 editor.Requirements,
@@ -2169,8 +2182,26 @@ public sealed class MainForm : Form
     {
         if (_canvas.SelectedInteractable is null) return;
         var type = (_interactionTypeCombo.SelectedItem as InteractionTypeItem)?.Id ?? "dialogue";
-        _canvas.UpdateSelectedInteractable(type, _interactionVerbText.Text);
+        _canvas.UpdateSelectedInteractable(
+            type,
+            _interactionVerbText.Text,
+            _interactionShowOnMinimapCheck.Checked);
         RefreshLayers();
+        RefreshSelectionUi();
+    }
+
+    private void OpenConnectionDialogueEditor()
+    {
+        var connection = _canvas.SelectedSceneConnection;
+        if (connection is null) return;
+        using var editor = new DialogueEditorForm(
+            connection.Dialogue, connection.FailureDialogue,
+            connection.SurvivalFailureDialogue, connection.CompletionDialogue,
+            connection.SkipSuccessDialogue, connection.Id);
+        if (editor.ShowDialog(this) != DialogResult.OK) return;
+        _canvas.UpdateSelectedConnectionDialogues(editor.SuccessDialogue,
+            editor.FailureDialogue, editor.SurvivalFailureDialogue,
+            editor.CompletionDialogue, editor.SkipSuccessDialogue);
         RefreshSelectionUi();
     }
 
@@ -2213,6 +2244,7 @@ public sealed class MainForm : Form
                 ? Array.Empty<InteractionItemReward>()
                 : new[] { selectedInteractable.ItemReward.Clone() });
         var quests = QuestCatalog.Load(_projectRoot);
+        var objectives = QuestCatalog.LoadObjectives(_projectRoot);
         SetCanvasRedraw(false);
         try
         {
@@ -2232,7 +2264,8 @@ public sealed class MainForm : Form
                     selectedInteractable.CompletionTeleportPointId,
                 completionTeleportDelaySeconds:
                     selectedInteractable.CompletionTeleportDelaySeconds,
-                showCompletionTeleportOption: true);
+                showCompletionTeleportOption: true,
+                objectives: objectives);
             if (editor.ShowDialog(this) != DialogResult.OK) return;
             _canvas.UpdateSelectedInteractionConfiguration(
                 selectedType,

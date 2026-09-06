@@ -1,5 +1,7 @@
 "use client";
 
+import { GamepadHint } from "./gamepad-button-icon";
+
 import {
   useEffect,
   useRef,
@@ -1243,7 +1245,7 @@ export function WeldingRoutePuzzle({
           <p className={showingStartInstruction ? "welding-start-instruction" : undefined}>
             {showingStartInstruction ? (
               <>
-                <span>按住 [RT] 推動 [右搖桿] 控制焊槍</span>
+                <span><GamepadHint text="按住 [RT] 推動 [右搖桿] 控制焊槍" enabled={inputMode === "gamepad"} /></span>
                 <span>由最左側向右行走開始進行焊接</span>
               </>
             ) : phase === "success" ? "結構接點已完成固定" :
@@ -1517,7 +1519,7 @@ export function WeldingRoutePuzzle({
 
         <footer className="welding-puzzle-footer">
           <span><b>PC／行動裝置</b> 長按左鍵或觸控焊接</span>
-          <span><b>手把</b> 右搖桿移動 · 靠近起點後按住 RT</span>
+          <span><b>手把</b><GamepadHint text=" 右搖桿移動 · 靠近起點後按住 RT" enabled={inputMode === "gamepad"} /></span>
           <span className="welding-route-legend"><i /> 預覽路線是本次正確答案</span>
         </footer>
       </section>

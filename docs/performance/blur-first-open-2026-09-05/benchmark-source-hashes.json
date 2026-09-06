@@ -1,0 +1,14 @@
+[
+  {
+    "file": "tests/benchmarks/blur-first-open.cjs",
+    "sha256": "76af167d6abef868b27b22c63198e1972ccbb07a98a1b3e69ce59daa0b978d42"
+  },
+  {
+    "file": "tests/benchmarks/blur-first-open.html",
+    "sha256": "62ade4148a9dc1a685358a49271d64d523091c723c8be2947bd8e576f7748a09"
+  },
+  {
+    "file": "app/globals.css",
+    "sha256": "7bd407aca9fe74af7919b05d91b3b4e8cfe3af7069dd4bebf0f7a2b403cf9f1e"
+  }
+]

@@ -15,6 +15,31 @@ export type MiniMapGeometry = {
   contours: readonly MiniMapContourSegment[];
 };
 
+export type MiniMapInteractionMarker = MiniMapPoint & { id: string };
+
+export function buildMiniMapInteractionMarkers(
+  interactables: readonly {
+    id: string;
+    showOnMinimap?: boolean;
+    interactionHintPoint?: MiniMapPoint;
+  }[],
+): MiniMapInteractionMarker[] {
+  return interactables.flatMap((interactable) => {
+    const id = interactable.id.trim();
+    const point = interactable.interactionHintPoint;
+    if (
+      interactable.showOnMinimap !== true ||
+      !id ||
+      !point ||
+      !Number.isFinite(point.x) ||
+      !Number.isFinite(point.y)
+    ) {
+      return [];
+    }
+    return [{ id, x: point.x, y: point.y }];
+  });
+}
+
 function pointInPolygon(point: MiniMapPoint, polygon: readonly MiniMapPoint[]) {
   let inside = false;
   for (let current = 0, previous = polygon.length - 1;

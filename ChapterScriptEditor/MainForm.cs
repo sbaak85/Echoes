@@ -36,8 +36,25 @@ public sealed class MainForm : Form
         Controls.Add(footer);
         Controls.Add(header);
 
-        RebuildTabs(2);
+        RebuildTabs(FindLatestPopulatedChapterIndex(_document));
         FormClosing += ConfirmUnsavedClose;
+    }
+
+    internal static int FindLatestPopulatedChapterIndex(ChapterScriptDocument document)
+    {
+        for (var index = document.Chapters.Count - 1; index >= 0; index--)
+        {
+            var chapter = document.Chapters[index];
+            if (!string.IsNullOrWhiteSpace(chapter.Title) ||
+                chapter.SubtitleEvents.Count > 0 ||
+                chapter.DialogueSections.Count > 0 ||
+                chapter.StoryTriggerDialogues.Count > 0)
+            {
+                return index;
+            }
+        }
+
+        return document.Chapters.Count > 0 ? 0 : -1;
     }
 
     private Control CreateHeader()
@@ -616,7 +633,7 @@ public sealed class MainForm : Form
         if (MessageBox.Show("重新讀取會放棄尚未儲存的畫面修改，是否繼續？", Text,
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         _document = StoryContentCodec.Load(_storyContentPath);
-        RebuildTabs(Math.Min(2, _document.Chapters.Count - 1));
+        RebuildTabs(FindLatestPopulatedChapterIndex(_document));
         _status.Text = "已重新讀取 story-content.ts";
         _status.ForeColor = Theme.Cyan;
     }

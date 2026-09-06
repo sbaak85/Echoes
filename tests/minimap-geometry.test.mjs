@@ -3,8 +3,28 @@ import test from "node:test";
 
 import {
   buildMiniMapGeometry,
+  buildMiniMapInteractionMarkers,
   isMiniMapCellWalkable,
 } from "../app/minimap-geometry.ts";
+
+test("互動小地圖標記只使用勾選項目的互動提示點", () => {
+  assert.deepEqual(
+    buildMiniMapInteractionMarkers([
+      {
+        id: "scene6-interaction-001",
+        showOnMinimap: true,
+        interactionHintPoint: { x: 320, y: 180 },
+      },
+      {
+        id: "scene6-interaction-002",
+        showOnMinimap: false,
+        interactionHintPoint: { x: 640, y: 360 },
+      },
+      { id: "scene6-interaction-003", showOnMinimap: true },
+    ]),
+    [{ id: "scene6-interaction-001", x: 320, y: 180 }],
+  );
+});
 
 test("低解析度遮罩會合併相鄰 NavMesh，不產生中間分隔輪廓", () => {
   const geometry = buildMiniMapGeometry(

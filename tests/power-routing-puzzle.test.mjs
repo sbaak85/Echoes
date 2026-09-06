@@ -96,7 +96,7 @@ test("啟動供電沿用黃色主操作按鈕，手把模式顯示 RT 並可直�
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
 
-  assert.match(puzzleSource, /gamepadMode \? \([\s\S]*power-trigger-key[\s\S]*>RT</);
+  assert.match(puzzleSource, /gamepadMode \? \([\s\S]*GamepadButtonIcon button="RT"/);
   assert.match(puzzleSource, /completing \? "啟動中…" : "啟動供電"/);
   assert.doesNotMatch(puzzleSource, /確認供電|APPLY POWER/);
   assert.match(puzzleSource, /applyPower: \(\) => void/);
@@ -110,7 +110,7 @@ test("啟動供電沿用黃色主操作按鈕，手把模式顯示 RT 並可直�
     styles,
     /\.power-puzzle-apply\s*\{[\s\S]*border:\s*2px solid #a47b23;[\s\S]*background:\s*linear-gradient\(#997328, #604313\)/,
   );
-  assert.match(styles, /\.power-puzzle-apply \.power-trigger-key\s*\{/);
+  assert.match(styles, /\.power-puzzle-apply img\.gamepad-button-icon\s*\{/);
   assert.match(
     styles,
     /\.power-puzzle-apply:focus,[\s\S]*\.power-puzzle-apply:focus-visible\s*\{[\s\S]*outline:\s*none;/,

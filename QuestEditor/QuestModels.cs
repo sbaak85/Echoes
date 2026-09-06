@@ -73,12 +73,20 @@ public enum ObjectiveType
     [Description("開始互動")] InteractionStarted,
     [Description("互動成功")] InteractionSucceeded,
     [Description("進入區域")] EnterArea,
+    [Description("完成場景轉移")] SceneTransferCompleted,
     [Description("完成解謎")] PuzzleCompleted,
     [Description("完成對話")] DialogueCompleted,
     [Description("場景物件達到指定狀態")] ObjectStateReached,
     [Description("到達指定日期或時間")] DayOrTimeReached,
     [Description("旗標條件成立")] FlagCondition,
     [Description("自訂進度")] CustomProgress,
+}
+
+[TypeConverter(typeof(LocalizedEnumConverter))]
+public enum CompoundItemMatchMode
+{
+    [Description("全部道具達標")] All,
+    [Description("任選 N 種")] AnyN,
 }
 
 [TypeConverter(typeof(LocalizedEnumConverter))]
@@ -439,16 +447,37 @@ public sealed class QuestObjectiveDefinition
     public ObjectiveType Type { get; set; } = ObjectiveType.CollectItem;
 
     [Category("判定"), DisplayName("判定目標 ID")]
+    [Description("完成場景轉移：填入抵達的目標場景 ID（例如 Scene_6）。未填入不會判定完成。")]
     public string TargetId { get; set; } = "";
+
+    [Category("判定"), DisplayName("指定互動 ID 清單")]
+    [Description("互動開始／互動成功可列出多個不同 Interaction ID；同一 ID 只計一次，達到需求數量後完成。設定此清單時優先於單一判定目標 ID。")]
+    public List<string> TargetIds { get; set; } = new();
+
+    [Category("場景轉移"), DisplayName("來源場景 ID（選填）")]
+    [Description("僅用於完成場景轉移。留空允許從任意場景抵達；指定出口時必須同時指定來源場景。")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SourceSceneId { get; set; }
+
+    [Category("場景轉移"), DisplayName("來源出口 ID（選填）")]
+    [Description("僅用於完成場景轉移。填入來源場景內的出口 ID（例如 scene-exit-001）；留空接受該來源的任意出口。")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SourceConnectionId { get; set; }
 
     [Category("判定"), DisplayName("道具需求")]
     [Description("「複合道具收集」可加入多個道具；「向互動區投入道具」第一版請設定一個道具 ID 與數量。")]
     public List<QuestItemRequirement> ItemRequirements { get; set; } = new();
 
+    [Category("判定"), DisplayName("複合道具判定模式")]
+    [Description("僅用於複合道具收集。全部道具達標：每種都須取得指定數量。任選 N 種：外層需求數量代表種類數 N，每種仍須達到集合內指定數量；同一 Item ID 只算一種。")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public CompoundItemMatchMode CompoundMatchMode { get; set; } = CompoundItemMatchMode.All;
+
     [Category("判定"), DisplayName("目標狀態／條件")]
     public string TargetState { get; set; } = "";
 
     [Category("判定"), DisplayName("需求數量")]
+    [Description("複合道具收集選擇「任選 N 種」時，此欄為須達標的不同道具種類數 N；選擇「全部道具達標」時，以集合內每項需求數量為準。其他類型為一般需求數量。")]
     public int RequiredAmount { get; set; } = 1;
 
     [Category("判定"), DisplayName("計數方式")]
