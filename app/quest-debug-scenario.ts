@@ -11,7 +11,10 @@ import {
   getQuestObjectiveRequiredAmount,
   normalizeObjectiveTargetIds,
 } from "./quest-runtime-manager.ts";
-import type { PlayerInventory } from "./item-database.ts";
+import {
+  grantAllInventoryItems,
+  type PlayerInventory,
+} from "./item-database.ts";
 import {
   getInteractionCycle,
   type InteractionUsageState,
@@ -88,6 +91,18 @@ export type QuestDebugValidationContext = {
   storyEventIds?: ReadonlySet<string>;
   teleportPointIds?: ReadonlySet<string>;
 };
+
+export function prepareQuestDebugItemAllInventory(
+  inventory: PlayerInventory,
+  itemAllAlreadyGranted: boolean,
+  freshScenario: boolean,
+): { inventory: PlayerInventory; applied: boolean } {
+  const applied = !itemAllAlreadyGranted || freshScenario;
+  return {
+    inventory: applied ? grantAllInventoryItems(inventory) : inventory,
+    applied,
+  };
+}
 
 export const CHAPTER_3_QUEST_DEBUG_SCENARIOS: readonly QuestDebugScenarioMetadata[] = [
   {

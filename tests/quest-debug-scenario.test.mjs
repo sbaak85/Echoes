@@ -7,6 +7,7 @@ import {
   buildQuestDebugScenarioPlan,
   isQuestDebugCommand,
   parseQuestDebugCommand,
+  prepareQuestDebugItemAllInventory,
   validateQuestDebugConfiguration,
 } from "../app/quest-debug-scenario.ts";
 import { QuestRuntimeManager } from "../app/quest-runtime-manager.ts";
@@ -82,6 +83,28 @@ test("movement lab exposes Quest commands and the ] short/long press hotkey", ()
   );
   assert.doesNotMatch(movementLabSource, /event\.code === "F8"/);
   assert.match(movementLabSource, /Quest Goto 5 Stage 3/);
+  assert.match(movementLabSource, /prepareQuestDebugItemAllInventory\(/);
+  assert.match(movementLabSource, /questDebugItemAllGrantedRef\.current = true/);
+});
+
+test("the first Quest debug jump applies Item All once", () => {
+  const first = prepareQuestDebugItemAllInventory({ R0005: 2 }, false, false);
+  assert.equal(first.applied, true);
+  assert.equal(Object.keys(first.inventory).length, ITEM_DEFINITIONS.length);
+  assert.equal(first.inventory.R0005, 3);
+  for (const item of ITEM_DEFINITIONS) {
+    assert.ok((first.inventory[item.id] ?? 0) >= 1);
+  }
+
+  const next = prepareQuestDebugItemAllInventory(first.inventory, true, false);
+  assert.equal(next.applied, false);
+  assert.equal(next.inventory, first.inventory);
+  assert.equal(next.inventory.R0005, 3, "later Next commands must not stack Item All");
+
+  const freshGoto = prepareQuestDebugItemAllInventory({ R0005: 2 }, true, true);
+  assert.equal(freshGoto.applied, true);
+  assert.equal(freshGoto.inventory.R0005, 3);
+  assert.equal(Object.keys(freshGoto.inventory).length, ITEM_DEFINITIONS.length);
 });
 
 test("Quest Goto 3 builds the skipped outcomes without replaying quest flows", () => {

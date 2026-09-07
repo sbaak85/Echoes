@@ -516,12 +516,14 @@
         ],
         "lines": [
           {
+            "lineId": "",
             "speaker": "Sbaak",
             "text": "\u7528\u7E69\u7D22\u628A\u9019\u908A\u7D81\u7DCA...\u5F9E\u9019\u88E1\u964D\u4E0B\u53BB\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
+            "lineId": "",
             "speaker": "Sbaak",
             "text": "\u7528\u7E69\u7D22\u7D81\u7DCA\u9019\u88E1\uFF0C\u505A\u4E00\u500B\u81E8\u6642\u7684\u7E69\u68AF\u3002",
             "randomGroupId": "random-group-1",
@@ -537,18 +539,21 @@
         ],
         "lines": [
           {
+            "lineId": "",
             "speaker": "Sbaak",
             "text": "\u592A\u6ED1\u4E86...\u9019\u6A23\u6C92\u8FA6\u6CD5\u4E0B\u53BB\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
+            "lineId": "",
             "speaker": "Sbaak",
             "text": "\u9019\u6A23\u6C92\u6CD5\u76F4\u63A5\u4E0B\u53BB\uFF0C\u5F97\u627E\u500B\u7E69\u7D22\u624D\u884C\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
+            "lineId": "",
             "speaker": "Sbaak",
             "text": "\u77F3\u58C1\u592A\u6ED1\u592A\u5E73\u6574\u4E86...\u5F97\u6709\u4E00\u500B\u6500\u722C\u5DE5\u5177\u624D\u884C\uFF0C\u770B\u770B\u6709\u6C92\u6709\u7E69\u7D22...",
             "randomGroupId": "random-group-1",
@@ -646,6 +651,7 @@
         ],
         "lines": [
           {
+            "lineId": "",
             "speaker": "Sbaak",
             "text": "\u6293\u7DCA\u7E69\u7D22\uFF0C\u8E0F\u597D\u9019\u88E1...!"
           }
@@ -659,6 +665,7 @@
         ],
         "lines": [
           {
+            "lineId": "",
             "speaker": "Sbaak",
             "text": "\u6211\u7684\u7E69\u5B50\u52D2~!?"
           }
@@ -672,14 +679,198 @@
         ],
         "lines": [
           {
+            "lineId": "",
             "speaker": "Sbaak",
             "text": "\u8981\u722C\u7E69\u5B50\u5F88\u7D2F\u7684! \u8981\u5148\u56DE\u5FA9\u4E00\u4E0B\u9AD4\u529B\u624D\u884C\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
+            "lineId": "",
             "speaker": "Sbaak",
             "text": "\u6211\u5FC5\u9808\u8981\u6062\u5FA9\u4E00\u4E0B\u9AD4\u529B\u624D\u80FD\u722C\u7E69\u5B50\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "scene2-interaction-003",
+      "label": "\u897F\u5340\u5C0F\u5F91",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 5,
+          "y": 505
+        },
+        {
+          "x": 5,
+          "y": 735
+        },
+        {
+          "x": 20,
+          "y": 745
+        },
+        {
+          "x": 210,
+          "y": 615
+        }
+      ],
+      "type": "move",
+      "verb": "\u79FB\u52D5",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "useRequirements": [
+        {
+          "kind": "chapter",
+          "scope": "interaction",
+          "itemId": "",
+          "questId": "",
+          "stageId": "",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 5
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 78.189384,
+        "y": 639.9918
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "scene2-interaction-003-line-001",
+            "speaker": "Sbaak",
+            "text": "..."
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "scene2-interaction-003-failure-line-001",
+            "speaker": "Sbaak",
+            "text": "\u73FE\u5728\u8D70\u592A\u9060\u904E\u65BC\u5371\u96AA\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "scene2-interaction-003-failure-line-002",
+            "speaker": "Sbaak",
+            "text": "\u73FE\u5728\u9084\u4E0D\u9069\u5408\u53BB\u90A3\u9EBC\u9060\u7684\u5730\u65B9\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "scene2-interaction-004",
+      "label": "\u897F\u5357\u4E4B\u8DEF",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 100,
+          "y": 1095
+        },
+        {
+          "x": 235,
+          "y": 1185
+        },
+        {
+          "x": 145,
+          "y": 1250
+        },
+        {
+          "x": 10,
+          "y": 1155
+        }
+      ],
+      "type": "move",
+      "verb": "\u79FB\u52D5",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "useRequirements": [
+        {
+          "kind": "chapter",
+          "scope": "interaction",
+          "itemId": "",
+          "questId": "",
+          "stageId": "",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 5
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 102.73847,
+        "y": 1174.2836
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "scene2-interaction-004-line-001",
+            "speaker": "Sbaak",
+            "text": "..."
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "scene2-interaction-004-failure-line-001",
+            "speaker": "Sbaak",
+            "text": "\u73FE\u5728\u6C92\u6709\u90A3\u4E00\u5340\u7684\u8CC7\u6599\uFF0C\u904E\u53BB\u6709\u9EDE\u592A\u5192\u96AA\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "scene2-interaction-004-failure-line-002",
+            "speaker": "Sbaak",
+            "text": "\u73FE\u5728\u5C0D\u65BC\u90A3\u4E00\u5340\u7684\u8CC7\u8A0A\u4E0D\u5920\uFF0C\u4E0D\u9069\u5408\u524D\u5F80\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           }
@@ -767,6 +958,29 @@
   },
   "connections": [
     {
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": []
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
+      },
+      "skipSuccessDialogue": false,
       "id": "exit-scene2-to-scene3",
       "label": "\u8FD4\u56DE Scene_3",
       "type": "exit",

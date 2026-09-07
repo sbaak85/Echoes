@@ -308,6 +308,7 @@ import {
   buildQuestDebugScenarioPlan,
   isQuestDebugCommand,
   parseQuestDebugCommand,
+  prepareQuestDebugItemAllInventory,
   validateQuestDebugConfiguration,
 } from "./quest-debug-scenario";
 import { createQuestSkipKeyController } from "./quest-debug-hotkey";
@@ -3577,6 +3578,7 @@ export function MovementLab() {
   const portableAutosaveTimerRef = useRef<number | null>(null);
   const requestPortableAutosaveRef = useRef<(reason?: string) => void>(() => {});
   const debugSaveIsolationRef = useRef(false);
+  const questDebugItemAllGrantedRef = useRef(false);
   const dialoguePlaybackRef = useRef<DialoguePlayback | null>(null);
   const dialogueTypingRef = useRef<DialogueTyping | null>(null);
   const dialogueHistoryOpenRef = useRef(false);
@@ -10002,10 +10004,16 @@ export function MovementLab() {
         const fixedProgress = questCommand.kind === "goto"
           ? createNewGameProgress()
           : null;
+        const firstQuestDebugActivation = !questDebugItemAllGrantedRef.current;
+        const debugItemAll = prepareQuestDebugItemAllInventory(
+          fixedProgress?.inventory ?? playerInventoryRef.current,
+          questDebugItemAllGrantedRef.current,
+          fixedProgress !== null,
+        );
         const sourceState = fixedProgress
           ? {
               questSave: undefined,
-              inventory: fixedProgress.inventory,
+              inventory: debugItemAll.inventory,
               survival: fixedProgress.survival,
               story: fixedProgress.story,
               interactionUsage: fixedProgress.interactionUsage,
@@ -10013,7 +10021,7 @@ export function MovementLab() {
             }
           : {
               questSave: manager.exportSave(),
-              inventory: playerInventoryRef.current,
+              inventory: debugItemAll.inventory,
               survival: survivalStateRef.current,
               story: storyProgressRef.current,
               interactionUsage: interactionUsageRef.current,
@@ -10209,8 +10217,11 @@ export function MovementLab() {
               pendingTeleportPointsRef.current.push(teleportPoint);
             }
           }
+          questDebugItemAllGrantedRef.current = true;
           showInteractionItemFeedback(
-            `Debug Scenario：${plan.targetQuestName}／${plan.targetStageName}`,
+            firstQuestDebugActivation
+              ? `Debug Scenario：${plan.targetQuestName}／${plan.targetStageName} · Item All 已自動執行`
+              : `Debug Scenario：${plan.targetQuestName}／${plan.targetStageName}`,
           );
           console.info("[QuestDebugScenario] applied", plan);
           return true;
@@ -15541,6 +15552,7 @@ export function MovementLab() {
       portableAutosaveTimerRef.current = null;
     }
     const progress = resetStoredNewGameProgress();
+    questDebugItemAllGrantedRef.current = false;
     survivalTick.clear();
     survivalStateRef.current = progress.survival;
     interactionUsageRef.current = progress.interactionUsage;
