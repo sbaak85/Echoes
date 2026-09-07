@@ -398,7 +398,7 @@ internal static class EditorSelfTest
         var scene = SceneJson.Load(scenePath);
         SceneJson.Validate(scene);
         if (
-            ItemCatalog.All.Count != 33 ||
+            ItemCatalog.All.Count != 42 ||
             ItemCatalog.Find("crystal-shard")?.Id != "R0001" ||
             ItemCatalog.Find("R0012")?.Name != "外星果實" ||
             ItemCatalog.Find("R0015")?.Name != "校正元件" ||
@@ -406,6 +406,12 @@ internal static class EditorSelfTest
             ItemCatalog.Find("R0016")?.Name != "精神專注劑" ||
             ItemCatalog.Find("invigorating-supply-drink")?.Id != "R0017" ||
             ItemCatalog.Find("R0017")?.Name != "提神補給飲料" ||
+            ItemCatalog.Find("adhesive-rubber")?.Id != "R0018" ||
+            ItemCatalog.Find("R0018")?.Name != "黏性橡膠" ||
+            ItemCatalog.Find("phase-conductor")?.Id != "R0021" ||
+            ItemCatalog.Find("R0021")?.Name != "相位導體" ||
+            ItemCatalog.Find("sweet-leaf")?.Id != "R0026" ||
+            ItemCatalog.Find("R0026")?.Name != "甜味葉片" ||
             ItemCatalog.Find("T0009")?.Name != "多功能折刀" ||
             ItemCatalog.Find("T0010")?.Name != "鋒利的金屬片" ||
             ItemCatalog.Find("R0100")?.Name != "全回復道具（測試用）"
@@ -1072,6 +1078,11 @@ internal static class EditorSelfTest
             TriggerMode = "manual", TransitionMode = "blackout",
             Area = new() { new(1, 1), new(5, 1), new(5, 5) },
             InteractionHintPoint = new(3, 2),
+            UseRequirements = new()
+            {
+                new() { Kind = "chapter", Chapter = 4, Scope = "prompt" },
+                new() { Kind = "item", ItemId = "R0008", Quantity = 1, Scope = "interaction" },
+            },
             FailureDialogue = new() { Lines = new() { new() { Text = "缺少道具" } } },
             SurvivalFailureDialogue = new() { Lines = new() { new() { Text = "體力不足" } } },
             CompletionDialogue = new() { Lines = new() { new() { Text = "抵達" } } },
@@ -1079,8 +1090,36 @@ internal static class EditorSelfTest
         var savedExit = SceneJson.Deserialize(SceneJson.Serialize(exitScriptFixture)).Connections.Last();
         if (savedExit.InteractionHintPoint?.X != 3 || savedExit.FailureDialogue.Lines[0].Text != "缺少道具" ||
             savedExit.SurvivalFailureDialogue?.Lines[0].Text != "體力不足" ||
-            savedExit.CompletionDialogue?.Lines[0].Text != "抵達" || savedExit.TransitionMode != "blackout")
+            savedExit.CompletionDialogue?.Lines[0].Text != "抵達" || savedExit.TransitionMode != "blackout" ||
+            savedExit.UseRequirements?.Count != 2 ||
+            savedExit.UseRequirements[0] is not { Kind: "chapter", Scope: "prompt" } ||
+            savedExit.UseRequirements[1] is not
+                { Kind: "item", ItemId: "R0008", Scope: "interaction" })
             throw new InvalidDataException("Exit scripts and hint point did not survive serialization.");
+        using (var exitRequirementsEditor = new SurvivalEffectEditorForm(
+            "interaction",
+            savedExit.SurvivalRequirements,
+            new SurvivalEffects(),
+            null,
+            "unlimited",
+            savedExit.UseRequirements,
+            Array.Empty<InteractionItemReward>(),
+            Array.Empty<QuestCatalogEntry>(),
+            showAllowAttemptOption: false,
+            showRequirementScope: true,
+            showEffectsPage: false))
+        {
+            if (!exitRequirementsEditor.ShowsRequirementScope ||
+                exitRequirementsEditor.UseRequirements.Count != 2 ||
+                exitRequirementsEditor.UseRequirements[0] is not
+                    { Kind: "chapter", Scope: "prompt" } ||
+                exitRequirementsEditor.UseRequirements[1] is not
+                    { Kind: "item", ItemId: "R0008", Scope: "interaction" })
+            {
+                throw new InvalidDataException(
+                    "Exit requirement editor did not expose or preserve requirement purposes.");
+            }
+        }
         using var canvas = new EditorCanvas();
         canvas.RunNodeEditingSelfTest(roundTrip);
         Console.WriteLine(

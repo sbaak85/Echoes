@@ -300,3 +300,22 @@ test("道具查看層以 0.2 秒淡入淡出、80% 黑底與模糊阻擋背後�
   assert.match(css, /width: min\(640px, 78vw\)/);
   assert.match(css, /height: min\(640px, 78vh\)/);
 });
+
+test("背包道具格內容依介面寬高的較小比例同步縮放", () => {
+  const css = readFileSync(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(css, /\.inventory-dialog \{[\s\S]*?container-type: size;[\s\S]*?container-name: inventory-dialog;/);
+  assert.match(css, /\.inventory-item-icon \{[\s\S]*?width: clamp\(38px, min\(6\.3cqw, 9\.8cqh\), 88px\);/);
+  assert.match(css, /\.inventory-item-kind \{[\s\S]*?font-size: clamp\(7px, min\(0\.86cqw, 1\.8cqh\), 12px\);/);
+  assert.match(css, /\.inventory-item strong \{[\s\S]*?font-size: clamp\(9px, min\(0\.93cqw, 1\.9cqh\), 13px\);/);
+  assert.match(css, /\.inventory-item small \{[\s\S]*?font-size: clamp\(9px, min\(0\.93cqw, 1\.9cqh\), 13px\);/);
+  assert.match(css, /\.inventory-selected-panel \{[\s\S]*?grid-template-rows: auto minmax\(clamp\(76px, 18cqh, 140px\), 1fr\) auto auto;[\s\S]*?overflow: hidden;/);
+  assert.match(css, /\.inventory-categories button \{[\s\S]*?padding: clamp\(4px, 1\.4cqh, 11px\) 5px;/);
+  assert.match(css, /\.inventory-catalog-tools \{[\s\S]*?padding: clamp\(4px, 1\.2cqh, 10px\) 0;/);
+  assert.match(css, /@container inventory-dialog \(max-height: 700px\) \{[\s\S]*?width: clamp\(24px, min\(6\.3cqw, 7\.4cqh\), 68px\);/);
+  assert.match(css, /@container inventory-dialog \(max-height: 700px\) \{[\s\S]*?\.inventory-pages \{[\s\S]*?min-height: clamp\(24px, 5\.5cqh, 38px\);/);
+  assert.match(css, /@container inventory-dialog \(max-height: 700px\) \{[\s\S]*?\.inventory-pages button \{[\s\S]*?min-height: clamp\(22px, 4\.4cqh, 32px\);/);
+});

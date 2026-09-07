@@ -131,6 +131,32 @@ test("interaction requirements can independently control prompt visibility and s
   );
 });
 
+test("manual scene exits honor prompt and interaction requirement purposes", () => {
+  const source = readFileSync(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  const editorSource = readFileSync(
+    new URL("../MapEditor/MainForm.cs", import.meta.url),
+    "utf8",
+  );
+  const manualExitStart = source.indexOf("function getManualConnectionInteractables");
+  const manualExitEnd = source.indexOf("let STATIC_SCENE_INTERACTABLES", manualExitStart);
+  const manualExitBlock = source.slice(manualExitStart, manualExitEnd);
+  const connectionFailureStart = source.indexOf("const getSceneConnectionRequirementFailure");
+  const connectionFailureEnd = source.indexOf("const canActivateSceneConnection", connectionFailureStart);
+  const connectionFailureBlock = source.slice(connectionFailureStart, connectionFailureEnd);
+  const connectionEditorStart = editorSource.indexOf("private void OpenSceneConnectionRequirementEditor");
+  const connectionEditorEnd = editorSource.indexOf("private void RefreshTargetSceneChoices", connectionEditorStart);
+  const connectionEditorBlock = editorSource.slice(connectionEditorStart, connectionEditorEnd);
+
+  assert.ok(manualExitStart >= 0 && manualExitEnd > manualExitStart);
+  assert.doesNotMatch(manualExitBlock, /allowAttemptWhenRequirementsUnmet:\s*true/);
+  assert.match(connectionFailureBlock, /filterInteractionRequirementsByPurpose\([\s\S]*?"interaction"/);
+  assert.match(connectionEditorBlock, /showRequirementScope:\s*true/);
+  assert.match(connectionEditorBlock, /showAllowAttemptOption:\s*false/);
+});
+
 test("quest requirements only pass while the quest is active", () => {
   const requirements = normalizeInteractionUseRequirements(
     [{ kind: "quest", questId: " QUEST_CH03_001 " }],

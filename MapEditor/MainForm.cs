@@ -1849,6 +1849,7 @@ public sealed class MainForm : Form
                 Array.Empty<InteractionItemReward>(),
                 quests,
                 showAllowAttemptOption: false,
+                showRequirementScope: true,
                 showEffectsPage: false,
                 objectives: objectives);
             if (editor.ShowDialog(this) != DialogResult.OK) return;

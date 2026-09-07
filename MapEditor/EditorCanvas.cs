@@ -1235,6 +1235,29 @@ public sealed class EditorCanvas : Control
                     "An interaction Point was allowed to leave its parent polygon.");
             }
             _dragMode = DragMode.None;
+            var overlapGuideIndex = _document.MovementGuides.Count;
+            _document.MovementGuides.Add(new MovementGuide
+            {
+                Id = "self-test-overlap-guide",
+                Label = "Overlap guide",
+                Points = new List<ScenePoint> { new(2, 16), new(22, 16) },
+                Width = 36,
+            });
+            var overlappingInteractionPoint = new PointF(16, 16);
+            if (HitTest(overlappingInteractionPoint) !=
+                new LayerSelection(SceneLayerKind.MovementGuide, overlapGuideIndex))
+            {
+                throw new InvalidOperationException(
+                    "Movement guide was not the visual top hit in the overlap self-test.");
+            }
+            if (ResolveContextSelection(overlappingInteractionPoint) != interactionPointSelection ||
+                !PrepareNodeContextMenu(overlappingInteractionPoint) ||
+                _contextSelection != interactionPointSelection ||
+                _contextInteractionPointIndex != 0)
+            {
+                throw new InvalidOperationException(
+                    "A movement guide stole the selected interactable's Point context action.");
+            }
             var overlapNavMeshIndex = _document.NavMesh.Count;
             _document.NavMesh.Add(new NavMeshRegion
             {
@@ -1296,7 +1319,7 @@ public sealed class EditorCanvas : Control
             });
             _selection = new LayerSelection(SceneLayerKind.SceneConnection, _document.Connections.Count - 1);
             var interior = new PointF(200, 200);
-            if (!IsSelectedConnectionContextTarget(interior) || !PrepareNodeContextMenu(interior))
+            if (!IsSelectedLayerContextTarget(interior) || !PrepareNodeContextMenu(interior))
                 throw new InvalidOperationException("Selected overlapping exit cannot open its interior context menu.");
             SetInteractionHintPointAtContext();
             if (exit.InteractionHintPoint is not { X: 200, Y: 200 })
@@ -2849,7 +2872,7 @@ public sealed class EditorCanvas : Control
     private bool TryShowWorldPointContextMenu(Point screenLocation, PointF world)
     {
         if (!IsInsideWorld(world)) return false;
-        if (IsSelectedConnectionContextTarget(world)) return false;
+        if (IsSelectedLayerContextTarget(world)) return false;
         _contextWorldPoint = SnapAndClamp(world);
         var topmostHit = HitTest(world);
         _contextItemPointIndex = topmostHit.Kind == SceneLayerKind.ItemPoint
@@ -2994,25 +3017,33 @@ public sealed class EditorCanvas : Control
         return -1;
     }
 
-    private bool IsSelectedConnectionContextTarget(PointF world) =>
-        SelectedSceneConnection is { } connection &&
-        (PointInPolygon(world, connection.Area) || HitSelectedHandle(world) >= 0);
+    private bool IsSelectedLayerContextTarget(PointF world)
+    {
+        if (!IsValidSelection(_selection)) return false;
+        if (HitSelectedHandle(world) >= 0) return true;
+        if (TryFindNearestSelectedEdge(world, out _, out _)) return true;
+
+        var points = SelectedEditablePolygonPoints();
+        return points is not null &&
+            (_selection.Kind == SceneLayerKind.Interactable ||
+             _selection.Kind == SceneLayerKind.SceneConnection) &&
+            PointInPolygon(world, points);
+    }
+
+    private LayerSelection ResolveContextSelection(PointF world) =>
+        IsSelectedLayerContextTarget(world) ? _selection : HitTest(world);
 
     private void ShowNodeContextMenu(Point screenLocation, PointF world)
     {
         if (!IsInsideWorld(world)) return;
 
-        // A selected vertex/radius handle is rendered above every polygon and remains an
-        // explicit editing target. Otherwise, right-click follows the same top-to-bottom
-        // order as drawing so an underlying NavMesh cannot steal another layer's menu.
-        var selectedHandleHit = HitSelectedHandle(world) >= 0;
-        if (!selectedHandleHit && !IsSelectedConnectionContextTarget(world))
+        // Keep the active layer when the pointer is on one of its context-editing targets.
+        // This lets an interactable's Point commands remain available even when a guide or
+        // another visually higher layer overlaps it. Changing layers stays an explicit action.
+        var hit = ResolveContextSelection(world);
+        if (hit != _selection)
         {
-            var hit = HitTest(world);
-            if (hit != _selection)
-            {
-                SelectLayer(hit);
-            }
+            SelectLayer(hit);
         }
 
         if (!PrepareNodeContextMenu(world))

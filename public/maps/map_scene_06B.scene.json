@@ -2013,8 +2013,8 @@
           "y": 1245
         }
       ],
-      "type": "investigate",
-      "verb": "\u8ABF\u67E5",
+      "type": "move",
+      "verb": "\u79FB\u52D5",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -2032,9 +2032,9 @@
           "itemId": "",
           "questId": "QUEST_CH04_MAIN_001",
           "stageId": "QUEST_CH04_MAIN_001_STAGE_02",
-          "stageMode": "CurrentStageOnly",
-          "objectiveId": "QUEST_CH04_MAIN_001_OBJ_04",
-          "objectiveState": "completed",
+          "stageMode": "UnlockFromStage",
+          "objectiveId": "QUEST_CH04_MAIN_001_OBJ_05",
+          "objectiveState": "unlocked",
           "disableQuestId": "",
           "disableStageId": "",
           "quantity": 1,
@@ -2141,16 +2141,18 @@
       },
       "useRequirements": [
         {
-          "kind": "chapter",
-          "scope": "interaction",
+          "kind": "questStage",
+          "scope": "both",
           "itemId": "",
-          "questId": "",
-          "stageId": "",
-          "stageMode": "CurrentStageOnly",
+          "questId": "QUEST_CH04_MAIN_001",
+          "stageId": "QUEST_CH04_MAIN_001_STAGE_02",
+          "stageMode": "UnlockFromStage",
+          "objectiveId": "QUEST_CH04_MAIN_001_OBJ_05",
+          "objectiveState": "unlocked",
           "disableQuestId": "",
           "disableStageId": "",
           "quantity": 1,
-          "chapter": 5
+          "chapter": 1
         }
       ],
       "interactionHintPoint": {
@@ -2228,16 +2230,18 @@
       },
       "useRequirements": [
         {
-          "kind": "chapter",
-          "scope": "interaction",
+          "kind": "questStage",
+          "scope": "both",
           "itemId": "",
-          "questId": "",
-          "stageId": "",
-          "stageMode": "CurrentStageOnly",
+          "questId": "QUEST_CH04_MAIN_001",
+          "stageId": "QUEST_CH04_MAIN_001_STAGE_02",
+          "stageMode": "UnlockFromStage",
+          "objectiveId": "QUEST_CH04_MAIN_001_OBJ_05",
+          "objectiveState": "unlocked",
           "disableQuestId": "",
           "disableStageId": "",
           "quantity": 1,
-          "chapter": 5
+          "chapter": 1
         }
       ],
       "interactionHintPoint": {
@@ -2323,16 +2327,18 @@
       },
       "useRequirements": [
         {
-          "kind": "chapter",
+          "kind": "questStage",
           "scope": "both",
           "itemId": "",
-          "questId": "",
-          "stageId": "",
-          "stageMode": "CurrentStageOnly",
+          "questId": "QUEST_CH04_MAIN_001",
+          "stageId": "QUEST_CH04_MAIN_001_STAGE_02",
+          "stageMode": "UnlockFromStage",
+          "objectiveId": "QUEST_CH04_MAIN_001_OBJ_05",
+          "objectiveState": "unlocked",
           "disableQuestId": "",
           "disableStageId": "",
           "quantity": 1,
-          "chapter": 5
+          "chapter": 1
         }
       ],
       "interactionHintPoint": {
@@ -2385,7 +2391,7 @@
     {
       "id": "scene6-item-point-001",
       "label": "ItemPoint 1",
-      "itemId": "R0003",
+      "itemId": "R0023",
       "quantity": 1,
       "spawnPolicy": "once",
       "showOnMinimap": false,
@@ -2395,7 +2401,7 @@
     {
       "id": "scene6-item-point-002",
       "label": "ItemPoint 2",
-      "itemId": "R0003",
+      "itemId": "R0026",
       "quantity": 1,
       "spawnPolicy": "once",
       "showOnMinimap": false,
@@ -2405,7 +2411,7 @@
     {
       "id": "scene6-item-point-003",
       "label": "ItemPoint 3",
-      "itemId": "R0003",
+      "itemId": "R0020",
       "quantity": 1,
       "spawnPolicy": "once",
       "showOnMinimap": false,
@@ -2415,7 +2421,7 @@
     {
       "id": "scene6-item-point-004",
       "label": "ItemPoint 4",
-      "itemId": "R0001",
+      "itemId": "R0025",
       "quantity": 1,
       "spawnPolicy": "once",
       "showOnMinimap": false,

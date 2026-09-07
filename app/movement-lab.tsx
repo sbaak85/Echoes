@@ -1231,7 +1231,6 @@ function getManualConnectionInteractables(scene: SceneFile): SceneInteractable[]
       x: c.area.reduce((sum, p) => sum + p.x, 0) / c.area.length,
       y: c.area.reduce((sum, p) => sum + p.y, 0) / c.area.length,
     },
-    allowAttemptWhenRequirementsUnmet: true,
   }));
 }
 let STATIC_SCENE_INTERACTABLES = [

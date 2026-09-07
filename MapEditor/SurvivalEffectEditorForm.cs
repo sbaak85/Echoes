@@ -195,6 +195,7 @@ public sealed class SurvivalEffectEditorForm : Form
     public List<InteractionUseRequirement> UseRequirements => _useRequirementRows
         .Select(ReadUseRequirement)
         .ToList();
+    internal bool ShowsRequirementScope => _showRequirementScope;
 
     public bool AllowAttemptWhenRequirementsUnmet =>
         _allowAttemptWhenRequirementsUnmet.Checked;
@@ -235,6 +236,7 @@ public sealed class SurvivalEffectEditorForm : Form
         bool showQuestStartOptions = false,
         bool allowAttemptWhenRequirementsUnmet = false,
         bool showAllowAttemptOption = true,
+        bool? showRequirementScope = null,
         IEnumerable<SceneTeleportPoint>? teleportPoints = null,
         string? completionTeleportPointId = null,
         float completionTeleportDelaySeconds = 0,
@@ -249,7 +251,7 @@ public sealed class SurvivalEffectEditorForm : Form
             ControlStyles.OptimizedDoubleBuffer,
             true);
         _defaults = InteractionTypeDefaults.Get(interactionType);
-        _showRequirementScope = showAllowAttemptOption;
+        _showRequirementScope = showRequirementScope ?? showAllowAttemptOption;
         var useRequirementList = useRequirements?
             .Select(requirement => requirement.Clone())
             .ToList() ?? new List<InteractionUseRequirement>();

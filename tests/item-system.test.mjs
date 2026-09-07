@@ -109,11 +109,11 @@ test("Item All 會將道具清單中的每種道具各加入背包一個", () =>
   });
 });
 
-test("中央道具資料庫固定保留 100 欄，現有 33 項道具都有分類流水號與英文名稱", () => {
+test("中央道具資料庫固定保留 100 欄，現有 42 項道具都有分類流水號與英文名稱", () => {
   assert.equal(validateItemDatabase(), true);
   assert.equal(ITEM_DATABASE.length, ITEM_DATABASE_CAPACITY);
   assert.equal(ITEM_DATABASE_CAPACITY, 100);
-  assert.equal(ITEM_DEFINITIONS.length, 33);
+  assert.equal(ITEM_DEFINITIONS.length, 42);
   ITEM_DEFINITIONS.forEach((item) => {
     assert.match(item.id, /^[RTQM]\d{4}$/);
     assert.ok(item.englishName.length > 0);
@@ -143,6 +143,27 @@ test("中央道具資料庫固定保留 100 欄，現有 33 項道具都有分�
       ["T0008", "digging-shovel", "挖掘鏟", "tool"],
       ["T0009", "multifunction-folding-knife", "多功能折刀", "tool"],
       ["T0010", "sharp-metal-fragment", "鋒利的金屬片", "tool"],
+    ],
+  );
+  assert.deepEqual(
+    ITEM_DEFINITIONS.filter((item) => /^R00(?:1[8-9]|2[0-6])$/.test(item.id)).map((item) => [
+      item.id,
+      item.englishName,
+      item.name,
+      item.category,
+      item.usable,
+      item.inventoryRules.stackSize,
+    ]),
+    [
+      ["R0018", "adhesive-rubber", "黏性橡膠", "resource", false, 99],
+      ["R0019", "toughened-vine-bark", "韌化藤皮", "resource", false, 99],
+      ["R0020", "luminescent-sac", "螢光包囊", "resource", false, 99],
+      ["R0021", "phase-conductor", "相位導體", "resource", false, 99],
+      ["R0022", "heat-fused-ceramic-shard", "熱熔陶片", "resource", false, 99],
+      ["R0023", "plain-grass-stem", "樸素草莖", "resource", false, 99],
+      ["R0024", "soft-core-moss", "柔芯苔藻", "resource", false, 99],
+      ["R0025", "sodium-chloride-crystal-salt", "氯化鈉晶鹽", "resource", false, 99],
+      ["R0026", "sweet-leaf", "甜味葉片", "resource", false, 99],
     ],
   );
 });
