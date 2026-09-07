@@ -1489,10 +1489,10 @@
         }
       },
       "survivalEffects": {
-        "stamina": 75,
+        "stamina": 99,
         "hunger": 0,
         "thirst": 0,
-        "spirit": 0,
+        "spirit": 99,
         "timeMinutes": 480
       },
       "useRequirements": [
@@ -5034,7 +5034,7 @@
     },
     {
       "id": "scene3-interaction-029",
-      "label": "\u4F0A\u85A9\u5361\u865F_\u529F\u80FD",
+      "label": "\u4F0A\u85A9\u5361\u865F_\u529F\u80FD\u9078\u55AE",
       "shape": "polygon",
       "points": [
         {

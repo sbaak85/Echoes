@@ -92,6 +92,12 @@ test("chapter 4 completion rules cover preparation and the three signal samples"
     .find(objective => objective.id === signalSamplesNextObjectiveId);
   assert.equal(followUpObjective.activationMode, "event");
   assert.equal(followUpObjective.activationEventId, signalSamplesFlowId);
+  const southernTrailObstacleObjective = source.quests.find(q => q.id === questId).stages
+    .flatMap(stage => stage.objectives)
+    .find(objective => objective.id === `${questId}_OBJ_06`);
+  assert.equal(southernTrailObstacleObjective.activationMode, "objectiveCompleted");
+  assert.equal(southernTrailObstacleObjective.activationEventId, `${questId}_OBJ_05`);
+  assert.equal(southernTrailObstacleObjective.unlockDialogueId, "");
   assert.deepEqual(QUEST_STAGE_EVENT_FLOWS[signalSamplesFlowId].actions, [{
     type: "playDialogue",
     dialogueId: signalSamplesDialogueId,

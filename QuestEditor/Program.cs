@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text;
 
 namespace Echoes.QuestEditor;
@@ -150,6 +151,16 @@ internal static class Program
             CompletionInterfaceAction = CompletionInterfaceAction.Close,
             CompletionInterfaceId = "Inventory",
         });
+        stage.Objectives.Add(new QuestObjectiveDefinition
+        {
+            Id = "QUEST_TEST_OBJ_02",
+            DisplayText = "來源目標核取後啟用",
+            Type = ObjectiveType.CollectItem,
+            TargetId = "R0001",
+            RequiredAmount = 1,
+            ActivationMode = ObjectiveActivationMode.ObjectiveCompleted,
+            ActivationEventId = "QUEST_TEST_OBJ_01",
+        });
         quest.Stages.Add(stage);
         source.Quests.Add(quest);
         var path = Path.Combine(Path.GetTempPath(), "EchoesQuestEditor", "quest-data.json");
@@ -161,6 +172,9 @@ internal static class Program
             loaded.Quests[0].Stages[0].Objectives[0].CompletionInterfaceId != "Inventory" ||
             loaded.Quests[0].Stages[0].Objectives[0].ActivationMode != ObjectiveActivationMode.Event ||
             loaded.Quests[0].Stages[0].Objectives[0].ActivationEventId != "story-trigger-001" ||
+            loaded.Quests[0].Stages[0].Objectives[1].ActivationMode != ObjectiveActivationMode.ObjectiveCompleted ||
+            loaded.Quests[0].Stages[0].Objectives[1].ActivationEventId != "QUEST_TEST_OBJ_01" ||
+            loaded.Quests[0].Stages[0].Objectives[1].UnlockDialogueId.Length != 0 ||
             loaded.Quests[0].Stages[0].Objectives[0].BlocksStageCompletion ||
             Math.Abs(loaded.Quests[0].StartDelaySeconds - 1.5) > 0.001 ||
             Math.Abs(loaded.Quests[0].StartPresentationDelaySeconds - 0.25) > 0.001 ||
@@ -188,6 +202,16 @@ internal static class Program
         var issues = QuestValidator.Validate(loaded, QuestReferenceProvider.Load(projectRoot));
         if (issues.Any(issue => issue.Severity == ValidationSeverity.Error))
             throw new InvalidDataException(string.Join(Environment.NewLine, issues));
+        var activationModeConverter = TypeDescriptor.GetConverter(typeof(ObjectiveActivationMode));
+        if (activationModeConverter.ConvertToString(ObjectiveActivationMode.ObjectiveActivated) != "OBJ啟用後啟用" ||
+            activationModeConverter.ConvertToString(ObjectiveActivationMode.ObjectiveCompleted) != "OBJ核取後啟用")
+            throw new InvalidDataException("OBJ 生命週期啟用方式的中文選項未正確顯示。");
+        var dependentObjective = loaded.Quests[0].Stages[0].Objectives[1];
+        dependentObjective.ActivationEventId = "QUEST_TEST_OBJ_MISSING";
+        if (!QuestValidator.Validate(loaded, QuestReferenceProvider.Load(projectRoot))
+                .Any(issue => issue.Message.Contains("找不到啟用來源 OBJ")))
+            throw new InvalidDataException("不存在的啟用來源 OBJ 必須被驗證攔截。");
+        dependentObjective.ActivationEventId = "QUEST_TEST_OBJ_01";
         if (loaded.Quests[0].Stages[0].Objectives[0].CompoundMatchMode != CompoundItemMatchMode.All)
             throw new InvalidDataException("舊任務未設定複合模式時，必須預設全部道具達標。");
 

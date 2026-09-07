@@ -724,8 +724,13 @@ function createObjectiveProgress(
   currentStage = false,
 ): QuestObjectiveRuntime {
   const activationEventId = (objective.activationEventId ?? objective.unlockDialogueId ?? "").trim();
-  const eventActivated = objective.activationMode === "event" || activationEventId.length > 0;
-  const unlocked = completed || !eventActivated;
+  const activationMode = objective.activationMode && objective.activationMode !== "immediate"
+    ? objective.activationMode
+    : activationEventId.length > 0
+      ? "event"
+      : "immediate";
+  const conditionallyActivated = activationMode !== "immediate";
+  const unlocked = completed || !conditionallyActivated;
   const completedCompoundItemIds = objective.compoundMatchMode === "anyN"
     ? new Set(
         (objective.itemRequirements ?? [])
@@ -748,7 +753,9 @@ function createObjectiveProgress(
     completed,
     state: completed ? "completed" : unlocked ? "active" : "locked",
     unlocked,
-    activationDefinitionKey: eventActivated ? `event:${activationEventId}` : "immediate",
+    activationDefinitionKey: conditionallyActivated
+      ? `${activationMode}:${activationEventId}`
+      : "immediate",
     ...(itemAmounts ? { itemAmounts } : {}),
     ...(currentStage ? { availableAtEpochMs: 0, startActionsPresented: true } : {}),
     ...(completed
@@ -967,7 +974,7 @@ function validateObjectiveTarget(
       ...normalizeObjectiveTargetIds(objective),
     ]);
     if (targetIds.length === 0) {
-      const isDormantPlaceholder = objective.activationMode === "event" &&
+      const isDormantPlaceholder = objective.activationMode !== "immediate" &&
         !(objective.activationEventId ?? objective.unlockDialogueId ?? "").trim();
       issues.push({
         severity: isDormantPlaceholder ? "warning" : "error",

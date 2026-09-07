@@ -51,16 +51,26 @@ internal static class QuestDataStore
                      .SelectMany(quest => quest.Stages)
                      .SelectMany(stage => stage.Objectives))
         {
+            if (objective.ActivationMode is ObjectiveActivationMode.ObjectiveActivated or
+                ObjectiveActivationMode.ObjectiveCompleted)
+            {
+                objective.ActivationEventId = objective.ActivationEventId.Trim();
+                // These modes use an Objective ID, never the legacy dialogue gate.
+                objective.UnlockDialogueId = "";
+                continue;
+            }
             if (string.IsNullOrWhiteSpace(objective.ActivationEventId) &&
                 !string.IsNullOrWhiteSpace(objective.UnlockDialogueId))
             {
                 objective.ActivationEventId = objective.UnlockDialogueId.Trim();
-                objective.ActivationMode = ObjectiveActivationMode.Event;
+                if (objective.ActivationMode == ObjectiveActivationMode.Immediate)
+                    objective.ActivationMode = ObjectiveActivationMode.Event;
             }
             else if (!string.IsNullOrWhiteSpace(objective.ActivationEventId))
             {
                 objective.ActivationEventId = objective.ActivationEventId.Trim();
-                objective.ActivationMode = ObjectiveActivationMode.Event;
+                if (objective.ActivationMode == ObjectiveActivationMode.Immediate)
+                    objective.ActivationMode = ObjectiveActivationMode.Event;
             }
 
             if (objective.ActivationMode == ObjectiveActivationMode.Event)
@@ -68,7 +78,7 @@ internal static class QuestDataStore
                 // Mirror the value for older game builds that only knew the dialogue gate field.
                 objective.UnlockDialogueId = objective.ActivationEventId;
             }
-            else
+            else if (objective.ActivationMode == ObjectiveActivationMode.Immediate)
             {
                 objective.ActivationEventId = "";
                 objective.UnlockDialogueId = "";

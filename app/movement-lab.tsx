@@ -6,6 +6,12 @@ import { scheduleUiAssetWarmup } from "./ui-asset-warmup";
 import { SurvivalNeedIcon } from "./survival-need-icon";
 import { InventoryCategoryIcon } from "./inventory-category-icon";
 import { GamepadButtonIcon, GamepadHint } from "./gamepad-button-icon";
+import {
+  StarshipInteractionMenu,
+  type StarshipInteractionControlMode,
+  type StarshipInteractionMenuController,
+  type StarshipSleepOption,
+} from "./starship-interaction-menu";
 
 import {
   useCallback,
@@ -330,6 +336,7 @@ import {
 
 const QUEST_DOCUMENT = questDocumentSource as QuestDocument;
 const FIRST_MAIN_QUEST_ID = "QUEST_CH03_MAIN_001";
+const STARSHIP_INTERACTION_MENU_INTERACTION_ID = "scene3-interaction-029";
 const QUEST_DEBUG_ITEM_SURVIVAL_EFFECTS = Object.fromEntries(
   ITEM_DEFINITIONS.map((item) => [item.id, item.survivalEffects]),
 );
@@ -3531,6 +3538,14 @@ export function MovementLab() {
   const frequencyPuzzleOpenRef = useRef(false);
   const weldingPuzzleOpenRef = useRef(false);
   const starCardsOpenRef = useRef(false);
+  const starshipInteractionMenuOpenRef = useRef(false);
+  const starshipInteractionMenuInputRearmRef = useRef(false);
+  const startStarshipSleepRef = useRef<(option: StarshipSleepOption) => void>(() => {});
+  const starshipInteractionMenuControllerRef =
+    useRef<StarshipInteractionMenuController>(null);
+  const starshipInteractionControlModeRef =
+    useRef<StarshipInteractionControlMode>("pointer");
+  const starshipInteractionCursorRearmRequiredRef = useRef(false);
   const starCardsInitialGamepadModeRef = useRef(false);
   const weldingPuzzleVirtualCursorAvailableRef = useRef(false);
   const powerPuzzleSessionRef = useRef<PowerPuzzleSession | null>(null);
@@ -3750,6 +3765,8 @@ export function MovementLab() {
   const [frequencyPuzzleOpen, setFrequencyPuzzleOpen] = useState(false);
   const [weldingPuzzleOpen, setWeldingPuzzleOpen] = useState(false);
   const [starCardsOpen, setStarCardsOpen] = useState(false);
+  const [starshipInteractionMenuOpen, setStarshipInteractionMenuOpen] =
+    useState(false);
   const [starCardsInitialGamepadMode, setStarCardsInitialGamepadMode] = useState(false);
   const [weldingPuzzleVirtualCursorAvailable, setWeldingPuzzleVirtualCursorAvailable] =
     useState(false);
@@ -3922,12 +3939,11 @@ export function MovementLab() {
     visible: boolean;
   } | null>(null);
 
-  const activateQuestPromptInputMode = (mode: QuestPromptInputMode) => {
-
+  const activateQuestPromptInputMode = useCallback((mode: QuestPromptInputMode) => {
     if (questPromptInputModeRef.current === mode) return;
     questPromptInputModeRef.current = mode;
     setQuestPromptInputMode(mode);
-  };
+  }, []);
   const clearNewPlayerTutorialStartTimer = () => {
     if (newPlayerTutorialStartTimerRef.current === null) return;
     window.clearTimeout(newPlayerTutorialStartTimerRef.current);
@@ -4105,6 +4121,39 @@ export function MovementLab() {
     starCardsOpenRef.current = false;
     setStarCardsOpen(false);
   }, []);
+
+  const closeStarshipInteractionMenu = useCallback(() => {
+    starshipInteractionMenuOpenRef.current = false;
+    starshipInteractionMenuInputRearmRef.current = true;
+    starshipInteractionCursorRearmRequiredRef.current = false;
+    setStarshipInteractionMenuOpen(false);
+    window.queueMicrotask(() => canvasRef.current?.focus({ preventScroll: true }));
+  }, []);
+
+  const openStarshipInteractionMenu = () => {
+    if (starshipInteractionMenuOpenRef.current) return;
+    dismissTimeElapsedNotice();
+    clearInventoryHoverHint();
+    optionsOpenRef.current = false;
+    inventoryOpenRef.current = false;
+    setOptionsOpen(false);
+    setInventoryOpen(false);
+    starshipInteractionMenuInputRearmRef.current =
+      questPromptInputModeRef.current === "gamepad";
+    const controlMode: StarshipInteractionControlMode =
+      questPromptInputModeRef.current === "gamepad"
+        ? "directional"
+        : questPromptInputModeRef.current === "mobile"
+          ? "touch"
+          : "pointer";
+    starshipInteractionControlModeRef.current = controlMode;
+    starshipInteractionCursorRearmRequiredRef.current = controlMode === "directional";
+    starshipInteractionMenuOpenRef.current = true;
+    setStarshipInteractionMenuOpen(true);
+    void audioEventManagerRef.current?.play("starshipMenuOpened", { restart: true }).catch(() => {
+      // An audio failure must not block opening the menu.
+    });
+  };
 
   const openStarCardsGame = () => {
     closePowerRoutingPuzzle();
@@ -5107,9 +5156,14 @@ export function MovementLab() {
           onObjectiveCompleted: (questId, objectiveId, _stageId, entry, objective) => {
             const view = buildQuestHudView(questId, entry);
             if (view) {
-              scheduleQuestPresentation(objective.completionPresentationDelaySeconds, () =>
-                triggerQuestObjectiveTween(view, objectiveId),
-              );
+              scheduleQuestPresentation(objective.completionPresentationDelaySeconds, () => {
+                const currentEntry = questRuntimeManagerRef.current
+                  ?.exportSave().quests[questId];
+                const currentView = currentEntry
+                  ? buildQuestHudView(questId, currentEntry)
+                  : null;
+                triggerQuestObjectiveTween(currentView ?? view, objectiveId);
+              });
             }
             if (
               objective.completionInterfaceAction &&
@@ -6366,6 +6420,30 @@ export function MovementLab() {
       // policy blocks this one-shot request.
     });
   };
+
+  const playStarshipInteractionInput = useCallback(() => {
+    const audioEvents = audioEventManagerRef.current;
+    if (!audioEvents) return;
+    void audioEvents.play("uiInput", { restart: true }).catch(() => {
+      // Browser autoplay policy may block the first UI sound.
+    });
+  }, []);
+
+  const handleStarshipInteractionControlModeChange = useCallback(
+    (mode: StarshipInteractionControlMode) => {
+      starshipInteractionControlModeRef.current = mode;
+      if (mode === "pointer") activateQuestPromptInputMode("keyboard-mouse");
+      else if (mode === "touch") activateQuestPromptInputMode("mobile");
+      else if (mode === "cursor") activateQuestPromptInputMode("gamepad");
+      // Directional focus is shared by keyboard and gamepad. Preserve the
+      // owner selected immediately before this callback so keyboard arrows do
+      // not turn the footer and interaction rules back into gamepad mode.
+      else if (questPromptInputModeRef.current === "gamepad") {
+        activateQuestPromptInputMode("gamepad");
+      }
+    },
+    [activateQuestPromptInputMode],
+  );
 
   const clearInventoryItemInspectImmediately = () => {
     if (inventoryItemInspectCloseTimerRef.current !== null) {
@@ -8922,6 +9000,23 @@ export function MovementLab() {
       document.documentElement.classList.remove("gamepad-cursor-active");
     };
 
+    const activateStarshipInteractionDirectionalMode = () => {
+      starshipInteractionControlModeRef.current = "directional";
+      starshipInteractionCursorRearmRequiredRef.current = true;
+      virtualCursorVisible = false;
+      deactivateGamepadCursor();
+      setGamepadInputCursorHidden(true);
+      starshipInteractionMenuControllerRef.current?.setControlMode("directional");
+    };
+
+    const activateStarshipInteractionCursorMode = () => {
+      starshipInteractionControlModeRef.current = "cursor";
+      virtualCursorVisible = true;
+      activateGamepadCursor();
+      setGamepadInputCursorHidden(true);
+      starshipInteractionMenuControllerRef.current?.setControlMode("cursor");
+    };
+
     const activateOptionsDpadMode = () => {
       optionsGamepadModeRef.current = "dpad";
       // Directional navigation owns the selected row and A-button action, but
@@ -9470,6 +9565,7 @@ export function MovementLab() {
       frequencyPuzzleOpenRef.current ||
       weldingPuzzleOpenRef.current ||
       starCardsOpenRef.current ||
+      starshipInteractionMenuOpenRef.current ||
       Boolean(survivalStateRef.current.gameOverReason);
 
     const canUseQuestSkipHotkey = () =>
@@ -9490,7 +9586,8 @@ export function MovementLab() {
       !powerPuzzleOpenRef.current &&
       !frequencyPuzzleOpenRef.current &&
       !weldingPuzzleOpenRef.current &&
-      !starCardsOpenRef.current;
+      !starCardsOpenRef.current &&
+      !starshipInteractionMenuOpenRef.current;
 
     const questSkipKeyController = createQuestSkipKeyController({
       canTrigger: canUseQuestSkipHotkey,
@@ -9503,6 +9600,7 @@ export function MovementLab() {
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
       const eventTarget = event.target;
+      if (starshipInteractionMenuOpenRef.current) return;
       if (
         eventTarget instanceof HTMLInputElement ||
         eventTarget instanceof HTMLTextAreaElement ||
@@ -10642,6 +10740,24 @@ export function MovementLab() {
       }, 500);
     };
 
+    startStarshipSleepRef.current = (option) => {
+      if (!starshipInteractionMenuOpenRef.current || timePassInputLockedRef.current) return;
+      settleNaturalSurvival();
+      const startGameMinutes = survivalStateRef.current.gameMinutes;
+      const elapsedGameMinutes = getInteractionCompletionElapsedMinutes(
+        startGameMinutes,
+        option === "eight-hours"
+          ? { timeMinutes: 8 * 60 }
+          : { jumpToTimeMinutes: 6 * 60, jumpDayOffset: 1 },
+      );
+      closeStarshipInteractionMenu();
+      const recovery = option === "eight-hours" ? 50 : 70;
+      runTimePassTransition(startGameMinutes, elapsedGameMinutes, {
+        stamina: recovery,
+        spirit: recovery,
+      });
+    };
+
     completeStoryTriggerRef.current = (zone) => {
       const trigger = toStoryTriggerInteractable(zone);
       if (isInteractableLocked(trigger) || !grantInteractionItemRewards(trigger)) {
@@ -11328,13 +11444,21 @@ export function MovementLab() {
         return true;
       }
 
+      const completeTriggeredInteraction = () => completeInteraction(
+        interactable,
+        source,
+        interactable.id === STARSHIP_INTERACTION_MENU_INTERACTION_ID
+          ? openStarshipInteractionMenu
+          : undefined,
+      );
+
       if (interactable.storyDialogueId) {
         const storyDialogue = dialogueManager.get(interactable.storyDialogueId);
         if (storyDialogue) {
           void dialogueManager.playRegistered(
             interactable.storyDialogueId,
             interactable,
-            () => completeInteraction(interactable, source),
+            completeTriggeredInteraction,
           );
           if (source === "pointer") {
             pointerInteractionTriggeredId = interactable.id;
@@ -11348,14 +11472,12 @@ export function MovementLab() {
 
       const hasDialogueSequence = shouldCompleteAfterDialogue(interactable);
       if (hasDialogueSequence) {
-        openDialogue(interactable, () => {
-          completeInteraction(interactable, source);
-        });
+        openDialogue(interactable, completeTriggeredInteraction);
         if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
         return true;
       }
 
-      return completeInteraction(interactable, source);
+      return completeTriggeredInteraction();
     };
 
     const findPathFromLimitedCandidates = (
@@ -11796,7 +11918,7 @@ export function MovementLab() {
       }
 
       return element.closest(
-        ".quick-assign-shield, .quick-assign-panel, .new-player-tutorial-overlay, .inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .star-cards-overlay, .star-cards-dialog, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .survival-game-over, .dialogue-box, .dialogue-history-trigger, .dialogue-history-overlay, .quest-hud",
+        ".quick-assign-shield, .quick-assign-panel, .new-player-tutorial-overlay, .inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .star-cards-overlay, .star-cards-dialog, .starship-interaction-menu, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .survival-game-over, .dialogue-box, .dialogue-history-trigger, .dialogue-history-overlay, .quest-hud",
       )
         ? "blocked"
         : "none";
@@ -13494,6 +13616,38 @@ export function MovementLab() {
       const gamepadInput = browserGamepadInput.connected
         ? browserGamepadInput
         : nativeGamepadInput;
+      if (starshipInteractionMenuInputRearmRef.current) {
+        const hasHeldMenuInput =
+          Math.abs(gamepadInput.stickX) > 0.2 ||
+          Math.abs(gamepadInput.stickY) > 0.2 ||
+          Math.abs(gamepadInput.dpadX) > 0 ||
+          Math.abs(gamepadInput.dpadY) > 0 ||
+          gamepadInput.actionPressed ||
+          gamepadInput.confirmPressed ||
+          gamepadInput.backPressed ||
+          gamepadInput.startPressed ||
+          gamepadInput.selectPressed;
+        if (hasHeldMenuInput) {
+          virtualCursorVisible = false;
+          deactivateGamepadCursor();
+          setGamepadInputCursorHidden(true);
+        } else {
+          starshipInteractionMenuInputRearmRef.current = false;
+          if (starshipInteractionControlModeRef.current === "cursor") {
+            virtualCursorVisible = true;
+            activateGamepadCursor();
+            setGamepadInputCursorHidden(true);
+          } else {
+            virtualCursorVisible = false;
+            deactivateGamepadCursor();
+            setGamepadInputCursorHidden(
+              starshipInteractionControlModeRef.current !== "pointer",
+            );
+          }
+        }
+        updateFootstepAudio(0, deltaTime);
+        return;
+      }
       const acceleratedWalkActive =
         pressedKeys.has("shift") || gamepadInput.acceleratePressed;
       const effectiveMovementSpeed =
@@ -13755,6 +13909,33 @@ export function MovementLab() {
       if (sceneConnectionConfirmationDirectionalInputActive) {
         activateSceneConnectionConfirmationDpadMode();
       }
+      if (
+        starshipInteractionMenuOpenRef.current &&
+        starshipInteractionCursorRearmRequiredRef.current &&
+        cursorInputLength <= 0.1
+      ) {
+        starshipInteractionCursorRearmRequiredRef.current = false;
+      }
+      const starshipInteractionDirectionalInputActive =
+        starshipInteractionMenuOpenRef.current &&
+        (Math.abs(gamepadInput.dpadX) > 0 ||
+          Math.abs(gamepadInput.dpadY) > 0 ||
+          Math.abs(gamepadInput.stickX) >= 0.65 ||
+          Math.abs(gamepadInput.stickY) >= 0.65);
+      if (starshipInteractionDirectionalInputActive) {
+        activateStarshipInteractionDirectionalMode();
+      } else if (starshipInteractionMenuOpenRef.current) {
+        const starshipControlMode = starshipInteractionControlModeRef.current;
+        if (starshipControlMode === "cursor") {
+          virtualCursorVisible = true;
+          activateGamepadCursor();
+          setGamepadInputCursorHidden(true);
+        } else {
+          virtualCursorVisible = false;
+          deactivateGamepadCursor();
+          setGamepadInputCursorHidden(starshipControlMode !== "pointer");
+        }
+      }
       const menuCursorCanTakeControl =
         !dialogueHistoryOpenRef.current &&
         (!inventoryOpenRef.current ||
@@ -13763,6 +13944,11 @@ export function MovementLab() {
               cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD))) &&
         (!starCardsOpenRef.current ||
           cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD) &&
+        (!starshipInteractionMenuOpenRef.current ||
+          (!starshipInteractionDirectionalInputActive &&
+            !starshipInteractionCursorRearmRequiredRef.current &&
+            (starshipInteractionControlModeRef.current === "cursor" ||
+              cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD))) &&
         (!optionsOpenRef.current ||
           shouldOptionsCursorTakeControl(
             optionsGamepadModeRef.current,
@@ -13806,7 +13992,9 @@ export function MovementLab() {
         cursorInputLength > 0 &&
         menuCursorCanTakeControl
       ) {
-        if (chapter04SavePromptOpenRef.current) {
+        if (starshipInteractionMenuOpenRef.current) {
+          activateStarshipInteractionCursorMode();
+        } else if (chapter04SavePromptOpenRef.current) {
           chapter04SavePromptGamepadModeRef.current = "cursor";
         } else if (itemUseConfirmationOpenRef.current) {
           itemUseConfirmationGamepadModeRef.current = "cursor";
@@ -13852,6 +14040,25 @@ export function MovementLab() {
         }
       }
 
+      if (
+        starshipInteractionMenuOpenRef.current &&
+        starshipInteractionControlModeRef.current === "cursor" &&
+        virtualCursorVisible
+      ) {
+        const cursorBounds = canvas.getBoundingClientRect();
+        const cursorElement = document.elementFromPoint(
+          cursorBounds.left + virtualCursor.x,
+          cursorBounds.top + virtualCursor.y,
+        );
+        const menuButton = cursorElement instanceof HTMLElement
+          ? cursorElement.closest<HTMLElement>("[data-starship-menu-index]")
+          : null;
+        const menuIndex = Number(menuButton?.dataset.starshipMenuIndex);
+        starshipInteractionMenuControllerRef.current?.hover(
+          Number.isInteger(menuIndex) ? menuIndex : null,
+        );
+      }
+
       if (inventoryOpenRef.current && !inventoryItemInspectOpenRef.current && !itemUseConfirmationOpenRef.current && activeInputMode === "gamepad" && inventoryGamepadModeRef.current === "cursor") {
         const bounds = canvas.getBoundingClientRect();
         const x = bounds.left + virtualCursor.x, y = bounds.top + virtualCursor.y;
@@ -13882,6 +14089,7 @@ export function MovementLab() {
         !inventoryItemInspectOpenRef.current &&
         !powerPuzzleOpenRef.current &&
         !starCardsOpenRef.current &&
+        !starshipInteractionMenuOpenRef.current &&
         !itemUseConfirmationOpenRef.current &&
         !campPowerConfirmationOpenRef.current &&
         !chapter04SavePromptOpenRef.current &&
@@ -13905,6 +14113,7 @@ export function MovementLab() {
         !inventoryOpenRef.current &&
         !powerPuzzleOpenRef.current &&
         !starCardsOpenRef.current &&
+        !starshipInteractionMenuOpenRef.current &&
         !itemUseConfirmationOpenRef.current &&
         !campPowerConfirmationOpenRef.current &&
         !chapter04SavePromptOpenRef.current &&
@@ -13949,6 +14158,7 @@ export function MovementLab() {
         sceneConnectionConfirmationOpenRef.current;
       let campPowerConfirmationMenuOpen = campPowerConfirmationOpenRef.current;
       let starCardsMenuOpen = starCardsOpenRef.current;
+      let starshipInteractionMenuOpen = starshipInteractionMenuOpenRef.current;
       let powerPuzzleMenuOpen = powerPuzzleOpenRef.current;
       let optionsMenuOpen = optionsOpenRef.current;
       const newPlayerTutorialMenuOpen = newPlayerTutorialOpenRef.current;
@@ -13988,6 +14198,9 @@ export function MovementLab() {
       } else if (starCardsMenuOpen && backJustPressed) {
         closeStarCardsGame();
         starCardsMenuOpen = false;
+      } else if (starshipInteractionMenuOpen && backJustPressed) {
+        starshipInteractionMenuControllerRef.current?.back();
+        starshipInteractionMenuOpen = starshipInteractionMenuOpenRef.current;
       } else if (powerPuzzleMenuOpen && backJustPressed) {
         if (weldingPuzzleOpenRef.current) {
           closePowerRoutingPuzzle();
@@ -14021,6 +14234,7 @@ export function MovementLab() {
         !sceneConnectionConfirmationMenuOpen &&
         !campPowerConfirmationMenuOpen &&
         !starCardsMenuOpen &&
+        !starshipInteractionMenuOpen &&
         !powerPuzzleMenuOpen &&
         !optionsMenuOpen &&
         !newPlayerTutorialMenuOpen &&
@@ -14080,6 +14294,46 @@ export function MovementLab() {
           !wasGamepadConfirmPressed
         ) {
           closeInventoryItemInspect();
+        }
+      } else if (starshipInteractionMenuOpen) {
+        gameplayHotbarDpadX = 0;
+        const menuVertical = Math.sign(
+          gamepadInput.dpadY !== 0
+            ? gamepadInput.dpadY
+            : Math.abs(gamepadInput.stickY) >= 0.65
+              ? gamepadInput.stickY
+              : 0,
+        );
+        if (menuVertical === 0) {
+          heldGamepadDpadY = 0;
+          gamepadDpadYRepeatSeconds = 0;
+        } else if (menuVertical !== heldGamepadDpadY) {
+          activateStarshipInteractionDirectionalMode();
+          heldGamepadDpadY = menuVertical;
+          gamepadDpadYRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
+          starshipInteractionMenuControllerRef.current?.move(
+            menuVertical > 0 ? "down" : "up",
+          );
+        } else {
+          gamepadDpadYRepeatSeconds -= deltaTime;
+          if (gamepadDpadYRepeatSeconds <= 0) {
+            starshipInteractionMenuControllerRef.current?.move(
+              menuVertical > 0 ? "down" : "up",
+            );
+            gamepadDpadYRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
+          }
+        }
+        if (
+          gamepadInput.connected &&
+          gamepadInput.confirmPressed &&
+          !wasGamepadConfirmPressed
+        ) {
+          if (starshipInteractionControlModeRef.current === "cursor") {
+            activateVirtualCursorUi();
+          } else {
+            activateStarshipInteractionDirectionalMode();
+            starshipInteractionMenuControllerRef.current?.activate();
+          }
         }
       } else if (starCardsMenuOpen) {
         gameplayHotbarDpadX = 0;
@@ -14712,6 +14966,7 @@ export function MovementLab() {
         inventoryOpenRef.current ||
         powerPuzzleOpenRef.current ||
         starCardsOpenRef.current ||
+        starshipInteractionMenuOpenRef.current ||
         itemUseConfirmationOpenRef.current ||
         campPowerConfirmationOpenRef.current ||
         chapter04SavePromptOpenRef.current ||
@@ -15065,12 +15320,14 @@ export function MovementLab() {
 
       const survivalPaused =
         document.hidden ||
+        timePassInputLockedRef.current ||
         survivalFlowPausedRef.current ||
         storyFlowActiveRef.current ||
         optionsOpenRef.current ||
         inventoryOpenRef.current ||
         powerPuzzleOpenRef.current ||
         starCardsOpenRef.current ||
+        starshipInteractionMenuOpenRef.current ||
         itemUseConfirmationOpenRef.current ||
         campPowerConfirmationOpenRef.current ||
         chapter04SavePromptOpenRef.current ||
@@ -15138,6 +15395,7 @@ export function MovementLab() {
         !inventoryOpenRef.current &&
         !powerPuzzleOpenRef.current &&
         !starCardsOpenRef.current &&
+        !starshipInteractionMenuOpenRef.current &&
         !itemUseConfirmationOpenRef.current &&
         !dialoguePlaybackRef.current &&
         !sceneConnectionConfirmationOpenRef.current &&
@@ -15165,7 +15423,8 @@ export function MovementLab() {
       if (
         !storyInputLockedRef.current &&
         !powerPuzzleOpenRef.current &&
-        !starCardsOpenRef.current
+        !starCardsOpenRef.current &&
+        !starshipInteractionMenuOpenRef.current
       ) {
         const shouldRecheckTouchingStoryTriggers =
           storyTriggerContactCheckRequested;
@@ -15323,6 +15582,7 @@ export function MovementLab() {
 
     return () => {
       questSkipKeyController.cancel();
+      startStarshipSleepRef.current = () => {};
       settleNaturalSurvival();
       settleNaturalSurvivalRef.current = () => {};
       saveSurvivalState(survivalStateRef.current);
@@ -16705,55 +16965,57 @@ export function MovementLab() {
 
             <div className="inventory-body">
               <aside className="inventory-summary-panel">
-                <h3>生存背包</h3>
-                <section className="inventory-survival-panel" aria-label="背包生存狀態">
-                  {SURVIVAL_STATS.map((stat) => {
-                    const value = survivalState.values[stat.id];
-                    const critical = value <= 20;
-                    return (
-                      <div className={`survival-stat is-${stat.id}${critical ? " is-critical" : ""}`} key={stat.id}>
-                        <span className="survival-stat-icon" aria-hidden="true">{stat.symbol}</span>
-                        <span className="survival-stat-label">{stat.label}</span>
-                        <output>{getSurvivalDisplayValue(value)}/100</output>
-                        <span className="survival-meter" aria-hidden="true">
-                          <i style={{ width: `${value}%` }} />
+                <div className="inventory-summary-content">
+                  <h3>生存背包</h3>
+                  <section className="inventory-survival-panel" aria-label="背包生存狀態">
+                    {SURVIVAL_STATS.map((stat) => {
+                      const value = survivalState.values[stat.id];
+                      const critical = value <= 20;
+                      return (
+                        <div className={`survival-stat is-${stat.id}${critical ? " is-critical" : ""}`} key={stat.id}>
+                          <span className="survival-stat-icon" aria-hidden="true">{stat.symbol}</span>
+                          <span className="survival-stat-label">{stat.label}</span>
+                          <output>{getSurvivalDisplayValue(value)}/100</output>
+                          <span className="survival-meter" aria-hidden="true">
+                            <i style={{ width: `${value}%` }} />
+                          </span>
+                          <InventorySurvivalFloat>{renderSurvivalValueTween(stat.id)}</InventorySurvivalFloat>
+                        </div>
+                      );
+                    })}
+                  </section>
+                  <div className="inventory-bag-art" aria-hidden="true">
+                    <svg viewBox="0 0 180 190">
+                      <path d="M57 48c3-25 18-36 33-36s30 11 33 36" />
+                      <path d="M42 55c12-12 84-12 96 0l9 106c-17 18-97 18-114 0z" />
+                      <path d="M51 85h78v62H51z" />
+                      <path d="M68 43v112M112 43v112M35 77l-16 20 7 51M145 77l16 20-7 51" />
+                      <path d="M60 92h60M73 118h34M81 75h18" />
+                    </svg>
+                  </div>
+                  <div className="inventory-weight">
+                    <svg className="inventory-weight-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="5" r="3" stroke="currentColor" strokeWidth="2" />
+                      <path d="M7 8h10l4 13H3Z" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                    </svg>
+                    <strong>{inventoryWeight.toFixed(1)} / 60.0 kg</strong>
+                    <i><b style={{ width: `${inventoryWeightPercent}%` }} /></i>
+                  </div>
+                  <section className="inventory-category-stats">
+                    <h4>分類統計</h4>
+                    {(["food", "resource", "tool", "quest"] as const).map((category) => (
+                      <p key={category}>
+                        <span className="inventory-category-stat-label">
+                          <span className={`inventory-category-symbol is-${category}`} aria-hidden="true">
+                            {getInventoryCategoryPresentation(category).symbol}
+                          </span>
+                          {getInventoryCategoryPresentation(category).label}
                         </span>
-                        <InventorySurvivalFloat>{renderSurvivalValueTween(stat.id)}</InventorySurvivalFloat>
-                      </div>
-                    );
-                  })}
-                </section>
-                <div className="inventory-bag-art" aria-hidden="true">
-                  <svg viewBox="0 0 180 190">
-                    <path d="M57 48c3-25 18-36 33-36s30 11 33 36" />
-                    <path d="M42 55c12-12 84-12 96 0l9 106c-17 18-97 18-114 0z" />
-                    <path d="M51 85h78v62H51z" />
-                    <path d="M68 43v112M112 43v112M35 77l-16 20 7 51M145 77l16 20-7 51" />
-                    <path d="M60 92h60M73 118h34M81 75h18" />
-                  </svg>
+                        <strong>{inventoryCategoryCounts[category]}</strong>
+                      </p>
+                    ))}
+                  </section>
                 </div>
-                <div className="inventory-weight">
-                  <svg className="inventory-weight-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle cx="12" cy="5" r="3" stroke="currentColor" strokeWidth="2" />
-                    <path d="M7 8h10l4 13H3Z" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                  </svg>
-                  <strong>{inventoryWeight.toFixed(1)} / 60.0 kg</strong>
-                  <i><b style={{ width: `${inventoryWeightPercent}%` }} /></i>
-                </div>
-                <section className="inventory-category-stats">
-                  <h4>分類統計</h4>
-                  {(["food", "resource", "tool", "quest"] as const).map((category) => (
-                    <p key={category}>
-                      <span className="inventory-category-stat-label">
-                        <span className={`inventory-category-symbol is-${category}`} aria-hidden="true">
-                          {getInventoryCategoryPresentation(category).symbol}
-                        </span>
-                        {getInventoryCategoryPresentation(category).label}
-                      </span>
-                      <strong>{inventoryCategoryCounts[category]}</strong>
-                    </p>
-                  ))}
-                </section>
               </aside>
 
               <article className="inventory-selected-panel">
@@ -17090,6 +17352,18 @@ export function MovementLab() {
           audioEvents={audioEventManagerRef.current}
           initialGamepadMode={starCardsInitialGamepadMode}
           gamepadMode={questPromptInputMode === "gamepad"}
+        />
+      ) : null}
+
+      {starshipInteractionMenuOpen ? (
+        <StarshipInteractionMenu
+          ref={starshipInteractionMenuControllerRef}
+          inputMode={questPromptInputMode}
+          onInputModeChange={activateQuestPromptInputMode}
+          onControlModeChange={handleStarshipInteractionControlModeChange}
+          onInput={playStarshipInteractionInput}
+          onSleep={(option) => startStarshipSleepRef.current(option)}
+          onClose={closeStarshipInteractionMenu}
         />
       ) : null}
 
@@ -18086,7 +18360,7 @@ export function MovementLab() {
 
       <canvas
         ref={cursorCanvasRef}
-        className={`cursor-layer${quickAssign || powerPuzzleOpen || itemUseConfirmation || campPowerConfirmationOpen || sceneConnectionConfirmation || chapter04SavePromptOpen ? " is-over-modal" : ""}${weldingPuzzleOpen && !weldingPuzzleVirtualCursorAvailable ? " is-hidden-for-welding" : ""}${starCardsOpen ? " is-over-star-cards" : ""}`}
+        className={`cursor-layer${quickAssign || powerPuzzleOpen || itemUseConfirmation || campPowerConfirmationOpen || sceneConnectionConfirmation || chapter04SavePromptOpen || starshipInteractionMenuOpen ? " is-over-modal" : ""}${weldingPuzzleOpen && !weldingPuzzleVirtualCursorAvailable ? " is-hidden-for-welding" : ""}${starCardsOpen ? " is-over-star-cards" : ""}`}
         aria-hidden="true"
       />
       </main>

@@ -319,3 +319,30 @@ test("背包道具格內容依介面寬高的較小比例同步縮放", () => {
   assert.match(css, /@container inventory-dialog \(max-height: 700px\) \{[\s\S]*?\.inventory-pages \{[\s\S]*?min-height: clamp\(24px, 5\.5cqh, 38px\);/);
   assert.match(css, /@container inventory-dialog \(max-height: 700px\) \{[\s\S]*?\.inventory-pages button \{[\s\S]*?min-height: clamp\(22px, 4\.4cqh, 32px\);/);
 });
+
+test("生存背包欄的文字、圖示、量表與背包圖使用同一等比響應層", () => {
+  const source = readFileSync(
+    new URL("../app/movement-lab.tsx", import.meta.url),
+    "utf8",
+  );
+  const css = readFileSync(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+
+  const summaryStart = source.indexOf('<aside className="inventory-summary-panel">');
+  const summaryEnd = source.indexOf("</aside>", summaryStart);
+  const summary = source.slice(summaryStart, summaryEnd);
+
+  assert.ok(summaryStart >= 0 && summaryEnd > summaryStart);
+  assert.match(summary, /<div className="inventory-summary-content">/);
+  assert.match(summary, /inventory-survival-panel/);
+  assert.match(summary, /inventory-bag-art/);
+  assert.match(summary, /inventory-weight-icon/);
+  assert.match(summary, /inventory-category-stats/);
+  assert.match(css, /\.inventory-summary-content \{[\s\S]*?transform: scale\(var\(--inventory-summary-scale\)\);[\s\S]*?transform-origin: top left;/);
+  assert.match(css, /@container inventory-dialog \(max-width: 1150px\) \{[\s\S]*?--inventory-summary-scale: 0\.86;[\s\S]*?--inventory-summary-size: 116\.28%;/);
+  assert.match(css, /@container inventory-dialog \(max-height: 650px\) \{[\s\S]*?--inventory-summary-scale: 0\.82;[\s\S]*?--inventory-summary-size: 121\.96%;/);
+  assert.match(css, /@container inventory-dialog \(max-width: 950px\) \{[\s\S]*?--inventory-summary-scale: 0\.76;[\s\S]*?--inventory-summary-size: 131\.58%;/);
+  assert.match(css, /@container inventory-dialog \(max-height: 520px\) \{[\s\S]*?--inventory-summary-scale: 0\.72;[\s\S]*?--inventory-summary-size: 138\.89%;/);
+});

@@ -59,6 +59,8 @@ public enum ObjectiveActivationMode
 {
     [Description("立即啟用")] Immediate,
     [Description("事件啟用")] Event,
+    [Description("OBJ啟用後啟用")] ObjectiveActivated,
+    [Description("OBJ核取後啟用")] ObjectiveCompleted,
 }
 
 [TypeConverter(typeof(LocalizedEnumConverter))]
@@ -416,11 +418,11 @@ public sealed class QuestObjectiveDefinition
     public double CompletionPresentationDelaySeconds { get; set; }
 
     [Category("流程"), DisplayName("啟用方式")]
-    [Description("立即啟用會隨所屬 Stage 顯示；事件啟用則保持鎖定，直到指定事件或劇情觸發區完成。")]
+    [Description("立即啟用會隨所屬 Stage 顯示；事件啟用等待指定事件；OBJ 模式則等待來源 OBJ 啟用或核取。")]
     public ObjectiveActivationMode ActivationMode { get; set; } = ObjectiveActivationMode.Immediate;
 
-    [Category("流程"), DisplayName("啟用事件 ID／劇情觸發區")]
-    [Description("事件啟用時填入事件 ID；也可在 MapEditor 的劇情觸發區直接勾選要啟用的 OBJ。")]
+    [Category("流程"), DisplayName("啟用事件 ID／OBJ ID／劇情觸發區")]
+    [Description("事件啟用時填事件 ID；OBJ 模式填來源 OBJ ID；也可在 MapEditor 的劇情觸發區直接勾選要啟用的 OBJ。")]
     public string ActivationEventId { get; set; } = "";
 
     [Category("流程"), DisplayName("未解鎖時阻擋階段完成")]

@@ -1,0 +1,8 @@
+
+  vinext dev  (Vite 8.0.13)
+
+下午10:01:52 [vite] (client) Re-optimizing dependencies because vite config has changed
+  ➜  Local:   http://localhost:3000/
+  ➜  Debug:   http://localhost:3000/__debug
+ GET /interaction-menu-preview-b 200 in 786ms (compile: 1788789707.1s, render: 756ms)
+ GET /interaction-menu-preview-b 200 in 39ms (compile: 1788789707.1s, render: 26ms)

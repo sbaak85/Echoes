@@ -59,7 +59,11 @@ export type QuestObjectiveDefinition = {
   completionEventFlowId?: string;
   completionInterfaceAction?: "none" | "open" | "close";
   completionInterfaceId?: string;
-  activationMode?: "immediate" | "event";
+  activationMode?:
+    | "immediate"
+    | "event"
+    | "objectiveActivated"
+    | "objectiveCompleted";
   activationEventId?: string;
   blocksStageCompletion?: boolean;
   /** Keep this objective hidden and inactive until this dialogue finishes. */
@@ -154,6 +158,8 @@ export type QuestGameEvent = {
     | "timeChanged"
     | "flagChanged"
     | "customQuestProgressAdded"
+    | "objectiveActivated"
+    | "objectiveCompleted"
     | "questCompleted";
   targetId: string;
   itemId?: string;
@@ -346,6 +352,7 @@ export class QuestRuntimeManager {
     for (const definition of document.quests) {
       const entry = this.saveData.quests[definition.id];
       if (!entry) continue;
+      this.reconcileObjectiveLifecycleActivations(definition, entry);
       if (entry.state === "active") this.restoreStageActivation(definition, entry);
       this.restoreCompletionScheduling(definition, entry);
       this.scheduleObjectiveCompletionRules(definition.id, entry);
@@ -391,7 +398,13 @@ export class QuestRuntimeManager {
     this.pendingObjectiveCompletionRules.clear();
     this.saveData = structuredClone(saveData);
     this.saveData.processedEventIds ??= [];
-    for (const definition of this.definitions.values()) this.ensureEntry(definition);
+    for (const definition of this.definitions.values()) {
+      this.ensureEntry(definition);
+      this.reconcileObjectiveLifecycleActivations(
+        definition,
+        this.saveData.quests[definition.id],
+      );
+    }
     this.saveData.completionSequence = Math.max(
       this.saveData.completionSequence ?? 0,
       ...Object.values(this.saveData.quests).map(entry => entry.completedOrder ?? 0),
@@ -559,6 +572,12 @@ export class QuestRuntimeManager {
       );
       this.refreshCurrentInventoryObjective(definition, entry, objective);
       this.notify(definition.id);
+      this.handleEvent({
+        type: "objectiveActivated",
+        targetId: objective.id,
+        questId: definition.id,
+        objectiveId: objective.id,
+      });
       this.advanceIfComplete(definition, entry);
       return true;
     }
@@ -839,11 +858,10 @@ export class QuestRuntimeManager {
       for (const objective of stage.objectives) {
         const progress = entry.objectives[objective.id];
         if (!progress) continue;
-        const activationEventId = this.objectiveActivationEventId(objective);
         const legacyDialogueMatch = event.type === "dialogueCompleted" &&
           objective.unlockDialogueId === event.targetId;
         if (!this.isObjectiveUnlocked(progress) &&
-            ((activationEventId.length > 0 && activationEventId === event.targetId) ||
+            (this.matchesObjectiveActivationEvent(objective, event) ||
              legacyDialogueMatch)) {
           progress.unlocked = true;
           progress.state = "active";
@@ -859,6 +877,12 @@ export class QuestRuntimeManager {
           );
           this.refreshCurrentInventoryObjective(definition, entry, objective);
           this.notify(definition.id);
+          this.handleEvent({
+            type: "objectiveActivated",
+            targetId: objective.id,
+            questId: definition.id,
+            objectiveId: objective.id,
+          });
         }
         if (entry.state !== "active" || entry.currentStageId !== stage.id) continue;
         if (!this.isObjectiveActive(entry, progress)) continue;
@@ -1009,6 +1033,16 @@ export class QuestRuntimeManager {
       if ((objective.completionEventFlowId ?? "").trim()) {
         this.scheduleObjectiveCompletionEvent(definition, objective);
       }
+      // Unlock lifecycle-dependent objectives before handing the completion
+      // snapshot to presentation code. Otherwise a delayed completion Tween can
+      // later restore the pre-unlock HUD (for example OBJ_05's old 2/2 view)
+      // over the newly activated objective.
+      this.handleEvent({
+        type: "objectiveCompleted",
+        targetId: objective.id,
+        questId: definition.id,
+        objectiveId: objective.id,
+      });
       this.notifyObjectiveCompleted(definition, current, objective.id);
       this.advanceIfComplete(definition, current);
       this.notify(definition.id);
@@ -1121,6 +1155,37 @@ export class QuestRuntimeManager {
     }
   }
 
+  private reconcileObjectiveLifecycleActivations(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+  ) {
+    if (entry.state !== "active") return;
+    const stage = definition.stages.find(candidate => candidate.id === entry.currentStageId);
+    if (!stage) return;
+    let changed: boolean;
+    do {
+      changed = false;
+      for (const objective of stage.objectives) {
+        if (objective.activationMode !== "objectiveActivated" &&
+            objective.activationMode !== "objectiveCompleted") continue;
+        const progress = entry.objectives[objective.id];
+        if (!progress || progress.completed || this.isObjectiveUnlocked(progress)) continue;
+        const sourceId = this.objectiveActivationEventId(objective);
+        const sourceProgress = entry.objectives[sourceId];
+        if (!sourceProgress) continue;
+        const sourceReached = objective.activationMode === "objectiveActivated"
+          ? this.isObjectiveUnlocked(sourceProgress)
+          : sourceProgress.completed && sourceProgress.completionPresented !== false;
+        if (!sourceReached) continue;
+        progress.unlocked = true;
+        progress.state = "active";
+        progress.activationDefinitionKey = this.objectiveActivationDefinitionKey(objective);
+        progress.activatedByEventId = sourceId;
+        changed = true;
+      }
+    } while (changed);
+  }
+
   private ensureEntry(definition: QuestDefinition) {
     this.saveData.quests[definition.id] ??= this.createEntry(definition);
     const entry = this.saveData.quests[definition.id];
@@ -1130,12 +1195,13 @@ export class QuestRuntimeManager {
         const progress = entry.objectives[objective.id];
         const activationDefinitionKey = this.objectiveActivationDefinitionKey(objective);
         const previousActivationDefinitionKey = progress.activationDefinitionKey;
-        const eventActivated = this.isEventActivatedObjective(objective);
+        const eventActivated = this.isConditionallyActivatedObjective(objective);
         const activationEventId = this.objectiveActivationEventId(objective);
         const hasObjectiveProgress = progress.completed || progress.currentAmount > 0;
         const hasConfirmedActivation =
           progress.activatedByEventId === activationEventId ||
-          this.hasProcessedActivationEvent(activationEventId);
+          (objective.activationMode === "event" &&
+            this.hasProcessedActivationEvent(activationEventId));
 
         if (!eventActivated) {
           // Changing an objective back to immediate activation must not leave an old event lock behind.
@@ -1336,8 +1402,8 @@ export class QuestRuntimeManager {
       (progress?.state == null && progress?.unlocked !== false);
   }
 
-  private isEventActivatedObjective(objective: QuestObjectiveDefinition): boolean {
-    return objective.activationMode === "event" ||
+  private isConditionallyActivatedObjective(objective: QuestObjectiveDefinition): boolean {
+    return (objective.activationMode != null && objective.activationMode !== "immediate") ||
       this.objectiveActivationEventId(objective).length > 0;
   }
 
@@ -1346,9 +1412,27 @@ export class QuestRuntimeManager {
   }
 
   private objectiveActivationDefinitionKey(objective: QuestObjectiveDefinition): string {
-    return this.isEventActivatedObjective(objective)
-      ? `event:${this.objectiveActivationEventId(objective)}`
-      : "immediate";
+    if (!this.isConditionallyActivatedObjective(objective)) return "immediate";
+    const mode = objective.activationMode && objective.activationMode !== "immediate"
+      ? objective.activationMode
+      : "event";
+    return `${mode}:${this.objectiveActivationEventId(objective)}`;
+  }
+
+  private matchesObjectiveActivationEvent(
+    objective: QuestObjectiveDefinition,
+    event: QuestGameEvent,
+  ): boolean {
+    const activationEventId = this.objectiveActivationEventId(objective);
+    if (!activationEventId || activationEventId !== event.targetId) return false;
+    if (objective.activationMode === "objectiveActivated") {
+      return event.type === "objectiveActivated";
+    }
+    if (objective.activationMode === "objectiveCompleted") {
+      return event.type === "objectiveCompleted";
+    }
+    if (objective.activationMode === "immediate") return false;
+    return event.type !== "objectiveActivated" && event.type !== "objectiveCompleted";
   }
 
   private hasProcessedActivationEvent(activationEventId: string): boolean {
@@ -1562,6 +1646,15 @@ export class QuestRuntimeManager {
           this.refreshCurrentInventoryObjective(definition, current, objective);
         }
         this.notify(questId);
+        if (this.isObjectiveUnlocked(progress) && !progress.completed &&
+            !this.isConditionallyActivatedObjective(objective)) {
+          this.handleEvent({
+            type: "objectiveActivated",
+            targetId: objective.id,
+            questId,
+            objectiveId: objective.id,
+          });
+        }
       });
     }
   }
@@ -1653,8 +1746,8 @@ export class QuestRuntimeManager {
     return {
       currentAmount: 0,
       completed: false,
-      state: this.isEventActivatedObjective(objective) ? "locked" : "active",
-      unlocked: !this.isEventActivatedObjective(objective),
+      state: this.isConditionallyActivatedObjective(objective) ? "locked" : "active",
+      unlocked: !this.isConditionallyActivatedObjective(objective),
       activationDefinitionKey: this.objectiveActivationDefinitionKey(objective),
       ...(objective.type === "compoundCollectItem" ? { itemAmounts: {} } : {}),
       ...(normalizeObjectiveTargetIds(objective).length > 0 ? { matchedTargetIds: [] } : {}),

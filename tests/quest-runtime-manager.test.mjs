@@ -365,6 +365,130 @@ test("story trigger activates an event objective and persists its runtime state"
   assert.equal(restored.getQuestState("QUEST_TEST"), "completed");
 });
 
+test("objective lifecycle activation modes unlock targets only at the selected source transition", () => {
+  const lifecycleDocument = structuredClone(document);
+  const quest = lifecycleDocument.quests[0];
+  quest.rewardItemId = "";
+  quest.rewardItemAmount = 0;
+  quest.stages = [{
+    id: "QUEST_TEST_STAGE_OBJECTIVE_LIFECYCLE",
+    name: "OBJ 生命週期啟用測試",
+    completionMode: "all",
+    objectives: [
+      {
+        id: "QUEST_TEST_OBJ_SOURCE",
+        displayText: "完成來源目標",
+        type: "interactionSucceeded",
+        targetId: "interaction-source",
+        requiredAmount: 1,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+        activationMode: "immediate",
+        activationEventId: "",
+        blocksStageCompletion: true,
+        showProgress: false,
+        showHintIcon: false,
+      },
+      {
+        id: "QUEST_TEST_OBJ_AFTER_ACTIVATION",
+        displayText: "來源啟用後出現",
+        type: "interactionSucceeded",
+        targetId: "interaction-after-activation",
+        requiredAmount: 1,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+        activationMode: "objectiveActivated",
+        activationEventId: "QUEST_TEST_OBJ_SOURCE",
+        blocksStageCompletion: true,
+        showProgress: false,
+        showHintIcon: false,
+      },
+      {
+        id: "QUEST_TEST_OBJ_AFTER_COMPLETION",
+        displayText: "來源核取後出現",
+        type: "interactionSucceeded",
+        targetId: "interaction-after-completion",
+        requiredAmount: 1,
+        countMode: "accumulated",
+        interactionMode: "succeeded",
+        activationMode: "objectiveCompleted",
+        activationEventId: "QUEST_TEST_OBJ_SOURCE",
+        blocksStageCompletion: true,
+        showProgress: false,
+        showHintIcon: false,
+      },
+    ],
+  }];
+
+  const activated = [];
+  const completionSnapshots = [];
+  const manager = new QuestRuntimeManager(lifecycleDocument, {
+    onObjectiveActivated: (_questId, objectiveId) => activated.push(objectiveId),
+    onObjectiveCompleted: (_questId, objectiveId, _stageId, entry) => {
+      if (objectiveId === "QUEST_TEST_OBJ_SOURCE") {
+        completionSnapshots.push(
+          entry.objectives.QUEST_TEST_OBJ_AFTER_COMPLETION.state,
+        );
+      }
+    },
+  });
+  manager.startQuest("QUEST_TEST");
+  assert.equal(
+    manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_AFTER_ACTIVATION").state,
+    "active",
+  );
+  assert.equal(
+    manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_AFTER_COMPLETION").state,
+    "locked",
+  );
+  assert.deepEqual(activated, ["QUEST_TEST_OBJ_AFTER_ACTIVATION"]);
+
+  manager.handleEvent({ type: "storyTriggerCompleted", targetId: "QUEST_TEST_OBJ_SOURCE" });
+  assert.equal(
+    manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_AFTER_COMPLETION").state,
+    "locked",
+    "同 ID 的一般事件不得冒充 OBJ 核取事件",
+  );
+
+  manager.handleEvent({ type: "interactionSucceeded", targetId: "interaction-source" });
+  assert.equal(
+    manager.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_AFTER_COMPLETION").state,
+    "active",
+  );
+  assert.deepEqual(activated, [
+    "QUEST_TEST_OBJ_AFTER_ACTIVATION",
+    "QUEST_TEST_OBJ_AFTER_COMPLETION",
+  ]);
+  assert.deepEqual(
+    completionSnapshots,
+    ["active"],
+    "完成演出取得快照前，依賴來源核取的 OBJ 必須已啟用",
+  );
+
+  const restored = new QuestRuntimeManager(lifecycleDocument, {}, manager.exportSave());
+  assert.equal(
+    restored.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_AFTER_COMPLETION").state,
+    "active",
+    "OBJ 生命週期啟用狀態必須保存",
+  );
+
+  const missedLifecycleSave = manager.exportSave();
+  Object.assign(
+    missedLifecycleSave.quests.QUEST_TEST.objectives.QUEST_TEST_OBJ_AFTER_COMPLETION,
+    { state: "locked", unlocked: false, activatedByEventId: undefined },
+  );
+  const restoredActivations = [];
+  const repaired = new QuestRuntimeManager(lifecycleDocument, {
+    onObjectiveActivated: (_questId, objectiveId) => restoredActivations.push(objectiveId),
+  }, missedLifecycleSave);
+  assert.equal(
+    repaired.getObjectiveProgress("QUEST_TEST", "QUEST_TEST_OBJ_AFTER_COMPLETION").state,
+    "active",
+    "舊存檔若漏掉 OBJ 核取連鎖，讀檔時必須依已完成來源自動補正",
+  );
+  assert.deepEqual(restoredActivations, [], "讀檔補正不可重播 OBJ 新增 Tween");
+});
+
 test("an untouched objective is re-locked when its definition changes from immediate to event activation", () => {
   const immediateDocument = structuredClone(document);
   const quest = immediateDocument.quests[0];

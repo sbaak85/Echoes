@@ -1121,7 +1121,7 @@
           "startDelaySeconds": 0,
           "startPresentationDelaySeconds": 0,
           "completionDelaySeconds": 0,
-          "completionPresentationDelaySeconds": 2,
+          "completionPresentationDelaySeconds": 1,
           "completionMode": "all",
           "startEventFlowId": "chapter04-start-flow",
           "completionEventFlowId": "",
@@ -1305,7 +1305,7 @@
               "showProgress": false,
               "showHintIcon": false,
               "completionEventFlowId": "",
-              "unlockDialogueId": ""
+              "unlockDialogueId": "chapter04-signal-samples-follow-up"
             },
             {
               "id": "QUEST_CH04_MAIN_001_OBJ_06",
@@ -1314,8 +1314,8 @@
               "startPresentationDelaySeconds": 0,
               "completionDelaySeconds": 0,
               "completionPresentationDelaySeconds": 0,
-              "activationMode": "event",
-              "activationEventId": "",
+              "activationMode": "objectiveCompleted",
+              "activationEventId": "QUEST_CH04_MAIN_001_OBJ_05",
               "blocksStageCompletion": true,
               "type": "interactionSucceeded",
               "targetId": "",

@@ -47,6 +47,8 @@ test("objective completion can open or close registered interfaces once", () => 
     source.indexOf("onObjectiveCompleted:"),
     source.indexOf("onStageTransitionStarted:"),
   );
+  assert.match(completionHandler, /exportSave\(\)\.quests\[questId\]/);
+  assert.match(completionHandler, /triggerQuestObjectiveTween\(currentView \?\? view, objectiveId\)/);
   assert.match(completionHandler, /completionInterfaceAction !== "none"/);
   assert.match(completionHandler, /window\.queueMicrotask/);
   assert.match(completionHandler, /case "Inventory":[\s\S]*setInventoryPanelOpen\(open\)/);

@@ -174,7 +174,7 @@ export const AUDIO_EVENT_CONFIG = (
     },
     "uiInput": {
       "label": "介面輸入點擊",
-      "trigger": "玩家點擊背包內的操作按鈕、道具頁籤、換頁箭頭、道具格或其右鍵選單；點擊快捷工具格或其右鍵選單；開啟／關閉背包或 Options 介面；以及新手教學每次有效換卡時播放。只要輸入成立就播放，不要求操作成功。任務提示、生存計量與小地圖的展開／收折改由 hudExpanded／hudCollapsed 管理。",
+      "trigger": "玩家點擊背包內的操作按鈕、道具頁籤、換頁箭頭、道具格或其右鍵選單；點擊快捷工具格或其右鍵選單；開啟／關閉背包或 Options 介面；飛船互動介面切換選項、確認或返回；以及新手教學每次有效換卡時播放。只要輸入成立就播放，不要求操作成功。任務提示、生存計量與小地圖的展開／收折改由 hudExpanded／hudCollapsed 管理。",
       "sourceAssetPaths": [
         "Assets/Audio/InPut.mp3"
       ],
@@ -182,6 +182,16 @@ export const AUDIO_EVENT_CONFIG = (
         "./audio/ui-input.mp3"
       ],
       "volume": 0.7,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "starshipMenuOpened": {
+      "label": "飛船互動介面開啟",
+      "trigger": "互動對話完成後，飛船互動介面由關閉轉為開啟時播放一次。",
+      "sourceAssetPaths": ["Assets/Audio/飛船互動介面2.mp3"],
+      "sources": ["./audio/starship-menu-open-2.mp3"],
+      "volume": 1,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0

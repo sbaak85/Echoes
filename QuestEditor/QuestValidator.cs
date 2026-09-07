@@ -21,6 +21,12 @@ internal static class QuestValidator
             issues);
         var chapterIds = document.Chapters.Select(chapter => chapter.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var questIds = document.Quests.Select(quest => quest.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var objectiveIds = document.Quests
+            .SelectMany(quest => quest.Stages)
+            .SelectMany(stage => stage.Objectives)
+            .Select(objective => objective.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (var chapter in document.Chapters)
         {
@@ -139,7 +145,7 @@ internal static class QuestValidator
                             ValidationSeverity.Error,
                             $"{objective.Id} 必須使用 {quest.Id}_OBJ_XX 格式",
                             objective));
-                    ValidateObjective(objective, references, issues);
+                    ValidateObjective(objective, references, objectiveIds, issues);
                 }
             }
         }
@@ -209,17 +215,39 @@ internal static class QuestValidator
         }
     }
 
-    private static void ValidateObjective(QuestObjectiveDefinition objective, QuestReferenceCatalog references, List<QuestValidationIssue> issues)
+    private static void ValidateObjective(
+        QuestObjectiveDefinition objective,
+        QuestReferenceCatalog references,
+        IReadOnlySet<string> objectiveIds,
+        List<QuestValidationIssue> issues)
     {
         Required(objective.Id, "Objective ID 不可空白", objective, issues);
         ValidateCompletionInterfaceAction(objective, references, issues);
-        if (objective.ActivationMode == ObjectiveActivationMode.Event &&
-            string.IsNullOrWhiteSpace(objective.ActivationEventId))
+        var activationId = objective.ActivationEventId.Trim();
+        if (objective.ActivationMode != ObjectiveActivationMode.Immediate && activationId.Length == 0)
         {
             issues.Add(new(
                 ValidationSeverity.Error,
-                $"{objective.Id} 設為事件啟用，但尚未填入啟用事件 ID。",
+                $"{objective.Id} 已設定條件啟用，但尚未填入啟用事件 ID／OBJ ID。",
                 objective));
+        }
+        if (objective.ActivationMode is ObjectiveActivationMode.ObjectiveActivated or
+            ObjectiveActivationMode.ObjectiveCompleted)
+        {
+            if (activationId.Equals(objective.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                issues.Add(new(
+                    ValidationSeverity.Error,
+                    $"{objective.Id} 不可用自己作為啟用來源 OBJ。",
+                    objective));
+            }
+            else if (activationId.Length > 0 && !objectiveIds.Contains(activationId))
+            {
+                issues.Add(new(
+                    ValidationSeverity.Error,
+                    $"{objective.Id} 找不到啟用來源 OBJ：{activationId}",
+                    objective));
+            }
         }
         if (objective.RequiredAmount < 1)
             issues.Add(new(ValidationSeverity.Error, $"{objective.Id} 的需求數量必須大於 0", objective));

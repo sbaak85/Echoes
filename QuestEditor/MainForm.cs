@@ -473,6 +473,9 @@ internal sealed class MainForm : Form
             var property = _propertyGrid.SelectedGridItem?.PropertyDescriptor;
             var isActivationEventProperty = property?.Name ==
                 nameof(QuestObjectiveDefinition.ActivationEventId);
+            var isObjectiveActivationProperty = isActivationEventProperty &&
+                objective?.ActivationMode is (ObjectiveActivationMode.ObjectiveActivated or
+                    ObjectiveActivationMode.ObjectiveCompleted);
             var isSourceSceneProperty = objective?.Type == ObjectiveType.SceneTransferCompleted &&
                 property?.Name == nameof(QuestObjectiveDefinition.SourceSceneId);
             var isSourceConnectionProperty = objective?.Type == ObjectiveType.SceneTransferCompleted &&
@@ -484,6 +487,8 @@ internal sealed class MainForm : Form
                 ? "Scene"
                 : isSourceConnectionProperty
                 ? $"SceneConnection:{objective?.SourceSceneId?.Trim()}"
+                : isObjectiveActivationProperty
+                ? "Objective"
                 : isActivationEventProperty
                 ? "StoryTrigger"
                 : isTeleportProperty
@@ -507,7 +512,15 @@ internal sealed class MainForm : Form
             _referenceCombo.Enabled = kind is not null;
             if (kind is null) return;
 
-            var values = _references.Get(kind).ToList();
+            var values = kind == "Objective"
+                ? _document.Quests
+                    .SelectMany(candidate => candidate.Stages)
+                    .SelectMany(candidate => candidate.Objectives)
+                    .Where(candidate => !ReferenceEquals(candidate, objective))
+                    .Select(candidate => new QuestReference(candidate.Id, candidate.DisplayText))
+                    .OrderBy(candidate => candidate.Id, StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+                : _references.Get(kind).ToList();
             if (!string.IsNullOrWhiteSpace(currentId) &&
                 values.All(value => !value.Id.Equals(currentId, StringComparison.OrdinalIgnoreCase)))
             {
@@ -539,6 +552,7 @@ internal sealed class MainForm : Form
         "WorldObject" => "場景物件",
         "TeleportPoint" => "傳送 Point",
         "Scene" => "場景",
+        "Objective" => "OBJ",
         _ when kind.StartsWith("SceneConnection:") => "來源場景出口",
         "Flag" => "旗標",
         _ => kind,
@@ -554,7 +568,8 @@ internal sealed class MainForm : Form
             if (_propertyGrid.SelectedObject is not QuestObjectiveDefinition objective ||
                 Equals(property.GetValue(objective), reference.Id)) return;
             property.SetValue(objective, reference.Id);
-            objective.ActivationMode = ObjectiveActivationMode.Event;
+            if (objective.ActivationMode == ObjectiveActivationMode.Immediate)
+                objective.ActivationMode = ObjectiveActivationMode.Event;
         }
         else if (property?.Name is nameof(QuestDefinition.StartTeleportPointId) or
             nameof(QuestDefinition.CompletionTeleportPointId))
