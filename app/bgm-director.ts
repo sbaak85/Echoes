@@ -39,6 +39,16 @@ const clampSeconds = (value: number) => Math.min(60, Math.max(0, value));
 const smoothStep = (progress: number) =>
   progress * progress * (3 - 2 * progress);
 
+/** 常駐播放：每輪前 2 秒淡入、最後 2 秒淡出；按媒體時間計算。 */
+export function getResidentBgmEnvelope(currentTime: number, duration: number) {
+  const time = Math.max(0, Number.isFinite(currentTime) ? currentTime : 0);
+  const fadeIn = smoothStep(Math.min(1, time / 2));
+  const fadeOut = Number.isFinite(duration) && duration > 0
+    ? smoothStep(Math.min(1, Math.max(0, duration - time) / 2))
+    : 1;
+  return Math.min(fadeIn, fadeOut);
+}
+
 export function getBgmTrackTransitionEnvelope(
   transition: BgmControlPlan["trackTransition"],
   elapsedSeconds: number,
@@ -136,6 +146,7 @@ export function applyBgmRuleExitPolicy(
 }
 
 type BgmDeck = {
+  volume: number;
   audio: HTMLAudioElement;
   trackId: string | null;
   sourceIndex: number;
@@ -163,6 +174,9 @@ export class BgmDirector {
   private userVolume = 1;
   private enabled = true;
   private disposed = false;
+  private loopEnvelopeFrameId: number | null = null;
+  private initialResidentStartedAt: number | null = null;
+  private canReuseInitialResidentStart = true;
 
   constructor(
     tracks: Readonly<Record<string, BgmTrackDefinition>> = BGM_TRACK_CONFIG,
@@ -182,7 +196,8 @@ export class BgmDirector {
       this.defaultTrackId,
     );
     this.loadTrack(this.decks[0], this.defaultTrackId, "restart");
-    this.decks[0].audio.volume = this.getPlanVolume(this.activePlan);
+    this.decks[0].volume = this.getPlanVolume(this.activePlan);
+    this.updateLoopEnvelope();
   }
 
   setEnabled(enabled: boolean) {
@@ -209,7 +224,7 @@ export class BgmDirector {
     if (this.disposed || !this.enabled) return Promise.resolve();
     const currentDeck = this.decks[this.activeDeckIndex];
     if (currentDeck.trackId === this.activePlan.trackId) {
-      currentDeck.audio.volume = this.getPlanVolume(this.activePlan);
+      currentDeck.volume = this.getPlanVolume(this.activePlan);
       return currentDeck.audio.play();
     }
 
@@ -229,7 +244,7 @@ export class BgmDirector {
         );
       }
     }
-    nextDeck.audio.volume = 0;
+    nextDeck.volume = 0;
     const requestId = ++this.transitionRequestId;
     return nextDeck.audio.play().then(() => {
       if (this.disposed || requestId !== this.transitionRequestId) return;
@@ -247,6 +262,35 @@ export class BgmDirector {
 
   pause() {
     this.decks.forEach((deck) => deck.audio.pause());
+  }
+
+  /** 正式字幕事件；只合併首次啟播的前兩秒，不影響之後的章節重播。 */
+  triggerStorySubtitle(eventId: string) {
+    if (this.disposed || eventId !== "chapter03-Open") return;
+    const activeDeck = this.decks[this.activeDeckIndex];
+    const reuseInitialStart = this.canReuseInitialResidentStart &&
+      activeDeck.trackId === this.defaultTrackId &&
+      this.activePlan.trackId === this.defaultTrackId &&
+      activeDeck.audio.currentTime <= 2 &&
+      (this.initialResidentStartedAt === null ||
+        performance.now() - this.initialResidentStartedAt <= 2000);
+    this.canReuseInitialResidentStart = false;
+    if (reuseInitialStart) return;
+
+    // 保留事件音量/靜音優先權，只重置常駐曲播放位置。
+    // 其他事件曲正在播放時，常駐曲回來也應由頭開始。
+    const saved = this.savedPositions.get(this.defaultTrackId);
+    if (saved) { saved.sourceIndex = 0; saved.currentTime = 0; }
+    this.decks.forEach((deck) => {
+      if (deck.trackId !== this.defaultTrackId) return;
+      const rewind = () => {
+        if (this.disposed || deck.trackId !== this.defaultTrackId) return;
+        deck.audio.currentTime = 0;
+        this.renderDeckVolume(deck);
+      };
+      if (deck.audio.readyState >= 1) rewind();
+      else deck.audio.addEventListener("loadedmetadata", rewind, { once: true });
+    });
   }
 
   setState(
@@ -391,6 +435,7 @@ export class BgmDirector {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    if (this.loopEnvelopeFrameId !== null) cancelAnimationFrame(this.loopEnvelopeFrameId);
     this.cancelTransition();
     this.eventTimerIds.forEach((timerId) => window.clearTimeout(timerId));
     this.eventTimerIds.clear();
@@ -415,13 +460,42 @@ export class BgmDirector {
     });
   }
 
+  private renderDeckVolume(deck: BgmDeck) {
+    const envelope = deck.trackId === this.defaultTrackId
+      ? getResidentBgmEnvelope(deck.audio.currentTime, deck.audio.duration)
+      : 1;
+    deck.audio.volume = clampVolume(deck.volume * envelope);
+  }
+
+  private updateLoopEnvelope = () => {
+    if (this.disposed) return;
+    this.decks.forEach(deck => this.renderDeckVolume(deck));
+    this.loopEnvelopeFrameId = requestAnimationFrame(this.updateLoopEnvelope);
+  };
+
   private createDeck(): BgmDeck {
+    let volume = 0;
     const deck: BgmDeck = {
+      get volume() { return volume; },
+      set volume(value: number) {
+        volume = clampVolume(value);
+        render();
+      },
       audio: new Audio(),
       trackId: null,
       sourceIndex: 0,
     };
+    const render = () => this.renderDeckVolume(deck);
+    deck.audio.volume = 0;
     deck.audio.preload = "auto";
+    deck.audio.addEventListener("timeupdate", render);
+    deck.audio.addEventListener("loadedmetadata", render);
+    deck.audio.addEventListener("seeking", render);
+    deck.audio.addEventListener("playing", () => {
+      if (deck.trackId === this.defaultTrackId && this.initialResidentStartedAt === null) {
+        this.initialResidentStartedAt = performance.now();
+      }
+    });
     deck.audio.addEventListener("ended", () => this.advanceDeck(deck));
     return deck;
   }
@@ -436,7 +510,7 @@ export class BgmDirector {
     deck.audio.src = track.sources[deck.sourceIndex];
     deck.audio.load();
     if (this.enabled && deck === this.decks[this.activeDeckIndex]) {
-      deck.audio.volume = this.getPlanVolume(this.activePlan);
+      deck.volume = this.getPlanVolume(this.activePlan);
       void deck.audio.play().catch(() => {});
     }
   }
@@ -448,6 +522,7 @@ export class BgmDirector {
   ) {
     const track = this.tracks[trackId];
     if (!track || track.sources.length === 0) return false;
+    if (trackId !== this.defaultTrackId) this.canReuseInitialResidentStart = false;
     deck.trackId = trackId;
     const saved = restoreMode === "resume" && track.rememberPosition
       ? this.savedPositions.get(trackId)
@@ -512,12 +587,12 @@ export class BgmDirector {
       if (
         this.transitionFrameId === null &&
         currentDeck.trackId === nextPlan.trackId &&
-        Math.abs(currentDeck.audio.volume - targetVolume) > 0.001
+        Math.abs(currentDeck.volume - targetVolume) > 0.001
       ) {
         this.fadeDecks(
           currentDeck,
           targetVolume,
-          targetVolume < currentDeck.audio.volume
+          targetVolume < currentDeck.volume
             ? nextPlan.fadeOutSeconds
             : nextPlan.fadeInSeconds,
         );
@@ -534,7 +609,7 @@ export class BgmDirector {
       this.fadeDecks(
         currentDeck,
         targetVolume,
-        targetVolume < currentDeck.audio.volume
+        targetVolume < currentDeck.volume
           ? plan.fadeOutSeconds
           : plan.fadeInSeconds,
       );
@@ -547,7 +622,7 @@ export class BgmDirector {
     nextDeck.audio.pause();
     const restoreMode = plan.restoreMode === "default" ? "restart" : plan.restoreMode;
     if (!this.loadTrack(nextDeck, plan.trackId, restoreMode)) return;
-    nextDeck.audio.volume = 0;
+    nextDeck.volume = 0;
     const requestId = ++this.transitionRequestId;
     const beginTransition = () => {
       if (this.disposed || requestId !== this.transitionRequestId) return;
@@ -619,7 +694,7 @@ export class BgmDirector {
     durationSeconds: number,
   ) {
     this.cancelTransition();
-    const startVolume = deck.audio.volume;
+    const startVolume = deck.volume;
     const startedAt = performance.now();
     const durationMs = clampSeconds(durationSeconds) * 1000;
     const requestId = ++this.transitionRequestId;
@@ -627,7 +702,7 @@ export class BgmDirector {
       if (this.disposed || requestId !== this.transitionRequestId) return;
       const progress = durationMs <= 0 ? 1 : Math.min(1, (time - startedAt) / durationMs);
       const eased = progress * progress * (3 - 2 * progress);
-      deck.audio.volume = clampVolume(
+      deck.volume = clampVolume(
         startVolume + (targetVolume - startVolume) * eased,
       );
       if (progress < 1) this.transitionFrameId = requestAnimationFrame(update);
@@ -644,7 +719,7 @@ export class BgmDirector {
     fadeInSeconds: number,
   ) {
     this.cancelTransition();
-    const oldStartVolume = oldDeck.audio.volume;
+    const oldStartVolume = oldDeck.volume;
     const startedAt = performance.now();
     const requestId = ++this.transitionRequestId;
     const update = (time: number) => {
@@ -656,10 +731,10 @@ export class BgmDirector {
         fadeOutSeconds,
         fadeInSeconds,
       );
-      oldDeck.audio.volume = clampVolume(
+      oldDeck.volume = clampVolume(
         oldStartVolume * envelope.oldVolumeMultiplier,
       );
-      newDeck.audio.volume = clampVolume(
+      newDeck.volume = clampVolume(
         targetVolume * envelope.newVolumeMultiplier,
       );
       if (!envelope.complete) {
@@ -680,7 +755,7 @@ export class BgmDirector {
     fadeInSeconds: number,
   ) {
     this.cancelTransition();
-    const oldStartVolume = oldDeck.audio.volume;
+    const oldStartVolume = oldDeck.volume;
     const newTrackStartTime = Number.isFinite(newDeck.audio.currentTime)
       ? newDeck.audio.currentTime
       : 0;
@@ -691,7 +766,7 @@ export class BgmDirector {
     const stopOldDeck = () => {
       if (oldDeckStopped) return;
       oldDeckStopped = true;
-      oldDeck.audio.volume = 0;
+      oldDeck.volume = 0;
       oldDeck.audio.pause();
       // The new deck is pre-played at volume 0 to satisfy browser autoplay
       // rules. Rewind it when its audible fade-in actually begins so switch
@@ -711,10 +786,10 @@ export class BgmDirector {
         fadeOutSeconds,
         fadeInSeconds,
       );
-      oldDeck.audio.volume = clampVolume(
+      oldDeck.volume = clampVolume(
         oldStartVolume * envelope.oldVolumeMultiplier,
       );
-      newDeck.audio.volume = clampVolume(
+      newDeck.volume = clampVolume(
         targetVolume * envelope.newVolumeMultiplier,
       );
       if (elapsed >= fadeOutMs) {
@@ -725,7 +800,7 @@ export class BgmDirector {
         return;
       }
       stopOldDeck();
-      newDeck.audio.volume = clampVolume(targetVolume);
+      newDeck.volume = clampVolume(targetVolume);
       this.transitionFrameId = null;
     };
     this.transitionFrameId = requestAnimationFrame(update);

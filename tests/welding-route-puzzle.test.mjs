@@ -555,8 +555,8 @@ test("gamepad-opened briefing keeps A on the selected action while retaining vir
     availabilityHandler,
     /powerPuzzleGamepadModeRef\.current = "cursor"/,
   );
-  assert.match(dpadHandler, /virtualCursorVisible = true/);
-  assert.match(dpadHandler, /activateGamepadCursor\(\)/);
+  assert.match(dpadHandler, /activateDirectionalCursor\(\)/);
+  assert.doesNotMatch(dpadHandler, /virtualCursorVisible = true/);
   assert.match(
     movementLab,
     /cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD[\s\S]*powerPuzzleGamepadModeRef\.current = "cursor"/,

@@ -8,6 +8,30 @@ import {
   shouldUseOptionsCursor,
 } from "../app/options-gamepad-control.ts";
 
+test("Options 高度跟隨可見視窗的 80%，手機斷點不覆蓋，內容內部捲動", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const dialogRules = [...css.matchAll(/\.options-dialog\s*\{([^}]+)\}/g)].map(match => match[1]);
+  assert.match(dialogRules[0], /height:\s*80vh;\s*height:\s*80dvh;/);
+  assert.match(dialogRules[0], /grid-template-rows:\s*auto auto minmax\(0, 1fr\) auto;/);
+  assert.match(dialogRules[0], /min-height:\s*0;/);
+  assert.match(dialogRules[0], /max-height:\s*none;/);
+  for (const rule of dialogRules.slice(1)) {
+    assert.doesNotMatch(rule, /(?:^|[;\s])height\s*:/);
+  }
+  assert.match(css, /\.options-overlay\s*\{[^}]*place-items:\s*center;/);
+  assert.match(css, /\.options-content\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/);
+});
+
+test("進階第一項為重新開始，畫面與方向導航順序一致且保留確認", async () => {
+  const source = await readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  const items = source.slice(source.indexOf("const OPTIONS_TAB_ITEMS:"), source.indexOf("const COMPASS_DIRECTIONS:"));
+  assert.match(items, /advanced:\s*\[\s*"restart-game",\s*"day-night-effect"/);
+  const content = source.slice(source.indexOf('{optionsTab === "advanced" ? ('), source.indexOf('<footer className="options-footer">'));
+  assert.equal((content.match(/className="restart-game-option"/g) ?? []).length, 1);
+  assert.ok(content.indexOf('className="restart-game-option"') < content.indexOf('className="toggle-button"'));
+  assert.match(content, /className="restart-game-option"[\s\S]*?openRestartConfirmation\(\)/);
+});
+
 test("Options 開關使用十字鍵左 OFF、右 ON", () => {
   assert.equal(getDpadToggleValue(-1), false);
   assert.equal(getDpadToggleValue(1), true);
@@ -34,8 +58,8 @@ test("Options 方向捲動保留虛擬游標位置且不露出中央實體游標
   const start = source.indexOf("const activateOptionsDpadMode =");
   const end = source.indexOf("const activateInventoryDpadMode =", start);
   const optionsDpadMode = source.slice(start, end);
-  assert.match(optionsDpadMode, /virtualCursorVisible = true/);
-  assert.match(optionsDpadMode, /activateGamepadCursor\(\)/);
+  assert.match(optionsDpadMode, /activateDirectionalCursor\(\)/);
+  assert.doesNotMatch(optionsDpadMode, /virtualCursorVisible = true/);
   assert.doesNotMatch(optionsDpadMode, /virtualCursor\.(?:x|y)\s*=/);
   assert.doesNotMatch(optionsDpadMode, /deactivateGamepadCursor\(\)/);
 });

@@ -157,8 +157,8 @@ test("interaction-012 直接開啟電力分配，不再出現暫代小遊戲選�
   const dpadModeSource = movementLabSource.match(
     /const activatePowerPuzzleDpadMode = \(\) => \{[\s\S]*?\n    \};/,
   )?.[0] ?? "";
-  assert.match(dpadModeSource, /virtualCursorVisible = true/);
-  assert.match(dpadModeSource, /activateGamepadCursor\(\)/);
+  assert.match(dpadModeSource, /activateDirectionalCursor\(\)/);
+  assert.doesNotMatch(dpadModeSource, /virtualCursorVisible = true/);
   assert.doesNotMatch(dpadModeSource, /deactivateGamepadCursor\(\)/);
   assert.match(movementLabSource, /powerPuzzleCursorShownForSession/);
   assert.match(

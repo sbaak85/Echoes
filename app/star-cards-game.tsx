@@ -1,6 +1,7 @@
 "use client";
 
 import { GamepadHint } from "./gamepad-button-icon";
+import { cursorOwnership } from "./cursor-ownership";
 
 /* eslint-disable @next/next/no-img-element -- game sprites must preserve exact pixels and alpha */
 
@@ -1172,12 +1173,25 @@ export function StarCardsGame({
 
   useEffect(() => {
     const handleVirtualCursor = (event: Event) => {
+      if (cursorOwnership.owner !== "gamepad") return;
       const detail = (event as CustomEvent<{ cardId?: string | null }>).detail;
+      navigationRef.current.mode = "pointer";
       setNavigationMode("pointer");
       setHoveredHandCardId(detail?.cardId ?? null);
     };
+    const syncDirectionalOwner = () => {
+      if (cursorOwnership.owner !== "directional") return;
+      navigationRef.current.mode = "directional";
+      setNavigationMode("directional");
+      setHoveredHandCardId(null);
+    };
+    syncDirectionalOwner();
+    const unsubscribe = cursorOwnership.subscribe(syncDirectionalOwner);
     window.addEventListener("echoes:star-cards-cursor", handleVirtualCursor);
-    return () => window.removeEventListener("echoes:star-cards-cursor", handleVirtualCursor);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("echoes:star-cards-cursor", handleVirtualCursor);
+    };
   }, []);
 
   useEffect(() => {

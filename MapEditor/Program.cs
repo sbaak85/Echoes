@@ -398,7 +398,7 @@ internal static class EditorSelfTest
         var scene = SceneJson.Load(scenePath);
         SceneJson.Validate(scene);
         if (
-            ItemCatalog.All.Count != 42 ||
+            ItemCatalog.All.Count != 51 ||
             ItemCatalog.Find("crystal-shard")?.Id != "R0001" ||
             ItemCatalog.Find("R0012")?.Name != "外星果實" ||
             ItemCatalog.Find("R0015")?.Name != "校正元件" ||
@@ -412,6 +412,10 @@ internal static class EditorSelfTest
             ItemCatalog.Find("R0021")?.Name != "相位導體" ||
             ItemCatalog.Find("sweet-leaf")?.Id != "R0026" ||
             ItemCatalog.Find("R0026")?.Name != "甜味葉片" ||
+            ItemCatalog.Find("nutrient-gel")?.Id != "R0027" ||
+            ItemCatalog.Find("R0028")?.Name != "濃縮醬包" ||
+            ItemCatalog.Find("curled-tender-shoots")?.Id != "R0035" ||
+            ItemCatalog.Find("R0035")?.Name != "卷嫩芽" ||
             ItemCatalog.Find("T0009")?.Name != "多功能折刀" ||
             ItemCatalog.Find("T0010")?.Name != "鋒利的金屬片" ||
             ItemCatalog.Find("R0100")?.Name != "全回復道具（測試用）"

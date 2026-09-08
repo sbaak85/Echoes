@@ -9,6 +9,15 @@ const [movementSource, menuSource, scene] = await Promise.all([
   readFile(new URL("public/maps/map_test01.scene.json", root), "utf8").then(JSON.parse),
 ]);
 
+test("craft view separates item and cooking workbenches in matching placeholder panels", () => {
+  const craftView = menuSource.slice(menuSource.indexOf('{view === "craft" ? <>'), menuSource.indexOf('{view === "repair" ? <div'));
+  assert.equal((craftView.match(/className="im-craft-empty"/g) ?? []).length, 2);
+  assert.ok(craftView.indexOf("製作工作台") < craftView.indexOf("料理工作台"));
+  assert.match(craftView, /道具的配方將在這裡顯示/);
+  assert.match(craftView, /食物與飲品的配方將在這裡顯示/);
+  assert.doesNotMatch(craftView, /<button|data-starship-menu-index/);
+});
+
 test("scene3 interaction 029 retains its quest gate and available dialogue", () => {
   const interaction = scene.interactables.find(({ id }) => id === "scene3-interaction-029");
   assert.ok(interaction);

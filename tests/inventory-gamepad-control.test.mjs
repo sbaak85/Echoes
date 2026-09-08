@@ -113,8 +113,8 @@ test("背包十字鍵選取只移動選定框，不顯示真實游標或重設�
 
   assert.ok(start >= 0 && end > start, "應能找到背包方向選取模式");
   assert.match(inventoryDpadMode, /inventoryGamepadModeRef\.current = "dpad"/);
-  assert.match(inventoryDpadMode, /virtualCursorVisible = true/);
-  assert.match(inventoryDpadMode, /activateGamepadCursor\(\)/);
+  assert.match(inventoryDpadMode, /activateDirectionalCursor\(\)/);
+  assert.doesNotMatch(inventoryDpadMode, /virtualCursorVisible = true/);
   assert.doesNotMatch(inventoryDpadMode, /virtualCursor\.(?:x|y)\s*=/);
   assert.doesNotMatch(inventoryDpadMode, /deactivateGamepadCursor\(\)/);
 });

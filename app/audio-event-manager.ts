@@ -1162,19 +1162,17 @@ export type BgmControlRuleDefinition = {
   restoreMode: BgmRestoreMode;
 };
 
-/** BGM 素材庫。default 保留原本兩首曲目的循序播放行為。 */
+/** BGM 素材庫。default 為常駐單曲，播放器負責每輪頭尾各 2 秒淡化。 */
 export const BGM_TRACK_CONFIG = (
   /* BGM_TRACK_CONFIG_START */
   {
     "default": {
-      "label": "預設場景背景音樂",
+      "label": "常駐播放 BGM",
       "sourceAssetPaths": [
-        "Assets/Audio/異星長夜 (1).mp3",
-        "Assets/Audio/異星長夜.mp3"
+        "Assets/Audio/main_BGM.mp3"
       ],
       "sources": [
-        "./audio/alien-night-1.mp3",
-        "./audio/alien-night-2.mp3"
+        "./audio/main_BGM.mp3"
       ],
       "volume": 1,
       "loop": true,

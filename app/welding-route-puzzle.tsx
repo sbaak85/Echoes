@@ -1,5 +1,7 @@
 "use client";
 
+import { cursorOwnership } from "./cursor-ownership.ts";
+
 import { GamepadHint } from "./gamepad-button-icon";
 
 import {
@@ -264,6 +266,9 @@ export function WeldingRoutePuzzle({
     .filter((node): node is NonNullable<typeof node> => Boolean(node));
   const [phase, setPhase] = useState<WeldingPuzzlePhase>("intro");
   const [inputMode, setInputMode] = useState<WeldingInputMode>("pointer");
+  const inputModeRef = useRef<WeldingInputMode>("pointer");
+  const gamepadRearmRef = useRef(false);
+  const capturedPointerRef = useRef<number | null>(null);
   const [gunPoint, setGunPoint] = useState<WeldingPoint>(initialGunPoint);
   const [gunVisible, setGunVisible] = useState(false);
   const [pointerHeld, setPointerHeld] = useState(false);
@@ -794,6 +799,7 @@ export function WeldingRoutePuzzle({
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && !cursorOwnership.recordMouse(event.clientX, event.clientY)) return;
     if (phaseRef.current !== "ready" && phaseRef.current !== "welding") return;
     const point = getBoardPoint(event.clientX, event.clientY);
     if (!point) return;
@@ -816,6 +822,9 @@ export function WeldingRoutePuzzle({
     if (!point) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
+    capturedPointerRef.current = event.pointerId;
+    if (event.pointerType === "touch") cursorOwnership.take("touch");
+    else cursorOwnership.recordMouse(event.clientX, event.clientY, true);
     setInputMode("pointer");
     setGunVisible(true);
     pointerTargetRef.current = point;
@@ -826,7 +835,9 @@ export function WeldingRoutePuzzle({
     if (event?.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+    if (event && inputModeRef.current === "gamepad") return;
     pointerHeldRef.current = false;
+    capturedPointerRef.current = null;
     setPointerHeld(false);
     const activeTrailId = activeCandidateTrailIdRef.current;
     if (activeTrailId !== null) {
@@ -1030,7 +1041,7 @@ export function WeldingRoutePuzzle({
       const deltaTime = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
       lastTime = now;
       if (
-        inputMode === "pointer" &&
+        inputModeRef.current === "pointer" &&
         gunVisible &&
         (phaseRef.current === "ready" || phaseRef.current === "welding")
       ) {
@@ -1058,24 +1069,28 @@ export function WeldingRoutePuzzle({
 
       const gamepad = getPrimaryGamepad();
       if (gamepad) {
-        const rightX = Math.abs(gamepad.axes[2] ?? 0) >= 0.14 ? gamepad.axes[2] ?? 0 : 0;
-        const rightY = Math.abs(gamepad.axes[3] ?? 0) >= 0.14 ? gamepad.axes[3] ?? 0 : 0;
+        if (gamepadRearmRef.current &&
+          gamepad.axes.every(axis => Math.abs(axis) < 0.14) &&
+          gamepad.buttons.every(button => !button.pressed && button.value < 0.14)) {
+          gamepadRearmRef.current = false;
+        }
+        const canTakeControl = !gamepadRearmRef.current;
+        const rightX = canTakeControl && Math.abs(gamepad.axes[2] ?? 0) >= 0.14 ? gamepad.axes[2] ?? 0 : 0;
+        const rightY = canTakeControl && Math.abs(gamepad.axes[3] ?? 0) >= 0.14 ? gamepad.axes[3] ?? 0 : 0;
         const rightStickActive = Math.hypot(rightX, rightY) > 0;
-        const rightTriggerHeld = (gamepad.buttons[7]?.value ?? 0) >= 0.45;
-        const backPressed = gamepad.buttons[1]?.pressed ?? false;
-        const confirmPressed = gamepad.buttons[0]?.pressed ?? false;
-        const navigateUp =
-          (gamepad.axes[1] ?? 0) <= -0.65 ||
-          (gamepad.buttons[12]?.pressed ?? false);
-        const navigateDown =
-          (gamepad.axes[1] ?? 0) >= 0.65 ||
-          (gamepad.buttons[13]?.pressed ?? false);
+        const rightTriggerHeld = canTakeControl && (gamepad.buttons[7]?.value ?? 0) >= 0.45;
+        const backPressed = canTakeControl && (gamepad.buttons[1]?.pressed ?? false);
+        const confirmPressed = canTakeControl && (gamepad.buttons[0]?.pressed ?? false);
+        const navigateUp = canTakeControl && ((gamepad.axes[1] ?? 0) <= -0.65 ||
+          (gamepad.buttons[12]?.pressed ?? false));
+        const navigateDown = canTakeControl && ((gamepad.axes[1] ?? 0) >= 0.65 ||
+          (gamepad.buttons[13]?.pressed ?? false));
 
         if (
-          rightStickActive &&
+          (inputModeRef.current === "gamepad" ? rightStickActive : Math.hypot(rightX, rightY) >= 0.45) &&
           (phaseRef.current === "ready" || phaseRef.current === "welding")
         ) {
-          setInputMode("gamepad");
+          cursorOwnership.take("gamepad");
           setGunVisible(true);
         }
 
@@ -1123,7 +1138,7 @@ export function WeldingRoutePuzzle({
           navigateDown,
         };
 
-        if (inputMode === "gamepad") {
+        if (inputModeRef.current === "gamepad") {
           const gamepadActivelyWelding =
             rightTriggerHeld && pointerHeldRef.current;
           if (
@@ -1196,6 +1211,9 @@ export function WeldingRoutePuzzle({
             }
           }
         }
+      } else if (inputModeRef.current === "gamepad") {
+        cursorOwnership.take("mouse");
+        stopPointerWeld();
       }
       frameId = window.requestAnimationFrame(tick);
     };
@@ -1204,6 +1222,46 @@ export function WeldingRoutePuzzle({
     // The RAF intentionally reads the current refs; remounting creates a fresh board.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exitSelected, graph, gunVisible, inputMode, onCancel]);
+
+  useEffect(() => {
+    const syncOwner = (owner: typeof cursorOwnership.owner, previous: typeof cursorOwnership.owner) => {
+      const nextMode = owner === "gamepad" || owner === "directional" ? "gamepad" : "pointer";
+      if (nextMode !== inputModeRef.current) {
+        const captured = capturedPointerRef.current;
+        if (captured !== null && boardRef.current?.hasPointerCapture(captured)) {
+          boardRef.current.releasePointerCapture(captured);
+        }
+        stopPointerWeld();
+        gunVelocityRef.current = { x: 0, y: 0 };
+      }
+      inputModeRef.current = nextMode;
+      setInputMode(nextMode);
+      if (owner === "mouse" || owner === "touch") gamepadRearmRef.current = true;
+      if (owner === "gamepad" && previous === "mouse" && cursorOwnership.lastMouse &&
+        (phaseRef.current === "ready" || phaseRef.current === "welding")) {
+        const point = getBoardPoint(cursorOwnership.lastMouse.x, cursorOwnership.lastMouse.y);
+        if (point) { pointerTargetRef.current = point; updateGunPoint(point); }
+      }
+      if (owner === "directional") setGunVisible(false);
+    };
+    syncOwner(cursorOwnership.owner, cursorOwnership.owner);
+    const unsubscribe = cursorOwnership.subscribe(syncOwner);
+    const stop = () => { stopPointerWeld(); gamepadRearmRef.current = true; };
+    const syncMouseGunVisibility = (event: PointerEvent) => {
+      if (event.pointerType !== "mouse" || cursorOwnership.owner !== "mouse") return;
+      if (phaseRef.current !== "ready" && phaseRef.current !== "welding") return;
+      const bounds = boardRef.current?.getBoundingClientRect();
+      setGunVisible(Boolean(bounds && event.clientX >= bounds.left && event.clientX <= bounds.right &&
+        event.clientY >= bounds.top && event.clientY <= bounds.bottom));
+    };
+    window.addEventListener("blur", stop);
+    window.addEventListener("pointermove", syncMouseGunVisibility);
+    return () => {
+      unsubscribe(); window.removeEventListener("blur", stop);
+      window.removeEventListener("pointermove", syncMouseGunVisibility);
+    };
+    // This mounted board uses current refs, not render-time welding state.
+  }, []);
 
   const activelyWelding = phase === "welding" && pointerHeld;
   const showingPreviewWeld = phase === "preview";

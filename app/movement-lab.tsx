@@ -1,5 +1,8 @@
 "use client";
 
+import { cursorOwnership, GamepadHandoffGate } from "./cursor-ownership.ts";
+import { CursorPresentationGuard, CURSOR_POSITION_STORAGE_KEY, parseCursorPosition } from "./cursor-presentation.ts";
+
 import { InventoryHoverHint, useInventoryHoverHint } from "./inventory-hover-hint";
 import { InventorySurvivalFloat } from "./inventory-survival-float";
 import { scheduleUiAssetWarmup } from "./ui-asset-warmup";
@@ -1649,6 +1652,7 @@ const OPTIONS_TAB_ITEMS: Record<OptionsTab, OptionsMenuItem[]> = {
   audio: ["bgm-enabled", "bgm-volume"],
   controls: ["virtual-cursor-controls", "movement-speed"],
   advanced: [
+    "restart-game",
     "day-night-effect",
     "player-collision",
     "scene-collision",
@@ -1661,7 +1665,6 @@ const OPTIONS_TAB_ITEMS: Record<OptionsTab, OptionsMenuItem[]> = {
     "shadow-height",
     "apply-shadow-tuning",
     "apply-player-defaults",
-    "restart-game",
   ],
 };
 
@@ -3488,6 +3491,7 @@ export function MovementLab() {
   const deathWarningAudioReasonRef = useRef<string | null>(null);
   const gameOverAudioReasonRef = useRef<string | null>(null);
   const bgmDirectorRef = useRef<BgmDirector | null>(null);
+  const pendingBgmSubtitleRef = useRef<string | null>(null);
   const setWeldingSparkAudioActive = useCallback((active: boolean) => {
     audioEventManagerRef.current?.setWeldingSparksActive(active);
   }, []);
@@ -7019,6 +7023,19 @@ export function MovementLab() {
         fadeBlackScreen(0, durationMs);
       },
       showCenteredText: (action) => {
+        // 只在第三章的第一張黑幕字幕實際呈現時發出重播事件。
+        // 不掛在 chapterStarted，避免讀檔略過已完成字幕也重播。
+        if (
+          chapterFlowManagerRef.current?.getActiveFlowId() === CHAPTER_3_START_FLOW.id &&
+          action === CHAPTER_3_START_FLOW.actions.find((item) => item.type === "showCenteredText")
+        ) {
+          if (bgmDirectorRef.current) {
+            bgmDirectorRef.current.triggerStorySubtitle("chapter03-Open");
+          } else {
+            pendingBgmSubtitleRef.current = "chapter03-Open";
+          }
+          requestBgmPlaybackRef.current();
+        }
         setStoryCenteredText({
           lines: action.lines,
           fontSizesPx: action.fontSizesPx,
@@ -8473,6 +8490,10 @@ export function MovementLab() {
     bgmDirector.setChapter(currentStoryChapterRef.current);
     const currentQuestSave = questRuntimeManagerRef.current?.exportSave();
     bgmDirector.syncQuestSnapshot(currentQuestSave?.quests ?? {});
+    if (pendingBgmSubtitleRef.current) {
+      bgmDirector.triggerStorySubtitle(pendingBgmSubtitleRef.current);
+      pendingBgmSubtitleRef.current = null;
+    }
     if (starCardsOpenRef.current) {
       bgmDirector.setMinigameState("star-cards", "playing");
     } else if (weldingPuzzleOpenRef.current) {
@@ -8699,6 +8720,7 @@ export function MovementLab() {
     let gamepadCursorActive = false;
     let gamepadInputCursorHidden = false;
     let starCardsCursorShownForSession = false;
+    let starCardsCursorRearmRequired = false;
     let powerPuzzleCursorShownForSession = false;
     let campPowerConfirmationCursorShownForSession = false;
     let chapter04SavePromptCursorShownForSession = false;
@@ -8987,7 +9009,50 @@ export function MovementLab() {
       keyboardInteractionLabel = localStorage.getItem("echoes:interaction-key-label") ?? keyboardInteractionKey.toUpperCase();
     };
 
+    let sharedCursorRearmRequired = false;
+    const gamepadHandoffGate = new GamepadHandoffGate();
+    const cursorPresentation = new CursorPresentationGuard(document);
+    try {
+      const savedPoint = parseCursorPosition(sessionStorage.getItem(CURSOR_POSITION_STORAGE_KEY), window.innerWidth, window.innerHeight);
+      if (!cursorOwnership.lastMouse && savedPoint) cursorOwnership.recordMouse(savedPoint.x, savedPoint.y);
+    } catch { /* Private/restricted storage must not prevent input initialization. */ }
+    const rememberMousePosition = () => {
+      try {
+        if (cursorOwnership.lastMouse) sessionStorage.setItem(CURSOR_POSITION_STORAGE_KEY, JSON.stringify(cursorOwnership.lastMouse));
+      } catch { /* Coordinate persistence is optional. */ }
+    };
+    window.addEventListener("pagehide", rememberMousePosition);
+    const releaseCursorOwnership = cursorOwnership.subscribe((owner, previous) => {
+      cursorPresentation.reconcile(owner, cursorOwnership.lastMouse);
+      activeInputMode = owner === "mouse" ? "keyboard-mouse" : owner === "touch" ? "mobile" : "gamepad";
+      activateQuestPromptInputMode(activeInputMode);
+      if (owner === "gamepad" && previous === "mouse" && cursorOwnership.lastMouse) {
+        const bounds = canvas.getBoundingClientRect();
+        virtualCursor.x = clamp(cursorOwnership.lastMouse.x - bounds.left, 0, bounds.width);
+        virtualCursor.y = clamp(cursorOwnership.lastMouse.y - bounds.top, 0, bounds.height);
+        virtualCursorPositioned = true;
+      }
+      if (owner !== "gamepad") {
+        gamepadCursorActive = false;
+        virtualCursorVisible = false;
+        document.documentElement.classList.remove("gamepad-cursor-active");
+      }
+      if (owner === "mouse" || owner === "touch") {
+        gamepadHandoffGate.requireNeutral();
+        sharedCursorRearmRequired = true;
+        gamepadInputCursorHidden = false;
+        document.documentElement.classList.remove("gamepad-input-active");
+        clearInventoryHoverHint();
+      }
+    });
+    cursorPresentation.reconcile(cursorOwnership.owner, cursorOwnership.lastMouse);
+
     const activateGamepadCursor = () => {
+      cursorOwnership.take("gamepad");
+      if (!cursorPresentation.reconcile("gamepad", cursorOwnership.lastMouse)) {
+        virtualCursorVisible = false;
+        return;
+      }
       virtualCursorVisible = true;
       if (gamepadCursorActive) return;
       gamepadCursorActive = true;
@@ -9000,12 +9065,17 @@ export function MovementLab() {
       document.documentElement.classList.remove("gamepad-cursor-active");
     };
 
-    const activateStarshipInteractionDirectionalMode = () => {
-      starshipInteractionControlModeRef.current = "directional";
-      starshipInteractionCursorRearmRequiredRef.current = true;
+    const activateDirectionalCursor = () => {
+      cursorOwnership.take("directional");
       virtualCursorVisible = false;
       deactivateGamepadCursor();
       setGamepadInputCursorHidden(true);
+    };
+
+    const activateStarshipInteractionDirectionalMode = () => {
+      starshipInteractionControlModeRef.current = "directional";
+      starshipInteractionCursorRearmRequiredRef.current = true;
+      activateDirectionalCursor();
       starshipInteractionMenuControllerRef.current?.setControlMode("directional");
     };
 
@@ -9019,12 +9089,7 @@ export function MovementLab() {
 
     const activateOptionsDpadMode = () => {
       optionsGamepadModeRef.current = "dpad";
-      // Directional navigation owns the selected row and A-button action, but
-      // the right-stick cursor keeps its last screen position. Hiding it here
-      // would reveal the physical mouse pointer (often parked at screen center)
-      // and look like the virtual cursor snapped back while the list scrolls.
-      virtualCursorVisible = true;
-      activateGamepadCursor();
+      activateDirectionalCursor();
       const focusedElement = document.activeElement;
       if (
         focusedElement instanceof HTMLElement &&
@@ -9042,11 +9107,7 @@ export function MovementLab() {
       inventoryGamepadModeRef.current = "dpad";
       setInventoryGamepadMode("dpad");
       inventoryCursorRearmRequiredRef.current = true;
-      // Directional navigation only takes ownership of the selected item and
-      // A-button action. Keep the shared virtual cursor at its existing screen
-      // position so the physical mouse cursor cannot reappear.
-      virtualCursorVisible = true;
-      activateGamepadCursor();
+      activateDirectionalCursor();
       const focusedElement = document.activeElement;
       if (
         focusedElement instanceof HTMLElement &&
@@ -9059,8 +9120,7 @@ export function MovementLab() {
     const activatePowerPuzzleDpadMode = () => {
       powerPuzzleGamepadModeRef.current = "dpad";
       powerPuzzleCursorRearmRequiredRef.current = true;
-      virtualCursorVisible = true;
-      activateGamepadCursor();
+      activateDirectionalCursor();
       const focusedElement = document.activeElement;
       if (
         focusedElement instanceof HTMLElement &&
@@ -9073,8 +9133,7 @@ export function MovementLab() {
     const activateFrequencyPuzzleControlMode = () => {
       powerPuzzleGamepadModeRef.current = "dpad";
       powerPuzzleCursorRearmRequiredRef.current = true;
-      virtualCursorVisible = false;
-      deactivateGamepadCursor();
+      activateDirectionalCursor();
       const focusedElement = document.activeElement;
       if (
         focusedElement instanceof HTMLElement &&
@@ -9087,10 +9146,7 @@ export function MovementLab() {
     const activateWeldingPuzzleDpadMode = () => {
       powerPuzzleGamepadModeRef.current = "dpad";
       powerPuzzleCursorRearmRequiredRef.current = true;
-      // Directional selection owns A, while the virtual cursor remains
-      // available and visible for an intentional right-stick takeover.
-      virtualCursorVisible = true;
-      activateGamepadCursor();
+      activateDirectionalCursor();
       const focusedElement = document.activeElement;
       if (
         focusedElement instanceof HTMLElement &&
@@ -9111,8 +9167,7 @@ export function MovementLab() {
     const activateItemUseConfirmationDpadMode = () => {
       itemUseConfirmationGamepadModeRef.current = "dpad";
       itemUseConfirmationCursorRearmRequiredRef.current = true;
-      virtualCursorVisible = true;
-      activateGamepadCursor();
+      activateDirectionalCursor();
       const focusedElement = document.activeElement;
       if (
         focusedElement instanceof HTMLElement &&
@@ -9125,8 +9180,7 @@ export function MovementLab() {
     const activateCampPowerConfirmationDpadMode = () => {
       campPowerConfirmationGamepadModeRef.current = "dpad";
       campPowerConfirmationCursorRearmRequiredRef.current = true;
-      virtualCursorVisible = true;
-      activateGamepadCursor();
+      activateDirectionalCursor();
       const focusedElement = document.activeElement;
       if (
         focusedElement instanceof HTMLElement &&
@@ -9139,8 +9193,7 @@ export function MovementLab() {
     const activateChapter04SavePromptDpadMode = () => {
       chapter04SavePromptGamepadModeRef.current = "dpad";
       chapter04SavePromptCursorRearmRequiredRef.current = true;
-      virtualCursorVisible = true;
-      activateGamepadCursor();
+      activateDirectionalCursor();
       const focusedElement = document.activeElement;
       if (
         focusedElement instanceof HTMLElement &&
@@ -9153,8 +9206,7 @@ export function MovementLab() {
     const activateSceneConnectionConfirmationDpadMode = () => {
       sceneConnectionConfirmationGamepadModeRef.current = "dpad";
       sceneConnectionConfirmationCursorRearmRequiredRef.current = true;
-      virtualCursorVisible = true;
-      activateGamepadCursor();
+      activateDirectionalCursor();
       const focusedElement = document.activeElement;
       if (
         focusedElement instanceof HTMLElement &&
@@ -9165,6 +9217,7 @@ export function MovementLab() {
     };
 
     const setGamepadInputCursorHidden = (hidden: boolean) => {
+      if (hidden && cursorOwnership.owner === "mouse") cursorOwnership.take("directional");
       if (gamepadInputCursorHidden === hidden) return;
       gamepadInputCursorHidden = hidden;
       document.documentElement.classList.toggle("gamepad-input-active", hidden);
@@ -9522,7 +9575,7 @@ export function MovementLab() {
       const marginY = Math.min(16, viewportHeight / 2);
       if (!virtualCursorPositioned) {
         virtualCursor.x = clamp(
-          viewportWidth / 2 + Math.min(150, viewportWidth * 0.18),
+          viewportWidth / 2,
           marginX,
           viewportWidth - marginX,
         );
@@ -10002,6 +10055,7 @@ export function MovementLab() {
     };
 
     const onWindowBlur = () => {
+      cursorOwnership.take("mouse");
       settleNaturalSurvival();
       questSkipKeyController.cancel();
       pressedKeys.clear();
@@ -12123,7 +12177,17 @@ export function MovementLab() {
     };
 
     const onPhysicalMouseMove = (event: PointerEvent) => {
+      if (event.pointerType === "touch") {
+        cursorOwnership.take("touch");
+        activeInputMode = "mobile";
+        activateQuestPromptInputMode("mobile");
+        return;
+      }
       if (event.pointerType !== "mouse") return;
+      if (!cursorOwnership.recordMouse(event.clientX, event.clientY, event.type === "pointerdown")) return;
+      const mouseBounds = canvas.getBoundingClientRect();
+      virtualCursor.x = clamp(event.clientX - mouseBounds.left, 0, viewportWidth);
+      virtualCursor.y = clamp(event.clientY - mouseBounds.top, 0, viewportHeight);
 
       if (inventoryOpenRef.current) {
         inventoryCursorRearmRequiredRef.current = true;
@@ -12242,6 +12306,7 @@ export function MovementLab() {
     };
 
     const onGamepadDisconnected = () => {
+      cursorOwnership.take("mouse");
       wasGamepadConnected = false;
       wasGamepadActionPressed = false;
       if (gamepadCursorActive) {
@@ -12267,7 +12332,9 @@ export function MovementLab() {
     window.addEventListener("blur", onWindowBlur);
     window.addEventListener("pointermove", onPhysicalMouseMove, {
       passive: true,
+      capture: true,
     });
+    window.addEventListener("pointerdown", onPhysicalMouseMove, { passive: true, capture: true });
     window.addEventListener("gamepadconnected", onGamepadConnected);
     window.addEventListener("gamepaddisconnected", onGamepadDisconnected);
     window.addEventListener("echoes:control-bindings-changed", onControlBindingsChanged);
@@ -13093,11 +13160,17 @@ export function MovementLab() {
 
     const drawPointerCursor = (time: number) => {
       if (
+        cursorOwnership.owner === "directional" || cursorOwnership.owner === "touch" ||
         !virtualCursorControlsEnabledRef.current ||
         !virtualCursorVisible
       ) {
         return;
       }
+
+      // Rendering is a second safety boundary: repair lost DOM attributes or
+      // newly opened overlays before allowing a gamepad cursor onto the canvas.
+      if (cursorOwnership.owner === "gamepad" &&
+        !cursorPresentation.reconcile("gamepad", cursorOwnership.lastMouse)) return;
 
       if (dialoguePlaybackRef.current) {
         const pulse = 1 + Math.sin(time / 190) * 0.035;
@@ -13613,9 +13686,9 @@ export function MovementLab() {
       const nativeGamepadInput = getNativeGamepadInput(
         nativeGamepadRef.current,
       );
-      const gamepadInput = browserGamepadInput.connected
+      const gamepadInput = gamepadHandoffGate.filter(browserGamepadInput.connected
         ? browserGamepadInput
-        : nativeGamepadInput;
+        : nativeGamepadInput);
       if (starshipInteractionMenuInputRearmRef.current) {
         const hasHeldMenuInput =
           Math.abs(gamepadInput.stickX) > 0.2 ||
@@ -13657,6 +13730,16 @@ export function MovementLab() {
       const inventoryDirectionActive = Math.abs(gamepadInput.dpadX) > 0 || Math.abs(gamepadInput.dpadY) > 0 ||
         Math.abs(gamepadInput.stickX) >= 0.65 || Math.abs(gamepadInput.stickY) >= 0.65;
       const cursorInputLength = Math.hypot(gamepadInput.cursorX, gamepadInput.cursorY);
+      const starCardsDirectionalInputActive = starCardsOpenRef.current &&
+        gamepadInput.connected && inventoryDirectionActive;
+      // Directional input wins even if the right stick is still held. Require
+      // its release before allowing the shared cursor to take ownership again.
+      if (!starCardsOpenRef.current) starCardsCursorRearmRequired = false;
+      else if (starCardsDirectionalInputActive) {
+        starCardsCursorRearmRequired = true;
+        activateDirectionalCursor();
+      } else if (cursorInputLength <= 0.1) starCardsCursorRearmRequired = false;
+      if (cursorInputLength <= 0.1) sharedCursorRearmRequired = false;
       const dialogueHistoryRightStickActive =
         dialogueHistoryOpenRef.current &&
         hasDialogueHistoryRightStickInput(gamepadInput.cursorY);
@@ -13686,10 +13769,10 @@ export function MovementLab() {
         : dialogueHistoryOpenRef.current
           ? dialogueHistoryHasGamepadActivity
           : (
-              Math.abs(gamepadInput.stickX) > 0.01 ||
-              Math.abs(gamepadInput.stickY) > 0.01 ||
-              Math.abs(gamepadInput.cursorX) > 0.01 ||
-              Math.abs(gamepadInput.cursorY) > 0.01 ||
+              Math.abs(gamepadInput.stickX) >= 0.45 ||
+              Math.abs(gamepadInput.stickY) >= 0.45 ||
+              Math.abs(gamepadInput.cursorX) >= 0.45 ||
+              Math.abs(gamepadInput.cursorY) >= 0.45 ||
               Math.abs(gamepadInput.dpadX) > 0.01 ||
               Math.abs(gamepadInput.dpadY) > 0.01 ||
               gamepadInput.actionPressed ||
@@ -13706,6 +13789,11 @@ export function MovementLab() {
               gamepadInput.acceleratePressed
             );
       if (gamepadInput.connected && hasGamepadActivity) {
+        // A connected controller or held right stick must not reclaim the mouse.
+        if (!sharedCursorRearmRequired && !starCardsCursorRearmRequired &&
+          cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD) {
+          cursorOwnership.take("gamepad");
+        }
         if (inventoryOpenRef.current && !inventoryItemInspectOpenRef.current &&
           !itemUseConfirmationOpenRef.current && activeInputMode !== "gamepad" &&
           ((gamepadInput.confirmPressed && !wasGamepadConfirmPressed) ||
@@ -13715,6 +13803,17 @@ export function MovementLab() {
           activateInventoryDpadMode();
         }
         activeInputMode = "gamepad";
+        if (cursorOwnership.owner === "mouse" || cursorOwnership.owner === "touch") {
+          cursorOwnership.take("directional");
+          if (optionsOpenRef.current) activateOptionsDpadMode();
+          else if (itemUseConfirmationOpenRef.current) activateItemUseConfirmationDpadMode();
+          else if (campPowerConfirmationOpenRef.current) activateCampPowerConfirmationDpadMode();
+          else if (sceneConnectionConfirmationOpenRef.current) activateSceneConnectionConfirmationDpadMode();
+          else if (chapter04SavePromptOpenRef.current) activateChapter04SavePromptDpadMode();
+          else if (starshipInteractionMenuOpenRef.current) activateStarshipInteractionDirectionalMode();
+          else if (weldingPuzzleOpenRef.current && weldingPuzzleVirtualCursorAvailableRef.current) activateWeldingPuzzleDpadMode();
+          else if (powerPuzzleOpenRef.current && !weldingPuzzleOpenRef.current) activateCurrentPuzzleControlMode();
+        }
         activateQuestPromptInputMode("gamepad");
       }
       if (frequencyPuzzleOpenRef.current) {
@@ -13742,6 +13841,7 @@ export function MovementLab() {
       if (gamepadInput.connected !== wasGamepadConnected) {
         wasGamepadConnected = gamepadInput.connected;
         if (!gamepadInput.connected) {
+          cursorOwnership.take("mouse");
           wasGamepadActionPressed = false;
           wasGamepadBackPressed = false;
           wasGamepadConfirmPressed = false;
@@ -13785,6 +13885,7 @@ export function MovementLab() {
         deactivateGamepadCursor();
       } else if (
         gamepadInput.connected &&
+        cursorOwnership.owner === "gamepad" &&
         !frequencyPuzzleOpenRef.current &&
         !powerPuzzleCursorShownForSession
       ) {
@@ -13797,6 +13898,8 @@ export function MovementLab() {
       } else if (
         gamepadInput.connected &&
         starCardsInitialGamepadModeRef.current &&
+        cursorOwnership.owner === "gamepad" &&
+        !starCardsCursorRearmRequired &&
         !starCardsCursorShownForSession
       ) {
         virtualCursorVisible = true;
@@ -13807,6 +13910,7 @@ export function MovementLab() {
         campPowerConfirmationCursorShownForSession = false;
       } else if (
         gamepadInput.connected &&
+        cursorOwnership.owner === "gamepad" &&
         !campPowerConfirmationCursorShownForSession
       ) {
         virtualCursorVisible = true;
@@ -13817,6 +13921,7 @@ export function MovementLab() {
         chapter04SavePromptCursorShownForSession = false;
       } else if (
         gamepadInput.connected &&
+        cursorOwnership.owner === "gamepad" &&
         !chapter04SavePromptCursorShownForSession
       ) {
         virtualCursorVisible = true;
@@ -13943,7 +14048,8 @@ export function MovementLab() {
             ((inventoryGamepadModeRef.current === "cursor" && activeInputMode === "gamepad") ||
               cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD))) &&
         (!starCardsOpenRef.current ||
-          cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD) &&
+          (!starCardsCursorRearmRequired &&
+            cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD)) &&
         (!starshipInteractionMenuOpenRef.current ||
           (!starshipInteractionDirectionalInputActive &&
             !starshipInteractionCursorRearmRequiredRef.current &&
@@ -13989,7 +14095,8 @@ export function MovementLab() {
       if (
         virtualCursorControlsEnabledRef.current &&
         gamepadInput.connected &&
-        cursorInputLength > 0 &&
+        !sharedCursorRearmRequired &&
+        (cursorOwnership.owner === "gamepad" ? cursorInputLength > 0 : cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD) &&
         menuCursorCanTakeControl
       ) {
         if (starshipInteractionMenuOpenRef.current) {
@@ -14345,6 +14452,7 @@ export function MovementLab() {
           gamepadInput.connected &&
           gamepadInput.confirmPressed &&
           !wasGamepadConfirmPressed &&
+          cursorOwnership.owner === "gamepad" &&
           document.querySelector(".star-cards-dialog[data-navigation-mode='pointer']")
         ) {
           activateVirtualCursorUi();
@@ -15574,6 +15682,9 @@ export function MovementLab() {
         publishedClockMinute = nextClockMinute;
         setClockMinute(nextClockMinute);
       }
+      // Also covers tool cursors (welding) and directional mode, which may not
+      // draw through drawPointerCursor during a blocking overlay.
+      cursorPresentation.reconcile(cursorOwnership.owner, cursorOwnership.lastMouse);
       render(time);
       animationFrame = requestAnimationFrame(frame);
     };
@@ -15595,7 +15706,14 @@ export function MovementLab() {
       window.removeEventListener("pointerdown", allowAudioPlaybackRetry);
       window.removeEventListener("pointerdown", onDialoguePointerDown, true);
       window.removeEventListener("blur", onWindowBlur);
-      window.removeEventListener("pointermove", onPhysicalMouseMove);
+      window.removeEventListener("pointermove", onPhysicalMouseMove, true);
+      window.removeEventListener("pointerdown", onPhysicalMouseMove, true);
+      rememberMousePosition();
+      window.removeEventListener("pagehide", rememberMousePosition);
+      releaseCursorOwnership();
+      cursorPresentation.dispose();
+      cursorOwnership.reset();
+      delete document.documentElement.dataset.cursorOwner;
       window.removeEventListener("gamepadconnected", onGamepadConnected);
       window.removeEventListener("gamepaddisconnected", onGamepadDisconnected);
       window.removeEventListener("echoes:control-bindings-changed", onControlBindingsChanged);
@@ -17926,6 +18044,22 @@ export function MovementLab() {
                     <small>Debug 顯示、測試場景碰撞與移動輔助設定</small>
                   </div>
                   <button
+                    className="restart-game-option"
+                    type="button"
+                    data-gamepad-selected={optionsMenuSelection === "restart-game" || undefined}
+                    onFocus={() => setOptionsMenuSelectionValue("restart-game")}
+                    onClick={() => {
+                      setOptionsMenuSelectionValue("restart-game");
+                      openRestartConfirmation();
+                    }}
+                  >
+                    <span>
+                      <strong>重新開始</strong>
+                      <small>重置生存狀態、日期時間、資源與遊戲進度</small>
+                    </span>
+                    <b>重新開始</b>
+                  </button>
+                  <button
                     className="toggle-button"
                     type="button"
                     data-gamepad-selected={optionsMenuSelection === "day-night-effect" || undefined}
@@ -18042,22 +18176,6 @@ export function MovementLab() {
                           ? "已寫入專案"
                           : "寫入專案"}
                     </b>
-                  </button>
-                  <button
-                    className="restart-game-option"
-                    type="button"
-                    data-gamepad-selected={optionsMenuSelection === "restart-game" || undefined}
-                    onFocus={() => setOptionsMenuSelectionValue("restart-game")}
-                    onClick={() => {
-                      setOptionsMenuSelectionValue("restart-game");
-                      openRestartConfirmation();
-                    }}
-                  >
-                    <span>
-                      <strong>重新開始</strong>
-                      <small>重置生存狀態、日期時間、資源與遊戲進度</small>
-                    </span>
-                    <b>重新開始</b>
                   </button>
                 </>
               ) : null}

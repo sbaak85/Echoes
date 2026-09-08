@@ -18,10 +18,89 @@ import {
 } from "../app/audio-event-manager.ts";
 import {
   applyBgmRuleExitPolicy,
+  BgmDirector,
   doesBgmRuleMatch,
+  getResidentBgmEnvelope,
   getBgmTrackTransitionEnvelope,
   resolveBgmControlPlan,
 } from "../app/bgm-director.ts";
+
+test("常駐 BGM 每輪頭尾各兩秒淡化", () => {
+  for (const [time, expected] of [[0, 0], [1, 0.5], [2, 1], [30, 1], [58, 1], [59, 0.5], [60, 0]]) {
+    assert.equal(getResidentBgmEnvelope(time, 60), expected);
+  }
+  assert.equal(getResidentBgmEnvelope(3, NaN), 1);
+  assert.equal(getResidentBgmEnvelope(0, NaN), 0);
+  assert.equal(getResidentBgmEnvelope(1, 2), 0.5);
+});
+
+test("常駐循環淡化保留使用者音量及事件靜音，並清理動畫", async (t) => {
+  const audios = [];
+  const frames = new Map();
+  let nextFrame = 0;
+  class FakeAudio extends EventTarget {
+    currentTime = 0;
+    duration = 60;
+    volume = 1;
+    paused = true;
+    readyState = 1;
+    constructor() { super(); audios.push(this); }
+    load() { this.currentTime = 0; }
+    play() { this.paused = false; return Promise.resolve(); }
+    pause() { this.paused = true; }
+    removeAttribute() {}
+  }
+  const originals = Object.fromEntries(["Audio", "requestAnimationFrame", "cancelAnimationFrame"].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  t.after(() => {
+    for (const [key, descriptor] of Object.entries(originals)) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else delete globalThis[key];
+    }
+  });
+  globalThis.Audio = FakeAudio;
+  globalThis.requestAnimationFrame = callback => { frames.set(++nextFrame, callback); return nextFrame; };
+  globalThis.cancelAnimationFrame = id => frames.delete(id);
+  const tick = () => {
+    const pending = [...frames.values()];
+    frames.clear();
+    pending.forEach(callback => callback(performance.now() + 10000));
+  };
+  const director = new BgmDirector(BGM_TRACK_CONFIG, [{
+    id: "test-mute", enabled: true, triggerType: "event", targetId: "mute",
+    state: "active", action: "mute", priority: 100,
+    fadeInSeconds: 0, fadeOutSeconds: 0, restoreMode: "resume",
+  }]);
+  t.after(() => director.dispose());
+  director.setUserVolume(0.4);
+  await director.play();
+  const audio = audios[0];
+  assert.equal(audio.src, "./audio/main_BGM.mp3");
+  assert.equal(audio.loop, true);
+  for (const [time, expected] of [[0, 0], [1, 0.2], [2, 0.4], [59, 0.2], [0, 0], [1, 0.2]]) {
+    audio.currentTime = time;
+    audio.dispatchEvent(new Event("timeupdate"));
+    assert.equal(audio.volume, expected);
+  }
+  director.setUserVolume(0);
+  tick();
+  audio.currentTime = 30;
+  audio.dispatchEvent(new Event("timeupdate"));
+  assert.equal(audio.volume, 0);
+  director.setUserVolume(0.4);
+  tick();
+  director.setState("event", "mute", "active");
+  tick();
+  for (const time of [59, 0, 1, 2]) {
+    audio.currentTime = time;
+    tick();
+    assert.equal(audio.volume, 0);
+  }
+  audio.currentTime = 30;
+  director.pause();
+  assert.equal(audio.currentTime, 30);
+  director.dispose();
+  assert.equal(frames.size, 0);
+});
 
 test("Line SE 預設自然播完，並可逐列改成切句停止", async () => {
   assert.deepEqual(LINE_SE_CONFIG, []);
@@ -65,8 +144,7 @@ test("Line SE 預設自然播完，並可逐列改成切句停止", async () => 
 
 test("BGM 素材庫保留目前預設曲目並登記 MAIN_001 到 MAIN_002 音量區段", () => {
   assert.deepEqual(BGM_TRACK_CONFIG.default.sources, [
-    "./audio/alien-night-1.mp3",
-    "./audio/alien-night-2.mp3",
+    "./audio/main_BGM.mp3",
   ]);
   assert.equal(BGM_TRACK_CONFIG.default.volume, 1);
   assert.equal(BGM_TRACK_CONFIG.default.loop, true);

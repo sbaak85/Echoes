@@ -109,11 +109,11 @@ test("Item All 會將道具清單中的每種道具各加入背包一個", () =>
   });
 });
 
-test("中央道具資料庫固定保留 100 欄，現有 42 項道具都有分類流水號與英文名稱", () => {
+test("中央道具資料庫固定保留 100 欄，現有 51 項道具都有分類流水號與英文名稱", () => {
   assert.equal(validateItemDatabase(), true);
   assert.equal(ITEM_DATABASE.length, ITEM_DATABASE_CAPACITY);
   assert.equal(ITEM_DATABASE_CAPACITY, 100);
-  assert.equal(ITEM_DEFINITIONS.length, 42);
+  assert.equal(ITEM_DEFINITIONS.length, 51);
   ITEM_DEFINITIONS.forEach((item) => {
     assert.match(item.id, /^[RTQM]\d{4}$/);
     assert.ok(item.englishName.length > 0);
@@ -146,7 +146,7 @@ test("中央道具資料庫固定保留 100 欄，現有 42 項道具都有分�
     ],
   );
   assert.deepEqual(
-    ITEM_DEFINITIONS.filter((item) => /^R00(?:1[8-9]|2[0-6])$/.test(item.id)).map((item) => [
+    ITEM_DEFINITIONS.filter((item) => /^R00(?:1[8-9]|2[0-9]|3[0-5])$/.test(item.id)).map((item) => [
       item.id,
       item.englishName,
       item.name,
@@ -164,6 +164,15 @@ test("中央道具資料庫固定保留 100 欄，現有 42 項道具都有分�
       ["R0024", "soft-core-moss", "柔芯苔藻", "resource", false, 99],
       ["R0025", "sodium-chloride-crystal-salt", "氯化鈉晶鹽", "resource", false, 99],
       ["R0026", "sweet-leaf", "甜味葉片", "resource", false, 99],
+      ["R0027", "nutrient-gel", "營養膠", "resource", false, 99],
+      ["R0028", "concentrated-sauce-packet", "濃縮醬包", "resource", false, 99],
+      ["R0029", "dried-starch-block", "乾燥澱粉塊", "resource", false, 99],
+      ["R0030", "vacuum-dried-seeds", "真空種子乾", "resource", false, 99],
+      ["R0031", "cultured-meat-powder", "培養肉粉", "resource", false, 99],
+      ["R0032", "egg-powder", "蛋粉", "resource", false, 99],
+      ["R0033", "fermentation-powder", "發酵粉", "resource", false, 99],
+      ["R0034", "rock-mushroom", "岩菇", "resource", false, 99],
+      ["R0035", "curled-tender-shoots", "卷嫩芽", "resource", false, 99],
     ],
   );
 });

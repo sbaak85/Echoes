@@ -300,7 +300,10 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
             {row(0, IMAGES.sleep.card, "睡滿 8 小時", "從現在起，完整休息八個小時", () => onSleep("eight-hours"))}
             {row(1, IMAGES.sleep.card, "睡到明天 06 點", "休息至明天清晨 06:00", () => onSleep("tomorrow-six"))}
           </> : null}
-          {view === "craft" ? <div className="im-craft-empty"><span>⚒</span><h2>製作工作台</h2><p>道具與食物的配方將在這裡顯示。</p><small>配方與製作功能尚未接入</small></div> : null}
+          {view === "craft" ? <>
+            <div className="im-craft-empty"><span aria-hidden="true">⚒</span><h2>製作工作台</h2><p>道具的配方將在這裡顯示。</p><small>配方與製作功能尚未接入</small></div>
+            <div className="im-craft-empty"><span aria-hidden="true">♨</span><h2>料理工作台</h2><p>食物與飲品的配方將在這裡顯示。</p><small>配方與料理功能尚未接入</small></div>
+          </> : null}
           {view === "repair" ? <div className="im-craft-empty"><span>🔧</span><h2>飛船維修台</h2><p>受損系統與艙體的維修項目將在這裡顯示。</p><small>維修功能尚未接入</small></div> : null}
         </div>
         {view !== "main" ? <button type="button" data-starship-menu-index={view === "sleep" ? 2 : 0} className={`im-back ${((controlMode === "directional" && selected === (view === "sleep" ? 2 : 0)) || (controlMode === "cursor" && cursorHover === (view === "sleep" ? 2 : 0))) ? "is-selected" : ""}`} onFocus={() => setSelected(view === "sleep" ? 2 : 0)} onClick={() => back()}><span>↶</span>返回功能選單</button> : null}
