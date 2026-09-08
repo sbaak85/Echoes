@@ -950,7 +950,7 @@ function validateObjectiveTarget(
     (!targetId || (context.itemIds && !context.itemIds.has(targetId)))
   ) {
     issues.push({
-      severity: "error",
+      severity: targetId ? "error" : "warning",
       code: targetId ? "unknown-objective-item" : "missing-objective-target",
       questId: quest.id,
       stageId,
@@ -966,18 +966,17 @@ function validateObjectiveTarget(
       "interactionSucceeded",
       "puzzleCompleted",
       "submitItemAtInteraction",
-    ].includes(objective.type) &&
-    context.interactionIds
+    ].includes(objective.type)
   ) {
     const targetIds = unique([
       ...(targetId ? [targetId] : []),
       ...normalizeObjectiveTargetIds(objective),
     ]);
     if (targetIds.length === 0) {
-      const isDormantPlaceholder = objective.activationMode !== "immediate" &&
-        !(objective.activationEventId ?? objective.unlockDialogueId ?? "").trim();
       issues.push({
-        severity: isDormantPlaceholder ? "warning" : "error",
+        // An authored activation condition does not make an unfinished target
+        // invalid. Debug navigation must allow entering stages under construction.
+        severity: "warning",
         code: "missing-objective-target",
         questId: quest.id,
         stageId,
@@ -986,7 +985,7 @@ function validateObjectiveTarget(
       });
     }
     for (const interactionId of targetIds) {
-      if (context.interactionIds.has(interactionId)) continue;
+      if (!context.interactionIds || context.interactionIds.has(interactionId)) continue;
       issues.push({
         severity: "error",
         code: "unknown-objective-interaction",

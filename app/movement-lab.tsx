@@ -1834,6 +1834,54 @@ const INVENTORY_ITEM_ARTWORK_PREVIEWS: Readonly<
     iconPath: uiAssetUrl("items/invigorating-supply-drink-icon-280.png"),
     inspectPath: uiAssetUrl("items/invigorating-supply-drink-inspect-640.png"),
   },
+  R0024: {
+    iconPath: uiAssetUrl("items/soft-core-moss-icon-280.png"),
+    inspectPath: uiAssetUrl("items/soft-core-moss-inspect-640.png"),
+  },
+  R0025: {
+    iconPath: uiAssetUrl("items/sodium-chloride-crystal-salt-icon-280.png"),
+    inspectPath: uiAssetUrl("items/sodium-chloride-crystal-salt-inspect-640.png"),
+  },
+  R0026: {
+    iconPath: uiAssetUrl("items/sweet-leaf-icon-280.png"),
+    inspectPath: uiAssetUrl("items/sweet-leaf-inspect-640.png"),
+  },
+  R0027: {
+    iconPath: uiAssetUrl("items/nutrient-gel-icon-280.png"),
+    inspectPath: uiAssetUrl("items/nutrient-gel-inspect-640.png"),
+  },
+  R0028: {
+    iconPath: uiAssetUrl("items/concentrated-sauce-packet-icon-280.png"),
+    inspectPath: uiAssetUrl("items/concentrated-sauce-packet-inspect-640.png"),
+  },
+  R0029: {
+    iconPath: uiAssetUrl("items/dried-starch-block-icon-280.png"),
+    inspectPath: uiAssetUrl("items/dried-starch-block-inspect-640.png"),
+  },
+  R0030: {
+    iconPath: uiAssetUrl("items/vacuum-dried-seeds-icon-280.png"),
+    inspectPath: uiAssetUrl("items/vacuum-dried-seeds-inspect-640.png"),
+  },
+  R0031: {
+    iconPath: uiAssetUrl("items/cultured-meat-powder-icon-280.png"),
+    inspectPath: uiAssetUrl("items/cultured-meat-powder-inspect-640.png"),
+  },
+  R0032: {
+    iconPath: uiAssetUrl("items/egg-powder-icon-280.png"),
+    inspectPath: uiAssetUrl("items/egg-powder-inspect-640.png"),
+  },
+  R0033: {
+    iconPath: uiAssetUrl("items/fermentation-powder-icon-280.png"),
+    inspectPath: uiAssetUrl("items/fermentation-powder-inspect-640.png"),
+  },
+  R0034: {
+    iconPath: uiAssetUrl("items/rock-mushroom-icon-280.png"),
+    inspectPath: uiAssetUrl("items/rock-mushroom-inspect-640.png"),
+  },
+  R0035: {
+    iconPath: uiAssetUrl("items/curled-tender-shoots-icon-280.png"),
+    inspectPath: uiAssetUrl("items/curled-tender-shoots-inspect-640.png"),
+  },
   T0001: {
     iconPath: uiAssetUrl("items/utility-rope-icon-280.png"),
     inspectPath: uiAssetUrl("items/utility-rope-inspect-640.png"),

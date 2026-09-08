@@ -210,6 +210,20 @@ test("Quest Stage Next crosses Chapter 3 into Chapter 4 and settles every Stage 
   });
   const chapterFourEntry = chapterFourStageTwo.questSave.quests.QUEST_CH04_MAIN_001;
   assert.equal(chapterFourStageTwo.targetStageId, "QUEST_CH04_MAIN_001_STAGE_02");
+  const issues = validateQuestDebugConfiguration(questDocument, undefined, {
+    interactionIds: new Set(sceneDocuments.flatMap(scene =>
+      (scene.interactables ?? []).map(entry => entry.id))),
+    itemIds: new Set(ITEM_DEFINITIONS.map(item => item.id)),
+  });
+  const completedQuestIds = new Set(chapterFourStageTwo.completedQuestIds);
+  assert.deepEqual(issues.filter(issue => issue.severity === "error" && (
+    completedQuestIds.has(issue.questId) ||
+    (issue.questId === chapterFourStageTwo.targetQuestId &&
+      (!issue.stageId || issue.stageId === chapterFourStageTwo.targetStageId))
+  )), [], "the UI validation gate must allow the generated Stage 2 plan");
+  assert.ok(issues.some(issue =>
+    issue.objectiveId === "QUEST_CH04_MAIN_001_OBJ_06" &&
+    issue.code === "missing-objective-target" && issue.severity === "warning"));
   for (const objectiveId of [
     "QUEST_CH04_MAIN_001_OBJ_01",
     "QUEST_CH04_MAIN_001_OBJ_02",
@@ -420,4 +434,23 @@ test("validator reports malformed quest references while keeping valid scenarios
     issues.some((issue) => issue.code === "unknown-scenario-item"),
     false,
   );
+});
+
+test("unfinished targets are warnings for every activation mode; unknown IDs remain errors", () => {
+  for (const type of ["interactionSucceeded", "collectItem"]) {
+    for (const activationMode of ["immediate", "event", "objectiveCompleted"]) {
+      const document = structuredClone(questDocument);
+      const quest = document.quests.find(q => q.id === "QUEST_CH04_MAIN_001");
+      const objective = quest.stages[1].objectives.find(o => o.id === "QUEST_CH04_MAIN_001_OBJ_06");
+      Object.assign(objective, { type, activationMode, activationEventId: "configured-trigger", targetId: "", targetIds: [] });
+      const context = { interactionIds: new Set(), itemIds: new Set() };
+      let issues = validateQuestDebugConfiguration(document, [], context)
+        .filter(issue => issue.objectiveId === objective.id);
+      assert.equal(issues.find(issue => issue.code === "missing-objective-target")?.severity, "warning");
+      objective.targetId = "nonexistent-id";
+      issues = validateQuestDebugConfiguration(document, [], context)
+        .filter(issue => issue.objectiveId === objective.id);
+      assert.ok(issues.some(issue => issue.severity === "error"));
+    }
+  }
 });
