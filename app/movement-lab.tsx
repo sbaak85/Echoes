@@ -3694,6 +3694,7 @@ export function MovementLab() {
   const inventoryDirectionRearmRequiredRef = useRef(false);
   const inventoryPointerItemIndexRef = useRef<number | null>(null);
   const inventoryGamepadFocusRef = useRef<"items" | "actions">("items");
+  const quickAssignReturnToInventoryRef = useRef(false);
   const inventorySelectedActionRef = useRef<InventorySelectedAction>("use");
   const inventoryCategoryRef = useRef<InventoryCategory>("all");
   const changeInventoryPageRef = useRef<(offset: number, selectLast?: boolean) => void>(() => {});
@@ -4119,6 +4120,10 @@ export function MovementLab() {
     setItemUseConfirmation(null);
     setItemUseConfirmationChoiceValue("cancel");
     window.queueMicrotask(() => {
+      if (inventoryOpenRef.current && questPromptInputModeRef.current === "gamepad" && inventoryGamepadModeRef.current === "dpad") {
+        returnInventoryActionToItems();
+        return;
+      }
       if (trigger?.isConnected) trigger.focus({ preventScroll: true });
       else canvasRef.current?.focus({ preventScroll: true });
     });
@@ -5759,11 +5764,18 @@ export function MovementLab() {
   const updateQuickAssign = (value: typeof quickAssignRef.current) => {
     quickAssignRef.current = value;
     setQuickAssign(value);
+    if (!value && quickAssignReturnToInventoryRef.current) {
+      quickAssignReturnToInventoryRef.current = false;
+      setInventoryPanelOpen(true);
+      returnInventoryActionToItems();
+    }
   };
   const beginQuickAssign = (itemId: string) => {
     if ((playerInventoryRef.current[itemId] ?? 0) <= 0) return;
     const empty = hotbarAssignmentsRef.current.findIndex((id) => id === null);
     const slotIndex = empty < 0 ? 0 : empty;
+    quickAssignReturnToInventoryRef.current = inventoryOpenRef.current &&
+      questPromptInputModeRef.current === "gamepad" && inventoryGamepadModeRef.current === "dpad";
     setInventoryPanelOpen(false);
     setInventoryContextMenu(null);
     hideHotbarSelectionHint();
@@ -5868,6 +5880,27 @@ export function MovementLab() {
     inventorySelectedActionRef.current = action;
     setInventorySelectedAction(action);
   };
+
+  function returnInventoryActionToItems() {
+    if (!inventoryOpenRef.current || questPromptInputModeRef.current !== "gamepad" ||
+      inventoryGamepadModeRef.current !== "dpad") return;
+    setInventoryGamepadFocusValue("items");
+    inventoryDirectionRearmRequiredRef.current = true;
+    inventoryCursorRearmRequiredRef.current = true;
+    clearInventoryHoverHint();
+    if (document.activeElement instanceof HTMLElement &&
+      document.activeElement.closest(".inventory-selected-actions")) document.activeElement.blur();
+    const selected = ITEM_DATABASE[selectedInventoryIndexRef.current]?.item;
+    if (selected && (playerInventoryRef.current[selected.id] ?? 0) > 0) return;
+    const candidates = Array.from(document.querySelectorAll<HTMLElement>(".inventory-item[data-inventory-index]"))
+      .map(button => Number(button.dataset.inventoryIndex))
+      .filter(index => {
+        const item = ITEM_DATABASE[index]?.item;
+        return item && (playerInventoryRef.current[item.id] ?? 0) > 0;
+      });
+    const next = candidates.find(index => index >= selectedInventoryIndexRef.current) ?? candidates.at(-1);
+    if (next !== undefined) selectInventoryItem(next);
+  }
 
   const enterInventorySelectedActions = () => {
     const item = ITEM_DATABASE[selectedInventoryIndexRef.current]?.item;
@@ -6185,6 +6218,7 @@ export function MovementLab() {
           });
       }
       message = `已使用「${item.name}」· ${formatSurvivalEffects(item.survivalEffects)}`;
+      returnInventoryActionToItems();
     }
 
     showInventoryFeedback(message, feedbackSlotIndex);
@@ -6399,6 +6433,7 @@ export function MovementLab() {
     } catch {
       // 無法使用本機儲存時，本次遊戲工作階段仍保留丟棄結果。
     }
+    returnInventoryActionToItems();
 
     button.animate(
       [
@@ -6585,15 +6620,14 @@ export function MovementLab() {
       inventoryItemInspectCloseTimerRef.current = null;
       inventoryItemInspectOpenRef.current = false;
       if (inventoryOpenRef.current) {
-        // The image owns input until its fade finishes. Restore its launching
-        // action using the latest input owner, without moving either cursor.
+        // The image owns input until its fade finishes; then return to items.
         const mode = questPromptInputModeRef.current === "gamepad" ? "dpad" : "cursor";
         inventoryGamepadModeRef.current = mode;
         setInventoryGamepadMode(mode);
         inventoryCursorRearmRequiredRef.current = true;
         inventoryDirectionRearmRequiredRef.current = true;
-        setInventorySelectedActionValue("inspect");
-        setInventoryGamepadFocusValue("actions");
+        setInventoryGamepadFocusValue("items");
+        returnInventoryActionToItems();
         clearInventoryHoverHint();
       }
       setInventoryItemInspect(null);
@@ -16760,6 +16794,7 @@ export function MovementLab() {
           role="status"
           aria-live="polite"
         >
+          <span className="hud-frame-art time-notice-surface" aria-hidden="true"><span className="time-notice-texture" /></span>
           <div className="time-elapsed-notice-content">
             <span
               className="time-elapsed-clock-icon"
@@ -16781,6 +16816,7 @@ export function MovementLab() {
           aria-live="polite"
           data-quest-event-notice={questEventNotice.kind}
         >
+          <span className="hud-frame-art time-notice-surface" aria-hidden="true"><span className="time-notice-texture" /></span>
           <div className="time-elapsed-notice-content">
             <span className="quest-event-notice-icon" aria-hidden="true">!</span>
             <span>

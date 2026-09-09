@@ -958,6 +958,84 @@ button {
 .time-elapsed-notice::before { top: 0; }
 .time-elapsed-notice::after { bottom: 0; }
 
+/* Shared notice surface; inventory blue for time, quest HUD gold for objectives. */
+:is(.time-elapsed-notice:not(.quest-event-notice), .time-elapsed-notice.quest-event-notice) {
+  --hud-light: #dcfaff;
+  --hud-mid: #86d8f2;
+  --hud-tint: rgba(63, 148, 178, .24);
+  --hud-base: rgba(5, 14, 24, .8);
+  --notice-text: #c5edfa;
+  --hud-shape: inset(0);
+  isolation: isolate;
+  min-height: 76px;
+  color: var(--notice-text);
+  background: transparent;
+  box-shadow: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.32) 11%, #000 28%, #000 72%, rgba(0, 0, 0, 0.32) 89%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.32) 11%, #000 28%, #000 72%, rgba(0, 0, 0, 0.32) 89%, transparent 100%);
+}
+
+:is(.time-elapsed-notice:not(.quest-event-notice), .time-elapsed-notice.quest-event-notice)::before,
+:is(.time-elapsed-notice:not(.quest-event-notice), .time-elapsed-notice.quest-event-notice)::after {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--hud-mid) 12%, transparent) 8%,
+    color-mix(in srgb, var(--hud-light) 72%, transparent) 27%,
+    color-mix(in srgb, var(--hud-light) 25%, #fff) 46%,
+    #fff 50%,
+    color-mix(in srgb, var(--hud-light) 25%, #fff) 54%,
+    color-mix(in srgb, var(--hud-light) 72%, transparent) 73%,
+    color-mix(in srgb, var(--hud-mid) 12%, transparent) 92%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 2px rgba(255, 255, 255, 0.98),
+    0 0 7px color-mix(in srgb, var(--hud-light) 80%, transparent),
+    0 0 15px color-mix(in srgb, var(--hud-mid) 48%, transparent);
+}
+
+:is(.time-elapsed-notice:not(.quest-event-notice), .time-elapsed-notice.quest-event-notice)::before {
+  top: 0;
+}
+
+:is(.time-elapsed-notice:not(.quest-event-notice), .time-elapsed-notice.quest-event-notice)::after {
+  bottom: 0;
+}
+
+:is(.time-elapsed-notice:not(.quest-event-notice), .time-elapsed-notice.quest-event-notice) .time-elapsed-notice-content {
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.82), 0 0 7px color-mix(in srgb, var(--hud-mid) 24%, transparent);
+}
+
+.time-elapsed-notice:not(.quest-event-notice) .time-elapsed-clock-icon {
+  border-color: color-mix(in srgb, var(--hud-light) 94%, transparent);
+  background: radial-gradient(circle at center, var(--notice-text) 0 2px, transparent 2.5px);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--hud-light) 22%, transparent), inset 0 0 8px color-mix(in srgb, var(--hud-mid) 14%, transparent);
+}
+
+.time-elapsed-notice:not(.quest-event-notice) .time-elapsed-clock-icon::before,
+.time-elapsed-notice:not(.quest-event-notice) .time-elapsed-clock-icon::after {
+  background: var(--notice-text);
+}
+
+.time-elapsed-notice.quest-event-notice {
+  --hud-light: #fff0bb;
+  --hud-mid: #e4b64d;
+  --hud-tint: #c194382b;
+  --hud-base: rgba(22, 19, 11, .8);
+  --notice-text: #ffe4a3;
+}
+
+/* Palette from the quest HUD completed header and result label. */
+.time-elapsed-notice.quest-event-notice.is-completed {
+  --hud-light: rgb(147, 255, 195);
+  --hud-mid: rgb(70, 220, 137);
+  --hud-tint: rgba(28, 126, 76, .24);
+  --hud-base: rgba(7, 24, 15, .8);
+  --notice-text: #d7ffe5;
+}
+
 .time-elapsed-notice.is-dismissing {
   animation: time-elapsed-notice-dismiss 1s ease-in both;
 }
@@ -1067,6 +1145,10 @@ button {
   .time-elapsed-notice {
     width: min(620px, 90%);
     min-height: 52px;
+  }
+
+  :is(.time-elapsed-notice:not(.quest-event-notice), .time-elapsed-notice.quest-event-notice) {
+    min-height: 58px;
   }
 
   .time-elapsed-notice-content {
@@ -2230,11 +2312,6 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   text-shadow: 0 0 9px rgba(255, 196, 64, 0.78);
   box-shadow: 0 0 15px rgba(255, 190, 54, 0.3), inset 0 0 9px rgba(255, 205, 92, 0.12);
   animation: quest-event-notice-icon-breathe 900ms ease-in-out infinite alternate;
-}
-
-.quest-event-notice.is-completed .quest-event-notice-icon {
-  border-color: rgba(255, 218, 120, 0.98);
-  color: #ffe093;
 }
 
 @keyframes quest-header-accepted-glow {
@@ -11042,7 +11119,8 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   clip-path: var(--hud-ring);
   background: linear-gradient(135deg, var(--hud-light), transparent 27%, transparent 73%, var(--hud-light));
 }
-:is(.quest-hud, .survival-clock > span, .survival-mini-panel, .survival-panel, .survival-mobile-minimal-panel, .survival-frame-shell)::before {
+:is(.quest-hud, .survival-clock > span, .survival-mini-panel, .survival-panel, .survival-mobile-minimal-panel, .survival-frame-shell)::before,
+.time-notice-texture {
   content: "";
   position: absolute;
   inset: 1px;
@@ -11053,6 +11131,8 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   opacity: .13;
   mask-image: radial-gradient(ellipse 65% 120% at top left, #000, transparent 78%), radial-gradient(ellipse 65% 120% at bottom right, #000, transparent 78%);
 }
+.time-notice-surface::after { display: none; }
+.time-notice-surface .time-notice-texture { z-index: 0; }
 .quest-hud .quest-header { border-radius: 8px 8px 0 0; }
 .quest-hud .quest-collapse,
 .quest-hud .quest-collapse:is(:hover, :focus, :focus-visible, .is-selected) {

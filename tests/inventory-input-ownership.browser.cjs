@@ -59,19 +59,23 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     await press(0);
     await page.waitForTimeout(350);
     assert.equal(await page.locator('.inventory-item-inspect-overlay').count(), 0);
-    assert.equal(await action(), 'inspect');
+    assert.equal(await page.locator('.inventory-selected-actions [data-gamepad-selected="true"]').count(), 0);
     await page.waitForTimeout(400);
-    assert.equal(await action(), 'inspect');
+    assert.equal(await page.locator('.inventory-selected-actions [data-gamepad-selected="true"]').count(), 0);
     console.log('PASS A closes inspect and restores selection even with right stick held');
     await stick(2,0);
+    await press(0); // items -> actions
+    await press(15); // Use -> Inspect
     await press(0);
     assert.equal(await page.locator('.inventory-item-inspect-overlay').count(), 1);
     await stick(2,0.7,150);
     await press(1);
     await page.waitForTimeout(350);
-    assert.equal(await action(),'inspect');
+    assert.equal(await page.locator('.inventory-selected-actions [data-gamepad-selected="true"]').count(),0);
     console.log('PASS B uses the same inspect restoration');
     await stick(2,0);
+    await press(0); // items -> actions
+    await press(15); // Use -> Inspect
     await press(0);
     await page.mouse.move(900,450);
     assert.equal(await page.locator('.inventory-inspect-mouse-icon').count(),1);

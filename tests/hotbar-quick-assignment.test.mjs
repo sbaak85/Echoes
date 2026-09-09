@@ -10,6 +10,9 @@ function harness(slots) {
   const hotbarAssignmentsRef = { current: [...slots] };
   const playerInventoryRef = { current: { item: 2 } };
   const scope = { quickAssignRef, hotbarAssignmentsRef, playerInventoryRef,
+    quickAssignReturnToInventoryRef: { current: false }, inventoryOpenRef: { get current() { return state.inventoryOpen; } },
+    questPromptInputModeRef: { current: 'gamepad' }, inventoryGamepadModeRef: { current: 'dpad' },
+    returnInventoryActionToItems: () => { state.focus = 'items'; },
     quickAssignDirectionRef: { current: 0 }, quickAssignCursorRef: { current: false }, activeHotbarSlotRef: { current: 0 }, HOTBAR_SLOT_COUNT: 7,
     setQuickAssign: () => {}, setInventoryPanelOpen: value => state.inventoryOpen = value,
     setInventoryContextMenu: () => {}, hideHotbarSelectionHint: () => {}, setActiveHotbarSlot: () => {},
@@ -30,6 +33,8 @@ test('快捷 closes inventory, selects first empty slot, and waits for confirmat
   assert.equal(h.hotbarAssignmentsRef.current[1], 'item');
   assert.equal(h.state.saved, 1);
   assert.deepEqual(h.state.audio, ['hotbarItemAssigned']);
+  assert.equal(h.state.inventoryOpen, true);
+  assert.equal(h.state.focus, 'items');
 });
 test('full toolbar starts at first slot, wraps, and cancellation preserves every assignment', () => {
   const slots = ['1','2','3','4','5','6','7']; const h = harness(slots);
@@ -38,6 +43,8 @@ test('full toolbar starts at first slot, wraps, and cancellation preserves every
   h.moveQuickAssign(0, 1); h.confirmQuickAssign();
   assert.deepEqual(h.hotbarAssignmentsRef.current, slots); assert.equal(h.state.saved, 0);
   assert.deepEqual(h.state.audio, []);
+  assert.equal(h.state.inventoryOpen, true);
+  assert.equal(h.state.focus, 'items');
 });
 test('replacement changes only selected slot; disappearing inventory cannot assign a missing item', () => {
   const h = harness(['1','2','3','4','5','6','7']); h.beginQuickAssign('item');
