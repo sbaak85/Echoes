@@ -34,9 +34,9 @@ function installMemoryLocalStorage() {
   return values;
 }
 
-test("快捷工具列固定七格，新遊戲只依序放入實際持有的道具", () => {
-  assert.equal(HOTBAR_SLOT_COUNT, 7);
-  assert.equal(DEFAULT_HOTBAR_ASSIGNMENTS.length, 7);
+test("快捷工具列固定六格，新遊戲只依序放入實際持有的道具", () => {
+  assert.equal(HOTBAR_SLOT_COUNT, 6);
+  assert.equal(DEFAULT_HOTBAR_ASSIGNMENTS.length, 6);
   assert.deepEqual(normalizeHotbarAssignments(undefined), [
     "R0005",
     "T0005",
@@ -44,11 +44,10 @@ test("快捷工具列固定七格，新遊戲只依序放入實際持有的道�
     null,
     null,
     null,
-    null,
   ]);
   assert.deepEqual(
     createHotbarAssignmentsFromInventory({ R0017: 1, R0005: 2, T0005: 1 }),
-    ["R0005", "T0005", "R0017", null, null, null, null],
+    ["R0005", "T0005", "R0017", null, null, null],
   );
 });
 
@@ -62,7 +61,7 @@ test("道具可指派、覆蓋及移除快捷格，不會改變背包資料", ()
   assert.deepEqual(inventory, { R0004: 3, R0006: 2 });
 });
 
-test("未知道具不會進入快捷格，七格指派可保存與讀回", () => {
+test("未知道具不會進入快捷格，六格指派可保存與讀回", () => {
   const values = installMemoryLocalStorage();
   try {
     const assignments = assignHotbarSlot(
@@ -102,6 +101,12 @@ test("快捷格編號與數量放大且不使用左上角三角填色底", () =>
 test("舊版英文道具 ID 會自動遷移成新版分類流水號", () => {
   assert.deepEqual(
     normalizeHotbarAssignments(["medkit", "water-bottle", "time-crystal"]),
-    ["T0005", "R0004", "M0001", null, null, null, null],
+    ["T0005", "R0004", "M0001", null, null, null],
   );
+});
+
+test("舊七格資料只保留前六格，禁止指派到不可見第七格", () => {
+  const legacy = ["R0005", "T0005", null, null, null, "R0004", "R0006"];
+  assert.deepEqual(normalizeHotbarAssignments(legacy), legacy.slice(0, 6));
+  assert.deepEqual(assignHotbarSlot(legacy, 6, "R0005"), legacy.slice(0, 6));
 });

@@ -5,7 +5,7 @@ import {
   type PlayerInventory,
 } from "./item-database.ts";
 
-export const HOTBAR_SLOT_COUNT = 7;
+export const HOTBAR_SLOT_COUNT = 6;
 export const HOTBAR_ASSIGNMENTS_STORAGE_KEY = "echoes:hotbar-assignments:v1";
 export function createHotbarAssignmentsFromInventory(
   inventory: Readonly<PlayerInventory>,

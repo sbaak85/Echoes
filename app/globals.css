@@ -11126,6 +11126,380 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   .quest-hud.is-mobile-mini .quest-list-mask { display:none; }
 }
 
+/* Approved inventory skin migrated from the Worktree preview. */
+.inventory-overlay .inventory-screen-footer .inventory-currency {
+  display: none;
+}
+.inventory-dialog {
+  --inventory-skin-edge: linear-gradient(135deg, #fff 0%, #dcfaff 5%, #86d8f2 15%, #315064 35%, #294657 65%, #79cde9 85%, #e8ffff 96%, #fff 100%);
+  --inventory-skin-shape: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
+  --inventory-skin-ring: polygon(evenodd, 8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px, 8px 0, 8.414px 1px, 1px 8.414px, 1px calc(100% - 8.414px), 8.414px calc(100% - 1px), calc(100% - 8.414px) calc(100% - 1px), calc(100% - 1px) calc(100% - 8.414px), calc(100% - 1px) 8.414px, calc(100% - 8.414px) 1px, 8.414px 1px, 8px 0);
+}
+
+.inventory-dialog :is(.inventory-summary-panel, .inventory-selected-panel, .inventory-catalog, .inventory-close) {
+  isolation: isolate;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Neither layer participates in the three-column grid or its hit testing. */
+.inventory-dialog :is(.inventory-summary-panel, .inventory-selected-panel, .inventory-catalog, .inventory-close)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  clip-path: var(--inventory-skin-shape);
+  background:
+    linear-gradient(135deg, transparent, rgba(5, 14, 24, .94) 32%, rgba(5, 14, 24, .94) 67%, transparent),
+    radial-gradient(ellipse at 0 0, rgba(63, 148, 178, .24), transparent 45%),
+    radial-gradient(ellipse at 100% 100%, rgba(63, 148, 178, .2), transparent 45%),
+    url("../public/ui/dialogue/grid.svg") repeat,
+    rgba(5, 14, 24, .7);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: inset 0 0 18px rgba(111, 212, 255, .13);
+}
+
+.inventory-dialog :is(.inventory-summary-panel, .inventory-selected-panel, .inventory-catalog, .inventory-close)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: var(--inventory-skin-edge);
+  clip-path: var(--inventory-skin-ring);
+}
+
+/* Keep the original close-button geometry, glyph and handler. */
+.inventory-dialog .inventory-close {
+  border-radius: 0;
+  color: #c5edfa;
+  text-shadow: 0 0 7px rgba(131, 223, 255, .55);
+  filter: drop-shadow(0 0 3px rgba(131, 223, 255, .22));
+}
+.inventory-dialog .inventory-close:hover:where(:root:not([data-cursor-owner]) *, :root[data-cursor-owner="mouse"] *),
+.inventory-dialog .inventory-close[data-gamepad-selected="true"] {
+  color: #fff;
+  text-shadow: 0 0 9px rgba(180, 243, 255, .85);
+  filter: drop-shadow(0 0 5px rgba(131, 223, 255, .55));
+}
+
+.inventory-dialog :is(.inventory-summary-content > h3, .inventory-selected-panel > header) {
+  border-bottom-color: rgba(131, 223, 255, .22);
+  text-shadow: 0 0 12px rgba(228, 206, 155, .2);
+}
+.inventory-dialog .inventory-header h2 {
+  text-shadow: 0 0 18px rgba(228, 206, 155, .24);
+}
+.inventory-dialog :is(.inventory-selected-copy, .inventory-category-stats) {
+  border-top-color: rgba(131, 223, 255, .18);
+}
+.inventory-dialog .inventory-feature-art {
+  background: radial-gradient(ellipse, rgba(61, 151, 185, .22), transparent 67%);
+}
+.inventory-dialog :is(.inventory-feature-art::before, .inventory-feature-art::after) {
+  border-color: rgba(131, 223, 255, .18);
+  pointer-events: none;
+}
+.inventory-dialog .inventory-categories {
+  border-bottom-color: rgba(131, 223, 255, .22);
+}
+.inventory-dialog .inventory-categories button:not(.is-active) {
+  background-color: rgba(6, 20, 30, .35);
+}
+.inventory-dialog .inventory-item {
+  --item-corner-glow: rgba(99, 191, 216, .18);
+  --item-edge: linear-gradient(135deg, #b6e4ed, #456874 22%, #243f4c 50%, #456874 78%, #b6e4ed);
+  border-color: transparent;
+  border-radius: 0;
+  clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px);
+  background:
+    radial-gradient(ellipse at 0 0, var(--item-corner-glow), transparent 55%),
+    radial-gradient(ellipse at 100% 100%, var(--item-corner-glow), transparent 55%),
+    #07131c;
+  box-shadow: none;
+}
+.inventory-dialog .inventory-item::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  background: var(--item-edge);
+  clip-path: polygon(evenodd, 4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px, 4px 0, 4.414px 1px, 1px 4.414px, 1px calc(100% - 4.414px), 4.414px calc(100% - 1px), calc(100% - 4.414px) calc(100% - 1px), calc(100% - 1px) calc(100% - 4.414px), calc(100% - 1px) 4.414px, calc(100% - 4.414px) 1px, 4.414px 1px, 4px 0);
+}
+.inventory-dialog .inventory-item.is-selected {
+  --item-corner-glow: rgba(230, 191, 108, .27);
+  --item-edge: linear-gradient(135deg, #fff0bd, #e6bf6c 24%, #967035 50%, #e6bf6c 76%, #fff0bd);
+  border-color: transparent;
+  background:
+    radial-gradient(ellipse at 0 0, var(--item-corner-glow), transparent 55%),
+    radial-gradient(ellipse at 100% 100%, var(--item-corner-glow), transparent 55%),
+    #07131c;
+  box-shadow: none;
+}
+.inventory-dialog .inventory-catalog-tools :is(button, label) {
+  border-color: rgba(131, 193, 212, .25);
+  background-color: rgba(4, 15, 24, .55);
+}
+/* Preserve existing hover/pressed/disabled/gamepad states and their animations. */
+.inventory-dialog .inventory-selected-actions button:not(:disabled):not(:hover):not([data-gamepad-selected="true"]) {
+  border-color: rgba(131, 193, 212, .38);
+  background: linear-gradient(135deg, rgba(28, 59, 74, .6), rgba(5, 17, 26, .72));
+}
+
+/* Sixteen equal rectangular cells fill the available viewport, starting top-left. */
+.inventory-dialog .inventory-grid-viewport {
+  container-type: size;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+}
+.inventory-dialog .inventory-items {
+  width: 100%;
+  height: 100%;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  place-self: start;
+}
+.inventory-dialog .inventory-item {
+  container-type: size;
+  min-width: 0;
+  padding: 4%;
+}
+.inventory-dialog .inventory-item-icon {
+  width: 64cqw;
+  height: 64cqh;
+  font-size: min(28cqw, 28cqh);
+}
+.inventory-dialog .inventory-item :is(strong, small) {
+  font-size: min(11cqw, 15cqh);
+}
+.inventory-dialog .inventory-item-kind {
+  top: 3cqh;
+  left: 3cqw;
+  font-size: 10cqw;
+}
+
+/* One visual heading size and bottom edge across all three columns.
+   Reference container: 1200 x 600 => 17px type, 44px heading band. */
+.inventory-dialog {
+  --inventory-heading-font: 17px;
+  --inventory-heading-band: 44px;
+}
+@supports (font-size: 1cqw) {
+  .inventory-dialog {
+    --inventory-heading-font: clamp(12px, min(1.416667cqw, 2.833333cqh), 17px);
+    --inventory-heading-band: clamp(36px, min(3.666667cqw, 7.333333cqh), 48px);
+  }
+}
+.inventory-dialog .inventory-summary-content {
+  padding-top: 0;
+  grid-template-rows: calc(var(--inventory-heading-band) / var(--inventory-summary-scale)) auto minmax(0, 1fr) auto auto;
+}
+.inventory-dialog .inventory-summary-content > h3 {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: calc(10px / var(--inventory-summary-scale));
+  text-align: left;
+  letter-spacing: normal;
+  white-space: nowrap;
+  box-sizing: border-box;
+  min-height: 0;
+  height: calc(var(--inventory-heading-band) / var(--inventory-summary-scale));
+  padding-block: 0;
+  font-size: calc(var(--inventory-heading-font) / var(--inventory-summary-scale));
+  line-height: 1.3;
+}
+.inventory-dialog .inventory-summary-content > h3 small {
+  color: #76674f;
+  font-size: calc(clamp(8px, min(0.72cqw, 1.55cqh), 10px) / var(--inventory-summary-scale));
+  font-weight: 400;
+  letter-spacing: .12em;
+}
+.inventory-dialog .inventory-selected-panel {
+  padding-top: 0;
+  grid-template-rows: var(--inventory-heading-band) minmax(clamp(76px, 18cqh, 140px), 1fr) auto auto;
+}
+.inventory-dialog .inventory-selected-panel > header {
+  box-sizing: border-box;
+  min-height: 0;
+  height: var(--inventory-heading-band);
+  padding-block: 0;
+  font-size: var(--inventory-heading-font);
+  line-height: 1.3;
+}
+.inventory-dialog .inventory-catalog {
+  padding-top: 0;
+  grid-template-rows: var(--inventory-heading-band) auto minmax(0, 1fr) auto;
+}
+.inventory-dialog .inventory-categories {
+  box-sizing: border-box;
+  min-height: 0;
+  height: var(--inventory-heading-band);
+}
+.inventory-dialog .inventory-categories button {
+  min-height: 0;
+  padding-block: 0;
+  font-size: var(--inventory-heading-font);
+  line-height: 1.3;
+}
+
+/* Approved integrated quick dock: settings / six slots / backpack.
+   The frame is decorative; hints and assignment panels remain unclipped. */
+.game-shell .inventory-hotbar {
+  --dock-cell: 54px;
+  width:max-content;
+  max-width:none;
+  flex-wrap:nowrap;
+  transform:scale(var(--dock-scale,1));
+  transform-origin:bottom left;
+  left: 18px;
+  bottom: 18px;
+  align-items: center;
+  gap: 6px;
+  padding: 9px;
+  isolation: isolate;
+  background: transparent;
+}
+.inventory-hotbar::before,
+.inventory-hotbar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.inventory-hotbar::before {
+  z-index: -1;
+  clip-path: polygon(6px 0,calc(100% - 6px) 0,100% 6px,100% calc(100% - 6px),calc(100% - 6px) 100%,6px 100%,0 calc(100% - 6px),0 6px);
+  background: radial-gradient(ellipse at top left, #7c90542b, transparent 48%), radial-gradient(ellipse at bottom right, #7c90542b, transparent 48%), rgba(13, 20, 12, .6);
+  backdrop-filter: blur(14px);
+}
+.inventory-hotbar::after {
+  clip-path: polygon(evenodd,6px 0,calc(100% - 6px) 0,100% 6px,100% calc(100% - 6px),calc(100% - 6px) 100%,6px 100%,0 calc(100% - 6px),0 6px,6px 0,6.414px 1px,1px 6.414px,1px calc(100% - 6.414px),6.414px calc(100% - 1px),calc(100% - 6.414px) calc(100% - 1px),calc(100% - 1px) calc(100% - 6.414px),calc(100% - 1px) 6.414px,calc(100% - 6.414px) 1px,6.414px 1px,6px 0);
+  background: linear-gradient(135deg,#fff 0%,#c9d6a2 6%,#819454 18%,#35412b 38%,#35412b 62%,#819454 82%,#c9d6a2 94%,#fff 100%);
+}
+.quick-dock-texture {
+  position:absolute; inset:1px; z-index:-1; pointer-events:none;
+  clip-path: polygon(6px 0,calc(100% - 6px) 0,100% 6px,100% calc(100% - 6px),calc(100% - 6px) 100%,6px 100%,0 calc(100% - 6px),0 6px);
+  background:repeating-linear-gradient(135deg,transparent 0 8px,#819454 8px 9px,transparent 9px 10px),repeating-linear-gradient(0deg,transparent 0 23px,#819454 23px 24px),repeating-linear-gradient(90deg,transparent 0 23px,#819454 23px 24px);
+  opacity:.13;
+  mask-image:radial-gradient(ellipse 65% 120% at top left,#000,transparent 78%),radial-gradient(ellipse 65% 120% at bottom right,#000,transparent 78%);
+}
+.game-shell .inventory-hotbar .hotbar-slots {
+  padding: 0;
+  border: 0;
+  gap: 4px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.game-shell .inventory-hotbar .hotbar-slot {
+  width: var(--dock-cell);
+  height: var(--dock-cell);
+  border-radius: 0;
+  border-color:transparent;
+  background:transparent;
+  box-shadow:none;
+  isolation:isolate;
+}
+.game-shell .inventory-hotbar .hotbar-slot::before {
+  content:""; position:absolute; inset:-1px; z-index:-1; pointer-events:none;
+  clip-path: polygon(4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px),0 4px);
+  background:radial-gradient(ellipse at top left,#7c90542b,transparent 48%),radial-gradient(ellipse at bottom right,#7c90542b,transparent 48%),rgba(13,20,12,.4);
+}
+.game-shell .inventory-hotbar .hotbar-slot::after {
+  inset:-1px; height:auto; pointer-events:none; box-shadow:none;
+  background:#81945480;
+  clip-path: polygon(evenodd,4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px),0 4px,4px 0,4.414px 1px,1px 4.414px,1px calc(100% - 4.414px),4.414px calc(100% - 1px),calc(100% - 4.414px) calc(100% - 1px),calc(100% - 1px) calc(100% - 4.414px),calc(100% - 1px) 4.414px,calc(100% - 4.414px) 1px,4.414px 1px,4px 0);
+}
+.game-shell .inventory-hotbar .hotbar-slot:is(.is-selected,.is-drop-target)::after { background:#d5e6aa; }
+.game-shell .inventory-hotbar :is(.options-trigger,.inventory-trigger) {
+  position: relative;
+  inset: auto;
+  flex: 0 0 var(--dock-cell);
+  width: var(--dock-cell);
+  height: var(--dock-cell);
+  border-radius: 2px;
+  border-color: #81945466;
+  background: radial-gradient(ellipse at top left,#7c90542b,transparent 48%),rgba(13,20,12,.4);
+  color: #c9d6a2;
+  box-shadow: none;
+  pointer-events: auto;
+}
+.inventory-hotbar .options-trigger:disabled { opacity:.35; pointer-events:none; }
+/* Lift the hint's ancestor stacking context above the detached settings button. */
+.game-shell .inventory-hotbar .hotbar-slot:has(.hotbar-selection-hint) {
+  z-index: 9;
+}
+.game-shell .inventory-hotbar .hotbar-feedback { z-index:10; pointer-events:none; }
+.game-shell .inventory-hotbar .inventory-trigger,
+.game-shell .inventory-hotbar .inventory-trigger:is(:hover,:focus,:focus-visible,[aria-pressed="true"]) {
+  border-color:transparent;
+  background:transparent;
+  box-shadow:none;
+  backdrop-filter:none;
+  outline:none;
+  transform:none;
+}
+.game-shell .inventory-hotbar .inventory-trigger .inventory-trigger-icon {
+  /* Enlarge the artwork independently of its feedback transform. */
+  zoom: 1.8;
+  transform:scale(1);
+  filter:drop-shadow(0 0 2px #81945466);
+  transition:transform 150ms ease,filter 150ms ease,color 150ms ease;
+}
+.game-shell .inventory-hotbar .inventory-trigger[aria-pressed="true"] .inventory-trigger-icon {
+  color:#e8efc6;
+  filter:drop-shadow(0 0 5px #b4cc7faa);
+}
+.game-shell .inventory-hotbar .inventory-trigger:hover:where(:root:not([data-cursor-owner]) *, :root[data-cursor-owner="mouse"] *) .inventory-trigger-icon,
+.game-shell .inventory-hotbar .inventory-trigger[data-gamepad-selected="true"] .inventory-trigger-icon {
+  color:#f5ffdb;
+  filter:drop-shadow(0 0 7px #c9d6a2bb);
+  transform:scale(1.12);
+}
+.game-shell .inventory-hotbar .inventory-trigger:active .inventory-trigger-icon {
+  transform:scale(.86);
+  transition-duration:70ms;
+}
+.inventory-hotbar .hotbar-item-icon img { max-width:calc(var(--dock-cell) - 8px); max-height:calc(var(--dock-cell) - 8px); }
+.inventory-hotbar .quick-assign-panel { left:0 !important; max-width:calc(100vw - 36px); }
+@media (max-width:480px) {
+  .game-shell .inventory-hotbar { left:8px; bottom:8px; }
+}
+
+
+.game-shell .inventory-hotbar .options-trigger {
+  position:absolute; left:9px; top:auto; bottom:calc(100% + 8px);
+  width:48px; height:42px;
+  isolation:isolate; border-color:transparent; border-radius:0;
+  background:transparent; box-shadow:none; backdrop-filter:none;
+  color:#c9d6a2; text-shadow:0 0 7px #8194548c;
+  filter:drop-shadow(0 0 3px #81945438);
+  transform:none;
+}
+.game-shell .inventory-hotbar .options-trigger::before {
+  content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
+  clip-path:polygon(8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px);
+  background:linear-gradient(135deg,transparent,rgba(13,20,12,.94) 32%,rgba(13,20,12,.94) 67%,transparent),radial-gradient(ellipse at 0 0,#8194543d,transparent 45%),radial-gradient(ellipse at 100% 100%,#81945433,transparent 45%),rgba(13,20,12,.7);
+  backdrop-filter:blur(14px);
+  box-shadow:inset 0 0 18px #c9d6a221;
+}
+.game-shell .inventory-hotbar .options-trigger::after {
+  content:""; position:absolute; inset:0; pointer-events:none;
+  clip-path:polygon(evenodd,8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px,8px 0,8.414px 1px,1px 8.414px,1px calc(100% - 8.414px),8.414px calc(100% - 1px),calc(100% - 8.414px) calc(100% - 1px),calc(100% - 1px) calc(100% - 8.414px),calc(100% - 1px) 8.414px,calc(100% - 8.414px) 1px,8.414px 1px,8px 0);
+  background:linear-gradient(135deg,#fff,#e5edcf 5%,#c9d6a2 15%,#35412b 35%,#35412b 65%,#819454 85%,#eff6df 96%,#fff);
+}
+.game-shell .inventory-hotbar .options-trigger:hover:where(:root:not([data-cursor-owner]) *, :root[data-cursor-owner="mouse"] *),
+.game-shell .inventory-hotbar .options-trigger[data-gamepad-selected="true"] {
+  color:#fff; text-shadow:0 0 9px #c9d6a2d9;
+  filter:drop-shadow(0 0 5px #8194548c);
+}
+
 /* Approved B dialogue skin, after base dialogue rules. */
 /* Approved dialogue frame skin. Layout and input ownership stay in globals.css. */
 :is(.dialogue-box, .dialogue-history-panel) {

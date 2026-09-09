@@ -3506,6 +3506,7 @@ export function MovementLab() {
   );
   const gameShellRef = useRef<HTMLElement>(null);
   const survivalHudRef = useRef<HTMLElement>(null);
+  const quickDockRef = useRef<HTMLElement>(null);
   const questHudRef = useRef<HTMLElement>(null);
   const blackScreenOverlayRef = useRef<BlackScreenOverlayHandle>(null);
   const blackScreenOpacityRef = useRef(255);
@@ -4490,6 +4491,25 @@ export function MovementLab() {
       },
     );
   }, [survivalPanelExpanded, survivalMobileMode]);
+
+  useLayoutEffect(() => {
+    const dock = quickDockRef.current;
+    const host = dock?.parentElement;
+    if (!dock || !host) return;
+    const update = () => {
+      const left = parseFloat(getComputedStyle(dock).left) || 0;
+      const available = Math.max(0, host.clientWidth - left - 8);
+      const scale = Math.min(1, available / Math.max(1, dock.offsetWidth));
+      dock.style.setProperty("--dock-scale", String(scale));
+      host.style.setProperty("--dock-scaled-stack", `${(dock.offsetHeight + 54 + 16) * scale}px`);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(host);
+    observer.observe(dock);
+    window.addEventListener("resize", update);
+    return () => { observer.disconnect(); window.removeEventListener("resize", update); };
+  }, []);
 
   useLayoutEffect(() => {
     previousQuestPanelHeightRef.current = playHudPanelHeightTween(
@@ -10078,7 +10098,7 @@ export function MovementLab() {
         return;
       }
       if (
-        /^[1-7]$/.test(key) &&
+        /^[1-6]$/.test(key) &&
         !storyInputLockedRef.current &&
         !optionsOpenRef.current &&
         !inventoryOpenRef.current &&
@@ -16992,30 +17012,20 @@ export function MovementLab() {
         />
       ) : null}
 
-      <button
-        className="survival-pause-trigger"
-        type="button"
-        aria-label={survivalFlowPaused ? "恢復生存時間流逝" : "暫停生存時間流逝"}
-        aria-pressed={survivalFlowPaused}
-        title={survivalFlowPaused ? "恢復生存時間流逝" : "暫停生存時間流逝"}
-        onClick={toggleSurvivalFlowPaused}
-      >
-        <span aria-hidden="true"><i /><i /></span>
-      </button>
-
-      <button
-        className="options-trigger"
-        type="button"
-        aria-label="開啟選項"
-        aria-expanded={optionsOpen}
-        aria-controls="options-dialog"
-        onClick={toggleOptionsPanel}
-      >
-        <span aria-hidden="true">⚙</span>
-      </button>
-
       {quickAssign ? <div className="quick-assign-shield" onContextMenu={(event) => event.preventDefault()} /> : null}
-      <section className={`inventory-hotbar${quickAssign ? " is-assigning" : ""}${inventoryOpen ? " is-inventory-open" : ""}`} aria-label="背包道具快捷工具列">
+      <section ref={quickDockRef} className={`inventory-hotbar${quickAssign ? " is-assigning" : ""}${inventoryOpen ? " is-inventory-open" : ""}`} aria-label="背包道具快捷工具列">
+        <span className="quick-dock-texture" aria-hidden="true" />
+        <button
+          className="options-trigger"
+          type="button"
+          aria-label="開啟選項"
+          aria-expanded={optionsOpen}
+          aria-controls="options-dialog"
+          disabled={!!quickAssign}
+          onClick={toggleOptionsPanel}
+        >
+          <span aria-hidden="true">⚙</span>
+        </button>
         {hotbarFeedback ? (
           <p className="hotbar-feedback" key={hotbarFeedback.sequence} aria-live="polite">
             {hotbarFeedback.message}
@@ -17090,7 +17100,7 @@ export function MovementLab() {
           })}
         </div>
         {quickAssign ? (
-          <div className="quick-assign-panel" style={{ left: `calc((100% - 65px) / 7 * ${quickAssign.slotIndex})` }} role="dialog" aria-label="快捷道具指派" aria-modal="true">
+          <div className="quick-assign-panel" style={{ left: `calc((100% - 65px) / ${HOTBAR_SLOT_COUNT} * ${quickAssign.slotIndex})` }} role="dialog" aria-label="快捷道具指派" aria-modal="true">
             <img className="quick-assign-preview" src={getHotbarItemIcon(quickAssign.itemId)} alt={ITEM_BY_ID.get(quickAssign.itemId)?.name} />
             <strong>將道具指派在此 · 第 {quickAssign.slotIndex + 1} 格</strong>
             {hotbarAssignments[quickAssign.slotIndex] ? <small>取代「{ITEM_BY_ID.get(hotbarAssignments[quickAssign.slotIndex]!)?.name}」</small> : null}
@@ -17107,7 +17117,17 @@ export function MovementLab() {
           aria-label={inventoryOpen ? "關閉背包" : "開啟背包"}
           aria-pressed={inventoryOpen}
           title={inventoryOpen ? "關閉背包" : "開啟背包"}
-          onClick={() => { if (!quickAssignRef.current) setInventoryPanelOpen(!inventoryOpenRef.current); }}
+          onClick={(event) => {
+            if (quickAssignRef.current) return;
+            // Shared click path also covers virtual-cursor activation.
+            const icon = event.currentTarget.querySelector(".inventory-trigger-icon");
+            icon?.getAnimations().forEach((animation) => animation.cancel());
+            icon?.animate(
+              [{ transform: "scale(.86)" }, { transform: "scale(1.12)", offset: .6 }, { transform: "scale(1)" }],
+              { duration: 220, easing: "ease-out" },
+            );
+            setInventoryPanelOpen(!inventoryOpenRef.current);
+          }}
         >
           <span className="inventory-trigger-icon" aria-hidden="true">
             <i className="inventory-trigger-handle" />
@@ -17168,7 +17188,7 @@ export function MovementLab() {
             <div className="inventory-body">
               <aside className="inventory-summary-panel">
                 <div className="inventory-summary-content">
-                  <h3>生存背包</h3>
+                  <h3>生存背包<small>BACKPACK</small></h3>
                   <section className="inventory-survival-panel" aria-label="背包生存狀態">
                     {SURVIVAL_STATS.map((stat) => {
                       const value = survivalState.values[stat.id];
@@ -17346,6 +17366,7 @@ export function MovementLab() {
                     <span aria-hidden="true">⌕</span>
                   </label>
                 </div>
+                <div className="inventory-grid-viewport">
                 <div className="inventory-items" aria-label="背包道具">
                   {visibleInventoryItems.length === 0 ? (
                     <p className="inventory-empty-message">這個分類目前沒有持有道具</p>
@@ -17395,6 +17416,7 @@ export function MovementLab() {
                       </span>
                     </button>
                   ))}
+                </div>
                 </div>
                 <InventoryHoverHint hint={inventoryHoverHint && visibleInventoryItems.some(({ item }) => item.id === inventoryHoverHint.itemId) ? inventoryHoverHint : null} />
                 <footer className="inventory-pages" data-page={currentInventoryPage} data-page-count={inventoryPageCount}>
