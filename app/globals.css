@@ -10983,3 +10983,243 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 .survival-need-icon { display: inline-block; width: 1em; height: 1em; overflow: visible; vertical-align: -.15em; flex-shrink: 0; }
 .survival-need-icon.is-hunger { color: #f0b15c; }
 .survival-need-icon.is-thirst { color: #61d3e6; }
+
+/* Approved HUD skin: gold objectives / olive survival. Existing layout and state colors stay intact. */
+:is(.quest-hud, .survival-clock > span, .survival-mini-panel, .survival-panel, .survival-mobile-minimal-panel, .survival-frame-shell) {
+  --hud-light: #c9d6a2;
+  --hud-mid: #819454;
+  --hud-dim: #35412b;
+  --hud-tint: #7c90542b;
+  --hud-base: rgba(13, 20, 12, .4);
+  --hud-shape: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
+  --hud-ring: polygon(evenodd,8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px,8px 0,8.414px 1px,1px 8.414px,1px calc(100% - 8.414px),8.414px calc(100% - 1px),calc(100% - 8.414px) calc(100% - 1px),calc(100% - 1px) calc(100% - 8.414px),calc(100% - 1px) 8.414px,calc(100% - 8.414px) 1px,8.414px 1px,8px 0);
+  isolation: isolate;
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.survival-clock > span { position: relative; }
+.quest-hud.quest-hud {
+  --hud-light: #fff0bb;
+  --hud-mid: #e4b64d;
+  --hud-dim: #514123;
+  --hud-tint: #c194382b;
+  --hud-base: rgba(22, 19, 11, .4);
+  overflow: visible;
+}
+.hud-frame-art, .hud-frame-art::before, .hud-frame-art::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.hud-frame-art {
+  z-index: -2;
+}
+.hud-frame-art::before {
+  content: "";
+  clip-path: var(--hud-shape);
+  background: radial-gradient(ellipse at top left, var(--hud-tint), transparent 48%), radial-gradient(ellipse at bottom right, var(--hud-tint), transparent 48%), var(--hud-base);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.hud-frame-art::after {
+  content: "";
+  clip-path: var(--hud-ring);
+  background: linear-gradient(135deg, #fff 0%, var(--hud-light) 6%, var(--hud-mid) 18%, var(--hud-dim) 38%, var(--hud-dim) 62%, var(--hud-mid) 82%, var(--hud-light) 94%, #fff 100%);
+}
+.hud-frame-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 0 2px var(--hud-light)) drop-shadow(0 0 7px color-mix(in srgb, var(--hud-mid) 55%, transparent));
+}
+.hud-frame-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  clip-path: var(--hud-ring);
+  background: linear-gradient(135deg, var(--hud-light), transparent 27%, transparent 73%, var(--hud-light));
+}
+:is(.quest-hud, .survival-clock > span, .survival-mini-panel, .survival-panel, .survival-mobile-minimal-panel, .survival-frame-shell)::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  pointer-events: none;
+  clip-path: var(--hud-shape);
+  background: repeating-linear-gradient(135deg, transparent 0 13px, var(--hud-mid) 13px 14px, transparent 14px 16px), repeating-linear-gradient(0deg, transparent 0 39px, var(--hud-mid) 39px 40px), repeating-linear-gradient(90deg, transparent 0 39px, var(--hud-mid) 39px 40px);
+  opacity: .13;
+  mask-image: radial-gradient(ellipse 65% 120% at top left, #000, transparent 78%), radial-gradient(ellipse 65% 120% at bottom right, #000, transparent 78%);
+}
+.quest-hud .quest-header { border-radius: 8px 8px 0 0; }
+.quest-hud .quest-collapse,
+.quest-hud .quest-collapse:is(:hover, :focus, :focus-visible, .is-selected) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+.quest-hud .quest-collapse::before,
+.quest-hud .quest-collapse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.quest-hud .quest-collapse::before {
+  clip-path: var(--hud-shape);
+  background: rgba(222, 163, 68, .035);
+}
+.quest-hud .quest-collapse::after {
+  clip-path: var(--hud-ring);
+  background: rgba(244, 197, 116, .75);
+}
+.quest-hud .quest-collapse:is(:hover:where(:root:not([data-cursor-owner]) *, :root[data-cursor-owner="mouse"] *), :focus-visible, .is-selected)::before,
+.quest-hud .quest-collapse:is(:hover:where(:root:not([data-cursor-owner]) *, :root[data-cursor-owner="mouse"] *), :focus-visible, .is-selected)::after {
+  opacity: 1;
+}
+.quest-hud .quest-header small { color: #d9b969; }
+.quest-hud .quest-header strong { color: #ffe4a3; }
+.survival-clock strong { color: #e1e8cc; }
+.survival-clock i { color: #bdce95; }
+
+/* One persistent survival shell; stationary information crossfades inside its mask. */
+.survival-hud { display: flex; flex-direction: column; }
+.survival-clock-desktop { flex: 0 0 auto; }
+.survival-frame-shell { position:absolute; top:var(--survival-frame-top,54px); bottom:0; left:0; right:0; pointer-events:none; }
+.survival-content-mask { position:relative; flex:1 1 auto; min-height:0; margin-top:6px; overflow:hidden; overflow:clip; }
+.survival-content-mask > .survival-panel,
+.survival-content-mask > .survival-mini-panel {
+  margin:0; top:0; left:0; right:0; background:transparent;
+  border-color:transparent; box-shadow:none; backdrop-filter:none;
+  transition:opacity 150ms linear; transition-delay:0ms; pointer-events:none;
+}
+.survival-content-mask > .survival-panel::before,
+.survival-content-mask > .survival-mini-panel::before { content:none; }
+.survival-hud .survival-content-mask > .survival-panel { opacity:0; top:0; transition-delay:0ms; }
+.survival-hud .survival-content-mask > .survival-mini-panel { opacity:1; top:0; transition-delay:0ms; }
+.survival-hud.is-info-expanded .survival-content-mask > .survival-panel { opacity:1; }
+.survival-hud.is-info-expanded .survival-content-mask > .survival-mini-panel { opacity:0; }
+.survival-hud .survival-toggle-hitbox,
+.survival-hud .survival-toggle-hitbox:is(:hover,:focus,:focus-visible) {
+  border:0; border-radius:0; background:transparent; outline:none; box-shadow:none;
+}
+.survival-hud:has(> .survival-toggle-hitbox:hover:where(:root:not([data-cursor-owner]) *, :root[data-cursor-owner="mouse"] *)) > .survival-frame-shell .hud-frame-glow,
+.survival-hud:has(> .survival-toggle-hitbox:focus-visible) > .survival-frame-shell .hud-frame-glow {
+  filter:drop-shadow(0 0 3px #e0edb9) drop-shadow(0 0 8px #819454);
+}
+.survival-hud.is-inventory-open .survival-content-mask,
+.survival-hud.is-inventory-open .survival-frame-shell { visibility:hidden; pointer-events:none; }
+/* List stays mounted; the inner viewport, not the glowing frame, clips text. */
+.quest-hud { display:flex; flex-direction:column; }
+.quest-hud .quest-header { flex:0 0 auto; }
+.quest-list-mask { flex:1 1 auto; min-height:0; overflow:hidden; overflow:clip; }
+.quest-hud.is-collapsed .quest-list-mask { height:0; flex-basis:0; }
+@media (max-width:680px), (hover:none) and (pointer:coarse) {
+  .survival-hud.is-mobile-mini .survival-content-mask,
+  .survival-hud.is-mobile-mini .survival-frame-shell,
+  .quest-hud.is-mobile-mini .quest-list-mask { display:none; }
+}
+
+/* Approved B dialogue skin, after base dialogue rules. */
+/* Approved dialogue frame skin. Layout and input ownership stay in globals.css. */
+:is(.dialogue-box, .dialogue-history-panel) {
+  --edge-light: linear-gradient(135deg, #fff 0%, #f4ffff 7%, #83dfff 17%, #24475e 35%, #203e53 60%, #68c9f1 83%, #eeffff 95%, #fff 100%);
+  isolation: isolate;
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  color: #e2eaf0;
+}
+/* One continuous 1px contour. Only the diagonal endpoints reach white. */
+:is(.dialogue-box, .dialogue-history-panel)::before, :is(.dialogue-box, .dialogue-history-panel)::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  padding: 1px; background: var(--edge-light); pointer-events: none;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+:is(.dialogue-box, .dialogue-history-panel)::before { z-index: 2; }
+:is(.dialogue-box, .dialogue-history-panel)::after { z-index: -1; filter: blur(4px); opacity: .65; }
+/* Filter the already-masked child so bloom can spill OUTSIDE the thin contour.
+   Filtering and masking the same element clips that outward light away. */
+.dialogue-frame-bloom {
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 1;
+  filter: drop-shadow(0 0 2px #e8ffff) drop-shadow(0 0 7px #62d8ffb3) drop-shadow(0 0 16px #298eff80);
+}
+.dialogue-frame-bloom::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px;
+  background: linear-gradient(135deg, #fff 0%, #e0ffff 6%, #91eaff99 15%, transparent 32%, transparent 68%, #91eaff99 85%, #e0ffff 94%, #fff 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+.dialogue-frame-surface { position: absolute; inset: 1px; border-radius: calc(var(--frame-radius) - 1px); overflow: hidden; pointer-events: none; z-index: -1;
+  background: radial-gradient(ellipse 48% 130% at 0 0, #16384eaa, transparent 75%), radial-gradient(ellipse 43% 125% at 100% 100%, #123447aa, transparent 75%), #050e18;
+}
+.dialogue-frame-surface::before { content: ""; position: absolute; inset: 0; background: url("../public/ui/dialogue/grid.svg") repeat;
+  -webkit-mask-image: radial-gradient(ellipse 42% 115% at 0 0, #000 0%, #000b 27%, transparent 84%), radial-gradient(ellipse 42% 115% at 100% 100%, #000 0%, #000b 27%, transparent 84%);
+  mask-image: radial-gradient(ellipse 42% 115% at 0 0, #000 0%, #000b 27%, transparent 84%), radial-gradient(ellipse 42% 115% at 100% 100%, #000 0%, #000b 27%, transparent 84%);
+}
+/* A narrow inward bloom, masked to the same two corners; never a thick border. */
+.dialogue-frame-surface::after { content: ""; position: absolute; inset: 0; border-radius: inherit;
+  box-shadow: inset 0 0 24px #59c7ff70, inset 0 0 8px #b3f3ff99, inset 0 0 2px #fff;
+  mask-image: linear-gradient(135deg, #000, transparent 30%, transparent 70%, #000);
+}
+
+/* B translucent comparison: keep the original frame and bloom geometry. */
+:is(.dialogue-box, .dialogue-history-panel) { background: transparent; }
+.dialogue-frame-surface {
+  background: radial-gradient(ellipse 48% 130% at 0 0, #16384e55, transparent 75%), radial-gradient(ellipse 43% 125% at 100% 100%, #12344755, transparent 75%), rgba(5, 14, 24, .7);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+/* Four 12px, 45-degree chamfers; the parent stays unclipped for outer bloom. */
+:is(.dialogue-box, .dialogue-history-panel) {
+  --frame-radius: 0px;
+  --chamfer-ring: polygon(evenodd, 12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px, 12px 0, 12.414px 1px, 1px 12.414px, 1px calc(100% - 12.414px), 12.414px calc(100% - 1px), calc(100% - 12.414px) calc(100% - 1px), calc(100% - 1px) calc(100% - 12.414px), calc(100% - 1px) 12.414px, calc(100% - 12.414px) 1px, 12.414px 1px, 12px 0);
+  box-shadow: none;
+}
+:is(.dialogue-box, .dialogue-history-panel)::before, :is(.dialogue-box, .dialogue-history-panel)::after, .dialogue-frame-bloom::before {
+  padding: 0;
+  -webkit-mask: none;
+  mask: none;
+  clip-path: var(--chamfer-ring);
+}
+.dialogue-frame-surface {
+  border-radius: 0;
+  clip-path: polygon(11.414px 0, calc(100% - 11.414px) 0, 100% 11.414px, 100% calc(100% - 11.414px), calc(100% - 11.414px) 100%, 11.414px 100%, 0 calc(100% - 11.414px), 0 11.414px);
+}
+:is(.dialogue-box, .dialogue-history-panel):focus, :is(.dialogue-box, .dialogue-history-panel):focus-visible { outline: none; }
+.dialogue-speaker { color: #eddbab; }
+.dialogue-next {
+  z-index: 3;
+  width: 9px;
+  height: 9px;
+  border: 0;
+  border-right: 1px solid #b3e5ee;
+  border-bottom: 1px solid #b3e5ee;
+  filter: drop-shadow(0 0 3px #72d6ee);
+  pointer-events: none;
+  animation: dialogue-chevron-idle 1200ms ease-in-out infinite;
+}
+@keyframes dialogue-chevron-idle {
+  0%, 100% { opacity: .5; transform: translateY(-2px) rotate(45deg); }
+  50% { opacity: 1; transform: translateY(3px) rotate(45deg); }
+}
+
+/* History keeps its header/list/footer layout; only the list clips and scrolls. */
+.dialogue-history-panel { position: relative; overflow: visible; }
+.dialogue-history-header strong, .dialogue-history-entry strong { color: #eddbab; }
+.dialogue-history-entry p { color: #e2eaf0; }
+.dialogue-history-header { border-bottom-color: rgba(131, 223, 255, .18); }
+.dialogue-history-close { border-top-color: rgba(131, 223, 255, .16); }
+.dialogue-history-list { scrollbar-color: rgba(131, 223, 255, .5) rgba(255, 255, 255, .05); }

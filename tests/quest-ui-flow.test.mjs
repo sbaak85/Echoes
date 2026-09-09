@@ -67,7 +67,7 @@ test("objective completion and delayed next-stage visuals are wired", () => {
   assert.match(styles, /quest-header-next-glow/);
   assert.match(
     source,
-    /\[questPanelCollapsed, activeQuestHud\?\.stageId, completedQuestHistory\.length\]/,
+    /\[questPanelCollapsed, activeQuestHud\?\.stageId, activeQuestHud\?\.objectives\.length, completedQuestHistory\.length\]/,
   );
   assert.match(source, /questStageEntering\s*\?\s*" is-stage-entering"/);
   assert.match(source, /questStageEntryPending\s*\?\s*" is-stage-entry-pending"/);
@@ -154,14 +154,23 @@ test("survival and quest headers keep one layout and balanced typography", () =>
   assert.doesNotMatch(styles, /\.quest-hud\s*{[^}]*transform:\s*scale/);
 });
 
-test("quest decorations are removed and survival meters crossfade under the height mask", () => {
+test("HUD skins keep stationary content masks and survival crossfades at the collapse midpoint", () => {
   assert.doesNotMatch(styles, /\.quest-hud::before|\.quest-hud::after/);
   assert.match(styles, /\.quest-collapse\s+span\s*{[\s\S]*?top:\s*34px/);
   assert.doesNotMatch(styles, /\.quest-collapse\s+span\s*{[^}]*top:\s*50%/);
   assert.match(styles, /\.survival-mini-panel\s*{[\s\S]*?transition:\s*opacity\s+120ms\s+ease\s+170ms/);
   assert.match(styles, /\.survival-panel\s*{[\s\S]*?display:\s*grid[\s\S]*?transition:\s*opacity\s+120ms\s+ease\s+170ms/);
   assert.doesNotMatch(styles, /\.survival-hud\.is-expanded\s+\.survival-mini-panel\s*{[^}]*display:\s*none/);
-  assert.match(source, /className="survival-panel"\s+aria-hidden={!survivalPanelExpanded}/);
+  assert.match(source, /className="survival-panel"\s+aria-hidden={!survivalInfoExpanded}/);
+  assert.match(source, /className="quest-list-mask" aria-hidden={questPanelCollapsed}/);
+  assert.doesNotMatch(source, /hasActiveQuest && !questPanelCollapsed \? \(/);
+  assert.match(source, /className="survival-content-mask"/);
+  assert.match(source, /className="survival-frame-shell"/);
+  assert.match(source, /if \(survivalPanelExpanded\) setSurvivalInfoExpanded\(true\)/);
+  assert.match(source, /!survivalPanelExpanded && progress >= 0\.5/);
+  assert.match(styles, /transition:opacity 150ms linear; transition-delay:0ms/);
+  assert.match(styles, /\.quest-list-mask\s*{[^}]*overflow:clip/);
+  assert.match(styles, /\.survival-content-mask\s*{[^}]*overflow:clip/);
 });
 
 test("gameplay HUD shortcuts map Q and RB to quest, R and LB to survival", () => {
