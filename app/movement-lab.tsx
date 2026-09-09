@@ -2036,6 +2036,7 @@ function easeInOutCubic(progress: number) {
 function playHudPanelHeightTween(
   element: HTMLElement | null,
   previousHeight: number | null,
+  onProgress?: (progress: number) => void,
 ) {
   if (!element || typeof window === "undefined") return previousHeight;
 
@@ -2050,6 +2051,7 @@ function playHudPanelHeightTween(
   if (startHeight === null || Math.abs(targetHeight - startHeight) < 0.5) {
     element.style.removeProperty("will-change");
     activeHudPanelTweens.delete(element);
+    onProgress?.(1);
     return targetHeight;
   }
 
@@ -2074,6 +2076,7 @@ function playHudPanelHeightTween(
     const eased = easeInOutCubic(progress);
     tween.height = startHeight + (targetHeight - startHeight) * eased;
     element.style.height = `${tween.height}px`;
+    onProgress?.(progress);
     element.dispatchEvent(new Event(HUD_PANEL_TWEEN_FRAME_EVENT));
 
     if (progress < 1) {
@@ -3945,6 +3948,7 @@ export function MovementLab() {
     ? questMobileMode !== "expanded"
     : questCollapsed;
   const previousSurvivalPanelHeightRef = useRef<number | null>(null);
+  const [survivalInfoExpanded, setSurvivalInfoExpanded] = useState(survivalPanelExpanded);
   const previousQuestPanelHeightRef = useRef<number | null>(null);
   const [minimapCollapsed, setMinimapCollapsed] = useState(false);
   const hudAudioStateRef = useRef({
@@ -4466,9 +4470,24 @@ export function MovementLab() {
   }, [dialogueHistoryView]);
 
   useLayoutEffect(() => {
+    const hud = survivalHudRef.current;
+    const clock = hud?.querySelector<HTMLElement>(".survival-clock-desktop");
+    if (!hud || !clock) return;
+    const updateFrameTop = () => hud.style.setProperty("--survival-frame-top", `${clock.offsetHeight + 6}px`);
+    updateFrameTop();
+    const observer = new ResizeObserver(updateFrameTop);
+    observer.observe(clock);
+    return () => observer.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    if (survivalPanelExpanded) setSurvivalInfoExpanded(true);
     previousSurvivalPanelHeightRef.current = playHudPanelHeightTween(
       survivalHudRef.current,
       previousSurvivalPanelHeightRef.current,
+      (progress) => {
+        if (!survivalPanelExpanded && progress >= 0.5) setSurvivalInfoExpanded(false);
+      },
     );
   }, [survivalPanelExpanded, survivalMobileMode]);
 
@@ -4477,7 +4496,7 @@ export function MovementLab() {
       questHudRef.current,
       previousQuestPanelHeightRef.current,
     );
-  }, [questPanelCollapsed, activeQuestHud?.stageId, completedQuestHistory.length]);
+  }, [questPanelCollapsed, activeQuestHud?.stageId, activeQuestHud?.objectives.length, completedQuestHistory.length]);
 
   useEffect(() => {
     const previous = hudAudioStateRef.current;
@@ -16568,9 +16587,11 @@ export function MovementLab() {
 
       <header className="survival-clock survival-clock-mobile" aria-label="遊戲日期與時間">
         <span>
+          <span className="hud-frame-art" aria-hidden="true"><span className="hud-frame-glow" /></span>
           Day <strong>{gameClock.day}</strong>
         </span>
         <span>
+          <span className="hud-frame-art" aria-hidden="true"><span className="hud-frame-glow" /></span>
           <i aria-hidden="true">{gameClock.hour >= 6 && gameClock.hour < 18 ? "☀" : "☾"}</i>
           <strong>{String(gameClock.hour).padStart(2, "0")}:{String(gameClock.minute).padStart(2, "0")}</strong>
         </span>
@@ -16636,6 +16657,8 @@ export function MovementLab() {
             disabled={Boolean(dialogueHistoryView)}
             onClick={advanceDialogue}
           >
+            <span className="dialogue-frame-surface" aria-hidden="true" />
+            <span className="dialogue-frame-bloom" aria-hidden="true" />
             {dialogueView.speaker ? (
               <strong className="dialogue-speaker">{dialogueView.speaker}</strong>
             ) : null}
@@ -16656,6 +16679,8 @@ export function MovementLab() {
           onClick={(event) => event.stopPropagation()}
         >
           <div className="dialogue-history-panel">
+            <span className="dialogue-frame-surface" aria-hidden="true" />
+            <span className="dialogue-frame-bloom" aria-hidden="true" />
             <header className="dialogue-history-header">
               <strong id="dialogue-history-title">訊息回顧</strong>
             </header>
@@ -16759,14 +16784,16 @@ export function MovementLab() {
         ref={survivalHudRef}
         className={`survival-hud${survivalPanelExpanded ? " is-expanded" : ""}${
           mobileHudLayout && survivalMobileMode === "mini" ? " is-mobile-mini" : ""
-        }${inventoryOpen ? " is-inventory-open" : ""}`}
+        }${inventoryOpen ? " is-inventory-open" : ""}${survivalInfoExpanded ? " is-info-expanded" : ""}`}
         aria-label="生存狀態指示表"
       >
         <header className="survival-clock survival-clock-desktop">
           <span>
+            <span className="hud-frame-art" aria-hidden="true"><span className="hud-frame-glow" /></span>
             Day <strong>{gameClock.day}</strong>
           </span>
           <span>
+            <span className="hud-frame-art" aria-hidden="true"><span className="hud-frame-glow" /></span>
             <i aria-hidden="true">{gameClock.hour >= 6 && gameClock.hour < 18 ? "☀" : "☾"}</i>
             <strong>{String(gameClock.hour).padStart(2, "0")}:{String(gameClock.minute).padStart(2, "0")}</strong>
           </span>
@@ -16775,15 +16802,20 @@ export function MovementLab() {
           className="survival-mobile-minimal-panel"
           aria-hidden={!mobileHudLayout || survivalMobileMode !== "mini"}
         >
+          <span className="hud-frame-art" aria-hidden="true"><span className="hud-frame-glow" /></span>
           <span className="survival-mobile-mini-arrow" aria-hidden="true" />
           <i aria-hidden="true">{SURVIVAL_STATS[0].symbol}</i>
           <b aria-hidden="true">
             <em style={{ width: `${survivalState.values.stamina}%` }} />
           </b>
         </div>
+        <div className="survival-frame-shell" aria-hidden="true">
+          <span className="hud-frame-art"><span className="hud-frame-glow" /></span>
+        </div>
+        <div className="survival-content-mask">
         <div
           className="survival-mini-panel"
-          aria-hidden={survivalPanelExpanded || survivalMobileMode === "mini"}
+          aria-hidden={survivalInfoExpanded || survivalMobileMode === "mini"}
         >
           {SURVIVAL_STATS.map((stat) => {
             const value = survivalState.values[stat.id];
@@ -16796,7 +16828,7 @@ export function MovementLab() {
             </span>
           )})}
         </div>
-        <div className="survival-panel" aria-hidden={!survivalPanelExpanded}>
+        <div className="survival-panel" aria-hidden={!survivalInfoExpanded}>
           {SURVIVAL_STATS.map((stat) => {
             const value = survivalState.values[stat.id];
             const critical = value <= 20;
@@ -16810,6 +16842,7 @@ export function MovementLab() {
               </span>
             </div>
           )})}
+        </div>
         </div>
         <div className="survival-value-layer" aria-hidden="true">
           {SURVIVAL_STATS.map((stat) => (
@@ -16845,6 +16878,7 @@ export function MovementLab() {
         aria-label={hasActiveQuest ? activeQuestHud!.title : EMPTY_QUEST_TITLE}
         data-quest-hud-event={activeQuestHudEvent?.kind ?? "idle"}
       >
+        <span className="hud-frame-art" aria-hidden="true"><span className="hud-frame-glow" /></span>
         {activeQuestHudEvent && (
           activeQuestHudEvent.kind === "completed" || activeQuestHudEvent.kind === "failed"
         ) ? (
@@ -16876,7 +16910,8 @@ export function MovementLab() {
             </output>
           ) : null}
         </header>
-        {hasActiveQuest && !questPanelCollapsed ? (
+        <div className="quest-list-mask" aria-hidden={questPanelCollapsed}>
+        {hasActiveQuest ? (
           <div className="quest-objectives" key={activeQuestHud!.stageId}>
             {activeQuestHud!.objectives.map((objective) => {
               const progress = Math.min(1, objective.current / objective.required);
@@ -16910,7 +16945,7 @@ export function MovementLab() {
             })}
           </div>
         ) : null}
-        {!hasActiveQuest && !questPanelCollapsed ? (
+        {!hasActiveQuest ? (
           <div className="quest-history" aria-label="最近完成的任務">
             {completedQuestHistory.length > 0 ? (
               completedQuestHistory.map((quest) => (
@@ -16924,6 +16959,7 @@ export function MovementLab() {
             )}
           </div>
         ) : null}
+        </div>
         <button
           className="quest-collapse"
           type="button"
