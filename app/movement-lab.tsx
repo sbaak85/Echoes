@@ -5,6 +5,9 @@ import { CursorPresentationGuard, CURSOR_POSITION_STORAGE_KEY, parseCursorPositi
 
 import { InventoryHoverHint, useInventoryHoverHint } from "./inventory-hover-hint";
 import { InventorySurvivalFloat } from "./inventory-survival-float";
+import { RadarPlayerMarker } from "./radar-player-marker";
+import { DEFAULT_BACKPACK_CAPACITY_KG } from "./inventory-capacity";
+import { AssignFrame } from "./quick-assign-frame";
 import { scheduleUiAssetWarmup } from "./ui-asset-warmup";
 import { SurvivalNeedIcon } from "./survival-need-icon";
 import { InventoryCategoryIcon } from "./inventory-category-icon";
@@ -1834,6 +1837,14 @@ const INVENTORY_ITEM_ARTWORK_PREVIEWS: Readonly<
     iconPath: uiAssetUrl("items/invigorating-supply-drink-icon-280.png"),
     inspectPath: uiAssetUrl("items/invigorating-supply-drink-inspect-640.png"),
   },
+  R0018: {
+    iconPath: uiAssetUrl("items/adhesive-rubber-icon-280.png"),
+    inspectPath: uiAssetUrl("items/adhesive-rubber-inspect-640.png"),
+  },
+  R0023: {
+    iconPath: uiAssetUrl("items/plain-grass-stem-icon-280.png"),
+    inspectPath: uiAssetUrl("items/plain-grass-stem-inspect-640.png"),
+  },
   R0024: {
     iconPath: uiAssetUrl("items/soft-core-moss-icon-280.png"),
     inspectPath: uiAssetUrl("items/soft-core-moss-inspect-640.png"),
@@ -1877,6 +1888,42 @@ const INVENTORY_ITEM_ARTWORK_PREVIEWS: Readonly<
   R0034: {
     iconPath: uiAssetUrl("items/rock-mushroom-icon-280.png"),
     inspectPath: uiAssetUrl("items/rock-mushroom-inspect-640.png"),
+  },
+  R0050: {
+    iconPath: uiAssetUrl("items/mixed-meat-mash-icon-280.png"),
+    inspectPath: uiAssetUrl("items/mixed-meat-mash-inspect-640.png"),
+  },
+  R0051: {
+    iconPath: uiAssetUrl("items/rock-mushroom-chowder-icon-280.png"),
+    inspectPath: uiAssetUrl("items/rock-mushroom-chowder-inspect-640.png"),
+  },
+  R0052: {
+    iconPath: uiAssetUrl("items/salt-roasted-rock-mushroom-icon-280.png"),
+    inspectPath: uiAssetUrl("items/salt-roasted-rock-mushroom-inspect-640.png"),
+  },
+  R0053: {
+    iconPath: uiAssetUrl("items/salted-soft-eggs-icon-280.png"),
+    inspectPath: uiAssetUrl("items/salted-soft-eggs-inspect-640.png"),
+  },
+  R0054: {
+    iconPath: uiAssetUrl("items/starch-flatbread-icon-280.png"),
+    inspectPath: uiAssetUrl("items/starch-flatbread-inspect-640.png"),
+  },
+  R0055: {
+    iconPath: uiAssetUrl("items/roasted-seed-crisps-icon-280.png"),
+    inspectPath: uiAssetUrl("items/roasted-seed-crisps-inspect-640.png"),
+  },
+  R0056: {
+    iconPath: uiAssetUrl("items/sweet-stewed-fruit-icon-280.png"),
+    inspectPath: uiAssetUrl("items/sweet-stewed-fruit-inspect-640.png"),
+  },
+  R0058: {
+    iconPath: uiAssetUrl("items/moss-algae-thick-soup-icon-280.png"),
+    inspectPath: uiAssetUrl("items/moss-algae-thick-soup-inspect-640.png"),
+  },
+  R0060: {
+    iconPath: uiAssetUrl("items/grass-stem-tea-icon-280.png"),
+    inspectPath: uiAssetUrl("items/grass-stem-tea-inspect-640.png"),
   },
   R0035: {
     iconPath: uiAssetUrl("items/curled-tender-shoots-icon-280.png"),
@@ -4515,6 +4562,33 @@ export function MovementLab() {
     window.addEventListener("resize", update);
     return () => { observer.disconnect(); window.removeEventListener("resize", update); };
   }, []);
+
+  useLayoutEffect(() => {
+    if (!quickAssign) return;
+    const dock = quickDockRef.current;
+    const panel = dock?.querySelector<HTMLElement>(".quick-assign-panel");
+    const slot = dock?.querySelector<HTMLElement>(`[data-hotbar-index="${quickAssign.slotIndex}"]`);
+    if (!dock || !panel || !slot) return;
+    const update = () => {
+      // Convert viewport coordinates back into the scaled dock's local space.
+      const dockRect = dock.getBoundingClientRect();
+      const slotRect = slot.getBoundingClientRect();
+      const scale = dockRect.width / dock.offsetWidth;
+      if (!(scale > 0)) return;
+      const target = (slotRect.left + slotRect.width / 2 - dockRect.left) / scale - dock.clientLeft;
+      const left = Math.max(0, Math.min(target - panel.offsetWidth / 2, dock.clientWidth - panel.offsetWidth));
+      panel.style.left = `${left}px`;
+      panel.style.setProperty("--assign-arrow-left", `${target - left - panel.clientLeft - 8}px`);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(dock);
+    observer.observe(panel);
+    observer.observe(slot);
+    if (dock.parentElement) observer.observe(dock.parentElement);
+    window.addEventListener("resize", update);
+    return () => { observer.disconnect(); window.removeEventListener("resize", update); };
+  }, [quickAssign?.slotIndex, quickAssign?.itemId]);
 
   useLayoutEffect(() => {
     previousQuestPanelHeightRef.current = playHudPanelHeightTween(
@@ -15906,7 +15980,7 @@ export function MovementLab() {
   const inventoryWeight = calculateInventoryWeight(playerInventory);
   const inventoryWeightPercent = Math.min(
     100,
-    (inventoryWeight / 60) * 100,
+    (inventoryWeight / DEFAULT_BACKPACK_CAPACITY_KG) * 100,
   );
   const inventoryCategoryCounts = ownedInventoryItems.reduce(
     (counts, stack) => {
@@ -17136,15 +17210,17 @@ export function MovementLab() {
           })}
         </div>
         {quickAssign ? (
-          <div className="quick-assign-panel" style={{ left: `calc((100% - 65px) / ${HOTBAR_SLOT_COUNT} * ${quickAssign.slotIndex})` }} role="dialog" aria-label="快捷道具指派" aria-modal="true">
+          <div className="quick-assign-panel" role="dialog" aria-label="快捷道具指派" aria-modal="true">
+            <AssignFrame />
+            <small className="assign-eyebrow">QUICK SLOT ASSIGNMENT</small>
             <img className="quick-assign-preview" src={getHotbarItemIcon(quickAssign.itemId)} alt={ITEM_BY_ID.get(quickAssign.itemId)?.name} />
             <strong>將道具指派在此 · 第 {quickAssign.slotIndex + 1} 格</strong>
             {hotbarAssignments[quickAssign.slotIndex] ? <small>取代「{ITEM_BY_ID.get(hotbarAssignments[quickAssign.slotIndex]!)?.name}」</small> : null}
             <div className="quick-assign-actions">
-              <button type="button" data-gamepad-selected={!quickAssign.cancel || undefined} onClick={() => { const pending = quickAssignRef.current; if (pending) { updateQuickAssign({ ...pending, cancel: false }); confirmQuickAssign(); } }}><GamepadButtonIcon button="A" />{hotbarAssignments[quickAssign.slotIndex] ? "取代" : "指派"}</button>
-              <button type="button" data-gamepad-selected={quickAssign.cancel || undefined} onClick={() => updateQuickAssign(null)}><GamepadButtonIcon button="B" />取消</button>
+              <button type="button" data-gamepad-selected={questPromptInputMode === "gamepad" && !quickAssign.cancel || undefined} onClick={() => { const pending = quickAssignRef.current; if (pending) { updateQuickAssign({ ...pending, cancel: false }); confirmQuickAssign(); } }}>{questPromptInputMode === "gamepad" ? <GamepadButtonIcon button="A" /> : null}{hotbarAssignments[quickAssign.slotIndex] ? "取代" : "指派"}</button>
+              <button type="button" data-gamepad-selected={questPromptInputMode === "gamepad" && quickAssign.cancel || undefined} onClick={() => updateQuickAssign(null)}>{questPromptInputMode === "gamepad" ? <GamepadButtonIcon button="B" /> : null}取消</button>
             </div>
-            <small><GamepadHint text="左搖桿／十字鍵左右：選格 · 上下：選擇操作" /></small>
+            <small className="assign-control-hint">{questPromptInputMode === "gamepad" ? <GamepadHint text="左搖桿／十字鍵左右：選格 · 上下：選擇操作" /> : "點選快捷格選擇位置 · 指派／取消"}</small>
           </div>
         ) : null}
         <button
@@ -17170,6 +17246,7 @@ export function MovementLab() {
             <i className="inventory-trigger-body" />
             <i className="inventory-trigger-pocket" />
           </span>
+          <small className="hotbar-backpack-weight">{inventoryWeight.toFixed(1)}/{DEFAULT_BACKPACK_CAPACITY_KG} kg</small>
         </button>
       </section>
 
@@ -17256,7 +17333,7 @@ export function MovementLab() {
                       <circle cx="12" cy="5" r="3" stroke="currentColor" strokeWidth="2" />
                       <path d="M7 8h10l4 13H3Z" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
                     </svg>
-                    <strong>{inventoryWeight.toFixed(1)} / 60.0 kg</strong>
+                    <strong>{inventoryWeight.toFixed(1)} / {DEFAULT_BACKPACK_CAPACITY_KG.toFixed(1)} kg</strong>
                     <i><b style={{ width: `${inventoryWeightPercent}%` }} /></i>
                   </div>
                   <section className="inventory-category-stats">
@@ -17471,8 +17548,7 @@ export function MovementLab() {
           </section>
 
           <footer className="inventory-screen-footer">
-            <strong><GamepadHint enabled={questPromptInputMode === "gamepad"} text="拖曳／長按道具 → 指派快捷格　·　右鍵：更多功能　·　Tab / B：關閉背包" /></strong>
-            <div className="inventory-currency"><span>◉　23,450</span><span>▣　{inventoryWeight.toFixed(1)} / 60.0 kg</span></div>
+            <div className="inventory-currency"><span>◉　23,450</span><span>▣　{inventoryWeight.toFixed(1)} / {DEFAULT_BACKPACK_CAPACITY_KG.toFixed(1)} kg</span></div>
           </footer>
         </div>
       ) : null}
@@ -18458,6 +18534,16 @@ export function MovementLab() {
         }}
       >
         <span className="minimap-frame" aria-hidden="true">
+          <svg className="minimap-radar-grid" viewBox="0 0 360 360" aria-hidden="true">
+            <g fill="none" stroke="#86d8f2" strokeWidth=".4" opacity=".15">
+              {Array.from({length:14},(_,i)=>{const v=(i+1)*24;return <path key={i} d={`M${v} 0V360M0 ${v}H360`}/>;})}
+            </g>
+            <g fill="none" stroke="#86d8f2" opacity=".15">
+              <circle cx="180" cy="180" r="65"/><circle cx="180" cy="180" r="115"/>
+              <path d="M180 35V325M35 180H325" strokeDasharray="2 6"/>
+            </g>
+          </svg>
+          <span className="minimap-soft-viewport">
           <span
             className="minimap-map-content"
             style={{
@@ -18518,9 +18604,18 @@ export function MovementLab() {
                 left: `${clamp(playerPositionRef.current.x / WORLD.width, 0, 1) * 100}%`,
                 top: `${clamp(playerPositionRef.current.y / WORLD.height, 0, 1) * 100}%`,
               }}
-            />
+            ><svg viewBox="158 158 44 44" width="100%" height="100%"><RadarPlayerMarker direction={['N','NE','E','SE','S','SW','W','NW'].indexOf(facing)} /></svg></span>
           </span>
+          <span className="minimap-rim-blur" />
+          </span>
+          <svg className="minimap-radar-ticks" viewBox="0 0 360 360" aria-hidden="true">
+            <circle cx="180" cy="180" r="164" fill="none" stroke="#83c6d8" strokeOpacity=".2" strokeWidth=".6"/>
+            <g stroke="#a8ddeb" strokeWidth="1">
+              {Array.from({length:48},(_,i)=><path key={i} transform={`rotate(${i*7.5} 180 180)`} d={`M180 14V${i%4===0?23:18}`} opacity={i%4===0?.65:.22}/>)}
+            </g>
+          </svg>
           <span className="minimap-north">N</span>
+          <span className="minimap-cardinal minimap-east">E</span><span className="minimap-cardinal minimap-south">S</span><span className="minimap-cardinal minimap-west">W</span>
           <span className="minimap-toggle-mark" />
         </span>
       </button>

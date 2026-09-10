@@ -398,7 +398,7 @@ internal static class EditorSelfTest
         var scene = SceneJson.Load(scenePath);
         SceneJson.Validate(scene);
         if (
-            ItemCatalog.All.Count != 51 ||
+            ItemCatalog.All.Count != 63 ||
             ItemCatalog.Find("crystal-shard")?.Id != "R0001" ||
             ItemCatalog.Find("R0012")?.Name != "外星果實" ||
             ItemCatalog.Find("R0015")?.Name != "校正元件" ||

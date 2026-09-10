@@ -109,11 +109,11 @@ test("Item All 會將道具清單中的每種道具各加入背包一個", () =>
   });
 });
 
-test("中央道具資料庫固定保留 100 欄，現有 51 項道具都有分類流水號與英文名稱", () => {
+test("中央道具資料庫固定保留 100 欄，現有 63 項道具都有分類流水號與英文名稱", () => {
   assert.equal(validateItemDatabase(), true);
   assert.equal(ITEM_DATABASE.length, ITEM_DATABASE_CAPACITY);
   assert.equal(ITEM_DATABASE_CAPACITY, 100);
-  assert.equal(ITEM_DEFINITIONS.length, 51);
+  assert.equal(ITEM_DEFINITIONS.length, 63);
   ITEM_DEFINITIONS.forEach((item) => {
     assert.match(item.id, /^[RTQM]\d{4}$/);
     assert.ok(item.englishName.length > 0);
@@ -183,7 +183,7 @@ test("所有可恢復生存數值的食品保持原 ItemID 並歸入食物類別
   );
   assert.deepEqual(
     foodItems.map((item) => item.id),
-    ["R0004", "R0005", "R0006", "R0012", "R0100", "R0016", "R0017"],
+    ["R0004", "R0005", "R0006", "R0012", "R0100", "R0016", "R0017", ...Array.from({length:12},(_,i)=>`R${String(50+i).padStart(4,"0")}`)],
   );
   assert.ok(foodItems.every((item) => item.category === "food"));
 });

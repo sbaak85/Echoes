@@ -2663,7 +2663,8 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   display: flex;
   align-items: flex-end;
   gap: 9px;
-  pointer-events: none;
+  /* The whole dock is a UI hit surface, including padding and slot gaps. */
+  pointer-events: auto;
 }
 
 .inventory-hotbar.is-inventory-open {
@@ -2778,8 +2779,8 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   z-index: 7;
   right: 18px;
   bottom: 18px;
-  width: 236px;
-  height: 236px;
+  width: 260px;
+  height: 260px;
   padding: 0;
   overflow: hidden;
   border: 1px solid rgba(171, 229, 222, 0.4);
@@ -3006,11 +3007,15 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 }
 
 .minimap-hud.is-collapsed .minimap-toggle-mark {
-  right: 18px;
-  bottom: 19px;
-  width: 10px;
-  height: 10px;
-  transform: rotate(225deg);
+  left: 50%;
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  width: 14px;
+  height: 8px;
+  border: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 8'%3E%3Cpath d='M1 7L7 1L13 7' fill='none' stroke='%23d6fffa' stroke-opacity='.76' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  transform: translate(-50%, -50%);
 }
 
 .game-shell.is-fullscreen .survival-hud:not(.is-inventory-open),
@@ -11546,8 +11551,14 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   transform:scale(.86);
   transition-duration:70ms;
 }
+.game-shell .inventory-hotbar .inventory-trigger { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; }
+.game-shell .inventory-hotbar .inventory-trigger .inventory-trigger-icon { zoom:1.5; flex-shrink:0; }
+.hotbar-backpack-weight { font:600 9px/12px "Segoe UI","Noto Sans TC",sans-serif; color:#c9d6a2; white-space:nowrap; pointer-events:none; }
 .inventory-hotbar .hotbar-item-icon img { max-width:calc(var(--dock-cell) - 8px); max-height:calc(var(--dock-cell) - 8px); }
-.inventory-hotbar .quick-assign-panel { left:0 !important; max-width:calc(100vw - 36px); }
+/* Raise the entire bubble stacking context, including its negative-z frame,
+   above settings (7), slot hints (9), and transient feedback (10). */
+.inventory-hotbar .quick-assign-panel { z-index:11; max-width:calc(100% - 2px); }
+.inventory-hotbar .quick-assign-panel::after { left:var(--assign-arrow-left,24px); pointer-events:none; }
 @media (max-width:480px) {
   .game-shell .inventory-hotbar { left:8px; bottom:8px; }
 }
@@ -11579,6 +11590,84 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   color:#fff; text-shadow:0 0 9px #c9d6a2d9;
   filter:drop-shadow(0 0 5px #8194548c);
 }
+
+/* Approved quick-assignment bubble: 8px corners, 1px contour, 14px blur; 50% upper / 90% lower base. */
+.quick-assign-panel {
+  --hud-light:#dcfaff; --hud-mid:#86d8f2; --hud-dim:#294657;
+  --hud-tint:#3f94b22b;
+  --hud-base:linear-gradient(to bottom,rgba(5,14,24,.5) 0%,rgba(5,14,24,.5) 40%,rgba(5,14,24,.9) 60%,rgba(5,14,24,.9) 100%);
+  --hud-shape:polygon(8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px);
+  --hud-ring:polygon(evenodd,8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px,8px 0,8.414px 1px,1px 8.414px,1px calc(100% - 8.414px),8.414px calc(100% - 1px),calc(100% - 8.414px) calc(100% - 1px),calc(100% - 1px) calc(100% - 8.414px),calc(100% - 1px) 8.414px,calc(100% - 8.414px) 1px,8.414px 1px,8px 0);
+  isolation:isolate; border:0; border-radius:0; background:transparent;
+  box-shadow:none; color:#e2f3fa; gap:12px; padding:18px;
+  font-family:"Segoe UI","Noto Sans TC",sans-serif;
+}
+.quick-assign-panel::before {
+  content:""; position:absolute; inset:1px; z-index:-1; pointer-events:none;
+  clip-path:var(--hud-shape);
+  background:repeating-linear-gradient(135deg,transparent 0 13px,var(--hud-mid) 13px 14px,transparent 14px 16px),repeating-linear-gradient(0deg,transparent 0 39px,var(--hud-mid) 39px 40px),repeating-linear-gradient(90deg,transparent 0 39px,var(--hud-mid) 39px 40px);
+  opacity:.13;
+  mask-image:radial-gradient(ellipse 65% 120% at top left,#000,transparent 78%),radial-gradient(ellipse 65% 120% at bottom right,#000,transparent 78%);
+}
+.quick-assign-panel::after {
+  content:none;
+}
+.assign-unified-frame { position:absolute; inset:0 0 -10px; z-index:-2; pointer-events:none; }
+.assign-unified-frame svg { position:absolute; inset:0; overflow:visible; }
+.assign-unified-fill { position:absolute; inset:0; background:radial-gradient(ellipse at top left,var(--hud-tint),transparent 48%),radial-gradient(ellipse at bottom right,var(--hud-tint),transparent 48%),var(--hud-base); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
+.quick-assign-panel .assign-eyebrow { color:#86d8f2; font-size:10px; letter-spacing:.16em; }
+.quick-assign-panel > strong { font-size:16px; text-shadow:0 0 10px #86d8f238; }
+.quick-assign-panel > small { color:#a6c2d1; }
+.quick-assign-panel .quick-assign-preview { width:100px; height:100px; object-fit:contain; filter:drop-shadow(0 0 14px #54bfde26); }
+.quick-assign-panel .quick-assign-actions { width:100%; display:flex; gap:8px; }
+.quick-assign-panel .quick-assign-actions button {
+  flex:1; padding:9px; border:1px solid #487286; border-radius:0; color:#d7eef7;
+  /* Inventory item tile values: opaque base, two 18% corner lights fading at 55%. */
+  --assign-button-glow:rgba(99,191,216,.18);
+  background:radial-gradient(ellipse at 0 0,var(--assign-button-glow),transparent 55%),radial-gradient(ellipse at 100% 100%,var(--assign-button-glow),transparent 55%),#07131c;
+  outline:none; box-shadow:none;
+  clip-path:polygon(4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px),0 4px);
+  transition:background 150ms,color 150ms,transform 100ms;
+}
+.quick-assign-panel .quick-assign-actions button:hover:where(:root:not([data-cursor-owner]) *, :root[data-cursor-owner="mouse"] *),
+.quick-assign-panel .quick-assign-actions button[data-gamepad-selected="true"] { --assign-button-glow:rgba(99,191,216,.27); color:#fff; border-color:#bdefff; }
+.quick-assign-panel .quick-assign-actions button:active { transform:scale(.97); }
+.quick-assign-panel .quick-assign-actions button { display:flex; align-items:center; justify-content:center; gap:4px; min-height:44px; }
+.quick-assign-panel .quick-assign-actions button {
+  position:relative;
+  border-color:transparent;
+  --assign-button-edge:#487286;
+}
+.quick-assign-panel .quick-assign-actions button::after {
+  content:""; position:absolute; inset:-1px; pointer-events:none;
+  background:var(--assign-button-edge);
+  clip-path:polygon(evenodd,4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px),0 4px,4px 0,4.414px 1px,1px 4.414px,1px calc(100% - 4.414px),4.414px calc(100% - 1px),calc(100% - 4.414px) calc(100% - 1px),calc(100% - 1px) calc(100% - 4.414px),calc(100% - 1px) 4.414px,calc(100% - 4.414px) 1px,4.414px 1px,4px 0);
+  transition:background 150ms;
+}
+.quick-assign-panel .quick-assign-actions button:hover:where(:root:not([data-cursor-owner]) *, :root[data-cursor-owner="mouse"] *),
+.quick-assign-panel .quick-assign-actions button[data-gamepad-selected="true"] {
+  border-color:transparent;
+  --assign-button-edge:#bdefff;
+}
+.quick-assign-panel .assign-control-hint { width:100%; padding-top:10px; border-top:1px solid #86d8f233; line-height:1.8; text-align:center; }
+
+/* Approved radar: keep runtime geometry, world coordinates and collapse tween. */
+.minimap-hud { isolation:isolate; border-color:transparent; background:radial-gradient(ellipse at top left,#86d8f225,transparent 48%),radial-gradient(ellipse at bottom right,#86d8f220,transparent 48%),#05121b99; backdrop-filter:blur(14px); }
+.minimap-hud::after { content:""; position:absolute; inset:0; border-radius:50%; padding:1px; pointer-events:none; background:linear-gradient(135deg,#fff,#a8e6f5 13%,#274858 40%,#274858 62%,#a8e6f5 88%,#fff); mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); mask-composite:exclude; filter:drop-shadow(0 0 2px #86d8f266); }
+.minimap-frame { background:none; }
+.minimap-radar-grid,.minimap-radar-ticks { position:absolute; inset:0; width:100%; height:100%; border-radius:50%; pointer-events:none; }
+.minimap-radar-grid { z-index:0; }
+.minimap-radar-ticks { z-index:5; }
+.minimap-hud.is-collapsed .minimap-radar-grid,.minimap-hud.is-collapsed .minimap-radar-ticks { display:none; }
+.minimap-soft-viewport { position:absolute; inset:0; border-radius:50%; overflow:hidden; mask-image:radial-gradient(circle closest-side,#000 0 75%,#000b 85%,transparent 98%); }
+.minimap-map-layer { mask-image:none; filter:saturate(.7); }
+.minimap-rim-blur { position:absolute; inset:0; z-index:2; pointer-events:none; backdrop-filter:blur(3.4px); mask-image:radial-gradient(circle closest-side,transparent 53%,#000 87%); }
+.minimap-player-marker { width:32px; height:32px; background:none; clip-path:none; filter:none; transform:translate(-50%,-50%); }
+.minimap-cardinal { position:absolute; z-index:5; font:10px "Segoe UI",sans-serif; color:#bfeaf2; pointer-events:none; }
+.minimap-east { right:12px; top:50%; transform:translateY(-50%); }
+.minimap-west { left:12px; top:50%; transform:translateY(-50%); }
+.minimap-south { bottom:10px; left:50%; transform:translateX(-50%); }
+.minimap-hud.is-collapsed .minimap-cardinal,.minimap-hud.is-collapsed .minimap-soft-viewport { display:none; }
 
 /* Approved B dialogue skin, after base dialogue rules. */
 /* Approved dialogue frame skin. Layout and input ownership stay in globals.css. */
