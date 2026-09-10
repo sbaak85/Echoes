@@ -11437,6 +11437,12 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
    The frame is decorative; hints and assignment panels remain unclipped. */
 .game-shell .inventory-hotbar {
   --dock-cell: 54px;
+  --dock-centered: 0;
+  --dock-safe-side: max(8px, env(safe-area-inset-left), env(safe-area-inset-right));
+  scroll-padding-left: var(--dock-safe-side);
+  display:flex;
+  height:auto;
+  right:auto;
   width:max-content;
   max-width:none;
   flex-wrap:nowrap;
@@ -11475,6 +11481,9 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   mask-image:radial-gradient(ellipse 65% 120% at top left,#000,transparent 78%),radial-gradient(ellipse 65% 120% at bottom right,#000,transparent 78%);
 }
 .game-shell .inventory-hotbar .hotbar-slots {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  width: max-content;
   padding: 0;
   border: 0;
   gap: 4px;
@@ -11483,6 +11492,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   backdrop-filter: none;
 }
 .game-shell .inventory-hotbar .hotbar-slot {
+  flex: 0 0 var(--dock-cell);
   width: var(--dock-cell);
   height: var(--dock-cell);
   border-radius: 0;
@@ -11561,6 +11571,20 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 .inventory-hotbar .quick-assign-panel::after { left:var(--assign-arrow-left,24px); pointer-events:none; }
 @media (max-width:480px) {
   .game-shell .inventory-hotbar { left:8px; bottom:8px; }
+}
+
+/* Portrait mobile dock: one unbroken frame, including the backpack. */
+@media (orientation: portrait) and (max-width: 900px), (orientation: portrait) and (pointer: coarse) {
+  .game-shell .inventory-hotbar,
+  .game-shell.is-fullscreen .inventory-hotbar,
+  .game-shell:fullscreen .inventory-hotbar {
+    --dock-centered: 1;
+    left: 50%;
+    right: auto;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    transform: translateX(-50%) scale(var(--dock-scale, 1));
+    transform-origin: bottom center;
+  }
 }
 
 

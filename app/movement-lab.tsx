@@ -4549,8 +4549,14 @@ export function MovementLab() {
     const host = dock?.parentElement;
     if (!dock || !host) return;
     const update = () => {
-      const left = parseFloat(getComputedStyle(dock).left) || 0;
-      const available = Math.max(0, host.clientWidth - left - 8);
+      const style = getComputedStyle(dock);
+      const centered = style.getPropertyValue("--dock-centered").trim() === "1";
+      // Resolve the safe-area length through a real CSS length property.
+      const safeSide = parseFloat(style.scrollPaddingLeft) || 8;
+      const left = parseFloat(style.left) || 0;
+      const available = Math.max(0, centered
+        ? host.clientWidth - 2 * safeSide
+        : host.clientWidth - left - safeSide);
       const scale = Math.min(1, available / Math.max(1, dock.offsetWidth));
       dock.style.setProperty("--dock-scale", String(scale));
       host.style.setProperty("--dock-scaled-stack", `${(dock.offsetHeight + 54 + 16) * scale}px`);
