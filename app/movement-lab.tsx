@@ -13489,6 +13489,21 @@ export function MovementLab() {
     const gamepadPromptImage = new Image();
     gamepadPromptImage.src = getGamepadGlyphUrl("A");
 
+    // The approved preview is a CSS surface so backdrop blur samples the world.
+    const operationHint = document.createElement("div");
+    operationHint.className = "world-operation-hint";
+    operationHint.hidden = true;
+    operationHint.setAttribute("aria-hidden", "true");
+    operationHint.innerHTML = '<div class="hint-shell"><span class="hud-frame-art"><span class="hud-frame-glow"></span></span><span class="hint-texture"></span><span>按</span><span class="hint-input"><img alt="" /></span><span class="hint-copy"><span class="hint-action"></span> <strong></strong></span></div>';
+    canvas.parentElement?.appendChild(operationHint);
+    const hintInput = operationHint.querySelector<HTMLElement>(".hint-input")!;
+    const hintImage = hintInput.querySelector<HTMLImageElement>("img")!;
+    const hintAction = operationHint.querySelector<HTMLElement>(".hint-action")!;
+    const hintTarget = operationHint.querySelector<HTMLElement>("strong")!;
+    const hintKey = document.createElement("span");
+    hintKey.className = "hint-key";
+    hintInput.appendChild(hintKey);
+
     const drawPromptPill = (
       centerX: number,
       topY: number,
@@ -13497,67 +13512,23 @@ export function MovementLab() {
       interactionKeyLabel: string | null,
       showMouseLeftIcon = false,
     ) => {
-      context.save();
-      context.font = '600 16px "Segoe UI", "Noto Sans TC", sans-serif';
-      context.textAlign = "left";
-      context.textBaseline = "middle";
-      const prefix = "按";
-      const keyText = interactionKeyLabel ? `[${interactionKeyLabel}]` : "";
-      const actionText = `進行${verb}`;
-      const targetText = targetLabel || "";
-      const mouseIconWidth = showMouseLeftIcon ? 20 : 0;
-      const inputGap = 7;
-      const targetGap = targetText ? 5 : 0;
-      const prefixWidth = context.measureText(prefix).width;
       const showGamepadIcon = activeInputMode === "gamepad" && interactionKeyLabel === "A";
-      const keyWidth = showGamepadIcon ? 28 : context.measureText(keyText).width;
-      const actionWidth = context.measureText(actionText).width;
-      const targetWidth = context.measureText(targetText).width;
-      const contentWidth =
-        prefixWidth +
-        inputGap +
-        (showMouseLeftIcon ? mouseIconWidth : keyWidth) +
-        inputGap +
-        actionWidth +
-        targetGap +
-        targetWidth;
-      const width = Math.max(154, contentWidth + 34);
-      const height = 46;
-      const left = clamp(centerX - width / 2, 8, viewportWidth - width - 8);
-      const top = clamp(topY, 8, viewportHeight - height - 8);
-      context.fillStyle = "rgba(45, 58, 45, 0.88)";
-      context.strokeStyle = "rgba(239, 250, 230, 0.82)";
-      context.lineWidth = 1.2;
-      context.beginPath();
-      context.roundRect(left, top, width, height, 18);
-      context.fill();
-      context.stroke();
-      const baselineY = top + height / 2 + 0.5;
-      let cursorX = left + (width - contentWidth) / 2;
-      context.fillStyle = "#f3f7ed";
-      context.fillText(prefix, cursorX, baselineY);
-      cursorX += prefixWidth + inputGap;
-      if (showMouseLeftIcon) {
-        drawMouseLeftClickIcon(cursorX, top + (height - 25) / 2);
-        cursorX += mouseIconWidth;
-      } else {
-        context.fillStyle = "#ffd86a";
-        if (showGamepadIcon) {
-          if (gamepadPromptImage.complete && gamepadPromptImage.naturalWidth > 0) {
-            context.drawImage(gamepadPromptImage, cursorX, top + (height - 28) / 2, 28, 28);
-          }
-        } else {
-          context.fillText(keyText, cursorX, baselineY);
-        }
-        cursorX += keyWidth;
-      }
-      cursorX += inputGap;
-      context.fillStyle = "#f3f7ed";
-      context.fillText(actionText, cursorX, baselineY);
-      cursorX += actionWidth + targetGap;
-      context.fillStyle = "#65e9ed";
-      context.fillText(targetText, cursorX, baselineY);
-      context.restore();
+      const action = `進行${verb}`;
+      if (hintAction.textContent !== action) hintAction.textContent = action;
+      if (hintTarget.textContent !== targetLabel) hintTarget.textContent = targetLabel;
+      const keyText = interactionKeyLabel ? `[${interactionKeyLabel}]` : "";
+      if (hintKey.textContent !== keyText) hintKey.textContent = keyText;
+      hintInput.className = showMouseLeftIcon ? "hint-input mouse-crop" : showGamepadIcon ? "hint-input hint-gamepad" : "hint-input";
+      hintImage.hidden = !showMouseLeftIcon && !showGamepadIcon;
+      hintKey.hidden = showMouseLeftIcon || showGamepadIcon;
+      const source = showMouseLeftIcon ? mouseLeftPromptImage.src : gamepadPromptImage.src;
+      if (!hintImage.hidden && hintImage.src !== source) hintImage.src = source;
+      operationHint.hidden = false;
+      operationHint.style.maxWidth = `${Math.max(1, viewportWidth - 16)}px`;
+      const width = operationHint.offsetWidth;
+      const height = operationHint.offsetHeight;
+      operationHint.style.left = `${clamp(centerX - width / 2, 8, Math.max(8, viewportWidth - width - 8))}px`;
+      operationHint.style.top = `${clamp(topY, 8, Math.max(8, viewportHeight - height - 8))}px`;
     };
 
     const drawPlayerInfoFloats = (time: number) => {
@@ -13677,6 +13648,7 @@ export function MovementLab() {
       target.label.trim();
 
     const drawInteractionPrompts = () => {
+      operationHint.hidden = true;
       if (isWorldInteractionBlockedByUi()) {
         activePromptOwner = null;
         activePromptTargetId = null;
@@ -15900,6 +15872,7 @@ export function MovementLab() {
       saveSurvivalState(survivalStateRef.current);
       saveInteractionUsageState(interactionUsageRef.current);
       cancelAnimationFrame(animationFrame);
+      operationHint.remove();
       resizeObserver.disconnect();
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);

@@ -8273,11 +8273,12 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
     align-items: center;
     gap: 5px;
     padding: 7px 8px 7px 6px;
-    border: 1px solid rgba(148, 211, 205, 0.24);
-    border-radius: 5px;
-    background: rgba(7, 18, 23, 0.82);
-    box-shadow: inset 0 1px rgba(255, 255, 255, 0.04), 0 8px 20px rgba(0, 0, 0, 0.24);
-    backdrop-filter: blur(9px);
+    /* The approved hud-frame-art owns the visible frame and glass. */
+    border: 1px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
   }
 
   .survival-mobile-minimal-panel > i {
@@ -11790,3 +11791,99 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 .dialogue-history-header { border-bottom-color: rgba(131, 223, 255, .18); }
 .dialogue-history-close { border-top-color: rgba(131, 223, 255, .16); }
 .dialogue-history-list { scrollbar-color: rgba(131, 223, 255, .5) rgba(255, 255, 255, .05); }
+
+/* Approved blue interaction hint: 65% texture, 8px corners, 14px blur. */
+.world-operation-hint { position:absolute; z-index:2; width:max-content; pointer-events:none; color:#e8f7ff; font-family:"Segoe UI","Noto Sans TC",sans-serif; }
+.world-operation-hint[hidden], .world-operation-hint [hidden] { display:none !important; }
+.world-operation-hint * { box-sizing:border-box; pointer-events:none; }
+.world-operation-hint .hint-shell {
+  --hud-light: #dcfaff;
+  --hud-mid: #86d8f2;
+  --hud-dim: #294657;
+  --hud-tint: #3f94b22b;
+  --hud-base: rgba(5, 14, 24, .4);
+  --hud-shape: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
+  --hud-ring: polygon(evenodd,8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px,8px 0,8.414px 1px,1px 8.414px,1px calc(100% - 8.414px),8.414px calc(100% - 1px),calc(100% - 8.414px) calc(100% - 1px),calc(100% - 1px) calc(100% - 8.414px),calc(100% - 1px) 8.414px,calc(100% - 8.414px) 1px,8.414px 1px,8px 0);
+
+  position:relative; isolation:isolate; display:flex; align-items:center; gap:7px;
+  min-height:46px; max-width:100%; padding:9px 17px; font-size:16px; font-weight:600;
+  line-height:26px; white-space:nowrap; text-shadow:0 2px 8px #000b;
+}
+.world-operation-hint .hint-shell strong { color:#b9eaff; font-weight:600; text-shadow:0 0 7px #83dfff44; }
+.world-operation-hint .hint-key { color:#ffd86a; }
+.world-operation-hint .hint-gamepad { display:block; width:28px; height:28px; flex:0 0 28px; }
+.world-operation-hint .mouse-crop { position:relative; flex:0 0 20px; width:20px; height:25px; overflow:hidden; }
+.world-operation-hint .mouse-crop img { position:absolute; width:28.5714px; height:27.7778px; max-width:none; left:-4.2857px; top:-1.3889px; }
+.world-operation-hint .hud-frame-art, .world-operation-hint .hud-frame-art::before, .world-operation-hint .hud-frame-art::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.world-operation-hint .hud-frame-art {
+  z-index: -2;
+}
+.world-operation-hint .hud-frame-art::before {
+  content: "";
+  clip-path: var(--hud-shape);
+  background: radial-gradient(ellipse at top left, var(--hud-tint), transparent 48%), radial-gradient(ellipse at bottom right, var(--hud-tint), transparent 48%), var(--hud-base);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.world-operation-hint .hud-frame-art::after {
+  content: "";
+  clip-path: var(--hud-ring);
+  background: linear-gradient(135deg, #fff 0%, var(--hud-light) 6%, var(--hud-mid) 18%, var(--hud-dim) 38%, var(--hud-dim) 62%, var(--hud-mid) 82%, var(--hud-light) 94%, #fff 100%);
+}
+.world-operation-hint .hud-frame-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 0 2px var(--hud-light)) drop-shadow(0 0 7px color-mix(in srgb, var(--hud-mid) 55%, transparent));
+}
+.world-operation-hint .hud-frame-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  clip-path: var(--hud-ring);
+  background: linear-gradient(135deg, var(--hud-light), transparent 27%, transparent 73%, var(--hud-light));
+}
+
+.world-operation-hint .hint-texture {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  pointer-events: none;
+  clip-path: var(--hud-shape);
+  background: repeating-linear-gradient(135deg, transparent 0 8.45px, var(--hud-mid) 8.45px 9.1px, transparent 9.1px 10.4px), repeating-linear-gradient(0deg, transparent 0 25.35px, var(--hud-mid) 25.35px 26px), repeating-linear-gradient(90deg, transparent 0 25.35px, var(--hud-mid) 25.35px 26px);
+  opacity: .13;
+  mask-image: radial-gradient(ellipse 65% 120% at top left, #000, transparent 78%), radial-gradient(ellipse 65% 120% at bottom right, #000, transparent 78%);
+}
+
+.world-operation-hint .hint-copy { min-width:0; white-space:normal; overflow-wrap:anywhere; }
+.world-operation-hint .hint-input { flex-shrink:0; }
+.world-operation-hint .hint-gamepad img { display:block; width:28px; height:28px; }
+
+/* Mobile HUDs share one top edge and a stable front-to-back order. */
+@media (max-width: 680px), (hover: none) and (pointer: coarse) {
+  .game-shell { --mobile-hud-top: max(14px, env(safe-area-inset-top)); }
+  .game-shell .survival-clock-mobile {
+    position: absolute; display: grid;
+    top: var(--mobile-hud-top); left: 50%; z-index: 6;
+    width: min(156px, calc(100vw - 204px)); gap: 4px;
+    pointer-events: none; transform: translateX(-50%);
+  }
+  .game-shell .survival-clock-desktop { display: none; }
+  .game-shell .survival-clock-mobile > span { border-width: 0; }
+  .game-shell .quest-hud,
+  .game-shell .quest-hud:not(.is-collapsed):not(.is-mobile-mini) {
+    top: var(--mobile-hud-top); z-index: 7; border-width: 0;
+  }
+  .game-shell .survival-hud,
+  .game-shell .survival-hud.is-expanded:not(.is-inventory-open) {
+    top: var(--mobile-hud-top); z-index: 8;
+  }
+  .game-shell .survival-hud .survival-frame-shell { top: 0; }
+  .game-shell .survival-hud .survival-content-mask { margin-top: 0; }
+  .game-shell .survival-hud.is-mobile-mini .survival-mobile-minimal-panel { border-width: 0; }
+}
