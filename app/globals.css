@@ -11887,3 +11887,63 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   .game-shell .survival-hud .survival-content-mask { margin-top: 0; }
   .game-shell .survival-hud.is-mobile-mini .survival-mobile-minimal-panel { border-width: 0; }
 }
+
+/* Approved blue circular touch joystick; visual only, no independent input owner. */
+.touch-joystick-view {position:absolute;z-index:2;pointer-events:none;transform:translate(-50%,-50%);}
+.touch-joystick-view[hidden] {display:none;}
+.touch-joystick-view * {box-sizing:border-box;pointer-events:none;}
+.touch-joystick-view .joystick {--jx:0px;--jy:0px;--angle:0deg;position:relative;display:block;width:176px;height:176px;padding:0;border:0;border-radius:50%;isolation:isolate;touch-action:none;user-select:none;cursor:grab;outline:none;-webkit-tap-highlight-color:transparent;color:inherit;background:radial-gradient(ellipse at top left,#86d8f225,transparent 48%),radial-gradient(ellipse at bottom right,#86d8f220,transparent 48%),#05121b99;backdrop-filter:blur(14px);box-shadow:0 10px 24px #0005,inset 0 0 28px #58cabe12;}
+.touch-joystick-view .joystick:focus,.touch-joystick-view .joystick:focus-visible {outline:none;}
+.touch-joystick-view .joystick::after,.touch-joystick-view .knob::after {content:"";position:absolute;inset:0;border-radius:50%;padding:1px;pointer-events:none;background:linear-gradient(135deg,#fff,#a8e6f5 13%,#274858 40%,#274858 62%,#a8e6f5 88%,#fff);mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask-composite:exclude;filter:drop-shadow(0 0 2px #86d8f266);}
+.touch-joystick-view .joystick > span {position:absolute;pointer-events:none;}
+.touch-joystick-view .radar-grid {inset:9px;border-radius:50%;background:repeating-linear-gradient(0deg,transparent 0 15px,#86d8f217 15px 15.65px,transparent 15.65px 16px),repeating-linear-gradient(90deg,transparent 0 15px,#86d8f217 15px 15.65px,transparent 15.65px 16px);mask-image:radial-gradient(circle,#000 30%,transparent 72%);}
+.touch-joystick-view .radar-ticks {position:absolute;inset:0;display:block;width:100%;height:100%;pointer-events:none;}
+.touch-joystick-view .radar-cross {inset:12px;border-radius:50%;background:linear-gradient(90deg,transparent calc(50% - .5px),#9bd6e230 50%,transparent calc(50% + .5px)),linear-gradient(0deg,transparent calc(50% - .5px),#9bd6e230 50%,transparent calc(50% + .5px));}
+.touch-joystick-view .travel-ring {inset:30px;border:1px solid #86d8f22b;border-radius:50%;}
+.touch-joystick-view .knob {left:50%;top:50%;width:50px;height:50px;border-radius:50%;background:radial-gradient(ellipse at 28% 18%,#a8e6f533,transparent 65%),#0b2839ed;box-shadow:0 3px 12px #0008,0 0 10px #86d8f228;transform:translate(calc(-50% + var(--jx)),calc(-50% + var(--jy)));transition:transform 160ms ease-out,box-shadow 160ms;}
+.touch-joystick-view .center-shadow {left:50%;top:50%;width:88px;height:88px;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle,#01070dcc 0%,#01070d88 25%,#01070d44 48%,transparent 74%);filter:blur(7px);}
+.touch-joystick-view .knob > span {position:absolute;inset:21px;border-radius:50%;background:#c9f4ff;box-shadow:0 0 7px #86d8f2aa;}
+.touch-joystick-view .is-active {cursor:grabbing;}
+.touch-joystick-view .is-active .knob {transition:none;box-shadow:0 4px 14px #0008,0 0 14px #86d8f255;}
+@media(prefers-reduced-motion:reduce){.touch-joystick-view .knob{transition:none;}}
+
+/* Mobile fullscreen follows Settings; interaction stays clear of the minimap. */
+@media (max-width:680px), (hover:none) and (pointer:coarse) {
+.game-shell .fullscreen-trigger {
+  position:absolute; left:9px; top:auto; bottom:calc(100% + 8px);
+  width:48px; height:42px;
+  isolation:isolate; border-color:transparent; border-radius:0;
+  background:transparent; box-shadow:none; backdrop-filter:none;
+  color:#c9d6a2; text-shadow:0 0 7px #8194548c;
+  filter:drop-shadow(0 0 3px #81945438);
+  transform:none;
+}
+.game-shell .fullscreen-trigger::before {
+  content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
+  clip-path:polygon(8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px);
+  background:linear-gradient(135deg,transparent,rgba(13,20,12,.94) 32%,rgba(13,20,12,.94) 67%,transparent),radial-gradient(ellipse at 0 0,#8194543d,transparent 45%),radial-gradient(ellipse at 100% 100%,#81945433,transparent 45%),rgba(13,20,12,.7);
+  backdrop-filter:blur(14px);
+  box-shadow:inset 0 0 18px #c9d6a221;
+}
+.game-shell .fullscreen-trigger::after {
+  content:""; position:absolute; inset:0; pointer-events:none;
+  clip-path:polygon(evenodd,8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px,8px 0,8.414px 1px,1px 8.414px,1px calc(100% - 8.414px),8.414px calc(100% - 1px),calc(100% - 8.414px) calc(100% - 1px),calc(100% - 1px) calc(100% - 8.414px),calc(100% - 1px) 8.414px,calc(100% - 8.414px) 1px,8.414px 1px,8px 0);
+  background:linear-gradient(135deg,#fff,#e5edcf 5%,#c9d6a2 15%,#35412b 35%,#35412b 65%,#819454 85%,#eff6df 96%,#fff);
+}
+.game-shell .fullscreen-trigger:hover:where(:root:not([data-cursor-owner]) *, :root[data-cursor-owner="mouse"] *),
+.game-shell .fullscreen-trigger[data-gamepad-selected="true"] {
+  color:#fff; text-shadow:0 0 9px #c9d6a2d9;
+  filter:drop-shadow(0 0 5px #8194548c);
+}
+
+
+  .game-shell .fullscreen-trigger,
+  .game-shell .fullscreen-trigger:is(:hover,:focus,:focus-visible,[aria-pressed="true"]) {
+    left:var(--mobile-fullscreen-left,23px); right:auto; top:auto;
+    bottom:var(--mobile-fullscreen-bottom,140px);
+    display:grid; padding:12px; border:0; outline:none;
+    background:transparent; box-shadow:none;
+    transform:scale(var(--mobile-controls-scale,1)); transform-origin:bottom left;
+  }
+  .game-shell .mobile-interaction-trigger { right:148px; bottom:80px; }
+}

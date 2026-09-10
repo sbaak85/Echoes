@@ -1,4 +1,5 @@
 "use client";
+import { createTouchJoystickView } from "./touch-joystick-view";
 
 import { cursorOwnership, GamepadHandoffGate } from "./cursor-ownership.ts";
 import { CursorPresentationGuard, CURSOR_POSITION_STORAGE_KEY, parseCursorPosition } from "./cursor-presentation.ts";
@@ -4560,6 +4561,15 @@ export function MovementLab() {
       const scale = Math.min(1, available / Math.max(1, dock.offsetWidth));
       dock.style.setProperty("--dock-scale", String(scale));
       host.style.setProperty("--dock-scaled-stack", `${(dock.offsetHeight + 54 + 16) * scale}px`);
+      // Settings is inside the scaled dock; fullscreen sits one gap above it.
+      const settings = dock.querySelector<HTMLElement>(".options-trigger");
+      if (settings) {
+        const rect = settings.getBoundingClientRect();
+        const hostRect = host.getBoundingClientRect();
+        host.style.setProperty("--mobile-controls-scale", String(scale));
+        host.style.setProperty("--mobile-fullscreen-left", `${rect.left - hostRect.left}px`);
+        host.style.setProperty("--mobile-fullscreen-bottom", `${hostRect.bottom - rect.top + 8 * scale}px`);
+      }
     };
     update();
     const observer = new ResizeObserver(update);
@@ -13297,66 +13307,14 @@ export function MovementLab() {
       context.restore();
     };
 
-    const drawTouchJoystick = (time: number) => {
-      if (!touchJoystickVisible) return;
-
-      const deltaX = touchJoystick.knob.x - touchJoystick.origin.x;
-      const deltaY = touchJoystick.knob.y - touchJoystick.origin.y;
-      const distance = Math.hypot(deltaX, deltaY);
-      const angle = distance > 0.5 ? Math.atan2(deltaY, deltaX) : -Math.PI / 2;
-      const pulse = 1 + Math.sin(time / 180) * 0.025;
-
-      context.save();
-      context.translate(touchJoystick.origin.x, touchJoystick.origin.y);
-      context.scale(pulse, pulse);
-      context.lineWidth = 2;
-      context.strokeStyle = "rgba(162, 249, 238, 0.78)";
-      context.fillStyle = "rgba(10, 31, 35, 0.3)";
-      context.shadowColor = "rgba(89, 231, 216, 0.52)";
-      context.shadowBlur = 12;
-      context.beginPath();
-      context.arc(0, 0, 58, 0, Math.PI * 2);
-      context.fill();
-      context.stroke();
-
-      context.shadowBlur = 0;
-      context.strokeStyle = "rgba(162, 249, 238, 0.27)";
-      context.beginPath();
-      context.arc(0, 0, 35, 0, Math.PI * 2);
-      context.stroke();
-      context.beginPath();
-      context.moveTo(-58, 0);
-      context.lineTo(58, 0);
-      context.moveTo(0, -58);
-      context.lineTo(0, 58);
-      context.stroke();
-
-      context.save();
-      context.rotate(angle);
-      context.fillStyle = "rgba(121, 244, 229, 0.9)";
-      context.strokeStyle = "rgba(228, 255, 250, 0.9)";
-      context.lineWidth = 1.4;
-      context.beginPath();
-      context.moveTo(42, 0);
-      context.lineTo(25, -9);
-      context.lineTo(28, 0);
-      context.lineTo(25, 9);
-      context.closePath();
-      context.fill();
-      context.stroke();
-      context.restore();
-
-      context.translate(deltaX, deltaY);
-      context.fillStyle = "rgba(80, 224, 210, 0.82)";
-      context.strokeStyle = "rgba(224, 255, 250, 0.94)";
-      context.lineWidth = 2;
-      context.shadowColor = "rgba(84, 223, 208, 0.72)";
-      context.shadowBlur = 12;
-      context.beginPath();
-      context.arc(0, 0, 18, 0, Math.PI * 2);
-      context.fill();
-      context.stroke();
-      context.restore();
+    const touchJoystickView = createTouchJoystickView(canvas.parentElement!);
+    const drawTouchJoystick = (_time: number) => {
+      touchJoystickView.update(
+        touchJoystickVisible && !isWorldInteractionBlockedByUi(),
+        touchJoystick.origin.x, touchJoystick.origin.y,
+        touchJoystick.knob.x - touchJoystick.origin.x,
+        touchJoystick.knob.y - touchJoystick.origin.y,
+      );
     };
 
     const drawPointerCursor = (time: number) => {
@@ -15873,6 +15831,7 @@ export function MovementLab() {
       saveInteractionUsageState(interactionUsageRef.current);
       cancelAnimationFrame(animationFrame);
       operationHint.remove();
+      touchJoystickView.dispose();
       resizeObserver.disconnect();
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
