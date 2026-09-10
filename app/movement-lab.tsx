@@ -4624,7 +4624,7 @@ export function MovementLab() {
       questHudRef.current,
       previousQuestPanelHeightRef.current,
     );
-  }, [questPanelCollapsed, activeQuestHud?.stageId, activeQuestHud?.objectives.length, completedQuestHistory.length]);
+  }, [questPanelCollapsed, questMobileMode, activeQuestHud?.stageId, activeQuestHud?.objectives.length, completedQuestHistory.length]);
 
   useEffect(() => {
     const previous = hudAudioStateRef.current;
