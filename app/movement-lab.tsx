@@ -3969,10 +3969,23 @@ export function MovementLab() {
   const [survivalExpanded, setSurvivalExpanded] = useState(false);
   const [questCollapsed, setQuestCollapsed] = useState(true);
   const [mobileHudLayout, setMobileHudLayout] = useState(false);
-  const [survivalMobileMode, setSurvivalMobileMode] =
-    useState<MobileHudPanelMode>("collapsed");
-  const [questMobileMode, setQuestMobileMode] =
-    useState<MobileHudPanelMode>("collapsed");
+  // One atomic state: medium/large HUDs always leave the opposite HUD at mini.
+  const [{ survival: survivalMobileMode, quest: questMobileMode }, setMobileHudModes] =
+    useState<{ survival: MobileHudPanelMode; quest: MobileHudPanelMode }>({
+      survival: "mini", quest: "mini",
+    });
+  const setSurvivalMobileMode = useCallback((mode: MobileHudPanelMode) => {
+    setMobileHudModes((current) => ({
+      survival: mode,
+      quest: mode === "mini" ? current.quest : "mini",
+    }));
+  }, []);
+  const setQuestMobileMode = useCallback((mode: MobileHudPanelMode) => {
+    setMobileHudModes((current) => ({
+      survival: mode === "mini" ? current.survival : "mini",
+      quest: mode,
+    }));
+  }, []);
   const [activeQuestHud, setActiveQuestHud] = useState<QuestHudView | null>(null);
   const [completedQuestHistory, setCompletedQuestHistory] = useState<QuestHistoryView[]>([]);
   const [questHudEvent, setQuestHudEvent] = useState<QuestHudEvent | null>(null);
@@ -8032,16 +8045,15 @@ export function MovementLab() {
 
   const toggleSurvivalPanel = () => {
     if (mobileHudLayout) {
-      setSurvivalMobileMode((current) => {
-        const nextState: MobileHudPanelMode =
-          current === "mini"
-            ? "collapsed"
-            : current === "collapsed"
-              ? "expanded"
-              : "mini";
-        setSurvivalExpanded(nextState === "expanded");
-        return nextState;
-      });
+      const current = survivalMobileMode;
+      const nextState: MobileHudPanelMode =
+        current === "mini"
+          ? "collapsed"
+          : current === "collapsed"
+            ? "expanded"
+            : "mini";
+      setSurvivalExpanded(nextState === "expanded");
+      setSurvivalMobileMode(nextState);
       return;
     }
 
@@ -8061,16 +8073,15 @@ export function MovementLab() {
 
   const toggleQuestPanel = () => {
     if (mobileHudLayout) {
-      setQuestMobileMode((current) => {
-        const nextState: MobileHudPanelMode =
-          current === "mini"
-            ? "collapsed"
-            : current === "collapsed"
-              ? "expanded"
-              : "mini";
-        setQuestCollapsed(nextState !== "expanded");
-        return nextState;
-      });
+      const current = questMobileMode;
+      const nextState: MobileHudPanelMode =
+        current === "mini"
+          ? "collapsed"
+          : current === "collapsed"
+            ? "expanded"
+            : "mini";
+      setQuestCollapsed(nextState !== "expanded");
+      setQuestMobileMode(nextState);
       return;
     }
 
