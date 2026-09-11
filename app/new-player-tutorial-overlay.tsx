@@ -49,7 +49,7 @@ export function getNewPlayerTutorialHintPosition(
   }
 
   const fitsHorizontally = left >= edge && left + cardWidth <= spotlight.viewportWidth - edge;
-  if (!fitsHorizontally) {
+  if (!fitsHorizontally && placement !== "above") {
     left = (spotlight.viewportWidth - cardWidth) / 2;
     top = spotlight.y + spotlight.height + 20;
     if (top + cardHeight > spotlight.viewportHeight - edge) {

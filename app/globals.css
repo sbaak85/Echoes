@@ -966,13 +966,14 @@ button {
   --hud-base: rgba(5, 14, 24, .8);
   --notice-text: #c5edfa;
   --hud-shape: inset(0);
+  --notice-edge-mask: linear-gradient(90deg, transparent 0% 4%, rgba(0, 0, 0, .12) 12%, #000 28% 72%, rgba(0, 0, 0, .12) 88%, transparent 96% 100%);
   isolation: isolate;
   min-height: 76px;
   color: var(--notice-text);
   background: transparent;
   box-shadow: none;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.32) 11%, #000 28%, #000 72%, rgba(0, 0, 0, 0.32) 89%, transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.32) 11%, #000 28%, #000 72%, rgba(0, 0, 0, 0.32) 89%, transparent 100%);
+  -webkit-mask-image: var(--notice-edge-mask);
+  mask-image: var(--notice-edge-mask);
 }
 
 :is(.time-elapsed-notice:not(.quest-event-notice), .time-elapsed-notice.quest-event-notice)::before,
@@ -990,10 +991,11 @@ button {
     color-mix(in srgb, var(--hud-mid) 12%, transparent) 92%,
     transparent 100%
   );
-  box-shadow:
-    0 0 2px rgba(255, 255, 255, 0.98),
-    0 0 7px color-mix(in srgb, var(--hud-light) 80%, transparent),
-    0 0 15px color-mix(in srgb, var(--hud-mid) 48%, transparent);
+  box-shadow: none;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.98))
+    drop-shadow(0 0 7px color-mix(in srgb, var(--hud-light) 80%, transparent))
+    drop-shadow(0 0 15px color-mix(in srgb, var(--hud-mid) 48%, transparent));
 }
 
 :is(.time-elapsed-notice:not(.quest-event-notice), .time-elapsed-notice.quest-event-notice)::before {
@@ -2607,7 +2609,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 }
 
 .game-shell.is-new-player-tutorial .options-trigger {
-  z-index: 121;
+  z-index: var(--dock-settings-layer, 121);
 }
 
 @keyframes new-player-tutorial-overlay-in {
@@ -11138,6 +11140,15 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   mask-image: radial-gradient(ellipse 65% 120% at top left, #000, transparent 78%), radial-gradient(ellipse 65% 120% at bottom right, #000, transparent 78%);
 }
 .time-notice-surface::after { display: none; }
+.time-notice-surface::before {
+  /* Fade the backdrop-filter output itself, not just its parent container. */
+  -webkit-mask-image: var(--notice-edge-mask);
+  mask-image: var(--notice-edge-mask);
+}
+.time-notice-surface {
+  -webkit-mask-image: var(--notice-edge-mask);
+  mask-image: var(--notice-edge-mask);
+}
 .time-notice-surface .time-notice-texture { z-index: 0; }
 .quest-hud .quest-header { border-radius: 8px 8px 0 0; }
 .quest-hud .quest-collapse,
@@ -11437,6 +11448,10 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 /* Approved integrated quick dock: settings / six slots / backpack.
    The frame is decorative; hints and assignment panels remain unclipped. */
 .game-shell .inventory-hotbar {
+  /* Local dock layers apply in gameplay AND tutorial mode. The detached
+     Settings fallback must never outrank a dock hint's stacking context. */
+  --dock-settings-layer: 8;
+  --dock-hint-layer: 9;
   --dock-cell: 54px;
   --dock-centered: 0;
   --dock-safe-side: max(8px, env(safe-area-inset-left), env(safe-area-inset-right));
@@ -11529,7 +11544,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 .inventory-hotbar .options-trigger:disabled { opacity:.35; pointer-events:none; }
 /* Lift the hint's ancestor stacking context above the detached settings button. */
 .game-shell .inventory-hotbar .hotbar-slot:has(.hotbar-selection-hint) {
-  z-index: 9;
+  z-index: var(--dock-hint-layer);
 }
 .game-shell .inventory-hotbar .hotbar-feedback { z-index:10; pointer-events:none; }
 .game-shell .inventory-hotbar .inventory-trigger,
@@ -11590,6 +11605,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 
 
 .game-shell .inventory-hotbar .options-trigger {
+  z-index: var(--dock-settings-layer);
   position:absolute; left:9px; top:auto; bottom:calc(100% + 8px);
   width:48px; height:42px;
   isolation:isolate; border-color:transparent; border-radius:0;
@@ -11972,4 +11988,10 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
     transform:scale(var(--mobile-controls-scale,1)); transform-origin:bottom left;
   }
   .game-shell .mobile-interaction-trigger { right:148px; bottom:80px; }
+  /* Share Settings' lower edge above the responsive quick dock. */
+  .game-shell .minimap-hud,
+  .game-shell .minimap-hud.is-collapsed,
+  .game-shell .mobile-interaction-trigger {
+    bottom: var(--mobile-hud-controls-bottom, 80px);
+  }
 }

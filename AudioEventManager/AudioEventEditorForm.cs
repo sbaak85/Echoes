@@ -60,6 +60,8 @@ internal sealed class AudioEventEditorForm : Form
     };
 
     private string? _currentEventId;
+    private bool _showStarCards;
+    private readonly Dictionary<bool, string?> _eventSelections = new();
     private bool _loading;
     private bool _dirty;
     private bool _previewPlaying;
@@ -202,6 +204,12 @@ internal sealed class AudioEventEditorForm : Form
             Padding = new Padding(8),
         };
         audioEventsPage.Controls.Add(split);
+        var starCardsPage = new TabPage("星際牌音效")
+        {
+            BackColor = audioEventsPage.BackColor,
+            ForeColor = ForeColor,
+            Padding = new Padding(8),
+        };
         var bgmPage = new TabPage("BGM 管理")
         {
             BackColor = Color.FromArgb(25, 28, 34),
@@ -217,8 +225,27 @@ internal sealed class AudioEventEditorForm : Form
         };
         lineSePage.Controls.Add(_lineSeConfigEditor);
         tabs.TabPages.Add(audioEventsPage);
+        tabs.TabPages.Add(starCardsPage);
         tabs.TabPages.Add(bgmPage);
         tabs.TabPages.Add(lineSePage);
+        tabs.SelectedIndexChanged += (_, _) =>
+        {
+            StopPreview();
+            CommitCurrentEditor();
+            if (tabs.SelectedTab != audioEventsPage && tabs.SelectedTab != starCardsPage) return;
+            var showStarCards = tabs.SelectedTab == starCardsPage;
+            if (_showStarCards == showStarCards) return;
+            _eventSelections[_showStarCards] = _currentEventId;
+            _showStarCards = showStarCards;
+            _currentEventId = null;
+            tabs.SelectedTab.Controls.Add(split);
+            PopulateEvents();
+            var remembered = _eventSelections.GetValueOrDefault(_showStarCards);
+            var selected = _eventList.Items.Cast<AudioEventListItem>()
+                .FirstOrDefault(item => item.EventId == remembered);
+            if (selected is not null) _eventList.SelectedItem = selected;
+            else if (_eventList.Items.Count > 0) _eventList.SelectedIndex = 0;
+        };
         root.Controls.Add(tabs, 0, 1);
 
         var footer = new TableLayoutPanel
@@ -389,6 +416,7 @@ internal sealed class AudioEventEditorForm : Form
             _eventList.Items.Clear();
             foreach (var pair in _document.Events)
             {
+                if (pair.Key.StartsWith("starCards", StringComparison.Ordinal) != _showStarCards) continue;
                 _eventList.Items.Add(new AudioEventListItem(pair.Key, pair.Value.Label));
             }
         }
@@ -650,6 +678,25 @@ internal sealed class AudioEventEditorForm : Form
 
     internal void RunPreviewSmokeTest()
     {
+        var tabs = Controls.OfType<TableLayoutPanel>().Single().Controls.OfType<TabControl>().Single();
+        var originalId = _currentEventId!;
+        var originalLabel = _labelText.Text;
+        if (_eventList.Items.Cast<AudioEventListItem>().Any(item => item.EventId.StartsWith("starCards")))
+            throw new InvalidOperationException("一般頁籤混入星際牌事件");
+        _labelText.Text = "category-smoke-test";
+        tabs.SelectedIndex = 1;
+        var cardsId = _currentEventId;
+        if (_eventList.Items.Count == 0 || _eventList.Items.Cast<AudioEventListItem>().Any(item => !item.EventId.StartsWith("starCards")))
+            throw new InvalidOperationException("星際牌頁籤分類錯誤");
+        tabs.SelectedIndex = 0;
+        if (_currentEventId != originalId || _labelText.Text != "category-smoke-test")
+            throw new InvalidOperationException("切換頁籤遺失修改或選取");
+        _labelText.Text = originalLabel;
+        CommitCurrentEditor();
+        tabs.SelectedIndex = 1;
+        if (_currentEventId != cardsId) throw new InvalidOperationException("星際牌選取未保留");
+        tabs.SelectedIndex = 0;
+        _dirty = false;
         _bgmConfigEditor.RunUiSmokeTest();
         _lineSeConfigEditor.RunUiSmokeTest();
         if (!_sourceOpenFolderButton.Enabled || !_openFolderButton.Enabled)

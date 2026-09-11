@@ -4,7 +4,9 @@
 MapEditor。
 
 它會讀寫專案根目錄下的 `app/audio-event-manager.ts`。最上層分為
-「Audio Event」、「BGM 管理」與「Line SE 管理」頁籤；Audio Event 可調整事件名稱、
+「Audio Event」、「星際牌音效」、「BGM 管理」與「Line SE 管理」頁籤。
+「星際牌音效」集中列出 `starCards` 系列事件與音效池成員，一般 Audio Event 清單不再重複列出。
+兩個音效頁籤共用儲存流程，切換會保留未儲存修改及各自選取的事件。Audio Event 可調整事件名稱、
 觸發說明、原始素材路徑、遊戲 MP3 路徑、音量、延遲、Loop，以及
 FadeIn／FadeOut。FadeIn／FadeOut 皆以個別 MP3 總長的百分比計算；例如
 3 秒音檔設定 FadeOut 15%，會在最後 0.45 秒由設定音量淡出至靜音。原始素材

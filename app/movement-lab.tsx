@@ -1521,7 +1521,7 @@ const NATIVE_GAMEPAD_BRIDGE_URL = "/api/native-gamepad";
 const NATIVE_GAMEPAD_POLL_INTERVAL_MS = 25;
 const NATIVE_GAMEPAD_RETRY_INTERVAL_MS = 2000;
 const PATHFINDING_GRID_SIZE = 18;
-const TOUCH_EFFECT_DURATION_MS = 900;
+const TOUCH_EFFECT_DURATION_MS = 350;
 const GAMEPAD_CURSOR_SPEED = 720;
 const FOOTSTEP_REFERENCE_SPEED = 210;
 const FOOTSTEP_REFERENCE_PLAYBACK_RATE = 1.45;
@@ -1778,6 +1778,14 @@ type InventoryItemInspectView = {
 const INVENTORY_ITEM_ARTWORK_PREVIEWS: Readonly<
   Record<string, InventoryItemArtworkPreview>
 > = {
+  R0019: {
+    iconPath: uiAssetUrl("items/韌化藤皮-icon-280.png"),
+    inspectPath: uiAssetUrl("items/韌化藤皮-inspect-640.png"),
+  },
+  R0022: {
+    iconPath: uiAssetUrl("items/熱熔陶片-icon-280.png"),
+    inspectPath: uiAssetUrl("items/熱熔陶片-inspect-640.png"),
+  },
   R0001: {
     iconPath: uiAssetUrl("items/crystal-shard-icon-280.png"),
     inspectPath: uiAssetUrl("items/crystal-shard-inspect-640.png"),
@@ -4582,6 +4590,7 @@ export function MovementLab() {
         host.style.setProperty("--mobile-controls-scale", String(scale));
         host.style.setProperty("--mobile-fullscreen-left", `${rect.left - hostRect.left}px`);
         host.style.setProperty("--mobile-fullscreen-bottom", `${hostRect.bottom - rect.top + 8 * scale}px`);
+        host.style.setProperty("--mobile-hud-controls-bottom", `${hostRect.bottom - rect.bottom}px`);
       }
     };
     update();
@@ -13284,37 +13293,58 @@ export function MovementLab() {
         playOneShotAudio("interactionDenied");
       }
 
+      // Approved diamond-series 04: four separating corners, matching the saved preview.
       const progress = clamp(elapsed / TOUCH_EFFECT_DURATION_MS, 0, 1);
-      const entranceProgress = clamp(progress / 0.24, 0, 1);
-      const entrance = 1 - Math.pow(1 - entranceProgress, 3);
-      const fade = 1 - clamp((progress - 0.58) / 0.42, 0, 1);
-      const bounce = Math.sin(progress * Math.PI * 4) * 2.5 * (1 - progress);
-      const markerY = touchEffect.point.y - 45 + entrance * 23 + bounce;
-      const color = touchEffect.reachable ? "#7be0d4" : "#ff7b7b";
-
+      const fade = 1 - clamp((progress - 0.55) / 0.45, 0, 1);
+      const denied = !touchEffect.reachable;
       context.save();
+      context.translate(touchEffect.point.x, touchEffect.point.y);
+      context.globalAlpha = Math.min(1, progress / 0.06) * fade;
+      context.strokeStyle = denied ? "#ff9d94" : "#a5e7fa";
+      context.fillStyle = denied ? "#ffe0dc" : "#e0faff";
+      context.shadowColor = denied ? "#ff776d" : "#86d8f2";
+      context.shadowBlur = 4;
+      context.lineWidth = 1.6;
+      context.lineCap = "round";
+      context.lineJoin = "miter";
+      const radius = 8 + 11 * progress;
+      const split = clamp((progress - 0.2) / 0.8, 0, 1);
+      const gap = 7 * split;
+      const cut = 0.12 * split;
+      if (progress <= 0.2) {
+        context.beginPath();
+        context.moveTo(0, -radius);
+        context.lineTo(radius, 0);
+        context.lineTo(0, radius);
+        context.lineTo(-radius, 0);
+        context.closePath();
+        context.stroke();
+      } else {
+      for (let corner = 0; corner < 4; corner += 1) {
+        context.save();
+        context.rotate(corner * Math.PI / 2);
+        context.translate(gap / Math.SQRT2, -gap / Math.SQRT2);
+        context.beginPath();
+        context.moveTo(radius * cut, -radius * (1 - cut));
+        context.lineTo(radius * (1 - cut), -radius * cut);
+        context.stroke();
+        context.restore();
+      }
       context.globalAlpha = fade;
-      context.strokeStyle = color;
-      context.lineWidth = 2.5;
+      }
+      context.shadowBlur = 3;
       context.beginPath();
-      context.arc(
-        touchEffect.point.x,
-        touchEffect.point.y,
-        8 + progress * 20,
-        0,
-        Math.PI * 2,
-      );
-      context.stroke();
-
-      context.fillStyle = color;
-      context.shadowColor = color;
-      context.shadowBlur = 12;
-      context.beginPath();
-      context.moveTo(touchEffect.point.x - 10, markerY);
-      context.lineTo(touchEffect.point.x + 10, markerY);
-      context.lineTo(touchEffect.point.x, markerY + 14);
-      context.closePath();
-      context.fill();
+      if (denied) {
+        context.lineWidth = 1.3;
+        context.moveTo(-3, -3);
+        context.lineTo(3, 3);
+        context.moveTo(3, -3);
+        context.lineTo(-3, 3);
+        context.stroke();
+      } else {
+        context.arc(0, 0, 1.3, 0, Math.PI * 2);
+        context.fill();
+      }
       context.restore();
     };
 
@@ -13342,101 +13372,60 @@ export function MovementLab() {
       if (cursorOwnership.owner === "gamepad" &&
         !cursorPresentation.reconcile("gamepad", cursorOwnership.lastMouse)) return;
 
-      if (dialoguePlaybackRef.current) {
-        const pulse = 1 + Math.sin(time / 190) * 0.035;
-        cursorContext.save();
-        cursorContext.translate(virtualCursor.x, virtualCursor.y);
-        cursorContext.scale(pulse, pulse);
-        cursorContext.lineWidth = 2;
-        cursorContext.lineJoin = "round";
-        cursorContext.strokeStyle = "#e9f4ed";
-        cursorContext.fillStyle = "rgba(23, 32, 29, 0.92)";
-        cursorContext.shadowColor = "#61ead8";
-        cursorContext.shadowBlur = 9;
-
-        cursorContext.beginPath();
-        cursorContext.moveTo(0, -11);
-        cursorContext.quadraticCurveTo(-8, -16, -18, -13);
-        cursorContext.lineTo(-18, 8);
-        cursorContext.quadraticCurveTo(-8, 7, 0, 13);
-        cursorContext.closePath();
-        cursorContext.fill();
-        cursorContext.stroke();
-
-        cursorContext.beginPath();
-        cursorContext.moveTo(0, -11);
-        cursorContext.quadraticCurveTo(8, -16, 18, -13);
-        cursorContext.lineTo(18, 8);
-        cursorContext.quadraticCurveTo(8, 7, 0, 13);
-        cursorContext.closePath();
-        cursorContext.fill();
-        cursorContext.stroke();
-
-        cursorContext.shadowBlur = 0;
-        cursorContext.beginPath();
-        cursorContext.moveTo(0, -11);
-        cursorContext.lineTo(0, 13);
-        cursorContext.stroke();
-        cursorContext.fillStyle = "#61ead8";
-        for (const x of [25, 31, 37]) {
-          cursorContext.beginPath();
-          cursorContext.arc(x, 4, 1.7, 0, Math.PI * 2);
-          cursorContext.fill();
-        }
-        cursorContext.restore();
-        return;
-      }
-
-      const pulse = 1 + Math.sin(time / 150) * 0.07;
-      const radius = 13 * pulse;
-      cursorContext.save();
-      cursorContext.translate(virtualCursor.x, virtualCursor.y);
-      cursorContext.strokeStyle = "#80f5e7";
-      cursorContext.fillStyle = "rgba(9, 25, 30, 0.86)";
-      cursorContext.lineWidth = 2.2;
-      cursorContext.shadowColor = "#54dfd0";
-      cursorContext.shadowBlur = 11;
-
-      cursorContext.beginPath();
-      cursorContext.arc(0, 0, radius, 0, Math.PI * 2);
-      cursorContext.fill();
-      cursorContext.stroke();
-
-      cursorContext.shadowBlur = 0;
-      cursorContext.beginPath();
-      cursorContext.moveTo(-radius - 7, 0);
-      cursorContext.lineTo(-radius + 2, 0);
-      cursorContext.moveTo(radius - 2, 0);
-      cursorContext.lineTo(radius + 7, 0);
-      cursorContext.moveTo(0, -radius - 7);
-      cursorContext.lineTo(0, -radius + 2);
-      cursorContext.moveTo(0, radius - 2);
-      cursorContext.lineTo(0, radius + 7);
-      cursorContext.stroke();
-
-      cursorContext.fillStyle = "#d9fffa";
-      cursorContext.beginPath();
-      cursorContext.arc(0, 0, 2.6, 0, Math.PI * 2);
-      cursorContext.fill();
-      cursorContext.restore();
+      // Approved preview 02: original blue segmented ring and dialogue book.
+      const c = cursorContext;
+      const dialogue = Boolean(dialoguePlaybackRef.current);
+      c.save();
+      c.translate(virtualCursor.x, virtualCursor.y);
+      const pulse=1+Math.sin(time/150)*.035;
+      c.save();c.scale(pulse,pulse);c.lineJoin='round';c.lineCap='round';c.strokeStyle='#86d8f2';c.lineWidth=1;c.shadowColor='#86d8f2';c.shadowBlur=5;
+      if(dialogue){
+      c.fillStyle='#05121be6';c.beginPath();c.moveTo(0,-10);c.lineTo(-13,-14);c.lineTo(-18,-10);c.lineTo(-18,9);c.lineTo(-4,9);c.lineTo(0,13);c.lineTo(4,9);c.lineTo(18,9);c.lineTo(18,-10);c.lineTo(13,-14);c.closePath();c.fill();c.stroke();
+      c.strokeStyle='#dcfaff';c.beginPath();c.moveTo(-16,-10);c.lineTo(-12,-12);c.lineTo(0,-9);c.lineTo(12,-12);c.lineTo(16,-10);c.moveTo(0,-9);c.lineTo(0,10);c.stroke();
+      c.shadowBlur=0;c.strokeStyle='#86d8f266';for(let y=-4;y<6;y+=5){c.beginPath();c.moveTo(-13,y);c.lineTo(-5,y+1);c.moveTo(5,y+1);c.lineTo(13,y);c.stroke();}
+      c.fillStyle='#dcfaff';for(let x=25;x<=37;x+=6){c.beginPath();c.arc(x,4,1.3,0,Math.PI*2);c.fill();}
+      }else{
+      c.lineJoin='miter';
+      const edge=c.createLinearGradient(-13,-13,13,13);
+      edge.addColorStop(0,'#e0faff');edge.addColorStop(.42,'#91d9ed');edge.addColorStop(.72,'#579bb5');edge.addColorStop(1,'#b8ebfa');
+      c.strokeStyle=edge;c.lineWidth=1.4;c.shadowBlur=3;
+      const diamondFill=c.createLinearGradient(-7,-13,7,13);
+      diamondFill.addColorStop(0,'#294c60');diamondFill.addColorStop(.5,'#142d3e');diamondFill.addColorStop(1,'#07131f');
+      c.fillStyle=diamondFill;
+      c.beginPath();c.moveTo(0,-13);c.lineTo(13,0);c.lineTo(0,13);c.lineTo(-13,0);c.closePath();c.fill();c.stroke();
+      c.strokeStyle='#b9eaff';c.shadowBlur=2;
+      for(let i=0;i<4;i++){c.save();c.rotate(i*Math.PI/2);c.beginPath();c.moveTo(0,-17);c.lineTo(0,-21);c.stroke();c.restore();}
+      c.fillStyle='#dcfaff';c.shadowBlur=4;c.beginPath();c.arc(0,0,1.2,0,Math.PI*2);c.fill();
+      }c.restore();
+      c.restore();
     };
 
     const drawHeldPointerIndicator = (time: number) => {
       if (!heldPointerContinuous || !heldPointerScreen) return;
 
+      // Approved hold preview 02: two downward chevrons.
       const bob = Math.sin(time / 125) * 2;
-      const triangleTop = -39 + bob;
       context.save();
-      context.translate(heldPointerScreen.x, heldPointerScreen.y);
-      context.fillStyle = "#80f5e7";
-      context.shadowColor = "#54dfd0";
-      context.shadowBlur = 10;
+      context.translate(heldPointerScreen.x, heldPointerScreen.y - 32 + bob);
+      context.strokeStyle = "#b9eaff";
+      context.lineWidth = 1.6;
+      context.lineJoin = "miter";
+      context.lineCap = "round";
+      context.shadowColor = "#86d8f2";
+      context.shadowBlur = 3;
+      context.save();
+      context.globalAlpha *= 0.45;
       context.beginPath();
-      context.moveTo(-10, triangleTop);
-      context.lineTo(10, triangleTop);
-      context.lineTo(0, triangleTop + 14);
-      context.closePath();
-      context.fill();
+      context.moveTo(-5, -8);
+      context.lineTo(0, -3);
+      context.lineTo(5, -8);
+      context.stroke();
+      context.restore();
+      context.beginPath();
+      context.moveTo(-8, -3);
+      context.lineTo(0, 5);
+      context.lineTo(8, -3);
+      context.stroke();
       context.restore();
     };
 

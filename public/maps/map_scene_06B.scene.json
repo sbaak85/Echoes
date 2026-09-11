@@ -2413,7 +2413,64 @@
     }
   ],
   "movementGuides": [],
-  "storyTriggers": [],
+  "storyTriggers": [
+    {
+      "id": "story-trigger-001",
+      "label": "\u5287\u60C5\u89F8\u767C\u5340 1",
+      "points": [
+        {
+          "x": 670,
+          "y": 910
+        },
+        {
+          "x": 1050,
+          "y": 910
+        },
+        {
+          "x": 1125,
+          "y": 850
+        },
+        {
+          "x": 1125,
+          "y": 730
+        },
+        {
+          "x": 670,
+          "y": 725
+        }
+      ],
+      "once": true,
+      "dialogueId": "chapter04-Light",
+      "triggerDelaySeconds": 0.5,
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionLimitMode": "once",
+      "useRequirements": [
+        {
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH04_MAIN_001",
+          "stageId": "QUEST_CH04_MAIN_001_STAGE_02",
+          "stageMode": "CurrentStageOnly",
+          "objectiveId": "QUEST_CH04_MAIN_001_OBJ_06",
+          "objectiveState": "unlocked",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ]
+    }
+  ],
   "itemPoints": [
     {
       "id": "scene6-item-point-001",

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { stripTypeScriptTypes } from "node:module";
 
 import {
   NEW_PLAYER_TUTORIAL_STEPS,
@@ -21,6 +22,26 @@ const styles = await readFile(
   new URL("../app/globals.css", import.meta.url),
   "utf8",
 );
+
+test("快捷列靠左或靠右時，上方提示仍跟隨快捷列而不跳到畫面中央", () => {
+  const positionSource = overlaySource.slice(
+    overlaySource.indexOf("export function getNewPlayerTutorialHintPosition"),
+    overlaySource.indexOf("export function NewPlayerTutorialOverlay"),
+  ).replace("export function", "function");
+  const position = new Function(stripTypeScriptTypes(positionSource) +
+    "; return getNewPlayerTutorialHintPosition;")();
+  for (const viewportWidth of [800, 1280, 2215]) {
+    for (const x of [24, viewportWidth - 380]) {
+      const target = { x, y: 900, width: 350, height: 72, viewportWidth, viewportHeight: 1000 };
+      const hint = position(target, "above");
+      assert.equal(hint.top, target.y - 138 - 34);
+      assert.ok(hint.left >= 18);
+      assert.ok(hint.left + hint.width <= viewportWidth - 18);
+      assert.ok(hint.left < target.x + target.width && hint.left + hint.width > target.x);
+      if (x === 24) assert.equal(hint.left, 18);
+    }
+  }
+});
 
 test("四個新手指引孔位與提示內容依照示意圖固定記錄", () => {
   assert.deepEqual(
