@@ -11904,7 +11904,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   .game-shell .survival-hud.is-mobile-mini .survival-mobile-minimal-panel { border-width: 0; }
 }
 
-/* Mobile medium/large panels stop 12px short of the opposite 82px mini. */
+/* Mobile HUD anchors and mini widths apply in either orientation. */
 @media (max-width: 680px), (hover: none) and (pointer: coarse) {
   .game-shell {
     --mobile-hud-left: max(14px, env(safe-area-inset-left));
@@ -11914,18 +11914,24 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   }
   .game-shell .survival-hud:not(.is-inventory-open) {
     left: var(--mobile-hud-left);
-    width: calc(100% - var(--mobile-hud-left) - var(--mobile-hud-right) - var(--mobile-hud-mini-width) - var(--mobile-hud-gap));
     min-width: 0;
   }
   .game-shell .quest-hud {
     right: var(--mobile-hud-right);
-    width: calc(100% - var(--mobile-hud-left) - var(--mobile-hud-right) - var(--mobile-hud-mini-width) - var(--mobile-hud-gap));
     min-width: 0;
   }
   .game-shell .survival-hud.is-mobile-mini:not(.is-inventory-open),
   .game-shell .quest-hud.is-mobile-mini { width: var(--mobile-hud-mini-width); }
   .game-shell .quest-hud .quest-title { min-width: 0; }
   .game-shell .quest-hud .quest-objective-label { overflow-wrap: anywhere; }
+}
+
+/* Only portrait expands toward the opposite mini; landscape keeps normal HUD widths. */
+@media (orientation: portrait) and (max-width: 680px), (orientation: portrait) and (hover: none) and (pointer: coarse) {
+  .game-shell .survival-hud:not(.is-inventory-open):not(.is-mobile-mini),
+  .game-shell .quest-hud:not(.is-mobile-mini) {
+    width: calc(100% - var(--mobile-hud-left) - var(--mobile-hud-right) - var(--mobile-hud-mini-width) - var(--mobile-hud-gap));
+  }
 }
 
 
