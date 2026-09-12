@@ -4,8 +4,8 @@
   "displayName": "map_test01",
   "image": {
     "file": "map_test01.png",
-    "width": 1254,
-    "height": 1254
+    "width": 1536,
+    "height": 1536
   },
   "world": {
     "width": 1254,

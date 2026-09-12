@@ -232,6 +232,14 @@ internal static class Program
                 {
                     form.RunLayerRenameUiSelfTest();
                     form.RunMapPageNavigationUiSelfTest();
+                    // Exercise polygon context menus even while map artwork and its
+                    // metadata are being edited independently of each other.
+                    if (projectRoot is not null)
+                    {
+                        using var contextCanvas = new EditorCanvas();
+                        contextCanvas.RunNodeEditingSelfTest(SceneJson.Load(
+                            Path.Combine(projectRoot, "public", "maps", "map_test01.scene.json")));
+                    }
                     requirementsEditor.Show();
                     System.Windows.Forms.Application.DoEvents();
                     requirementsEditor.Close();

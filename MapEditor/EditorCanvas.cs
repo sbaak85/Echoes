@@ -1290,6 +1290,39 @@ public sealed class EditorCanvas : Control
             }
 
             _document.MovementGuides.Clear();
+            var storyOverlapPoints = new List<ScenePoint>
+            {
+                new(100, 100), new(500, 100), new(500, 500), new(100, 500),
+            };
+            var storyOverlapCollision = new LayerSelection(SceneLayerKind.Collision, _document.Collisions.Count);
+            _document.Collisions.Add(new CollisionShape
+            {
+                Id = "self-test-story-overlap-collision",
+                Shape = "polygon",
+                Points = storyOverlapPoints.Select(point => point.Clone()).ToList(),
+            });
+            var storyOverlapSelection = new LayerSelection(SceneLayerKind.StoryTrigger, _document.StoryTriggers.Count);
+            _document.StoryTriggers.Add(new StoryTriggerZone
+            {
+                Id = "self-test-story-overlap",
+                Points = storyOverlapPoints,
+            });
+            _selection = storyOverlapSelection;
+            var storyInterior = new PointF(300, 300);
+            if (HitSelectedHandle(storyInterior) >= 0 ||
+                TryFindNearestSelectedEdge(storyInterior, out _, out _) ||
+                !PrepareNodeContextMenu(storyInterior))
+            {
+                throw new InvalidOperationException("Story-trigger interior did not expose overlapping shape selection.");
+            }
+            var lowerShapeItem = _overlapSelectionContextItem.DropDownItems
+                .OfType<ToolStripMenuItem>()
+                .Single(item => item.Tag is LayerSelection selection && selection == storyOverlapCollision);
+            lowerShapeItem.PerformClick();
+            if (_selection != storyOverlapCollision || !PrepareNodeContextMenu(storyInterior))
+            {
+                throw new InvalidOperationException("Cannot select a collision beneath a story trigger or reopen overlap selection.");
+            }
             var itemPointIndex = _document.ItemPoints.Count;
             _document.ItemPoints.Add(new SceneItemPoint
             {
@@ -3055,7 +3088,6 @@ public sealed class EditorCanvas : Control
         }
 
         var interactionSelected = _selection.Kind == SceneLayerKind.Interactable && IsValidSelection(_selection);
-        PopulateOverlapSelectionMenu(world);
         _interactionTypeContextItem.Visible = interactionSelected;
         _interactionPointContextItem.Visible = interactionSelected;
         _interactionPointContextItem.Text =
@@ -3124,8 +3156,17 @@ public sealed class EditorCanvas : Control
 
     private bool PrepareNodeContextMenu(PointF world)
     {
+        // Layer selection is available throughout overlapping shapes, independently
+        // of whether this position supports a node or interaction-point command.
+        PopulateOverlapSelectionMenu(world);
+        var canSelectOverlap = _overlapSelectionContextItem.DropDownItems.Count > 1;
+        _insertNodeContextItem.Visible = false;
+        _deleteNodeContextItem.Visible = false;
+        _contextSelection = _selection;
+        _contextEdgeIndex = -1;
+        _contextInteractionPointIndex = -1;
         var points = SelectedEditablePolygonPoints();
-        if (points is null) return false;
+        if (points is null) return canSelectOverlap;
         _contextInteractionPoint = ClampToWorld(world);
         _contextInteractionHintPoint = ClampToWorld(world);
         _contextInteractionPointIndex = FindInteractionPointAtContext(world);
@@ -3160,7 +3201,7 @@ public sealed class EditorCanvas : Control
         if (!TryFindNearestSelectedEdge(world, out var edgeIndex, out var insertionPoint))
         {
             if ((_selection.Kind != SceneLayerKind.Interactable &&
-                 _selection.Kind != SceneLayerKind.SceneConnection) || !PointInPolygon(world, points)) return false;
+                 _selection.Kind != SceneLayerKind.SceneConnection) || !PointInPolygon(world, points)) return canSelectOverlap;
             SetSelectedVertex(-1);
             _contextSelection = _selection;
             _contextEdgeIndex = -1;
