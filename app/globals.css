@@ -11905,19 +11905,32 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 }
 
 /* Mobile HUD anchors and mini widths apply in either orientation. */
+.mobile-hud-space-probe { display: none; }
 @media (max-width: 680px), (hover: none) and (pointer: coarse) {
   .game-shell {
     --mobile-hud-left: max(14px, env(safe-area-inset-left));
     --mobile-hud-right: max(14px, env(safe-area-inset-right));
     --mobile-hud-mini-width: 82px;
     --mobile-hud-gap: 12px;
+    --mobile-survival-width: 300px;
+    --mobile-quest-width: 370px;
+  }
+  .mobile-hud-space-probe {
+    display: block;
+    position: absolute;
+    visibility: hidden;
+    pointer-events: none;
+    height: 0;
+    width: max(0px, calc(100% - var(--mobile-hud-left) - var(--mobile-hud-right)));
   }
   .game-shell .survival-hud:not(.is-inventory-open) {
     left: var(--mobile-hud-left);
+    width: min(var(--mobile-survival-width), calc(100% - var(--mobile-hud-left) - var(--mobile-hud-right)));
     min-width: 0;
   }
   .game-shell .quest-hud {
     right: var(--mobile-hud-right);
+    width: min(var(--mobile-quest-width), calc(100% - var(--mobile-hud-left) - var(--mobile-hud-right)));
     min-width: 0;
   }
   .game-shell .survival-hud.is-mobile-mini:not(.is-inventory-open),
@@ -11926,10 +11939,10 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   .game-shell .quest-hud .quest-objective-label { overflow-wrap: anywhere; }
 }
 
-/* Only portrait expands toward the opposite mini; landscape keeps normal HUD widths. */
+/* Narrow portrait expands toward the opposite mini; roomy screens retain natural widths. */
 @media (orientation: portrait) and (max-width: 680px), (orientation: portrait) and (hover: none) and (pointer: coarse) {
-  .game-shell .survival-hud:not(.is-inventory-open):not(.is-mobile-mini),
-  .game-shell .quest-hud:not(.is-mobile-mini) {
+  .game-shell:not([data-mobile-hud-shared-space="true"]) .survival-hud:not(.is-inventory-open):not(.is-mobile-mini),
+  .game-shell:not([data-mobile-hud-shared-space="true"]) .quest-hud:not(.is-mobile-mini) {
     width: calc(100% - var(--mobile-hud-left) - var(--mobile-hud-right) - var(--mobile-hud-mini-width) - var(--mobile-hud-gap));
   }
 }

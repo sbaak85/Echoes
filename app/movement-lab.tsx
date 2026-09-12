@@ -1,5 +1,6 @@
 "use client";
 import { createTouchJoystickView } from "./touch-joystick-view";
+import { canShareMobileHudSpace, changeMobileHudMode, type MobileHudPanelMode } from "./mobile-hud-layout";
 
 import { cursorOwnership, GamepadHandoffGate } from "./cursor-ownership.ts";
 import { CursorPresentationGuard, CURSOR_POSITION_STORAGE_KEY, parseCursorPosition } from "./cursor-presentation.ts";
@@ -2065,7 +2066,6 @@ function isMobileHudLayout() {
   );
 }
 
-type MobileHudPanelMode = "mini" | "collapsed" | "expanded";
 
 function getDefaultQuestCollapsed() {
   if (typeof window === "undefined") return false;
@@ -3977,23 +3977,56 @@ export function MovementLab() {
   const [survivalExpanded, setSurvivalExpanded] = useState(false);
   const [questCollapsed, setQuestCollapsed] = useState(true);
   const [mobileHudLayout, setMobileHudLayout] = useState(false);
-  // One atomic state: medium/large HUDs always leave the opposite HUD at mini.
+  const [mobileHudCanShare, setMobileHudCanShare] = useState(false);
+  const mobileHudLastOpenedRef = useRef<"survival" | "quest">("survival");
+  const measureMobileHudSpace = useCallback(() => {
+    const probe = gameShellRef.current?.querySelector<HTMLElement>(".mobile-hud-space-probe");
+    if (!probe || !isMobileHudLayout()) return false;
+    const style = getComputedStyle(probe);
+    return canShareMobileHudSpace(
+      parseFloat(style.width),
+      parseFloat(style.getPropertyValue("--mobile-survival-width")),
+      parseFloat(style.getPropertyValue("--mobile-quest-width")),
+      parseFloat(style.getPropertyValue("--mobile-hud-gap")),
+    );
+  }, []);
+  // One atomic state: collapse the opposite HUD only when both panels cannot fit.
   const [{ survival: survivalMobileMode, quest: questMobileMode }, setMobileHudModes] =
     useState<{ survival: MobileHudPanelMode; quest: MobileHudPanelMode }>({
       survival: "mini", quest: "mini",
     });
   const setSurvivalMobileMode = useCallback((mode: MobileHudPanelMode) => {
-    setMobileHudModes((current) => ({
-      survival: mode,
-      quest: mode === "mini" ? current.quest : "mini",
-    }));
-  }, []);
+    if (mode !== "mini") mobileHudLastOpenedRef.current = "survival";
+    const canShare = measureMobileHudSpace();
+    setMobileHudCanShare(canShare);
+    setMobileHudModes((current) => changeMobileHudMode(current, "survival", mode, canShare));
+  }, [measureMobileHudSpace]);
   const setQuestMobileMode = useCallback((mode: MobileHudPanelMode) => {
-    setMobileHudModes((current) => ({
-      survival: mode === "mini" ? current.survival : "mini",
-      quest: mode,
-    }));
-  }, []);
+    if (mode !== "mini") mobileHudLastOpenedRef.current = "quest";
+    const canShare = measureMobileHudSpace();
+    setMobileHudCanShare(canShare);
+    setMobileHudModes((current) => changeMobileHudMode(current, "quest", mode, canShare));
+  }, [measureMobileHudSpace]);
+  useLayoutEffect(() => {
+    const probe = gameShellRef.current?.querySelector<HTMLElement>(".mobile-hud-space-probe");
+    if (!probe) return;
+    const update = () => {
+      const mobile = isMobileHudLayout();
+      const canShare = measureMobileHudSpace();
+      setMobileHudLayout(mobile);
+      setMobileHudCanShare(canShare);
+      if (mobile && !canShare) setMobileHudModes((current) => {
+        if (current.survival === "mini" || current.quest === "mini") return current;
+        const keep = mobileHudLastOpenedRef.current;
+        return changeMobileHudMode(current, keep, current[keep], false);
+      });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(probe);
+    window.addEventListener("resize", update);
+    return () => { observer.disconnect(); window.removeEventListener("resize", update); };
+  }, [measureMobileHudSpace]);
   const [activeQuestHud, setActiveQuestHud] = useState<QuestHudView | null>(null);
   const [completedQuestHistory, setCompletedQuestHistory] = useState<QuestHistoryView[]>([]);
   const [questHudEvent, setQuestHudEvent] = useState<QuestHudEvent | null>(null);
@@ -16482,6 +16515,7 @@ export function MovementLab() {
       />
       <main
         ref={gameShellRef}
+        data-mobile-hud-shared-space={mobileHudCanShare ? "true" : "false"}
         className={`game-shell${stageFullscreen ? " is-fullscreen" : ""}${storyFlowActive ? " is-story-flow" : ""}${storyFlowPaused ? " is-story-flow-paused" : ""}${storyInputLocked ? " is-story-input-locked" : ""}${newPlayerTutorialStep ? " is-new-player-tutorial" : ""}${survivalDeathWarning ? " is-death-imminent" : ""}`}
         onClickCapture={handleGameShellClickCapture}
         onPointerDownCapture={handleStoryPointerDownCapture}
@@ -16489,6 +16523,7 @@ export function MovementLab() {
         onPointerCancelCapture={() => cancelStorySkipHold(true)}
         onContextMenuCapture={handleUiInputContextMenuCapture}
       >
+      <span className="mobile-hud-space-probe" aria-hidden="true" />
       <canvas
         ref={canvasRef}
         className={`game-canvas${virtualCursorControlsEnabled ? "" : " physical-cursor-enabled"}`}
