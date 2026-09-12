@@ -1,6 +1,6 @@
 "use client";
 import { createTouchJoystickView } from "./touch-joystick-view";
-import { canShareMobileHudSpace, changeMobileHudMode, type MobileHudPanelMode } from "./mobile-hud-layout";
+import { canShareMobileHudSpace, changeMobileHudMode, cycleMobileHudMode, type MobileHudPanelMode } from "./mobile-hud-layout";
 
 import { cursorOwnership, GamepadHandoffGate } from "./cursor-ownership.ts";
 import { CursorPresentationGuard, CURSOR_POSITION_STORAGE_KEY, parseCursorPosition } from "./cursor-presentation.ts";
@@ -8085,17 +8085,17 @@ export function MovementLab() {
     setSurvivalFlowPaused(paused);
   };
 
-  const toggleSurvivalPanel = () => {
-    if (mobileHudLayout) {
-      const current = survivalMobileMode;
-      const nextState: MobileHudPanelMode =
-        current === "mini"
-          ? "collapsed"
-          : current === "collapsed"
-            ? "expanded"
-            : "mini";
-      setSurvivalExpanded(nextState === "expanded");
-      setSurvivalMobileMode(nextState);
+  // The long-lived keyboard/gamepad loop must not capture render-time HUD modes.
+  const cycleMobileHudPanel = useCallback((panel: "survival" | "quest") => {
+    const canShare = measureMobileHudSpace();
+    mobileHudLastOpenedRef.current = panel;
+    setMobileHudCanShare(canShare);
+    setMobileHudModes((current) => cycleMobileHudMode(current, panel, canShare));
+  }, [measureMobileHudSpace]);
+
+  const toggleSurvivalPanel = useCallback(() => {
+    if (isMobileHudLayout()) {
+      cycleMobileHudPanel("survival");
       return;
     }
 
@@ -8111,24 +8111,16 @@ export function MovementLab() {
       }
       return nextState;
     });
-  };
+  }, [cycleMobileHudPanel]);
 
-  const toggleQuestPanel = () => {
-    if (mobileHudLayout) {
-      const current = questMobileMode;
-      const nextState: MobileHudPanelMode =
-        current === "mini"
-          ? "collapsed"
-          : current === "collapsed"
-            ? "expanded"
-            : "mini";
-      setQuestCollapsed(nextState !== "expanded");
-      setQuestMobileMode(nextState);
+  const toggleQuestPanel = useCallback(() => {
+    if (isMobileHudLayout()) {
+      cycleMobileHudPanel("quest");
       return;
     }
 
     setQuestCollapsed((current) => !current);
-  };
+  }, [cycleMobileHudPanel]);
 
   const setInventoryPanelOpen = (open: boolean) => {
     settleNaturalSurvivalRef.current();

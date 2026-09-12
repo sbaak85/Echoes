@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canShareMobileHudSpace, changeMobileHudMode } from "../app/mobile-hud-layout.ts";
+import { canShareMobileHudSpace, changeMobileHudMode, cycleMobileHudMode } from "../app/mobile-hud-layout.ts";
+
+test("repeated HUD presses cycle through current state, including after another panel collapses it", () => {
+  let state = { survival: "mini", quest: "mini" };
+  for (const expected of ["collapsed", "expanded", "mini", "collapsed"]) {
+    state = cycleMobileHudMode(state, "survival", false);
+    assert.equal(state.survival, expected);
+  }
+  state = cycleMobileHudMode(state, "quest", false);
+  assert.deepEqual(state, { survival: "mini", quest: "collapsed" });
+  state = cycleMobileHudMode(state, "survival", true);
+  assert.deepEqual(state, { survival: "collapsed", quest: "collapsed" });
+  state = cycleMobileHudMode(state, "quest", true);
+  assert.deepEqual(state, { survival: "collapsed", quest: "expanded" });
+});
 
 test("available space includes both HUD widths and their separating gap", () => {
   assert.equal(canShareMobileHudSpace(390 - 28, 300, 370, 12), false);
