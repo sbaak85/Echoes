@@ -827,6 +827,60 @@
           "y": 385
         }
       ]
+    },
+    {
+      "id": "collision-009",
+      "label": "\u591A\u908A\u5F62\u78B0\u649E 10",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1135,
+          "y": 570
+        },
+        {
+          "x": 1155,
+          "y": 555
+        },
+        {
+          "x": 1155,
+          "y": 540
+        },
+        {
+          "x": 1120,
+          "y": 520
+        },
+        {
+          "x": 1100,
+          "y": 535
+        },
+        {
+          "x": 1100,
+          "y": 550
+        }
+      ]
+    },
+    {
+      "id": "collision-011",
+      "label": "\u591A\u908A\u5F62\u78B0\u649E 11",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1160,
+          "y": 505
+        },
+        {
+          "x": 1185,
+          "y": 520
+        },
+        {
+          "x": 1215,
+          "y": 500
+        },
+        {
+          "x": 1190,
+          "y": 485
+        }
+      ]
     }
   ],
   "interactables": [
@@ -1064,6 +1118,7 @@
       "interactionLimitMode": "once",
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -1076,6 +1131,7 @@
           "chapter": 1
         },
         {
+          "dialogueId": "",
           "kind": "campPower",
           "scope": "both",
           "itemId": "",
@@ -1201,6 +1257,7 @@
       },
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -1301,6 +1358,7 @@
       },
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -1413,6 +1471,7 @@
       },
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "quest",
           "scope": "both",
           "itemId": "",
@@ -1604,6 +1663,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -1616,6 +1676,7 @@
           "chapter": 1
         },
         {
+          "dialogueId": "",
           "kind": "item",
           "scope": "interaction",
           "itemId": "T0008",
@@ -1818,6 +1879,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -1977,6 +2039,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "quest",
           "scope": "both",
           "itemId": "",
@@ -2130,6 +2193,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -2249,6 +2313,7 @@
       "interactionLimitMode": "once",
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -2382,6 +2447,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -2485,6 +2551,7 @@
       "interactionLimitMode": "once",
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -2497,6 +2564,7 @@
           "chapter": 1
         },
         {
+          "dialogueId": "",
           "kind": "campPower",
           "scope": "interaction",
           "itemId": "",
@@ -2621,6 +2689,7 @@
       },
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -2633,6 +2702,7 @@
           "chapter": 1
         },
         {
+          "dialogueId": "",
           "kind": "item",
           "scope": "interaction",
           "itemId": "R0001",
@@ -2830,6 +2900,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -2945,6 +3016,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -3052,6 +3124,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -3151,6 +3224,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -3276,6 +3350,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -3288,6 +3363,7 @@
           "chapter": 1
         },
         {
+          "dialogueId": "",
           "kind": "item",
           "scope": "interaction",
           "itemId": "T0008",
@@ -3432,6 +3508,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -3444,6 +3521,7 @@
           "chapter": 1
         },
         {
+          "dialogueId": "",
           "kind": "item",
           "scope": "interaction",
           "itemId": "T0010",
@@ -3591,6 +3669,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -3741,6 +3820,7 @@
       "interactionLimitMode": "once",
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -3934,6 +4014,7 @@
       },
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -4072,6 +4153,7 @@
       },
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -4238,6 +4320,7 @@
       "interactionLimitMode": "once",
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -4250,6 +4333,7 @@
           "chapter": 1
         },
         {
+          "dialogueId": "",
           "kind": "item",
           "scope": "interaction",
           "itemId": "T0007",
@@ -4262,6 +4346,7 @@
           "chapter": 1
         },
         {
+          "dialogueId": "",
           "kind": "item",
           "scope": "interaction",
           "itemId": "R0009",
@@ -4409,6 +4494,7 @@
       "interactionLimitMode": "once",
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -4579,6 +4665,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -4706,6 +4793,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -4850,6 +4938,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -4944,6 +5033,7 @@
       },
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -5069,6 +5159,7 @@
       "interactionLimitMode": "once",
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -5128,6 +5219,7 @@
       ],
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questState",
           "scope": "both",
           "itemId": "",
@@ -5256,6 +5348,7 @@
       },
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -5383,6 +5476,7 @@
       },
       "useRequirements": [
         {
+          "dialogueId": "",
           "kind": "questStage",
           "scope": "both",
           "itemId": "",
@@ -5397,6 +5491,7 @@
           "chapter": 1
         },
         {
+          "dialogueId": "",
           "kind": "item",
           "scope": "both",
           "itemId": "T0001",

@@ -18,21 +18,26 @@ test("delayed OBJ completion cannot reveal the next Stage before NEXT finishes",
     : bodyEnd;
   assert.ok(start >= 0 && normalizedEnd > bodyStart);
   const callback = new Function("questId", "objectiveId", "_stageId", "entry", "objective",
-    "buildQuestHudView", "scheduleQuestPresentation", "questRuntimeManagerRef", "triggerQuestObjectiveTween",
+    "buildQuestHudView", "scheduleQuestPresentation", "questRuntimeManagerRef", "triggerQuestObjectiveTween", "questHudStageTransitionPresentationRef",
     source.slice(bodyStart, normalizedEnd));
-  for (const changedStage of [false, true]) {
-    let current = { currentStageId: "STAGE_02", revision: 1 };
+  for (const [changedStage, heldStage] of [[false, false], [true, false], [true, true]]) {
+    const objectives = { OBJ_05: { completed: true, completionAvailableAtEpochMs: 1000 } };
+    let current = { currentStageId: "STAGE_02", revision: 1, objectives };
     let delayed;
     const shown = [];
     callback("QUEST", "OBJ_05", "STAGE_02", current, { completionPresentationDelaySeconds: 0.5 },
       (id, entry) => ({ id, stageId: entry.currentStageId, revision: entry.revision }),
       (delay, run) => { assert.equal(delay, 0.5); delayed = run; },
       { current: { exportSave: () => ({ quests: { QUEST: current } }) } },
-      (view, id) => shown.push({ view, id }));
-    current = { currentStageId: changedStage ? "STAGE_03" : "STAGE_02", revision: 2 };
+      (view, id) => shown.push({ view, id }),
+      { current: heldStage ? { questId: "QUEST", stageId: "STAGE_02" } : null });
+    current = { currentStageId: changedStage ? "STAGE_03" : "STAGE_02", revision: 2, objectives };
     delayed();
-    assert.equal(shown.length, changedStage ? 0 : 1);
-    if (!changedStage) assert.equal(shown[0].view.revision, 2, "same-Stage completions retain fresh HUD state");
+    assert.equal(shown.length, changedStage && !heldStage ? 0 : 1);
+    if (shown.length) {
+      assert.equal(shown[0].view.revision, 2, "completion uses fresh progress");
+      assert.equal(shown[0].view.stageId, "STAGE_02", "held completion stays on its original Stage");
+    }
   }
 });
 
@@ -308,7 +313,7 @@ test("quest HUD result animations start their managed audio once", () => {
   );
   assert.match(
     objectiveActivation,
-    /scheduleQuestPresentation\(objective\?\.startPresentationDelaySeconds,[\s\S]*?playOneShotAudio\("questObjectiveAdded"\)[\s\S]*?triggerQuestObjectiveUnlockTween\(view, objectiveId\)/,
+    /scheduleQuestPresentation\(due == null[\s\S]*?playOneShotAudio\("questObjectiveAdded"\)[\s\S]*?triggerQuestObjectiveUnlockTween\(currentView, objectiveId\)/,
   );
 
   const objectiveUnlockTween = source.slice(

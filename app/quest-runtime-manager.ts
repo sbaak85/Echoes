@@ -185,6 +185,8 @@ export type QuestObjectiveRuntime = {
   /** Distinct interaction IDs already counted for a multi-target objective. */
   matchedTargetIds?: string[];
   availableAtEpochMs?: number;
+  /** UI reveal deadline, separate from gameplay activation. */
+  startPresentationAvailableAtEpochMs?: number;
   completionAvailableAtEpochMs?: number;
   completionPresented?: boolean;
   /** True only after the Objective completion dialogue/event has really finished. */
@@ -210,6 +212,7 @@ export type QuestRuntimeEntry = {
   rewardClaimed: boolean;
   completedOrder?: number;
   stageAvailableAtEpochMs?: number;
+  startPresentationAvailableAtEpochMs?: number;
   stageStartEventExecutedForId?: string;
   stageCompletionAvailableAtEpochMs?: number;
   stageCompletionEventExecutedForId?: string;
@@ -331,6 +334,7 @@ export class QuestRuntimeManager {
   private readonly pendingObjectiveCompletionEvents = new Set<string>();
   private readonly pendingObjectiveCompletionRules = new Map<string, QuestRuntimeEntry>();
   private currentInventorySnapshot: Readonly<Record<string, number>> | null = null;
+  private schedulingGeneration = 0;
   private saveData: QuestSaveData;
 
   constructor(
@@ -396,6 +400,7 @@ export class QuestRuntimeManager {
    * this to materialize the final state that normal play would have produced.
    */
   replaceSaveData(saveData: QuestSaveData, notify = true): void {
+    this.schedulingGeneration += 1;
     this.pendingStageCompletionDelays.clear();
     this.pendingQuestStarts.clear();
     this.pendingCompletionTriggers.clear();
@@ -568,6 +573,9 @@ export class QuestRuntimeManager {
       progress.state = "active";
       progress.activationDefinitionKey = this.objectiveActivationDefinitionKey(objective);
       progress.activatedByEventId = activatedByEventId?.trim() || undefined;
+      progress.startPresentationAvailableAtEpochMs = Math.max(this.now(), progress.availableAtEpochMs ?? 0) +
+        this.delayMilliseconds(objective.startPresentationDelaySeconds);
+      this.scheduleObjectivePresentationRefresh(definition.id, entry, objective.id);
       this.host.onObjectiveActivated?.(
         definition.id,
         objective.id,
@@ -596,6 +604,7 @@ export class QuestRuntimeManager {
     if (entry.state === "abandoned" && !definition.canReaccept) return false;
     this.pendingQuestStarts.delete(questId);
     entry.state = "active";
+    entry.startPresentationAvailableAtEpochMs = this.now() + this.delayMilliseconds(definition.startPresentationDelaySeconds);
     entry.startedAtDay = day;
     entry.startedAtTime = time;
     entry.currentStageId = definition.stages[0]?.id ?? "";
@@ -655,14 +664,11 @@ export class QuestRuntimeManager {
 
     this.pendingQuestStarts.add(questId);
     const start = () => {
+      if (!this.pendingQuestStarts.has(questId) || this.saveData.quests[questId] !== entry) return;
       this.pendingQuestStarts.delete(questId);
       this.startQuest(questId, day, time);
     };
-    if (this.host.scheduleQuestStart) {
-      this.host.scheduleQuestStart(delaySeconds * 1000, start);
-    } else {
-      globalThis.setTimeout(start, delaySeconds * 1000);
-    }
+    this.scheduleAfter(delaySeconds * 1000, start);
     return true;
   }
 
@@ -877,6 +883,9 @@ export class QuestRuntimeManager {
           progress.state = "active";
           progress.activationDefinitionKey = this.objectiveActivationDefinitionKey(objective);
           progress.activatedByEventId = event.targetId;
+          progress.startPresentationAvailableAtEpochMs = Math.max(this.now(), progress.availableAtEpochMs ?? 0) +
+            this.delayMilliseconds(objective.startPresentationDelaySeconds);
+          this.scheduleObjectivePresentationRefresh(definition.id, entry, objective.id);
           matchedObjective = true;
           this.host.onObjectiveActivated?.(
             definition.id,
@@ -1147,11 +1156,13 @@ export class QuestRuntimeManager {
     objectiveId: string,
   ) {
     const objective = this.findObjective(definition, objectiveId);
+    const stageId = definition.stages.find(stage => stage.objectives.some(candidate => candidate.id === objectiveId))?.id
+      ?? entry.currentStageId;
     this.host.onObjectiveCompleted?.(
       definition.id,
       objectiveId,
-      entry.currentStageId,
-      structuredClone(entry),
+      stageId,
+      { ...structuredClone(entry), currentStageId: stageId, stageAvailableAtEpochMs: 0 },
       structuredClone(objective),
     );
   }
@@ -1454,15 +1465,31 @@ export class QuestRuntimeManager {
     );
   }
 
+  private scheduleObjectivePresentationRefresh(questId: string, entry: QuestRuntimeEntry, objectiveId: string) {
+    const due = entry.objectives[objectiveId]?.startPresentationAvailableAtEpochMs;
+    if (due == null || due <= this.now()) return;
+    const stageId = entry.currentStageId;
+    this.scheduleAt(due, () => {
+      const current = this.saveData.quests[questId];
+      if (current !== entry || current.state !== "active" || current.currentStageId !== stageId ||
+          current.objectives[objectiveId]?.startPresentationAvailableAtEpochMs !== due) return;
+      this.notify(questId);
+    });
+  }
+
   private scheduleAfter(delayMilliseconds: number, callback: () => void) {
+    const generation = this.schedulingGeneration;
+    const run = () => {
+      if (generation === this.schedulingGeneration) callback();
+    };
     if (delayMilliseconds <= 0) {
-      callback();
+      run();
       return;
     }
     if (this.host.scheduleQuestStart) {
-      this.host.scheduleQuestStart(delayMilliseconds, callback);
+      this.host.scheduleQuestStart(delayMilliseconds, run);
     } else {
-      globalThis.setTimeout(callback, delayMilliseconds);
+      globalThis.setTimeout(run, delayMilliseconds);
     }
   }
 
@@ -1494,6 +1521,8 @@ export class QuestRuntimeManager {
       if (!progress) continue;
       progress.availableAtEpochMs = entry.stageAvailableAtEpochMs +
         this.delayMilliseconds(objective.startDelaySeconds);
+      progress.startPresentationAvailableAtEpochMs = progress.availableAtEpochMs +
+        this.delayMilliseconds(objective.startPresentationDelaySeconds);
       progress.startActionsPresented = false;
     }
     this.scheduleStageActivation(definition, entry, stage);
@@ -1619,6 +1648,10 @@ export class QuestRuntimeManager {
     const questId = definition.id;
     const stageId = stage.id;
     const stageDue = entry.stageAvailableAtEpochMs ?? 0;
+    const questPresentationDue = entry.startPresentationAvailableAtEpochMs ?? 0;
+    if (questPresentationDue > this.now()) this.scheduleAt(questPresentationDue, () => {
+      if (this.saveData.quests[questId] === entry && entry.state === "active") this.notify(questId);
+    });
     this.scheduleAt(stageDue, () => {
       const current = this.saveData.quests[questId];
       if (!current || current.state !== "active" || current.currentStageId !== stageId) return;
@@ -1639,6 +1672,7 @@ export class QuestRuntimeManager {
 
     for (const objective of stage.objectives) {
       const due = entry.objectives[objective.id]?.availableAtEpochMs ?? stageDue;
+      this.scheduleObjectivePresentationRefresh(questId, entry, objective.id);
       this.scheduleAt(due, () => {
         const current = this.saveData.quests[questId];
         if (!current || current.state !== "active" || current.currentStageId !== stageId) return;
