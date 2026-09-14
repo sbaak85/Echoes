@@ -2876,11 +2876,13 @@
           "itemId": "",
           "questId": "QUEST_CH04_MAIN_001",
           "stageId": "QUEST_CH04_MAIN_001_STAGE_03",
-          "stageMode": "CurrentStageOnly",
+          "stageMode": "UnlockUntilCondition",
           "objectiveId": "QUEST_CH04_MAIN_001_OBJ_15",
           "objectiveState": "unlocked",
-          "disableQuestId": "",
-          "disableStageId": "",
+          "disableQuestId": "QUEST_CH04_MAIN_001",
+          "disableStageId": "QUEST_CH04_MAIN_001_STAGE_03",
+          "disableObjectiveId": "QUEST_CH04_MAIN_001_OBJ_15",
+          "disableObjectiveState": "completed",
           "quantity": 1,
           "chapter": 1
         }
@@ -2984,11 +2986,13 @@
           "itemId": "",
           "questId": "QUEST_CH04_MAIN_001",
           "stageId": "QUEST_CH04_MAIN_001_STAGE_03",
-          "stageMode": "CurrentStageOnly",
+          "stageMode": "UnlockUntilCondition",
           "objectiveId": "QUEST_CH04_MAIN_001_OBJ_15",
           "objectiveState": "unlocked",
-          "disableQuestId": "",
-          "disableStageId": "",
+          "disableQuestId": "QUEST_CH04_MAIN_001",
+          "disableStageId": "QUEST_CH04_MAIN_001_STAGE_03",
+          "disableObjectiveId": "QUEST_CH04_MAIN_001_OBJ_15",
+          "disableObjectiveState": "completed",
           "quantity": 1,
           "chapter": 1
         }
