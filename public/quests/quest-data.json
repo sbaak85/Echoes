@@ -1247,7 +1247,7 @@
         },
         {
           "id": "QUEST_CH04_MAIN_001_STAGE_02",
-          "name": "\u5B9A\u4F4D\u4E09\u500B\u8A0A\u865F\u9EDE",
+          "name": "\u5B9A\u4F4D\u4E09\u500B\u8A0A\u865F\u6A23\u672C",
           "startDelaySeconds": 0,
           "startPresentationDelaySeconds": 0,
           "completionDelaySeconds": 0,
@@ -1306,7 +1306,21 @@
               "showHintIcon": false,
               "completionEventFlowId": "",
               "unlockDialogueId": "chapter04-signal-samples-follow-up"
-            },
+            }
+          ]
+        },
+        {
+          "id": "QUEST_CH04_MAIN_001_STAGE_03",
+          "name": "\u9032\u5165\u5357\u65B9\u5C0F\u5F91\u7684\u65B9\u6CD5",
+          "startDelaySeconds": 0,
+          "startPresentationDelaySeconds": 0,
+          "completionDelaySeconds": 0,
+          "completionPresentationDelaySeconds": 0,
+          "completionMode": "all",
+          "startEventFlowId": "",
+          "completionEventFlowId": "",
+          "nextStageId": "QUEST_CH04_MAIN_001_STAGE_04",
+          "objectives": [
             {
               "id": "QUEST_CH04_MAIN_001_OBJ_06",
               "displayText": "\u6E05\u9664\u5357\u65B9\u5C0F\u5F91\u4E0A\u7684\u969C\u7919",
@@ -1314,8 +1328,8 @@
               "startPresentationDelaySeconds": 0,
               "completionDelaySeconds": 0,
               "completionPresentationDelaySeconds": 0,
-              "activationMode": "objectiveCompleted",
-              "activationEventId": "QUEST_CH04_MAIN_001_OBJ_05",
+              "activationMode": "immediate",
+              "activationEventId": "",
               "blocksStageCompletion": true,
               "type": "interactionSucceeded",
               "targetId": "",
@@ -1332,6 +1346,65 @@
             },
             {
               "id": "QUEST_CH04_MAIN_001_OBJ_14",
+              "displayText": "\u8ABF\u67E5\u690D\u7269\u7684\u7279\u6027",
+              "startDelaySeconds": 0,
+              "startPresentationDelaySeconds": 0,
+              "completionDelaySeconds": 0,
+              "completionPresentationDelaySeconds": 0,
+              "activationMode": "event",
+              "activationEventId": "chapter04-Light",
+              "blocksStageCompletion": true,
+              "type": "interactionSucceeded",
+              "targetId": "",
+              "targetIds": [
+                "scene6-interaction-015",
+                "scene6-interaction-016",
+                "scene6-interaction-017"
+              ],
+              "itemRequirements": [],
+              "targetState": "",
+              "requiredAmount": 3,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": false,
+              "showHintIcon": false,
+              "completionEventFlowId": "",
+              "unlockDialogueId": "chapter04-Light"
+            },
+            {
+              "id": "QUEST_CH04_MAIN_001_OBJ_15",
+              "displayText": "\u653E\u7F6E\u87A2\u5149\u68D2\u8A98\u5C0E\u690D\u7269",
+              "startDelaySeconds": 0,
+              "startPresentationDelaySeconds": 0,
+              "completionDelaySeconds": 0,
+              "completionPresentationDelaySeconds": 0,
+              "activationMode": "objectiveCompleted",
+              "activationEventId": "QUEST_CH04_MAIN_001_OBJ_14",
+              "blocksStageCompletion": true,
+              "type": "submitItemAtInteraction",
+              "targetId": "",
+              "targetIds": [
+                "",
+                "scene6-interaction-018",
+                "scene6-interaction-019"
+              ],
+              "itemRequirements": [
+                {
+                  "itemId": "T0006",
+                  "requiredAmount": 1
+                }
+              ],
+              "targetState": "",
+              "requiredAmount": 1,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": false,
+              "showHintIcon": false,
+              "completionEventFlowId": "",
+              "unlockDialogueId": ""
+            },
+            {
+              "id": "QUEST_CH04_MAIN_001_OBJ_16",
               "displayText": "\u9032\u5165\u5357\u65B9\u5C0F\u5F91",
               "startDelaySeconds": 0,
               "startPresentationDelaySeconds": 0,
@@ -1356,7 +1429,7 @@
           ]
         },
         {
-          "id": "QUEST_CH04_MAIN_001_STAGE_03",
+          "id": "QUEST_CH04_MAIN_001_STAGE_04",
           "name": "\u8ABF\u67E5\u53E4\u4EE3\u907A\u8DE1",
           "startDelaySeconds": 0,
           "startPresentationDelaySeconds": 0,
@@ -1365,7 +1438,7 @@
           "completionMode": "all",
           "startEventFlowId": "",
           "completionEventFlowId": "",
-          "nextStageId": "QUEST_CH04_MAIN_001_STAGE_04",
+          "nextStageId": "QUEST_CH04_MAIN_001_STAGE_05",
           "objectives": [
             {
               "id": "QUEST_CH04_MAIN_001_OBJ_07",
@@ -1485,7 +1558,7 @@
           ]
         },
         {
-          "id": "QUEST_CH04_MAIN_001_STAGE_04",
+          "id": "QUEST_CH04_MAIN_001_STAGE_05",
           "name": "\u8FD4\u56DE\u71DF\u5730",
           "startDelaySeconds": 0,
           "startPresentationDelaySeconds": 0,
@@ -1494,7 +1567,7 @@
           "completionMode": "all",
           "startEventFlowId": "",
           "completionEventFlowId": "",
-          "nextStageId": "",
+          "nextStageId": "QUEST_CH04_MAIN_001_STAGE_03",
           "objectives": [
             {
               "id": "QUEST_CH04_MAIN_001_OBJ_12",

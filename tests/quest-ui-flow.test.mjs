@@ -9,6 +9,33 @@ const blackScreenOverlaySource = await readFile(
   "utf8",
 );
 
+test("delayed OBJ completion cannot reveal the next Stage before NEXT finishes", () => {
+  const start = source.indexOf("onObjectiveCompleted: (questId, objectiveId, _stageId, entry, objective) => {");
+  const bodyStart = source.indexOf("const view =", start);
+  const bodyEnd = source.indexOf("if (\n              objective.completionInterfaceAction", bodyStart);
+  const normalizedEnd = bodyEnd < 0
+    ? source.indexOf("if (\r\n              objective.completionInterfaceAction", bodyStart)
+    : bodyEnd;
+  assert.ok(start >= 0 && normalizedEnd > bodyStart);
+  const callback = new Function("questId", "objectiveId", "_stageId", "entry", "objective",
+    "buildQuestHudView", "scheduleQuestPresentation", "questRuntimeManagerRef", "triggerQuestObjectiveTween",
+    source.slice(bodyStart, normalizedEnd));
+  for (const changedStage of [false, true]) {
+    let current = { currentStageId: "STAGE_02", revision: 1 };
+    let delayed;
+    const shown = [];
+    callback("QUEST", "OBJ_05", "STAGE_02", current, { completionPresentationDelaySeconds: 0.5 },
+      (id, entry) => ({ id, stageId: entry.currentStageId, revision: entry.revision }),
+      (delay, run) => { assert.equal(delay, 0.5); delayed = run; },
+      { current: { exportSave: () => ({ quests: { QUEST: current } }) } },
+      (view, id) => shown.push({ view, id }));
+    current = { currentStageId: changedStage ? "STAGE_03" : "STAGE_02", revision: 2 };
+    delayed();
+    assert.equal(shown.length, changedStage ? 0 : 1);
+    if (!changedStage) assert.equal(shown[0].view.revision, 2, "same-Stage completions retain fresh HUD state");
+  }
+});
+
 test("development-only fake quest HUD triggers are removed", () => {
   assert.equal(source.includes("MOCK_QUEST_HUD"), false);
   assert.equal(source.includes("questHudDemo"), false);

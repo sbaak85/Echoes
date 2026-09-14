@@ -506,6 +506,9 @@ type SceneInteractable = {
     | "use"
     | "enter"
     | "leave"
+    | "place"
+    | "insert"
+    | "deposit"
     | "pickup";
   verb?: string;
   survivalRequirements?: SurvivalRequirements;
@@ -5400,6 +5403,9 @@ export function MovementLab() {
               scheduleQuestPresentation(objective.completionPresentationDelaySeconds, () => {
                 const currentEntry = questRuntimeManagerRef.current
                   ?.exportSave().quests[questId];
+                // A delayed completion belongs to its original Stage. NEXT owns
+                // the transition; never use the new Stage to animate an old OBJ.
+                if (!currentEntry || currentEntry.currentStageId !== _stageId) return;
                 const currentView = currentEntry
                   ? buildQuestHudView(questId, currentEntry)
                   : null;
@@ -9136,6 +9142,7 @@ export function MovementLab() {
       (questId, questState) =>
         questRuntimeManagerRef.current?.isQuestInState(questId, questState) ?? false,
       campPowerStateRef.current.current,
+      (dialogueId) => questRuntimeManagerRef.current?.hasDialogueCompleted(dialogueId) ?? false,
     )[0];
 
     const getSceneConnectionRequirementFailure = (
@@ -9171,6 +9178,7 @@ export function MovementLab() {
       (questId, questState) =>
         questRuntimeManagerRef.current?.isQuestInState(questId, questState) ?? false,
       campPowerStateRef.current.current,
+      (dialogueId) => questRuntimeManagerRef.current?.hasDialogueCompleted(dialogueId) ?? false,
     )[0];
 
     const canActivateSceneConnection = (connection: SceneConnection) =>
@@ -11567,7 +11575,7 @@ export function MovementLab() {
         const currentInventory = playerInventoryRef.current;
         if (!questManager || !activeObjective) {
           closeCampPowerConfirmation();
-          showInteractionItemFeedback("這項安裝目標目前已無法投入。");
+          showInteractionItemFeedback("這項目標目前已無法投入。");
           return;
         }
         if ((currentInventory[prompt.itemId] ?? 0) < prompt.quantity) {
@@ -16373,10 +16381,7 @@ export function MovementLab() {
           : (playerInventory[requirement.itemId] ?? 0) >= requirement.quantity
             ? "available"
             : "missing",
-        imageSrc:
-          questItemSubmissionPrompt.interactable.id === COMMUNICATION_ARRAY_INTERACTION_ID
-            ? artwork?.iconPath
-            : undefined,
+        imageSrc: artwork?.iconPath,
       };
     }) ?? [];
   const questItemSubmissionTargets: ItemChangeVisualEntry[] = questItemSubmissionPrompt
@@ -16384,7 +16389,7 @@ export function MovementLab() {
         label:
           questItemSubmissionPrompt.interactable.id === COMMUNICATION_ARRAY_INTERACTION_ID
             ? "通訊陣列"
-            : "互動目標",
+            : questItemSubmissionPrompt.interactable.label,
         state: "result",
         imageSrc:
           questItemSubmissionPrompt.interactable.id === COMMUNICATION_ARRAY_INTERACTION_ID
@@ -17866,24 +17871,26 @@ export function MovementLab() {
           >
             <small>
               {questItemSubmissionPrompt
-                ? "COMMUNICATION ARRAY ASSEMBLY"
+                ? questItemSubmissionPrompt.interactable.id === COMMUNICATION_ARRAY_INTERACTION_ID
+                  ? "COMMUNICATION ARRAY ASSEMBLY"
+                  : "ITEM SUBMISSION"
                 : "CAMP POWER RESONATOR"}
             </small>
             <h3 id="camp-power-confirmation-title">
               {questItemSubmissionPrompt
                 ? questItemSubmissionCompleting
-                  ? "所有元件已投入"
-                  : `安裝${questItemSubmissionPrompt.itemName}？`
+                  ? questItemSubmissionPrompt.interactable.id === COMMUNICATION_ARRAY_INTERACTION_ID ? "所有元件已投入" : "所有道具已投入"
+                  : `${questItemSubmissionPrompt.interactable.id === COMMUNICATION_ARRAY_INTERACTION_ID ? "安裝" : (questItemSubmissionPrompt.interactable.verb || "投入")}${questItemSubmissionPrompt.itemName}？`
                 : "灌入藍色晶體碎片？"}
             </h3>
             <p>
               {questItemSubmissionPrompt ? (
                 questItemSubmissionCompleting ? (
-                  <>通訊陣列組裝需求已完成。</>
+                  <>{questItemSubmissionPrompt.interactable.id === COMMUNICATION_ARRAY_INTERACTION_ID ? "通訊陣列組裝需求已完成。" : "道具投入需求已完成。"}</>
                 ) : (
                   <>
                     是否消耗「{questItemSubmissionPrompt.itemName}」×
-                    {questItemSubmissionPrompt.quantity}，安裝至通訊陣列？
+                    {questItemSubmissionPrompt.quantity}，{questItemSubmissionPrompt.interactable.id === COMMUNICATION_ARRAY_INTERACTION_ID ? "安裝至通訊陣列" : `投入至「${questItemSubmissionPrompt.interactable.label}」`}？
                   </>
                 )
               ) : (

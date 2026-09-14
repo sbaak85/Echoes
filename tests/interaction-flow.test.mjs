@@ -339,7 +339,7 @@ test("只有一個成員的舊群組資料仍按普通句子播放", () => {
 });
 
 test("操作、採集與移動互動只要有腳本，都必須先完成對話再結算", () => {
-  for (const type of ["dialogue", "operation", "gather", "move", "interaction"]) {
+  for (const type of ["dialogue", "operation", "gather", "move", "interaction", "place", "insert", "deposit"]) {
     assert.equal(
       shouldCompleteAfterDialogue({ type, dialogue: { lines: [{ text: "..." }] } }),
       true,

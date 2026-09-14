@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace Echoes.MapEditor;
 
 public sealed class SurvivalEffectEditorForm : Form
@@ -197,6 +199,20 @@ public sealed class SurvivalEffectEditorForm : Form
         .ToList();
     internal bool ShowsRequirementScope => _showRequirementScope;
 
+    internal void RunDialogueRequirementSelfTest()
+    {
+        if (!_useRequirementChoiceItems.Take(6).Select(choice => choice.Kind).SequenceEqual(
+            new[] { "chapter", "quest", "questState", "questStage", "campPower", "dialogueCompleted" }))
+            throw new InvalidDataException("Progress, resource and dialogue conditions must precede Items.");
+        AddUseRequirementRow(new InteractionUseRequirement
+        {
+            Kind = "dialogueCompleted", DialogueId = "D_TEST", Scope = "prompt",
+        });
+        if (UseRequirements.Last() is not { Kind: "dialogueCompleted", DialogueId: "D_TEST", Scope: "prompt" })
+            throw new InvalidDataException("Dialogue requirement editor round-trip failed.");
+        RemoveUseRequirementRow(_useRequirementRows.Last());
+    }
+
     public bool AllowAttemptWhenRequirementsUnmet =>
         _allowAttemptWhenRequirementsUnmet.Checked;
 
@@ -294,13 +310,14 @@ public sealed class SurvivalEffectEditorForm : Form
             .Select(group => group.First())
             .OrderBy(objective => objective.Id, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        _useRequirementChoiceItems = ItemCatalog.All
-            .Select(item => new UseRequirementChoice("item", item.Id, $"道具｜{item.Name}"))
+        _useRequirementChoiceItems = Enumerable.Empty<UseRequirementChoice>()
             .Append(new UseRequirementChoice("chapter", "chapter", "進度｜當前章節"))
             .Append(new UseRequirementChoice("quest", "quest", "進度｜需求任務"))
             .Append(new UseRequirementChoice("questState", "questState", "進度｜任務狀態"))
             .Append(new UseRequirementChoice("questStage", "questStage", "進度｜任務階段"))
             .Append(new UseRequirementChoice("campPower", "campPower", "資源｜營地電力"))
+            .Append(new UseRequirementChoice("dialogueCompleted", "dialogueCompleted", "對話｜對話播完"))
+            .Concat(ItemCatalog.All.Select(item => new UseRequirementChoice("item", item.Id, $"道具｜{item.Name}")))
             .ToArray();
         _useRequirementComboItems = _useRequirementChoiceItems.Cast<object>().ToArray();
         Text = showEffectsPage ? "互動需求與完成效果" : "出入口需求條件";
@@ -538,7 +555,7 @@ public sealed class SurvivalEffectEditorForm : Form
             .Select((choice, index) => new { choice, index })
             .FirstOrDefault(entry =>
                 entry.choice.Kind.Equals(requirement.Kind, StringComparison.OrdinalIgnoreCase) &&
-                (entry.choice.Kind is "chapter" or "quest" or "questState" or "questStage" or "campPower" ||
+                (entry.choice.Kind is "chapter" or "quest" or "questState" or "questStage" or "campPower" or "dialogueCompleted" ||
                  entry.choice.Kind == "item" &&
                  entry.choice.Id.Equals(requirement.ItemId, StringComparison.OrdinalIgnoreCase)))
             ?.index ?? 0;
@@ -626,6 +643,14 @@ public sealed class SurvivalEffectEditorForm : Form
             controls.StageSettings.Visible = true;
             RefreshStateRequirementButton(controls);
         }
+        else if (choice.Kind == "dialogueCompleted")
+        {
+            controls.Amount.Visible = true;
+            controls.StageSettings.Visible = false;
+            controls.Amount.DropDownStyle = ComboBoxStyle.DropDown;
+            controls.Amount.Text = existing?.DialogueId ?? "";
+            controls.Amount.Enabled = true;
+        }
         else if (choice.Kind == "quest")
         {
             controls.Amount.Visible = true;
@@ -676,7 +701,13 @@ public sealed class SurvivalEffectEditorForm : Form
             _useRequirementChoiceItems[0];
         var amount = Math.Max(1, controls.Amount.SelectedIndex + 1);
         var selectedQuest = controls.Amount.SelectedItem as UseRequirementChoice;
-        var requirement = choice.Kind == "questStage"
+        var requirement = choice.Kind == "dialogueCompleted"
+            ? new InteractionUseRequirement
+            {
+                Kind = "dialogueCompleted",
+                DialogueId = controls.Amount.Text.Trim(),
+            }
+            : choice.Kind == "questStage"
             ? controls.StageRequirement.Clone()
             : choice.Kind == "questState"
             ? controls.StateRequirement.Clone()

@@ -1132,6 +1132,22 @@ internal static class EditorSelfTest
                     "Exit requirement editor did not expose or preserve requirement purposes.");
             }
         }
+        savedExit.UseRequirements!.Add(new InteractionUseRequirement { Kind = "dialogueCompleted", DialogueId = "D_TEST" });
+        using (var dialogueRequirementsEditor = new SurvivalEffectEditorForm(
+            "interaction", savedExit.SurvivalRequirements, new SurvivalEffects(), null,
+            "unlimited", savedExit.UseRequirements, Array.Empty<InteractionItemReward>(),
+            Array.Empty<QuestCatalogEntry>()))
+        {
+            dialogueRequirementsEditor.RunDialogueRequirementSelfTest();
+        }
+        var dialogueRoundTrip = SceneJson.Deserialize(SceneJson.Serialize(roundTrip));
+        SceneJson.Validate(dialogueRoundTrip);
+        foreach (var (typeId, verb) in new[] { ("place", "放置"), ("insert", "投入"), ("deposit", "存入") })
+        {
+            var defaults = InteractionTypeDefaults.Get(typeId);
+            if (defaults.Id != typeId || defaults.Label != verb || defaults.Verb != verb || defaults.DailyLimit is not null)
+                throw new InvalidDataException($"Interaction type {typeId} is not registered correctly.");
+        }
         using var canvas = new EditorCanvas();
         canvas.RunNodeEditingSelfTest(roundTrip);
         Console.WriteLine(

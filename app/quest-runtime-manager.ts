@@ -226,6 +226,7 @@ export type QuestRuntimeEntry = {
 };
 
 export type QuestSaveData = {
+  completedDialogueIds?: string[];
   schemaVersion: 1;
   quests: Record<string, QuestRuntimeEntry>;
   processedEventIds?: string[];
@@ -361,6 +362,10 @@ export class QuestRuntimeManager {
 
   exportSave(): QuestSaveData {
     return structuredClone(this.saveData);
+  }
+
+  hasDialogueCompleted(dialogueId: string): boolean {
+    return !!dialogueId && (this.saveData.completedDialogueIds ?? []).includes(dialogueId);
   }
 
   /**
@@ -531,7 +536,7 @@ export class QuestRuntimeManager {
         const progress = entry.objectives[objective.id];
         if (
           objective.type !== "submitItemAtInteraction" ||
-          objective.targetId !== normalizedInteractionId ||
+          !matchesItemSubmissionTarget(objective, normalizedInteractionId) ||
           !progress ||
           (!progress.completed && !this.isObjectiveActive(entry, progress))
         ) continue;
@@ -848,6 +853,11 @@ export class QuestRuntimeManager {
   }
 
   handleEvent(event: QuestGameEvent): void {
+    if (event.type === "dialogueCompleted" && event.targetId?.trim()) {
+      this.saveData.completedDialogueIds = [...new Set([
+        ...(this.saveData.completedDialogueIds ?? []), event.targetId.trim(),
+      ])];
+    }
     if (event.eventId && this.saveData.processedEventIds?.includes(event.eventId)) return;
     let matchedObjective = false;
     for (const definition of this.definitions.values()) {
@@ -1848,6 +1858,19 @@ function normalizeItemRequirements(
   return [...distinctRequirements.values()];
 }
 
+/** Submission locations are alternatives; retain the legacy single-target fallback. */
+export function matchesItemSubmissionTarget(
+  objective: QuestObjectiveDefinition,
+  interactionId: string,
+): boolean {
+  const id = interactionId.trim();
+  if (!id) return false;
+  const targets = normalizeObjectiveTargetIds(objective);
+  return targets.length > 0
+    ? targets.includes(id)
+    : (objective.targetId ?? "").trim() === id;
+}
+
 export function normalizeObjectiveTargetIds(
   objective: QuestObjectiveDefinition,
 ): string[] {
@@ -1895,6 +1918,12 @@ export function evaluateQuestObjective(
   objective: QuestObjectiveDefinition,
   event: QuestGameEvent,
 ): ObjectiveUpdate | null {
+  if (objective.type === "submitItemAtInteraction") {
+    if (event.type !== "itemSubmitted" || !matchesItemSubmissionTarget(objective, event.targetId)) return null;
+    const requirement = normalizeItemRequirements(objective)[0];
+    if (!requirement || requirement.itemId !== event.itemId) return null;
+    return { mode: "add", amount: event.amount ?? 1 };
+  }
   // An unfinished target setting is not a wildcard. Compound collection uses
   // its own item requirements and is handled separately by handleEvent.
   const targetId = (objective.targetId ?? "").trim();
@@ -1904,12 +1933,6 @@ export function evaluateQuestObjective(
       return event.type === "itemCollected" ? { mode: "add", amount: event.amount ?? 1 } : null;
     case "compoundCollectItem":
       return null;
-    case "submitItemAtInteraction": {
-      if (event.type !== "itemSubmitted") return null;
-      const requirement = normalizeItemRequirements(objective)[0];
-      if (!requirement || requirement.itemId !== event.itemId) return null;
-      return { mode: "add", amount: event.amount ?? 1 };
-    }
     case "haveItem":
       return event.type === "inventoryChanged" ? { mode: "set", amount: event.amount ?? 0 } : null;
     case "interfaceOpened":

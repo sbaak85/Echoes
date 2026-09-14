@@ -55,6 +55,7 @@ type InteractionRequirementScopeField = {
 };
 
 export type InteractionUseRequirement =
+  | (InteractionRequirementScopeField & { kind: "dialogueCompleted"; dialogueId: string })
   | (InteractionRequirementScopeField & { kind: "item"; itemId: string; quantity: number })
   | (InteractionRequirementScopeField & { kind: "campPower"; minimumPower: number })
   | (InteractionRequirementScopeField & { kind: "chapter"; chapter: number })
@@ -235,9 +236,13 @@ export function normalizeInteractionUseRequirements(
   return value.flatMap((raw): InteractionUseRequirement[] => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
     const candidate = raw as Record<string, unknown>;
-    const scope = candidate.scope === "prompt" || candidate.scope === "interaction"
+    const scope: InteractionRequirementScopeField = candidate.scope === "prompt" || candidate.scope === "interaction"
       ? { scope: candidate.scope }
       : {};
+    if (candidate.kind === "dialogueCompleted") {
+      const dialogueId = String(candidate.dialogueId ?? "").trim();
+      return [{ kind: "dialogueCompleted", dialogueId, ...scope }];
+    }
     if (candidate.kind === "chapter") {
       return [{
         kind: "chapter",
@@ -361,10 +366,13 @@ export function getUnmetInteractionUseRequirements(
     questState: InteractionQuestState,
   ) => boolean = () => false,
   currentCampPower: number = 0,
+  hasDialogueCompleted: (dialogueId: string) => boolean = () => false,
 ): UnmetInteractionUseRequirement[] {
   if (!requirements?.length) return [];
   return requirements.flatMap((requirement): UnmetInteractionUseRequirement[] => {
-    const actual = requirement.kind === "chapter"
+    const actual = requirement.kind === "dialogueCompleted"
+      ? requirement.dialogueId.trim() && hasDialogueCompleted(requirement.dialogueId) ? 1 : 0
+      : requirement.kind === "chapter"
       ? Math.max(1, Math.floor(currentChapter))
       : requirement.kind === "campPower"
         ? Math.max(0, Math.floor(currentCampPower))
@@ -379,7 +387,7 @@ export function getUnmetInteractionUseRequirements(
       ? requirement.chapter
       : requirement.kind === "campPower"
         ? requirement.minimumPower
-      : requirement.kind === "quest" ||
+      : requirement.kind === "dialogueCompleted" || requirement.kind === "quest" ||
           requirement.kind === "questState" ||
           requirement.kind === "questStage"
         ? 1

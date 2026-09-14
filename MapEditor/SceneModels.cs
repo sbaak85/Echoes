@@ -380,6 +380,7 @@ public sealed class InteractionItemReward
 
 public sealed class InteractionUseRequirement
 {
+    public string DialogueId { get; set; } = "";
     public string Kind { get; set; } = "item";
     public string Scope { get; set; } = "both";
     public string ItemId { get; set; } = "";
@@ -405,6 +406,7 @@ public sealed class InteractionUseRequirement
 
     public InteractionUseRequirement Clone() => new()
     {
+        DialogueId = DialogueId,
         Kind = Kind,
         Scope = Scope,
         ItemId = ItemId,
@@ -553,7 +555,7 @@ public static class ItemCatalog
         new("T0003", "多功能工具箱"),
         new("T0004", "訊號探測儀"),
         new("T0005", "醫療包"),
-        new("T0006", "照明燈"),
+        new("T0006", "螢光棒"),
         new("T0007", "銲槍工具"),
         new("T0008", "挖掘鏟"),
         new("T0009", "多功能折刀"),
@@ -729,6 +731,9 @@ public sealed record InteractionTypeDefaults(
         new("use", "使用", "使用", new SurvivalEffects(), null),
         new("enter", "進入", "進入", new SurvivalEffects(), null),
         new("leave", "離開", "離開", new SurvivalEffects(), null),
+        new("place", "放置", "放置", new SurvivalEffects(), null),
+        new("insert", "投入", "投入", new SurvivalEffects(), null),
+        new("deposit", "存入", "存入", new SurvivalEffects(), null),
     };
 
     public static InteractionTypeDefaults Get(string? id) =>
@@ -1039,6 +1044,14 @@ public static class SceneJson
                         "interaction" => "interaction",
                         _ => "both",
                     };
+                    if (requirement.Kind.Equals("dialogueCompleted", StringComparison.OrdinalIgnoreCase))
+                    {
+                        requirement.Kind = "dialogueCompleted";
+                        requirement.DialogueId = requirement.DialogueId.Trim();
+                        if (requirement.DialogueId.Length == 0)
+                            throw new InvalidDataException("對話播完條件必須填入對話 ID。");
+                        continue;
+                    }
                     requirement.Kind = requirement.Kind.Equals(
                         "chapter",
                         StringComparison.OrdinalIgnoreCase)
@@ -1598,6 +1611,14 @@ public static class SceneJson
                 "interaction" => "interaction",
                 _ => "both",
             };
+            if (requirement.Kind.Equals("dialogueCompleted", StringComparison.OrdinalIgnoreCase))
+            {
+                requirement.Kind = "dialogueCompleted";
+                requirement.DialogueId = requirement.DialogueId.Trim();
+                if (requirement.DialogueId.Length == 0)
+                    throw new InvalidDataException("對話播完條件必須填入對話 ID。");
+                continue;
+            }
             requirement.Kind = requirement.Kind.Equals(
                 "chapter",
                 StringComparison.OrdinalIgnoreCase)

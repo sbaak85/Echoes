@@ -303,7 +303,7 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
     item: {
       id: "T0006",
       englishName: "lantern",
-      name: "照明燈",
+      name: "螢光棒",
       symbol: "✦",
       category: "tool",
       description: "適合遺跡探索的耐用照明設備。",
