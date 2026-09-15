@@ -19,6 +19,13 @@ const activateFollowUpObjectives = CHAPTER04_START_OBJECTIVE_IDS.map(
 
 export const QUEST_OBJECTIVE_COMPLETION_RULES: readonly QuestObjectiveCompletionRule[] = [
   {
+    id: "chapter04-glow-stick-submitted",
+    questId: "QUEST_CH04_MAIN_001",
+    objectiveIds: ["QUEST_CH04_MAIN_001_OBJ_15"],
+    delaySeconds: 0.5,
+    eventFlowId: "chapter04-glow-stick-follow-up",
+  },
+  {
     id: "chapter04-preparation-complete",
     questId: "QUEST_CH04_MAIN_001",
     objectiveIds: CHAPTER04_START_OBJECTIVE_IDS,
@@ -75,6 +82,16 @@ export const CHAPTER04_SIGNAL_SAMPLES_FLOW: ChapterFlowDefinition = {
 export const QUEST_STAGE_EVENT_FLOWS: Readonly<
   Record<string, ChapterFlowDefinition>
 > = {
+  "chapter04-glow-stick-follow-up": {
+    id: "chapter04-glow-stick-follow-up",
+    chapter: 4,
+    once: true,
+    actions: [
+      { type: "playDialogue", dialogueId: "chapter04-section-5", requireCompleted: true },
+      { type: "wait", durationMs: 1000 },
+      { type: "activateObjective", objectiveId: "QUEST_CH04_MAIN_001_OBJ_16" },
+    ],
+  },
   [CHAPTER04_START_FLOW.id]: CHAPTER04_START_FLOW,
   [CHAPTER04_SIGNAL_SAMPLES_FLOW.id]: CHAPTER04_SIGNAL_SAMPLES_FLOW,
 };

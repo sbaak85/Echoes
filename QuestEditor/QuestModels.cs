@@ -61,6 +61,8 @@ public enum ObjectiveActivationMode
     [Description("事件啟用")] Event,
     [Description("OBJ啟用後啟用")] ObjectiveActivated,
     [Description("OBJ核取後啟用")] ObjectiveCompleted,
+    [Description("對話開始時啟用")] DialogueStarted,
+    [Description("對話播完後啟用")] DialogueCompleted,
 }
 
 [TypeConverter(typeof(LocalizedEnumConverter))]
@@ -402,7 +404,7 @@ public sealed class QuestObjectiveDefinition
     public string DisplayText { get; set; } = "新目標";
 
     [Category("流程"), DisplayName("啟動延遲（秒）")]
-    [Description("所屬階段正式啟動後，再等待指定的現實秒數才顯示並接受此目標判定。0 代表立即啟動。")]
+    [Description("一般模式從階段啟動起算；對話模式從指定腳本開始／完整播完起算，等待指定現實秒數後才真正啟用 OBJ。0 代表觸發後立即啟用。")]
     public double StartDelaySeconds { get; set; }
 
     [Category("流程"), DisplayName("啟動延遲_效果（秒）")]
@@ -418,11 +420,11 @@ public sealed class QuestObjectiveDefinition
     public double CompletionPresentationDelaySeconds { get; set; }
 
     [Category("流程"), DisplayName("啟用方式")]
-    [Description("立即啟用會隨所屬 Stage 顯示；事件啟用等待指定事件；OBJ 模式則等待來源 OBJ 啟用或核取。")]
+    [Description("立即啟用隨 Stage 顯示；事件／OBJ 模式等待指定事件；對話模式填對話腳本 ID，從開始或完整播完時起算啟動延遲，倒數後才真正啟用。")]
     public ObjectiveActivationMode ActivationMode { get; set; } = ObjectiveActivationMode.Immediate;
 
     [Category("流程"), DisplayName("啟用事件 ID／OBJ ID／劇情觸發區")]
-    [Description("事件啟用時填事件 ID；OBJ 模式填來源 OBJ ID；也可在 MapEditor 的劇情觸發區直接勾選要啟用的 OBJ。")]
+    [Description("事件啟用填事件 ID；OBJ 模式填來源 OBJ ID；對話模式直接填對話腳本 ID（例如 chapter04-section-5）。")]
     public string ActivationEventId { get; set; } = "";
 
     [Category("流程"), DisplayName("未解鎖時阻擋階段完成")]

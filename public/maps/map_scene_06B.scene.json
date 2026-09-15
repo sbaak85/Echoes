@@ -2814,7 +2814,7 @@
     },
     {
       "id": "scene6-interaction-018",
-      "label": "\u87A2\u5149\u68D2\u5438\u5F15",
+      "label": "\u8DA8\u5149\u690D\u7269",
       "shape": "polygon",
       "points": [
         {
@@ -2901,9 +2901,14 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "scene6-interaction-018-line-001",
             "speaker": "Sbaak",
-            "text": "..."
+            "text": "\u5728\u9019\u88E1\u653E\u7F6E\u4E00\u500B\u87A2\u5149\u68D2..."
+          },
+          {
+            "lineId": "scene6-interaction-018-line-002",
+            "speaker": "Sbaak",
+            "text": "\u5BE6\u9A57\u770B\u770B\u5149\u6E90\u5C0D\u690D\u7269\u9020\u6210\u7684\u5F71\u97FF\u3002"
           }
         ]
       },
@@ -2915,16 +2920,32 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "scene6-interaction-018-failure-line-001",
             "speaker": "Sbaak",
-            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+            "text": "\u9700\u8981\u4E00\u500B\u87A2\u5149\u68D2\u4F86\u5BE6\u9A57\u770B\u770B\u3002",
+            "randomGroupId": "random-group-2",
+            "weight": 1
+          },
+          {
+            "lineId": "scene6-interaction-018-failure-line-002",
+            "speaker": "Sbaak",
+            "text": "\u8A66\u8457\u653E\u7F6E\u4E00\u500B\u5149\u6E90\u770B\u770B\u3002",
+            "randomGroupId": "random-group-2",
+            "weight": 1
+          },
+          {
+            "lineId": "scene6-interaction-018-failure-line-003",
+            "speaker": "Sbaak",
+            "text": "\u627E\u4E00\u500B\u87A2\u5149\u68D2\u4F86\u8A66\u9A57\u770B\u770B\u3002",
+            "randomGroupId": "random-group-2",
+            "weight": 1
           }
         ]
       }
     },
     {
       "id": "scene6-interaction-019",
-      "label": "\u87A2\u5149\u68D2\u5438\u5F15",
+      "label": "\u8DA8\u5149\u690D\u7269",
       "shape": "polygon",
       "points": [
         {
@@ -3010,9 +3031,23 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "scene6-interaction-019-line-001",
             "speaker": "Sbaak",
-            "text": "..."
+            "text": "\u5C07\u87A2\u5149\u68D2\u64FA\u5728\u9019\u88E1...",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "scene6-interaction-019-line-003",
+            "speaker": "Sbaak",
+            "text": "\u5C07\u9019\u652F\u87A2\u5149\u68D2\u653E\u7F6E\u5728\u9019\u88E1...",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "scene6-interaction-019-line-002",
+            "speaker": "Sbaak",
+            "text": "\u6E2C\u8A66\u770B\u770B\u690D\u7269\u5C0D\u5149\u6E90\u7684\u53CD\u61C9\u3002"
           }
         ]
       },
@@ -3024,9 +3059,18 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "scene6-interaction-019-failure-line-001",
             "speaker": "Sbaak",
-            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+            "text": "\u8981\u653E\u7F6E\u4E00\u500B\u660E\u4EAE\u7684\u5149\u6E90\u624D\u80FD\u77E5\u9053\u6709\u751A\u9EBC\u5F71\u97FF\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "scene6-interaction-019-failure-line-002",
+            "speaker": "Sbaak",
+            "text": "\u9700\u8981\u4E00\u500B\u87A2\u5149\u68D2\u4F86\u5BE6\u9A57\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           }
         ]
       }
@@ -3052,11 +3096,11 @@
         },
         {
           "x": 1110,
-          "y": 775
+          "y": 735
         },
         {
           "x": 705,
-          "y": 775
+          "y": 735
         }
       ],
       "once": true,
@@ -3116,7 +3160,7 @@
     {
       "id": "scene6-item-point-005",
       "label": "ItemPoint 5",
-      "itemId": "R0003",
+      "itemId": "T0006",
       "quantity": 1,
       "spawnPolicy": "once",
       "showOnMinimap": false,

@@ -5022,7 +5022,23 @@
       "type": "interaction",
       "verb": "\u4E92\u52D5",
       "survivalRequirements": {
-        "mode": "all"
+        "mode": "all",
+        "stamina": {
+          "comparison": "atLeast",
+          "value": 20
+        },
+        "hunger": {
+          "comparison": "atLeast",
+          "value": 20
+        },
+        "thirst": {
+          "comparison": "atLeast",
+          "value": 20
+        },
+        "spirit": {
+          "comparison": "atLeast",
+          "value": 40
+        }
       },
       "survivalEffects": {
         "stamina": 0,
@@ -5038,8 +5054,10 @@
           "scope": "both",
           "itemId": "",
           "questId": "QUEST_CH04_MAIN_001",
-          "stageId": "QUEST_CH04_MAIN_001_STAGE_01",
+          "stageId": "QUEST_CH04_MAIN_001_STAGE_03",
           "stageMode": "UnlockUntilCondition",
+          "objectiveId": "QUEST_CH04_MAIN_001_OBJ_17",
+          "objectiveState": "unlocked",
           "disableQuestId": "",
           "disableStageId": "",
           "quantity": 1,

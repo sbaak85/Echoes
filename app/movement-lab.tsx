@@ -7135,6 +7135,16 @@ export function MovementLab() {
       setInventoryPanelOpen(false);
     }
     presentDialogue(request.id, request.context, complete, request.script);
+    const questManager = questRuntimeManagerRef.current;
+    if (questManager) {
+      questGameEventSequenceRef.current += 1;
+      questManager.handleEvent({
+        type: "dialogueStarted",
+        targetId: request.id,
+        eventId: `dialogueStarted:${SCENE_DATA.sceneId}:${request.id}:${questGameEventSequenceRef.current}`,
+      });
+      saveQuestSaveData(questManager.exportSave());
+    }
     return closeDialogue;
   });
   const runAfterDialogueSubtitleEvents = async (dialogueId: string) => {
@@ -16435,7 +16445,9 @@ export function MovementLab() {
         imageSrc:
           questItemSubmissionPrompt.interactable.id === COMMUNICATION_ARRAY_INTERACTION_ID
             ? COMMUNICATION_ARRAY_TARGET_ICON_SRC
-            : undefined,
+            : questItemSubmissionPrompt.interactable.label.trim() === "趨光植物"
+              ? "/ui/items/phototropic-plant.png"
+              : undefined,
       }]
     : [];
   const canConfirmQuestItemSubmission = questItemSubmissionPrompt
@@ -17906,6 +17918,9 @@ export function MovementLab() {
                 ? " quest-item-submission-confirmation"
                 : " is-resonator-refill"
             }`}
+            style={questItemSubmissionPrompt ? {
+              "--submission-item-count": Math.max(1, questItemSubmissionSources.length),
+            } as CSSProperties : undefined}
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="camp-power-confirmation-title"

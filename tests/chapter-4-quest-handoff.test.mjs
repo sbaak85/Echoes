@@ -69,7 +69,8 @@ function harness(save, initialTime = 1000, presentationDelay = 0) {
 }
 
 test("chapter 4 completion rules cover preparation and the three signal samples", () => {
-  assert.deepEqual(QUEST_OBJECTIVE_COMPLETION_RULES, [{
+  assert.deepEqual(QUEST_OBJECTIVE_COMPLETION_RULES.filter(rule =>
+    rule.id === ruleId || rule.id === signalSamplesRuleId), [{
     id: ruleId, questId, objectiveIds: [first, second], delaySeconds: 1.5, eventFlowId: dialogueId,
   }, {
     id: signalSamplesRuleId,

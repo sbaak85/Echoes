@@ -204,7 +204,9 @@ internal static class Program
             throw new InvalidDataException(string.Join(Environment.NewLine, issues));
         var activationModeConverter = TypeDescriptor.GetConverter(typeof(ObjectiveActivationMode));
         if (activationModeConverter.ConvertToString(ObjectiveActivationMode.ObjectiveActivated) != "OBJ啟用後啟用" ||
-            activationModeConverter.ConvertToString(ObjectiveActivationMode.ObjectiveCompleted) != "OBJ核取後啟用")
+            activationModeConverter.ConvertToString(ObjectiveActivationMode.ObjectiveCompleted) != "OBJ核取後啟用" ||
+            activationModeConverter.ConvertToString(ObjectiveActivationMode.DialogueStarted) != "對話開始時啟用" ||
+            activationModeConverter.ConvertToString(ObjectiveActivationMode.DialogueCompleted) != "對話播完後啟用")
             throw new InvalidDataException("OBJ 生命週期啟用方式的中文選項未正確顯示。");
         var dependentObjective = loaded.Quests[0].Stages[0].Objectives[1];
         dependentObjective.ActivationEventId = "QUEST_TEST_OBJ_MISSING";

@@ -63,7 +63,9 @@ export type QuestObjectiveDefinition = {
     | "immediate"
     | "event"
     | "objectiveActivated"
-    | "objectiveCompleted";
+    | "objectiveCompleted"
+    | "dialogueStarted"
+    | "dialogueCompleted";
   activationEventId?: string;
   blocksStageCompletion?: boolean;
   /** Keep this objective hidden and inactive until this dialogue finishes. */
@@ -153,6 +155,7 @@ export type QuestGameEvent = {
     | "puzzleCompleted"
     | "dialogueCompleted"
     | "storyTriggerCompleted"
+    | "dialogueStarted"
     | "objectStateChanged"
     | "dayChanged"
     | "timeChanged"
@@ -181,6 +184,8 @@ export type QuestObjectiveRuntime = {
   activationDefinitionKey?: string;
   /** Event target that actually unlocked this objective. */
   activatedByEventId?: string;
+  dialogueActivationDue?: number;
+  dialogueActivationKey?: string;
   itemAmounts?: Record<string, number>;
   /** Distinct interaction IDs already counted for a multi-target objective. */
   matchedTargetIds?: string[];
@@ -874,10 +879,22 @@ export class QuestRuntimeManager {
       for (const objective of stage.objectives) {
         const progress = entry.objectives[objective.id];
         if (!progress) continue;
-        const legacyDialogueMatch = event.type === "dialogueCompleted" &&
+        const dialogueMode = objective.activationMode === "dialogueStarted" ||
+          objective.activationMode === "dialogueCompleted";
+        if (dialogueMode && !this.isObjectiveUnlocked(progress) &&
+            this.matchesObjectiveActivationEvent(objective, event)) {
+          if (progress.dialogueActivationDue == null) {
+            progress.dialogueActivationDue = this.now() + this.delayMilliseconds(objective.startDelaySeconds);
+            progress.dialogueActivationKey = this.objectiveActivationDefinitionKey(objective);
+            this.scheduleDialogueActivation(definition, entry, stage, objective);
+            this.notify(definition.id);
+          }
+          continue;
+        }
+        const legacyDialogueMatch = !dialogueMode && event.type === "dialogueCompleted" &&
           objective.unlockDialogueId === event.targetId;
         if (!this.isObjectiveUnlocked(progress) &&
-            (this.matchesObjectiveActivationEvent(objective, event) ||
+            (!dialogueMode && this.matchesObjectiveActivationEvent(objective, event) ||
              legacyDialogueMatch)) {
           progress.unlocked = true;
           progress.state = "active";
@@ -1216,6 +1233,10 @@ export class QuestRuntimeManager {
         const progress = entry.objectives[objective.id];
         const activationDefinitionKey = this.objectiveActivationDefinitionKey(objective);
         const previousActivationDefinitionKey = progress.activationDefinitionKey;
+        if (progress.dialogueActivationKey !== activationDefinitionKey) {
+          progress.dialogueActivationDue = undefined;
+          progress.dialogueActivationKey = undefined;
+        }
         const eventActivated = this.isConditionallyActivatedObjective(objective);
         const activationEventId = this.objectiveActivationEventId(objective);
         const hasObjectiveProgress = progress.completed || progress.currentAmount > 0;
@@ -1453,7 +1474,11 @@ export class QuestRuntimeManager {
       return event.type === "objectiveCompleted";
     }
     if (objective.activationMode === "immediate") return false;
-    return event.type !== "objectiveActivated" && event.type !== "objectiveCompleted";
+    if (objective.activationMode === "dialogueStarted" || objective.activationMode === "dialogueCompleted") {
+      return event.type === objective.activationMode;
+    }
+    return event.type !== "objectiveActivated" && event.type !== "objectiveCompleted" &&
+      event.type !== "dialogueStarted";
   }
 
   private hasProcessedActivationEvent(activationEventId: string): boolean {
@@ -1463,6 +1488,29 @@ export class QuestRuntimeManager {
       eventId.includes(`:${activationEventId}:`) ||
       eventId.endsWith(`:${activationEventId}`)
     );
+  }
+
+  private scheduleDialogueActivation(
+    definition: QuestDefinition, entry: QuestRuntimeEntry,
+    stage: QuestStageDefinition, objective: QuestObjectiveDefinition,
+  ) {
+    const progress = entry.objectives[objective.id];
+    const due = progress?.dialogueActivationDue;
+    if (due == null) return;
+    this.scheduleAt(due, () => {
+      if (this.saveData.quests[definition.id] !== entry || entry.state !== "active" ||
+          entry.currentStageId !== stage.id || progress.dialogueActivationDue !== due ||
+          progress.dialogueActivationKey !== this.objectiveActivationDefinitionKey(objective) ||
+          this.isObjectiveUnlocked(progress)) return;
+      progress.dialogueActivationDue = undefined;
+      progress.availableAtEpochMs = due;
+      if (!progress.startActionsPresented) {
+        progress.startActionsPresented = true;
+        this.requestTeleport(objective.startTeleportPointId, objective.startTeleportDelaySeconds,
+          { questId: definition.id, stageId: stage.id, objectiveId: objective.id, phase: "start" });
+      }
+      this.activateObjective(objective.id, this.objectiveActivationEventId(objective));
+    });
   }
 
   private scheduleObjectivePresentationRefresh(questId: string, entry: QuestRuntimeEntry, objectiveId: string) {
@@ -1672,6 +1720,11 @@ export class QuestRuntimeManager {
 
     for (const objective of stage.objectives) {
       const due = entry.objectives[objective.id]?.availableAtEpochMs ?? stageDue;
+      if (objective.activationMode === "dialogueStarted" || objective.activationMode === "dialogueCompleted") {
+        this.scheduleDialogueActivation(definition, entry, stage, objective);
+        this.scheduleObjectivePresentationRefresh(questId, entry, objective.id);
+        continue;
+      }
       this.scheduleObjectivePresentationRefresh(questId, entry, objective.id);
       this.scheduleAt(due, () => {
         const current = this.saveData.quests[questId];

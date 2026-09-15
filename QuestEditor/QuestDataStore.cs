@@ -52,10 +52,11 @@ internal static class QuestDataStore
                      .SelectMany(stage => stage.Objectives))
         {
             if (objective.ActivationMode is ObjectiveActivationMode.ObjectiveActivated or
-                ObjectiveActivationMode.ObjectiveCompleted)
+                ObjectiveActivationMode.ObjectiveCompleted or
+                ObjectiveActivationMode.DialogueStarted or ObjectiveActivationMode.DialogueCompleted)
             {
                 objective.ActivationEventId = objective.ActivationEventId.Trim();
-                // These modes use an Objective ID, never the legacy dialogue gate.
+                // Explicit trigger modes must not inherit the legacy immediate dialogue gate.
                 objective.UnlockDialogueId = "";
                 continue;
             }

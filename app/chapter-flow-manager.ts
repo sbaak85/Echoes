@@ -26,7 +26,7 @@ export type ChapterFlowAction =
       beforeFadeOutCheckpointId?: string;
       afterSubtitleFadeOutCheckpointId?: string;
     }
-  | { type: "playDialogue"; dialogueId: string }
+  | { type: "playDialogue"; dialogueId: string; requireCompleted?: boolean }
   | { type: "startQuest"; questId: string }
   | { type: "activateObjective"; objectiveId: string }
   | { type: "fadeFromBlack"; durationMs: number }
@@ -315,9 +315,14 @@ export class ChapterFlowManager {
             this.host.setBlack(false);
           }
           break;
-        case "playDialogue":
-          await this.host.playDialogue(action.dialogueId);
+        case "playDialogue": {
+          const result = await this.host.playDialogue(action.dialogueId);
+          if (action.requireCompleted && (!result || typeof result !== "object" ||
+              !("completed" in result) || result.completed !== true)) {
+            throw new Error(`Dialogue did not complete: ${action.dialogueId}`);
+          }
           break;
+        }
         case "startQuest":
           await this.host.startQuest?.(action.questId);
           break;
