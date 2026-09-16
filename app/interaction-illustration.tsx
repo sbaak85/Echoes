@@ -1,11 +1,15 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { SignalDetectorIllustration } from "./signal-detector-illustration";
+import { isSignalDetectorIllustration } from "./signal-detector-screens";
 
 export type InteractionIllustration = { enabled: boolean; imagePath: string; withDialogue?: boolean };
-export const INTERACTION_ILLUSTRATION_FADE_MS = 500;
+export const INTERACTION_ILLUSTRATION_FADE_MS = 200;
 type View = { imagePath: string; withDialogue: boolean; closing: boolean };
 
-export function useInteractionIllustration() {
+export function useInteractionIllustration(onSignalDetectorOpen?: () => void) {
+  const onSignalDetectorOpenRef = useRef(onSignalDetectorOpen);
+  onSignalDetectorOpenRef.current = onSignalDetectorOpen;
   const [view, setView] = useState<View | null>(null);
   const controller = useRef<{
     view: View | null; timer: ReturnType<typeof setTimeout> | null;
@@ -20,6 +24,7 @@ export function useInteractionIllustration() {
       state.view = { imagePath, withDialogue, closing: false };
       state.done = new Promise<boolean>(resolve => { state.resolve = resolve; });
       setView(state.view);
+      if (isSignalDetectorIllustration(imagePath)) onSignalDetectorOpenRef.current?.();
       return state.done;
     },
     close() {
@@ -60,35 +65,12 @@ export function useInteractionIllustration() {
 export function InteractionIllustrationOverlay({ view, onClose, onError }: {
   view: View; onClose: () => void; onError: () => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const overlay = ref.current;
-    const shell = overlay?.parentElement;
-    if (!overlay || !shell || !view.withDialogue) return;
-    const update = () => {
-      const dialogue = shell.querySelector(".dialogue-box");
-      if (!dialogue) return;
-      const bottom = shell.getBoundingClientRect().bottom - dialogue.getBoundingClientRect().top + 16;
-      overlay.style.setProperty("--illustration-bottom", `${bottom}px`);
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(shell);
-    const dialogue = shell.querySelector(".dialogue-box");
-    if (dialogue) observer.observe(dialogue);
-    const children = new MutationObserver(() => {
-      const currentDialogue = shell.querySelector(".dialogue-box");
-      if (currentDialogue) observer.observe(currentDialogue);
-      update();
-    });
-    children.observe(shell, { childList: true, subtree: true });
-    window.addEventListener("resize", update);
-    return () => { children.disconnect(); observer.disconnect(); window.removeEventListener("resize", update); };
-  }, [view.withDialogue]);
-  return <div ref={ref} className={`interaction-illustration-overlay${view.closing ? " is-closing" : ""}${view.withDialogue ? " is-with-dialogue" : ""}`}
+  return <div className={`interaction-illustration-overlay${view.closing ? " is-closing" : ""}${view.withDialogue ? " is-with-dialogue" : ""}`}
     role={view.withDialogue ? undefined : "dialog"} aria-modal={view.withDialogue ? undefined : true} aria-label="互動插圖"
     onPointerDown={event => event.stopPropagation()}>
-    <img src={view.imagePath} alt="互動插圖" draggable={false} onError={onError} />
+    {isSignalDetectorIllustration(view.imagePath)
+      ? <SignalDetectorIllustration key={view.imagePath} imagePath={view.imagePath} onError={onError} />
+      : <img src={view.imagePath} alt="互動插圖" draggable={false} onError={onError} />}
     {!view.withDialogue && <button type="button" aria-label="關閉互動插圖" onClick={onClose}>關閉</button>}
   </div>;
 }

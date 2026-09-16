@@ -321,6 +321,7 @@ import {
 } from "./quest-runtime-manager";
 import { recordWeldingToolHintInteractionFailure } from "./welding-objective-hint";
 import { resolveRuntimePublicAssetUrl } from "./public-asset-url";
+import { craftInventoryRecipe } from "./crafting-recipes";
 import {
   buildQuestDebugScenarioPlan,
   isQuestDebugCommand,
@@ -3558,7 +3559,11 @@ function drawMiniMapGeometry(canvas: HTMLCanvasElement) {
 const INITIAL_SURVIVAL_STATE = createInitialSurvivalState();
 
 export function MovementLab() {
-  const interactionIllustration = useInteractionIllustration();
+  const interactionIllustration = useInteractionIllustration(() => {
+    void audioEventManagerRef.current?.play("signalDetectorIllustrationOpened", { restart: true }).catch(() => {
+      // Audio availability must never block the illustration or dialogue flow.
+    });
+  });
   const illustrationController = interactionIllustration.controller;
   const [currentSceneId, setCurrentSceneId] = useState(DEFAULT_SCENE_ID);
   const currentSceneData =
@@ -14666,6 +14671,22 @@ export function MovementLab() {
         }
       } else if (starshipInteractionMenuOpen) {
         gameplayHotbarDpadX = 0;
+        const menuHorizontal = Math.sign(gamepadInput.dpadX || (Math.abs(gamepadInput.stickX) >= 0.65 ? gamepadInput.stickX : 0));
+        if (menuHorizontal === 0) {
+          heldGamepadDpadX = 0;
+          gamepadDpadXRepeatSeconds = 0;
+        } else if (menuHorizontal !== heldGamepadDpadX) {
+          activateStarshipInteractionDirectionalMode();
+          heldGamepadDpadX = menuHorizontal;
+          gamepadDpadXRepeatSeconds = GAMEPAD_MENU_REPEAT_DELAY_SECONDS;
+          starshipInteractionMenuControllerRef.current?.move(menuHorizontal > 0 ? "right" : "left");
+        } else {
+          gamepadDpadXRepeatSeconds -= deltaTime;
+          if (gamepadDpadXRepeatSeconds <= 0) {
+            starshipInteractionMenuControllerRef.current?.move(menuHorizontal > 0 ? "right" : "left");
+            gamepadDpadXRepeatSeconds += GAMEPAD_MENU_REPEAT_INTERVAL_SECONDS;
+          }
+        }
         const menuVertical = Math.sign(
           gamepadInput.dpadY !== 0
             ? gamepadInput.dpadY
@@ -17773,6 +17794,18 @@ export function MovementLab() {
           onControlModeChange={handleStarshipInteractionControlModeChange}
           onInput={playStarshipInteractionInput}
           onSleep={(option) => startStarshipSleepRef.current(option)}
+          inventory={playerInventory}
+          onCraft={(recipeId) => {
+            if (!starshipInteractionMenuOpenRef.current) return { ok: false, reason: "製作介面已關閉" };
+            const result = craftInventoryRecipe(playerInventoryRef.current, recipeId);
+            if (!result.ok) return result;
+            playerInventoryRef.current = result.inventory;
+            setPlayerInventory(result.inventory);
+            try { savePlayerInventory(result.inventory); } catch { /* Keep the in-memory transaction if storage is unavailable. */ }
+            questRuntimeManagerRef.current?.syncCurrentInventory(result.inventory);
+            showPlayerItemGain(ITEM_BY_ID.get(result.itemId)!.name, result.quantity);
+            return { ok: true };
+          }}
           onClose={closeStarshipInteractionMenu}
         />
       ) : null}

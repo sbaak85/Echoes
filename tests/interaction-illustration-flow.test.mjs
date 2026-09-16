@@ -31,7 +31,7 @@ test("all three specified Scene6 interactions reference the available illustrati
   const scene = JSON.parse(readFileSync(new URL("../public/maps/map_scene_06B.scene.json", import.meta.url), "utf8"));
   for (const id of ["scene6-interaction-009", "scene6-interaction-010", "scene6-interaction-011"]) {
     const item = scene.interactables.find(item => item.id === id);
-    assert.deepEqual(item.completionIllustration, { enabled: true, withDialogue: true, imagePath: "/ui/interaction-illustrations/訊號探測儀_B.png" });
+    assert.deepEqual(item.completionIllustration, { enabled: true, withDialogue: true, imagePath: "/ui/interaction-illustrations/訊號探測儀_C.png" });
     assert.ok(existsSync(new URL(`../public${item.completionIllustration.imagePath}`, import.meta.url)));
   }
 });

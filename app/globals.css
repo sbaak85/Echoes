@@ -3550,7 +3550,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   z-index: 39;
   display: grid;
   place-items: center;
-  padding: 24px 24px var(--illustration-bottom, 64px);
+  padding: 0;
   isolation: isolate;
   pointer-events: auto;
   touch-action: manipulation;
@@ -3573,16 +3573,25 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   animation: interaction-illustration-backdrop-in 200ms ease-in reverse both;
 }
 .interaction-illustration-overlay > img,
+.interaction-illustration-overlay > .interaction-illustration-artwork,
 .interaction-illustration-overlay > button {
   animation: inventory-item-inspect-fade-in 500ms ease-out both;
 }
 .interaction-illustration-overlay.is-closing > img,
+.interaction-illustration-overlay.is-closing > .interaction-illustration-artwork,
 .interaction-illustration-overlay.is-closing > button {
-  animation: inventory-item-inspect-fade-out 500ms ease-in both;
+  animation: inventory-item-inspect-fade-out 200ms ease-in both;
 }
-.interaction-illustration-overlay > img {
-  width: 100%; height: 100%; max-width: 900px; min-height: 0;
-  object-fit: contain; pointer-events: none; user-select: none;
+.interaction-illustration-overlay > .interaction-illustration-artwork {
+  position: absolute; inset: 0; pointer-events: none;
+}
+.interaction-illustration-overlay > img,
+.interaction-illustration-artwork > img,
+.interaction-illustration-artwork > canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; max-width: none; min-height: 0;
+  object-fit: contain; object-position: center;
+  pointer-events: none; user-select: none;
 }
 .interaction-illustration-overlay > button {
   position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center;

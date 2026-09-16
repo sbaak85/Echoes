@@ -386,6 +386,9 @@
 .im-craft-empty h2 { margin: 8px 0; color: #e7c9a6; font-size: 19px; font-weight: 650; }
 .im-craft-empty p { margin: 0 0 8px; font-size: 13px; }
 .im-craft-empty small { color: #788c8b; font-size: 11px; }
+.starship-interaction-menu button.im-craft-empty { width:100%;font-family:inherit;cursor:pointer;outline:none; }
+.starship-interaction-menu[data-control-mode="pointer"] button.im-craft-empty:hover,
+.starship-interaction-menu button.im-craft-empty.is-selected { border-color:#bdefff;box-shadow:inset 0 0 18px #79ded522;color:#e7f2ef; }
 
 .im-panel footer {
   display: flex;

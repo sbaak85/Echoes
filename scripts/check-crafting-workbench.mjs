@@ -1,0 +1,81 @@
+import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { createServer } from "vite";
+import react from "@vitejs/plugin-react";
+const require=createRequire(import.meta.url);
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE || "C:/Users/sbaak.fang/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright");
+const root=fileURLToPath(new URL("../",import.meta.url));
+const server=await createServer({configFile:false,root,plugins:[react(),{name:"crafting-harness",configureServer(server){server.middlewares.use(async(req,res,next)=>{
+ if(req.url!=="/")return next();
+ res.setHeader("Content-Type","text/html");res.end(await server.transformIndexHtml("/",'<html><body style="margin:0"><div id="root"></div><script type="module" src="/tests/fixtures/crafting-workbench-harness.tsx"></script></body></html>'));
+});}}],server:{host:"127.0.0.1",port:3022,strictPort:true}});
+await server.listen();
+const browser=await chromium.launch({channel:"msedge",headless:true});
+try{
+ const page=await browser.newPage({viewport:{width:1480,height:870}});
+ const errors=[];page.on("pageerror",error=>errors.push(error.message));
+ await page.goto("http://127.0.0.1:3022/");
+ await page.getByRole("button",{name:/製作道具／食物/}).click();
+ await page.getByRole("button",{name:/製作工作台/}).click();
+ await page.locator(".craft-stage").waitFor();
+ await page.waitForFunction(()=>[...document.images].every(i=>i.complete));
+ assert.deepEqual(await page.locator("img").evaluateAll(imgs=>imgs.filter(i=>!i.naturalWidth).map(i=>i.src)),[]);
+ assert.equal(await page.locator("#craft-prepare").isDisabled(),true);
+ const inventory=await page.evaluate(()=>window.craftingTest.inventory);
+ await page.locator("#craft-auto-fill").click();
+ assert.equal(await page.locator(".requirement.ready").count(),3);
+ assert.deepEqual(await page.evaluate(()=>window.craftingTest.inventory),inventory);
+ await page.locator("#craft-prepare").click();
+ await page.locator("#craft-reset").click();
+ assert.deepEqual(await page.evaluate(()=>window.craftingTest.inventory),inventory);
+ await page.locator("#craft-prepare").click();
+ await page.locator("#craft-prepare").click();
+ assert.equal(await page.locator("#craft-status-title").textContent(),"製作完成");
+ assert.equal(await page.evaluate(()=>window.craftingTest.crafts),1);
+ const result=await page.evaluate(()=>window.craftingTest.inventory);
+ assert.equal(result.R0002,inventory.R0002-3);
+ assert.equal(result.R0001,inventory.R0001-2);
+ assert.equal(result.T0004,(inventory.T0004||0)+1);
+ await page.locator("#craft-reset").click();
+ await page.locator("#craft-auto-fill").click();
+ await page.mouse.move(1,1);
+ await page.screenshot({path:process.env.CRAFTING_SCREENSHOT || path.join(tmpdir(),"echoes-crafting-runtime-check.png")});
+ await page.mouse.click(5,5);
+ // Keyboard navigation is local, and shared gamepad control can navigate/activate.
+ await page.keyboard.press("ArrowRight");
+ assert.equal(await page.locator(".crafting-workbench .nav-focus").count(),1);
+ await page.mouse.move(200,100);assert.equal(await page.locator(".crafting-workbench .nav-focus").count(),0);
+ await page.evaluate(()=>{window.craftingTest.setInput("gamepad");window.craftingTest.control.move("left");});
+ assert.equal(await page.locator(".crafting-workbench .nav-focus").count(),1);
+ await page.evaluate(()=>window.craftingTest.control.setControlMode("cursor"));
+ assert.equal(await page.locator(".crafting-workbench .nav-focus").count(),0);
+ await page.locator("#craft-filter").dispatchEvent("pointerdown",{pointerType:"touch"});
+ assert.equal(await page.locator(".crafting-workbench").getAttribute("data-owner"),"touch");
+ // A recipe off the first scroll viewport remains reachable via directional navigation.
+ await page.locator('[data-craft-nav="recipe-14"]').scrollIntoViewIfNeeded();
+ await page.locator('[data-craft-nav="recipe-14"]').click();
+ await page.keyboard.press("ArrowDown");
+ assert.equal(await page.locator(".nav-focus").getAttribute("data-craft-nav"),"recipe-0");
+ for(const viewport of [{width:1480,height:870},{width:1000,height:700},{width:600,height:900}]){
+   await page.setViewportSize(viewport);
+   await page.waitForFunction(()=>{const e=document.querySelector(".craft-stage");return Math.abs(parseFloat(e.style.getPropertyValue("--scale"))-Math.min(innerWidth/1480,innerHeight/870))<.001;});
+   const stage=await page.locator(".craft-stage").boundingBox(),panel=await page.locator(".panel.recipe").boundingBox(),actions=await page.locator("footer .actions").boundingBox();
+   assert.ok(stage.x>=-1&&stage.y>=-1&&stage.x+stage.width<=viewport.width+1&&stage.y+stage.height<=viewport.height+1);
+   assert.ok(Math.abs(panel.x-actions.x)<1&&Math.abs(panel.width-actions.width)<1);
+ }
+ await page.keyboard.press("Escape");
+ assert.equal(await page.locator(".crafting-workbench").count(),0);
+ assert.equal(await page.getByRole("button",{name:/製作工作台/}).count(),1);
+ await page.evaluate(()=>window.craftingTest.setInventory({R0002:1,R0001:2,T0002:1}));
+ await page.getByRole("button",{name:/製作工作台/}).click();
+ await page.locator("#craft-auto-fill").click();
+ assert.equal(await page.locator(".requirement.ready").count(),1);
+ assert.equal(await page.locator("#craft-prepare").isDisabled(),true);
+ await page.waitForFunction(()=>document.querySelector(".craft-art-fallback"));
+ assert.equal(await page.locator("#craft-inventory > button").count(),3);
+ assert.deepEqual(errors,[]);
+ console.log("PASS: production menu entry, assets, allocation without deduction, cancel, atomic crafting, input handoffs, scroll/wrap, 3 sizes, return.");
+}finally{await browser.close();await server.close();}

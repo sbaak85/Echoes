@@ -130,6 +130,20 @@ export const AUDIO_EVENT_CONFIG = (
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
+    "signalDetectorIllustrationOpened": {
+      "label": "訊號探測儀插圖啟用掃描聲",
+      "trigger": "每次啟用訊號探測儀_C.png 插圖時播放一次；對話換頁、動畫更新與 React 重繪不重播。單次音效自然播完。",
+      "sourceAssetPaths": [
+        "Assets/Audio/掃描聲2.mp3"
+      ],
+      "sources": [
+        "./audio/signal-detector-scan-2.mp3"
+      ],
+      "volume": 0.9,
+      "delaySeconds": 0.2,
+      "fadeInPercent": 10,
+      "fadeOutPercent": 10
+    },
     "chapterEndSavePromptOpened": {
       "label": "章節結束存檔確認視窗展開",
       "trigger": "chapter03-End 字幕淡出完成後，『要手動儲存目前的遊戲進度嗎？』確認視窗由關閉轉為開啟時播放一次；React 重繪期間不重複播放。",
@@ -189,8 +203,12 @@ export const AUDIO_EVENT_CONFIG = (
     "starshipMenuOpened": {
       "label": "飛船互動介面開啟",
       "trigger": "互動對話完成後，飛船互動介面由關閉轉為開啟時播放一次。",
-      "sourceAssetPaths": ["Assets/Audio/飛船互動介面2.mp3"],
-      "sources": ["./audio/starship-menu-open-2.mp3"],
+      "sourceAssetPaths": [
+        "Assets/Audio/飛船互動介面2.mp3"
+      ],
+      "sources": [
+        "./audio/starship-menu-open-2.mp3"
+      ],
       "volume": 1,
       "delaySeconds": 0,
       "fadeInPercent": 0,
@@ -922,7 +940,7 @@ export const AUDIO_EVENT_CONFIG = (
       "label": "任務 OBJ 進度推進",
       "trigger": "需求數量大於 1 且「顯示進度」為 True 的任務 OBJ，在實際進度值增加時播放一次；重複互動、進度倒退、讀檔還原與啟用時同步既有背包數量不播放。",
       "sourceAssetPaths": [
-        "Assets/Audio/進度推進1.mp3"
+        "Assets/Audio/quest-objective-progress-1.mp3"
       ],
       "sources": [
         "./audio/quest-objective-progress-1.mp3"
@@ -950,15 +968,15 @@ export const AUDIO_EVENT_CONFIG = (
       "label": "道具置入快捷工具列",
       "trigger": "玩家從背包的「快捷」指令確認將仍持有的道具指派或取代至快捷工具列時播放一次；選格、取消、道具已不存在或重複確認不播放。",
       "sourceAssetPaths": [
-        "Assets/Audio/置入快捷.mp3"
+        "Assets/Audio/hotbar-item-assigned.mp3"
       ],
       "sources": [
         "./audio/hotbar-item-assigned.mp3"
       ],
-      "volume": 0.5,
+      "volume": 0.7,
       "delaySeconds": 0,
-      "fadeInPercent": 0,
-      "fadeOutPercent": 0
+      "fadeInPercent": 5,
+      "fadeOutPercent": 15
     },
     "generatorStartup1": {
       "label": "發電機成功啟動－第一段",

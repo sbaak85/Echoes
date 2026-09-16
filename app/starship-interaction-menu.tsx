@@ -10,9 +10,11 @@ import {
   type CSSProperties,
 } from "react";
 import { GamepadButtonIcon } from "./gamepad-button-icon";
+import { CraftingWorkbench } from "./crafting-workbench";
+import type { PlayerInventory } from "./item-database";
 import "./starship-interaction-menu.css";
 
-type View = "main" | "sleep" | "craft" | "repair";
+type View = "main" | "sleep" | "craft" | "repair" | "workbench";
 type InputMode = "keyboard-mouse" | "gamepad" | "mobile";
 type NavigationDirection = "left" | "right" | "up" | "down";
 export type StarshipSleepOption = "eight-hours" | "tomorrow-six";
@@ -49,6 +51,8 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   onInput: () => void;
   onSleep: (option: StarshipSleepOption) => void;
   onClose: () => void;
+  inventory: PlayerInventory;
+  onCraft: (recipeId: string) => { ok: boolean; reason?: string };
 }>(function StarshipInteractionMenu({
   inputMode,
   onInputModeChange,
@@ -56,6 +60,8 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   onInput,
   onSleep,
   onClose,
+  inventory,
+  onCraft,
 }, forwardedRef) {
   const [view, setView] = useState<View>("main");
   const [selected, setSelected] = useState(0);
@@ -64,6 +70,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
     inputMode === "gamepad" ? "directional" : inputMode === "mobile" ? "touch" : "pointer",
   );
   const panelRef = useRef<HTMLElement>(null);
+  const workbenchRef = useRef<StarshipInteractionMenuController>(null);
   const mainSelectionRef = useRef(0);
   const entrySelectionRef = useRef(0);
   const getButtons = useCallback(() => Array.from(
@@ -71,7 +78,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   ), []);
   const changeView = useCallback((next: View) => {
     if (next !== "main") {
-      mainSelectionRef.current = next === "sleep" ? 0 : next === "craft" ? 1 : 2;
+      mainSelectionRef.current = next === "sleep" ? 0 : next === "craft" || next === "workbench" ? 1 : 2;
     }
     const nextSelection = next === "main" ? mainSelectionRef.current : 0;
     entrySelectionRef.current = nextSelection;
@@ -165,18 +172,19 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   }, [onInput, selected]);
 
   useImperativeHandle(forwardedRef, () => ({
-    move: moveSpatially,
-    hover: hoverFromVirtualCursor,
-    activate: activateSelected,
-    back: () => back(),
-    setControlMode,
-  }), [activateSelected, back, hoverFromVirtualCursor, moveSpatially, setControlMode]);
+    move: direction => view === "workbench" ? workbenchRef.current?.move(direction) : moveSpatially(direction),
+    hover: index => view === "workbench" ? workbenchRef.current?.hover(index) : hoverFromVirtualCursor(index),
+    activate: () => view === "workbench" ? workbenchRef.current?.activate() : activateSelected(),
+    back: () => view === "workbench" ? workbenchRef.current?.back() : back(),
+    setControlMode: mode => view === "workbench" ? workbenchRef.current?.setControlMode(mode) : setControlMode(mode),
+  }), [activateSelected, back, hoverFromVirtualCursor, moveSpatially, setControlMode, view]);
 
   useEffect(() => {
     getButtons()[entrySelectionRef.current]?.focus({ preventScroll: true });
   }, [getButtons, view]);
 
   useEffect(() => {
+    if (view === "workbench") return;
     const onKeyDown = (event: KeyboardEvent) => {
       onInputModeChange("keyboard-mouse");
       const directions: Partial<Record<string, NavigationDirection>> = {
@@ -194,11 +202,11 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
         event.preventDefault();
         event.stopImmediatePropagation();
         setControlMode("directional");
-        activateSelected();
+        if (!event.repeat) activateSelected();
       } else if (event.key === "Escape") {
         event.preventDefault();
         event.stopImmediatePropagation();
-        back();
+        if (!event.repeat) back();
       }
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
@@ -258,6 +266,10 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
       : selected === 3
         ? "離開伊薩卡號"
         : "飛船休息艙";
+  if (view === "workbench") return <CraftingWorkbench ref={workbenchRef}
+    inventory={inventory} inputMode={inputMode} controlMode={controlMode}
+    onControlModeChange={setControlMode} onInputModeChange={onInputModeChange}
+    onInput={onInput} onCraft={onCraft} onBack={() => changeView("craft")} />;
   return (
     <div
       className="im-stage starship-interaction-menu"
@@ -301,12 +313,12 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
             {row(1, IMAGES.sleep.card, "睡到明天 06 點", "休息至明天清晨 06:00", () => onSleep("tomorrow-six"))}
           </> : null}
           {view === "craft" ? <>
-            <div className="im-craft-empty"><span aria-hidden="true">⚒</span><h2>製作工作台</h2><p>道具的配方將在這裡顯示。</p><small>配方與製作功能尚未接入</small></div>
+            <button type="button" data-starship-menu-index={0} className={`im-craft-empty ${((controlMode === "directional" && selected === 0) || (controlMode === "cursor" && cursorHover === 0)) ? "is-selected" : ""}`} onFocus={() => setSelected(0)} onClick={() => activate(() => changeView("workbench"))}><span aria-hidden="true">⚒</span><h2>製作工作台</h2><p>選擇配方、投入素材，製作道具與補給。</p><small>開啟道具合成系統</small></button>
             <div className="im-craft-empty"><span aria-hidden="true">♨</span><h2>料理工作台</h2><p>食物與飲品的配方將在這裡顯示。</p><small>配方與料理功能尚未接入</small></div>
           </> : null}
           {view === "repair" ? <div className="im-craft-empty"><span>🔧</span><h2>飛船維修台</h2><p>受損系統與艙體的維修項目將在這裡顯示。</p><small>維修功能尚未接入</small></div> : null}
         </div>
-        {view !== "main" ? <button type="button" data-starship-menu-index={view === "sleep" ? 2 : 0} className={`im-back ${((controlMode === "directional" && selected === (view === "sleep" ? 2 : 0)) || (controlMode === "cursor" && cursorHover === (view === "sleep" ? 2 : 0))) ? "is-selected" : ""}`} onFocus={() => setSelected(view === "sleep" ? 2 : 0)} onClick={() => back()}><span>↶</span>返回功能選單</button> : null}
+        {view !== "main" ? <button type="button" data-starship-menu-index={view === "sleep" ? 2 : view === "craft" ? 1 : 0} className={`im-back ${((controlMode === "directional" && selected === (view === "sleep" ? 2 : view === "craft" ? 1 : 0)) || (controlMode === "cursor" && cursorHover === (view === "sleep" ? 2 : view === "craft" ? 1 : 0))) ? "is-selected" : ""}`} onFocus={() => setSelected(view === "sleep" ? 2 : view === "craft" ? 1 : 0)} onClick={() => back()}><span>↶</span>返回功能選單</button> : null}
         <footer>{inputMode === "gamepad"
           ? <><span><GamepadButtonIcon button="DPad" /><b className="im-glyph-slash">/</b><GamepadButtonIcon button="LS" />選擇</span><span><GamepadButtonIcon button="A" />確認</span><span><GamepadButtonIcon button="B" />返回</span></>
           : inputMode === "mobile"
