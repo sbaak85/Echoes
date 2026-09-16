@@ -5511,7 +5511,7 @@
         {
           "dialogueId": "",
           "kind": "item",
-          "scope": "both",
+          "scope": "interaction",
           "itemId": "T0001",
           "questId": "",
           "stageId": "",

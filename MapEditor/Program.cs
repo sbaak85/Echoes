@@ -115,7 +115,14 @@ internal static class Program
                         Delivery = "world",
                     },
                 },
-                QuestCatalog.Load(projectRoot))
+                QuestCatalog.Load(projectRoot),
+                showCompletionTeleportOption: true,
+                completionIllustration: new InteractionIllustration
+                {
+                    Enabled = true,
+                    ImagePath = "/ui/interaction-illustrations/訊號探測儀_B.png",
+                    WithDialogue = true,
+                })
             {
                 ShowInTaskbar = false,
                 WindowState = FormWindowState.Minimized,
@@ -241,6 +248,9 @@ internal static class Program
                             Path.Combine(projectRoot, "public", "maps", "map_test01.scene.json")));
                     }
                     requirementsEditor.Show();
+                    if (requirementsEditor.CompletionIllustration is not
+                        { Enabled: true, WithDialogue: true, ImagePath: "/ui/interaction-illustrations/訊號探測儀_B.png" })
+                        throw new InvalidDataException("互動插圖設定未正確載入完成效果編輯器。");
                     System.Windows.Forms.Application.DoEvents();
                     requirementsEditor.Close();
                     itemPointSpawnRequirementEditor.Show();

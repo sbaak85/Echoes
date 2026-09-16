@@ -1,5 +1,7 @@
 "use client";
 import { createTouchJoystickView } from "./touch-joystick-view";
+import { useInteractionIllustration, InteractionIllustrationOverlay, type InteractionIllustration } from "./interaction-illustration";
+import { runInteractionIllustrationFlow } from "./interaction-illustration-flow";
 import { isQuestObjectiveVisible, isQuestObjectiveCheckmarkVisible } from "./quest-hud-timing";
 import { canShareMobileHudSpace, changeMobileHudMode, cycleMobileHudMode, type MobileHudPanelMode } from "./mobile-hud-layout";
 
@@ -519,6 +521,7 @@ type SceneInteractable = {
   allowAttemptWhenRequirementsUnmet?: boolean;
   completionTeleportPointId?: string;
   completionTeleportDelaySeconds?: number;
+  completionIllustration?: InteractionIllustration;
   itemId?: string;
   quantity?: number;
   worldItemId?: string;
@@ -1783,6 +1786,10 @@ const INVENTORY_ITEM_ARTWORK_PREVIEWS: Readonly<
   R0019: {
     iconPath: uiAssetUrl("items/韌化藤皮-icon-280.png"),
     inspectPath: uiAssetUrl("items/韌化藤皮-inspect-640.png"),
+  },
+  R0020: {
+    iconPath: uiAssetUrl("items/螢光包囊-icon-280.png"),
+    inspectPath: uiAssetUrl("items/螢光包囊-inspect-640.png"),
   },
   R0022: {
     iconPath: uiAssetUrl("items/熱熔陶片-icon-280.png"),
@@ -3551,6 +3558,8 @@ function drawMiniMapGeometry(canvas: HTMLCanvasElement) {
 const INITIAL_SURVIVAL_STATE = createInitialSurvivalState();
 
 export function MovementLab() {
+  const interactionIllustration = useInteractionIllustration();
+  const illustrationController = interactionIllustration.controller;
   const [currentSceneId, setCurrentSceneId] = useState(DEFAULT_SCENE_ID);
   const currentSceneData =
     SCENE_REGISTRY.get(currentSceneId) ?? SCENE_REGISTRY.get(DEFAULT_SCENE_ID)!;
@@ -7217,16 +7226,36 @@ export function MovementLab() {
     }, Math.max(0, delayMilliseconds));
   };
 
+  const presentInteractionIllustration = (
+    interactable: SceneInteractable,
+    play: (() => Promise<{ completed: boolean }>) | null,
+    complete: () => void,
+  ) => {
+    const config = interactable.completionIllustration;
+    if (!config?.enabled || !config.imagePath?.trim()) return false;
+    void runInteractionIllustrationFlow(config.withDialogue === true, play, {
+      open: (concurrent) => illustrationController.open(resolveRuntimePublicAssetUrl(config.imagePath.replace(/^\/+/, "")), concurrent),
+      close: () => illustrationController.close(),
+      cancel: () => illustrationController.cancel(),
+    }, complete).catch(error => console.error("[Interaction illustration]", error));
+    return true;
+  };
+
   const openDialogue = (
     interactable: SceneInteractable,
     onComplete?: () => void,
     dialogue: InteractionDialogueScript | null | undefined = interactable.dialogue,
-  ) => dialogueManager.playUnique(
+  ) => {
+    if (dialogue === interactable.dialogue && presentInteractionIllustration(interactable,
+      () => dialogueManager.playUnique(`interaction:${interactable.id}`, dialogue ?? { lines: [] }, interactable),
+      () => onComplete?.())) return;
+    return dialogueManager.playUnique(
     `interaction:${interactable.id}`,
     dialogue ?? { lines: [{ speaker: "", text: "..." }] },
     interactable,
     onComplete,
-  );
+    );
+  };
 
   const advanceDialogue = () => {
     if (dialogueHistoryOpenRef.current) return true;
@@ -9914,6 +9943,7 @@ export function MovementLab() {
     resize();
 
     const isWorldInteractionBlockedByUi = () =>
+      illustrationController.isOpen ||
       Boolean(quickAssignRef.current) ||
       storyInputLockedRef.current ||
       newPlayerTutorialOpenRef.current ||
@@ -9936,6 +9966,7 @@ export function MovementLab() {
       Boolean(survivalStateRef.current.gameOverReason);
 
     const canUseQuestSkipHotkey = () =>
+      !illustrationController.isOpen &&
       !timePassInputLockedRef.current &&
       !storyInputLockedRef.current &&
       !newPlayerTutorialOpenRef.current &&
@@ -10032,6 +10063,13 @@ export function MovementLab() {
             key === keyboardInteractionKey)
         ) {
           closeInventoryItemInspect();
+        }
+        return;
+      }
+      if (illustrationController.isOpen && !dialoguePlaybackRef.current) {
+        event.preventDefault();
+        if (!event.repeat && ["escape", "enter", " ", keyboardInteractionKey].includes(key)) {
+          void illustrationController.close();
         }
         return;
       }
@@ -11824,6 +11862,9 @@ export function MovementLab() {
       if (interactable.storyDialogueId) {
         const storyDialogue = dialogueManager.get(interactable.storyDialogueId);
         if (storyDialogue) {
+          if (presentInteractionIllustration(interactable,
+            () => dialogueManager.playRegistered(interactable.storyDialogueId!, interactable),
+            completeTriggeredInteraction)) return true;
           void dialogueManager.playRegistered(
             interactable.storyDialogueId,
             interactable,
@@ -11846,6 +11887,7 @@ export function MovementLab() {
         return true;
       }
 
+      if (presentInteractionIllustration(interactable, null, completeTriggeredInteraction)) return true;
       return completeTriggeredInteraction();
     };
 
@@ -14604,6 +14646,11 @@ export function MovementLab() {
           if (quickAssignCursorRef.current) activateVirtualCursorUi();
           else confirmQuickAssign();
         }
+      } else if (illustrationController.isOpen && !dialoguePlaybackRef.current) {
+        gameplayHotbarDpadX = 0;
+        if (backJustPressed || (gamepadInput.confirmPressed && !wasGamepadConfirmPressed)) {
+          void illustrationController.close();
+        }
       } else if (inventoryItemInspectMenuOpen) {
         gameplayHotbarDpadX = 0;
         heldGamepadDpadX = 0;
@@ -15282,6 +15329,7 @@ export function MovementLab() {
       );
       if (
         quickAssignRef.current ||
+        illustrationController.isOpen ||
         storyInputLockedRef.current ||
         newPlayerTutorialOpenRef.current ||
         timePassInputLockedRef.current ||
@@ -16565,6 +16613,7 @@ export function MovementLab() {
       />
       <main
         ref={gameShellRef}
+        data-interaction-illustration={interactionIllustration.view ? "open" : undefined}
         data-mobile-hud-shared-space={mobileHudCanShare ? "true" : "false"}
         className={`game-shell${stageFullscreen ? " is-fullscreen" : ""}${storyFlowActive ? " is-story-flow" : ""}${storyFlowPaused ? " is-story-flow-paused" : ""}${storyInputLocked ? " is-story-input-locked" : ""}${newPlayerTutorialStep ? " is-new-player-tutorial" : ""}${survivalDeathWarning ? " is-death-imminent" : ""}`}
         onClickCapture={handleGameShellClickCapture}
@@ -16574,6 +16623,8 @@ export function MovementLab() {
         onContextMenuCapture={handleUiInputContextMenuCapture}
       >
       <span className="mobile-hud-space-probe" aria-hidden="true" />
+      {interactionIllustration.view && <InteractionIllustrationOverlay view={interactionIllustration.view}
+        onClose={() => { void illustrationController.close(); }} onError={() => illustrationController.cancel()} />}
       <canvas
         ref={canvasRef}
         className={`game-canvas${virtualCursorControlsEnabled ? "" : " physical-cursor-enabled"}`}

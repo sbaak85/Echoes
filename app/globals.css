@@ -3544,6 +3544,55 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   animation: inventory-item-inspect-fade-in 200ms ease-out both;
 }
 
+.interaction-illustration-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 39;
+  display: grid;
+  place-items: center;
+  padding: 24px 24px var(--illustration-bottom, 64px);
+  isolation: isolate;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+.interaction-illustration-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(0, 0, 0, .8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: interaction-illustration-backdrop-in 200ms ease-out both;
+}
+@keyframes interaction-illustration-backdrop-in {
+  from { background: rgba(0, 0, 0, 0); backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); }
+  to { background: rgba(0, 0, 0, .8); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+}
+.interaction-illustration-overlay.is-closing::before {
+  animation: interaction-illustration-backdrop-in 200ms ease-in reverse both;
+}
+.interaction-illustration-overlay > img,
+.interaction-illustration-overlay > button {
+  animation: inventory-item-inspect-fade-in 500ms ease-out both;
+}
+.interaction-illustration-overlay.is-closing > img,
+.interaction-illustration-overlay.is-closing > button {
+  animation: inventory-item-inspect-fade-out 500ms ease-in both;
+}
+.interaction-illustration-overlay > img {
+  width: 100%; height: 100%; max-width: 900px; min-height: 0;
+  object-fit: contain; pointer-events: none; user-select: none;
+}
+.interaction-illustration-overlay > button {
+  position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center;
+  padding: 24px; background: transparent; color: #d9c694; border: 0;
+  outline: none; box-shadow: none; cursor: zoom-out; -webkit-tap-highlight-color: transparent;
+}
+.interaction-illustration-overlay > button:focus-visible { outline: none; box-shadow: none; }
+.game-shell[data-interaction-illustration="open"] .dialogue-box { z-index: 40; }
+.game-shell[data-interaction-illustration="open"] .dialogue-box.is-history-open { z-index: 97; }
+
 .inventory-item-inspect-overlay:hover:where(:root:not([data-cursor-owner]) *, :root[data-cursor-owner="mouse"] *),
 .inventory-item-inspect-overlay:focus,
 .inventory-item-inspect-overlay:focus-visible,

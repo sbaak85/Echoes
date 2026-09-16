@@ -4,6 +4,15 @@ namespace Echoes.MapEditor;
 
 public sealed class SurvivalEffectEditorForm : Form
 {
+    private readonly CheckBox _illustrationEnabled = new() { Text = "互動成功後顯示插圖", AutoSize = true };
+    private readonly CheckBox _illustrationWithDialogue = new() { Text = "與「可互動時對話」同時顯示", AutoSize = true };
+    private readonly TextBox _illustrationPath = new() { ReadOnly = true };
+    public InteractionIllustration? CompletionIllustration => string.IsNullOrWhiteSpace(_illustrationPath.Text) ? null : new()
+    {
+        Enabled = _illustrationEnabled.Checked,
+        ImagePath = _illustrationPath.Text,
+        WithDialogue = _illustrationWithDialogue.Checked,
+    };
     private sealed record TeleportPointChoice(string Id, string Label)
     {
         public override string ToString() => Label;
@@ -259,7 +268,8 @@ public sealed class SurvivalEffectEditorForm : Form
         bool showCompletionTeleportOption = false,
         bool showEffectsPage = true,
         IEnumerable<QuestObjectiveCatalogEntry>? objectives = null,
-        IEnumerable<string>? activateObjectiveIds = null)
+        IEnumerable<string>? activateObjectiveIds = null,
+        InteractionIllustration? completionIllustration = null)
     {
         SuspendLayout();
         SetStyle(
@@ -370,7 +380,8 @@ public sealed class SurvivalEffectEditorForm : Form
                 teleportPoints?.ToArray() ?? Array.Empty<SceneTeleportPoint>(),
                 completionTeleportPointId,
                 completionTeleportDelaySeconds,
-                showCompletionTeleportOption);
+                showCompletionTeleportOption,
+                completionIllustration);
         }
         if (questStartPage is not null)
         {
@@ -385,6 +396,14 @@ public sealed class SurvivalEffectEditorForm : Form
         Controls.Add(cancelButton);
         var saveButton = CreateButton("儲存", 416, 710, 86, 34);
         saveButton.DialogResult = DialogResult.OK;
+        saveButton.Click += (_, _) =>
+        {
+            if (_illustrationEnabled.Checked && string.IsNullOrWhiteSpace(_illustrationPath.Text))
+            {
+                DialogResult = DialogResult.None;
+                MessageBox.Show(this, "請先選擇要顯示的插圖。", "互動插圖");
+            }
+        };
         Controls.Add(saveButton);
         AcceptButton = saveButton;
         CancelButton = cancelButton;
@@ -822,7 +841,8 @@ public sealed class SurvivalEffectEditorForm : Form
         IReadOnlyCollection<SceneTeleportPoint> teleportPoints,
         string? completionTeleportPointId,
         float completionTeleportDelaySeconds,
-        bool showCompletionTeleportOption)
+        bool showCompletionTeleportOption,
+        InteractionIllustration? completionIllustration)
     {
         var explanation = new Label
         {
@@ -961,6 +981,50 @@ public sealed class SurvivalEffectEditorForm : Form
                     _completionTeleportPoint.SelectedIndex > 0;
             page.Controls.Add(_completionTeleportDelay);
             nextSectionTop = 498;
+        }
+
+        if (showCompletionTeleportOption)
+        {
+            _illustrationEnabled.Checked = completionIllustration?.Enabled == true;
+            _illustrationWithDialogue.Checked = completionIllustration?.WithDialogue == true;
+            _illustrationPath.Text = completionIllustration?.ImagePath ?? "";
+            _illustrationEnabled.SetBounds(18, nextSectionTop, 390, 28);
+            _illustrationPath.SetBounds(18, nextSectionTop + 32, 310, 28);
+            var browse = CreateButton("選擇圖片", 334, nextSectionTop + 32, 90, 28);
+            _illustrationWithDialogue.SetBounds(18, nextSectionTop + 66, 400, 28);
+            var hint = new Label { Text = "對話後查看或同步整段。插圖 0.5 秒；背景 0.2 秒。", AutoSize = true };
+            hint.SetBounds(18, nextSectionTop + 96, 410, 26);
+            void RefreshIllustrationControls()
+            {
+                browse.Enabled = _illustrationPath.Enabled = _illustrationWithDialogue.Enabled = _illustrationEnabled.Checked;
+            }
+            _illustrationEnabled.CheckedChanged += (_, _) => RefreshIllustrationControls();
+            browse.Click += (_, _) =>
+            {
+                using var dialog = new OpenFileDialog { Filter = "圖片|*.png;*.jpg;*.jpeg;*.webp", CheckFileExists = true };
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                try
+                {
+                    var root = ProjectPaths.FindProjectRoot(AppContext.BaseDirectory)
+                        ?? throw new InvalidOperationException("找不到專案根目錄。");
+                    var publicRoot = Path.GetFullPath(Path.Combine(root, "public")) + Path.DirectorySeparatorChar;
+                    var source = Path.GetFullPath(dialog.FileName);
+                    if (!source.StartsWith(publicRoot, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var folder = Path.Combine(publicRoot, "ui", "interaction-illustrations");
+                        Directory.CreateDirectory(folder);
+                        var target = Path.Combine(folder, Path.GetFileName(source));
+                        if (File.Exists(target)) target = Path.Combine(folder, $"{Path.GetFileNameWithoutExtension(source)}-{Guid.NewGuid():N}{Path.GetExtension(source)}");
+                        File.Copy(source, target);
+                        source = target;
+                    }
+                    _illustrationPath.Text = "/" + Path.GetRelativePath(publicRoot, source).Replace('\\', '/');
+                }
+                catch (Exception error) { MessageBox.Show(this, error.Message, "圖片匯入失敗"); }
+            };
+            RefreshIllustrationControls();
+            page.Controls.AddRange(new Control[] { _illustrationEnabled, _illustrationPath, browse, _illustrationWithDialogue, hint });
+            nextSectionTop += 132;
         }
 
         var defaultsButton = CreateButton(

@@ -191,6 +191,9 @@ public sealed class SceneInteractable : ITriggerConfiguration
     public float CompletionTeleportDelaySeconds { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public InteractionIllustration? CompletionIllustration { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<InteractionPoint>? InteractionPoints { get; set; }
 
     // Legacy schema support. Validation migrates this single point into
@@ -298,6 +301,14 @@ public sealed class ItemPointSpawnRequirement
         StageId = StageId,
         StageMode = StageMode,
     };
+}
+
+public sealed class InteractionIllustration
+{
+    public bool Enabled { get; set; }
+    public string ImagePath { get; set; } = "";
+    public bool WithDialogue { get; set; }
+    public InteractionIllustration Clone() => new() { Enabled = Enabled, ImagePath = ImagePath, WithDialogue = WithDialogue };
 }
 
 public sealed class SurvivalEffects

@@ -2266,6 +2266,7 @@ public sealed class MainForm : Form
                 completionTeleportDelaySeconds:
                     selectedInteractable.CompletionTeleportDelaySeconds,
                 showCompletionTeleportOption: true,
+                completionIllustration: selectedInteractable.CompletionIllustration,
                 objectives: objectives);
             if (editor.ShowDialog(this) != DialogResult.OK) return;
             _canvas.UpdateSelectedInteractionConfiguration(
@@ -2279,7 +2280,8 @@ public sealed class MainForm : Form
                 editor.ItemRewards,
                 editor.AllowAttemptWhenRequirementsUnmet,
                 editor.CompletionTeleportPointId,
-                editor.CompletionTeleportDelaySeconds);
+                editor.CompletionTeleportDelaySeconds,
+                editor.CompletionIllustration);
         }
         finally
         {

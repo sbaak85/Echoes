@@ -897,7 +897,8 @@ public sealed class EditorCanvas : Control
         IEnumerable<InteractionItemReward> itemRewards,
         bool allowAttemptWhenRequirementsUnmet,
         string? completionTeleportPointId,
-        float completionTeleportDelaySeconds)
+        float completionTeleportDelaySeconds,
+        InteractionIllustration? completionIllustration = null)
     {
         var interactable = SelectedInteractable;
         if (interactable is null) return;
@@ -943,6 +944,7 @@ public sealed class EditorCanvas : Control
                 : rewardList;
             interactable.ItemReward = null;
             interactable.CompletionTeleportPointId = completionTeleportPointId;
+            interactable.CompletionIllustration = completionIllustration?.Clone();
             interactable.CompletionTeleportDelaySeconds =
                 completionTeleportPointId is null
                     ? 0
