@@ -1671,7 +1671,7 @@
       "description": "",
       "chapterId": "CH04",
       "type": "main",
-      "grantMethod": "automatic",
+      "grantMethod": "afterDialogue",
       "grantSourceId": "",
       "grantCondition": "",
       "prerequisiteQuestIds": [],
