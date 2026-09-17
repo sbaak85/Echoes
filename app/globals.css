@@ -5426,18 +5426,28 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   width: min(clamp(450px, calc(330px + var(--submission-item-count, 3) * 120px), 690px), calc(100% - 24px));
 }
 
-/* Balanced submission: equal side regions keep the arrow on the panel center. */
+/* Center the complete conversion row, with bounded gaps around the arrow. */
 .quest-item-submission-confirmation .quest-item-submission-visualization {
-  grid-template-columns: minmax(0, 1fr) clamp(36px, 9vw, 82px) minmax(0, 1fr);
-  gap: clamp(6px, 1.5vw, 12px);
+  grid-template-columns: minmax(0, max-content) clamp(36px, 9vw, 82px) minmax(0, max-content);
+  justify-content: center;
+  gap: clamp(10px, 3vw, 32px);
+}
+.quest-item-submission-confirmation .quest-item-submission-visualization .item-change-visual-arrow {
+  width: min(100%, 82px);
+  justify-self: center;
 }
 .quest-item-submission-confirmation .quest-item-submission-visualization .item-change-visual-group {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
 }
 .quest-item-submission-confirmation .quest-item-submission-visualization .item-change-visual-group.is-source .item-change-visual-card {
   flex: 0 1 82px;
   width: 82px;
+}
+.quest-item-submission-confirmation .quest-item-submission-visualization .item-change-visual-group.is-source .item-change-visual-icon {
+  width: min(68px, 100%);
+  height: auto;
+  aspect-ratio: 1;
 }
 .quest-item-submission-confirmation .quest-item-submission-visualization .item-change-visual-group.is-target .item-change-visual-icon {
   width: 68px;
@@ -5726,12 +5736,26 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   text-overflow: clip;
 }
 
-.item-use-change-visualization .item-change-visual-arrow::before {
-  background: #f0e7ce;
+.item-use-change-visualization .item-change-visual-arrow::before,
+.quest-item-submission-visualization .item-change-visual-arrow::before {
+  inset: 0;
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+  clip-path: polygon(3% 12.5%,21% 50%,3% 87.5%,3% 12.5%,41% 12.5%,59% 50%,41% 87.5%,41% 12.5%,79% 12.5%,97% 50%,79% 87.5%,79% 12.5%,3% 12.5%);
+  background: linear-gradient(90deg,rgba(240,231,206,.32) 0%,rgba(240,231,206,.32) 35%,#fff4cc 50%,rgba(240,231,206,.32) 65%,rgba(240,231,206,.32) 100%);
+  background-size: 300% 100%;
+  animation: item-use-arrow-sweep 1.2s linear infinite;
 }
 
-.item-use-change-visualization .item-change-visual-arrow::after {
-  border-left-color: #f0e7ce;
+.item-use-change-visualization .item-change-visual-arrow::after,
+.quest-item-submission-visualization .item-change-visual-arrow::after {
+  display: none;
+}
+
+@keyframes item-use-arrow-sweep {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
 }
 
 @media (max-width: 620px) {
