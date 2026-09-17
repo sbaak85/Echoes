@@ -91,10 +91,7 @@
   color:#fff4d5;box-shadow:inset 0 0 18px #f8c66455;
 }
 .crafting-workbench footer .actions #craft-prepare:disabled{--action-glow:rgba(99,191,216,.08);--action-edge:#304753;color:#667b86;opacity:1}
-.crafting-workbench .inventory-grid .item:is(.is-needed,.is-added):after{
-  /* Two-pixel ring, preserving the original four-pixel corner silhouette. */
-  clip-path:polygon(evenodd,4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px),0 4px,4px 0,4.828px 2px,2px 4.828px,2px calc(100% - 4.828px),4.828px calc(100% - 2px),calc(100% - 4.828px) calc(100% - 2px),calc(100% - 2px) calc(100% - 4.828px),calc(100% - 2px) 4.828px,calc(100% - 4.828px) 2px,4.828px 2px,4px 0);
-}
+.crafting-workbench .inventory-grid .item.is-added:after{clip-path:var(--cell-ring)}
 .crafting-workbench .inventory-grid .item.is-added:before{
   top:6px;right:6px;width:28px;height:28px;display:grid;place-items:center;
   font-size:23px;line-height:1;font-weight:800;color:#fff3c2;
@@ -183,3 +180,78 @@
 
 /* HUD-style fine lines: 16px diagonals, 40px grid, corner-only visibility. */
 .crafting-workbench .craft-panel-texture{position:absolute;inset:1px;z-index:-1;pointer-events:none;clip-path:var(--frame-shape);background:repeating-linear-gradient(135deg,transparent 0 13px,#86a9b7 13px 14px,transparent 14px 16px),repeating-linear-gradient(0deg,transparent 0 39px,#86a9b7 39px 40px),repeating-linear-gradient(90deg,transparent 0 39px,#86a9b7 39px 40px);opacity:.13;mask-image:radial-gradient(ellipse 65% 120% at top left,#000,transparent 78%),radial-gradient(ellipse 65% 120% at bottom right,#000,transparent 78%);-webkit-mask-image:radial-gradient(ellipse 65% 120% at top left,#000,transparent 78%),radial-gradient(ellipse 65% 120% at bottom right,#000,transparent 78%)}
+/* SVG waves are siblings of the clipped tile, so the outside approach remains visible. */
+.crafting-workbench .material-need-ripple{position:absolute;inset:-6px;pointer-events:none;z-index:3}
+.crafting-workbench .material-ripple-wave{
+ position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;
+ fill:none;stroke:#efffff;stroke-width:1;filter:drop-shadow(0 0 2px #64e9ff);
+ transform-origin:center;animation:craft-material-inward-ripple 1.8s ease-out infinite;
+}
+
+/* Approved crafting workbench layout and completion sequence. */
+ .crafting-workbench .craft-completion-overlay{position:absolute;inset:0;z-index:100;display:grid;place-items:center;pointer-events:auto;isolation:isolate;animation:craft-completion-in .2s linear both}
+ .crafting-workbench .craft-completion-overlay.is-out{animation:craft-completion-out .2s linear both}
+ .crafting-workbench .craft-stage:has(.craft-completion-overlay)>:not(.craft-completion-overlay){animation:craft-background-blur-in .2s linear both;pointer-events:none}
+ .crafting-workbench .craft-stage:has(.craft-completion-overlay.is-out)>:not(.craft-completion-overlay){animation:craft-background-blur-out .2s linear both}
+ @keyframes craft-background-blur-in{from{filter:blur(0)}to{filter:blur(8px)}}
+ @keyframes craft-background-blur-out{from{filter:blur(8px)}to{filter:blur(0)}}
+ .crafting-workbench .craft-completion-shade{position:absolute;inset:0;background:#020810bf;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:-1}
+ .crafting-workbench .craft-completion-content{width:100%;display:flex;flex-direction:column;align-items:center;pointer-events:none}
+ .crafting-workbench .craft-completion-icon{width:420px;height:420px;display:grid;place-items:center}
+ .crafting-workbench .craft-completion-icon img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 0 26px #e0bb6866)}
+ .crafting-workbench .craft-completion-messages{position:relative;width:100%;height:90px;margin-top:20px}
+ .crafting-workbench .craft-completion-messages p{position:absolute;inset:0;margin:0;text-align:center;color:#fff0c8;font-size:24px;line-height:40px;text-shadow:0 2px 8px #000;opacity:0;animation:craft-completion-pop 1s linear both}
+ @keyframes craft-completion-in{from{opacity:0}to{opacity:1}}
+ @keyframes craft-completion-out{from{opacity:1}to{opacity:0}}
+ @keyframes craft-completion-pop{0%{opacity:0;transform:translateY(22px)}20%{opacity:1;transform:translateY(0)}80%{opacity:1;transform:translateY(-12px)}100%{opacity:0;transform:translateY(-28px)}}
+ .crafting-workbench #craft-result-view{display:flex;flex-direction:column;flex:1;min-height:0;padding-top:16px;text-align:center}
+ .crafting-workbench .result-art{height:auto;min-height:170px;flex:1;position:relative;margin:0;overflow:hidden}
+ .crafting-workbench .result-art img{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:calc(100% - 44px);height:calc(100% - 44px);max-height:none;object-fit:contain;margin:0}
+ .crafting-workbench .result-name{margin:12px 0 4px;line-height:1.25;flex:none}
+ .crafting-workbench .result-en{line-height:1.4;flex:none}
+ .crafting-workbench .result-desc{text-align:center;margin:12px 10px;line-height:1.65;flex:none}
+ .crafting-workbench .result-spec{padding:10px 3px;flex:none}
+ .crafting-workbench .craft-quantity-row{display:grid;grid-template-columns:44px 64px 44px;align-items:center;justify-content:center;gap:10px 14px;margin-top:16px;padding:0 0 2px;flex:none}
+ .crafting-workbench .craft-quantity-row>span{grid-column:1 / -1;text-align:center;font-size:15px;line-height:20px;letter-spacing:1px;color:#d8c18e}
+ .crafting-workbench .quantity-step{width:44px;height:40px;padding:0;display:grid;place-items:center;color:#f4deab;border:1px solid #91b8c5;background:linear-gradient(135deg,#213a46,#07141c);border-radius:0;clip-path:polygon(5px 0,calc(100% - 5px) 0,100% 5px,100% calc(100% - 5px),calc(100% - 5px) 100%,5px 100%,0 calc(100% - 5px),0 5px)}
+ .crafting-workbench .quantity-step svg{width:22px;height:22px;fill:currentColor;filter:drop-shadow(0 0 3px #dfb75a55);pointer-events:none}
+ .crafting-workbench .quantity-step:disabled{opacity:.3;cursor:default}
+ .crafting-workbench #craft-quantity{width:64px;height:40px;display:grid;place-items:center;text-align:center;font-size:24px;line-height:1;font-variant-numeric:tabular-nums;color:#fff0c5;background:#07141ca0;border-bottom:1px solid #c8ac7066}
+ .crafting-workbench .batch-completed{text-align:center;margin-top:auto;color:#dac28d}
+ /* Widen the sharp horizontal focal area; preserve the vertical blending. */
+ .crafting-workbench .machine-scene-sharp{
+ -webkit-mask-image:radial-gradient(ellipse 64% 28% at 54% 30%,#000 35%,transparent 80%);
+ mask-image:radial-gradient(ellipse 64% 28% at 54% 30%,#000 35%,transparent 80%);
+ }
+ .crafting-workbench .machine-viewport{
+ --machine-image-width:117.5625%;--machine-offset-x:20px;
+ left:50%;right:auto;width:min(500px,100%);transform:translateX(-50%);
+ -webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent),linear-gradient(0deg,transparent,#000 18%,#000 82%,transparent);
+ mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent),linear-gradient(0deg,transparent,#000 18%,#000 82%,transparent);
+ }
+ .crafting-workbench #craft-reset,.crafting-workbench #craft-prepare{font-size:15px}
+ /* Selection badge is decorative; the existing whole-tile return action owns input. */
+ .crafting-workbench .requirement.ready::before{
+ content:'✓';position:absolute;top:6px;right:6px;width:28px;height:28px;
+ display:grid;place-items:center;z-index:3;pointer-events:none;
+ font-size:23px;line-height:1;font-weight:800;color:#fff3c2;
+ background:#332c19ed;border:1px solid #e6bf6c;border-radius:0;
+ box-shadow:0 0 10px #e6bf6c88,inset 0 0 7px #e6bf6c33;text-shadow:0 0 5px #ffd77b88;
+ }
+ /* User-approved required-material cue remains animated under reduced motion. */
+ .crafting-workbench .material-need-ripple{inset:-1%}
+ .crafting-workbench .material-need-ripple .material-ripple-wave{
+ animation:preview-outside-in-ripple 1.8s linear infinite;
+ }
+ .crafting-workbench .material-need-ripple .material-ripple-wave:nth-child(2){animation-delay:-.9s}
+ @keyframes preview-outside-in-ripple{
+ 0%{transform:scale(1.129);opacity:0}12%{opacity:1}70%{opacity:.9}100%{transform:scale(.929);opacity:0}
+ }
+
+.crafting-workbench .material-ripple-wave:nth-child(2){animation-delay:-.9s}
+@keyframes craft-material-inward-ripple{
+ 0%{transform:scale(1);opacity:0}
+ 10%{opacity:1}
+ 60%{opacity:.9}
+ 100%{transform:scale(.6);opacity:0}
+}

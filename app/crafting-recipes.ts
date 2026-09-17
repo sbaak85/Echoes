@@ -28,13 +28,14 @@ export const CRAFTING_RECIPES: readonly CraftingRecipe[] = INITIAL_RECIPES.map(r
  ...recipe,id:itemId(recipe.id),req:recipe.req.map(([name,count])=>[itemId(name),count])
 }));
 export type CraftingResult = {ok:true;inventory:PlayerInventory;itemId:string;quantity:number}|{ok:false;reason:string};
-export function craftInventoryRecipe(inventory:PlayerInventory,recipeId:string):CraftingResult {
+export function craftInventoryRecipe(inventory:PlayerInventory,recipeId:string,quantity=1):CraftingResult {
+ if(!Number.isSafeInteger(quantity)||quantity<1)return {ok:false,reason:"製作數量無效"};
  const recipe=CRAFTING_RECIPES.find(recipe=>recipe.id===recipeId);
  if(!recipe)return {ok:false,reason:"找不到製作配方"};
  const required=new Map<string,number>();
- for(const [id,count] of recipe.req)required.set(id,(required.get(id)||0)+count);
+ for(const [id,count] of recipe.req)required.set(id,(required.get(id)||0)+count*quantity);
  for(const [id,count] of required)if((inventory[id]||0)<count)return {ok:false,reason:`${ITEM_BY_ID.get(id)?.name||id}數量不足`};
  let next=inventory;
  for(const [id,count] of required)next=removeInventoryItem(next,id,count);
- return {ok:true,inventory:grantInventoryItem(next,recipe.id,1),itemId:recipe.id,quantity:1};
+ return {ok:true,inventory:grantInventoryItem(next,recipe.id,quantity),itemId:recipe.id,quantity};
 }

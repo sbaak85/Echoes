@@ -52,7 +52,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   onSleep: (option: StarshipSleepOption) => void;
   onClose: () => void;
   inventory: PlayerInventory;
-  onCraft: (recipeId: string) => { ok: boolean; reason?: string };
+  onCraft: (recipeId: string, quantity?: number) => { ok: boolean; reason?: string };
 }>(function StarshipInteractionMenu({
   inputMode,
   onInputModeChange,

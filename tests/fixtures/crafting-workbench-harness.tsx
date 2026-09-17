@@ -12,6 +12,6 @@ function Harness(){
  window.craftingTest={inventory,control:control.current,setInventory,setInput,crafts:crafts.current};
  return <><button id="world-button" onClick={()=>{throw new Error("World click leaked");}}>World</button>{open?<StarshipInteractionMenu ref={control} inventory={inventory} inputMode={input} onInputModeChange={setInput}
  onControlModeChange={(_mode:StarshipInteractionControlMode)=>{}} onInput={()=>{}} onSleep={()=>{}} onClose={()=>setOpen(false)}
- onCraft={id=>{const result=craftInventoryRecipe(inventoryRef.current,id);if(result.ok){inventoryRef.current=result.inventory;setInventory(result.inventory);crafts.current++;}return result;}}/>:null}</>;
+ onCraft={(id,quantity=1)=>{const result=craftInventoryRecipe(inventoryRef.current,id,quantity);if(result.ok){inventoryRef.current=result.inventory;setInventory(result.inventory);crafts.current++;}return result;}}/>:null}</>;
 }
 createRoot(document.getElementById("root")!).render(<Harness/>);

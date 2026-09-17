@@ -17795,9 +17795,9 @@ export function MovementLab() {
           onInput={playStarshipInteractionInput}
           onSleep={(option) => startStarshipSleepRef.current(option)}
           inventory={playerInventory}
-          onCraft={(recipeId) => {
+          onCraft={(recipeId, quantity = 1) => {
             if (!starshipInteractionMenuOpenRef.current) return { ok: false, reason: "製作介面已關閉" };
-            const result = craftInventoryRecipe(playerInventoryRef.current, recipeId);
+            const result = craftInventoryRecipe(playerInventoryRef.current, recipeId, quantity);
             if (!result.ok) return result;
             playerInventoryRef.current = result.inventory;
             setPlayerInventory(result.inventory);
