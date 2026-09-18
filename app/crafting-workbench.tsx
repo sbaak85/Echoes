@@ -24,6 +24,7 @@ function ItemArt({entry,large=false}:{entry:ItemDefinition;large?:boolean}){
  return failed?<span className="craft-art-fallback" aria-label={entry.name}>{entry.symbol}</span>:<img src={image(entry,large)} alt="" onError={()=>setFailed(true)}/>;
 }
 const item=(id:string)=>ITEM_BY_ID.get(id)!;
+const inventoryOrder=new Map(ITEM_DEFINITIONS.map((entry,index)=>[entry.id,index]));
 const category=(entry:ItemDefinition)=>entry.category==="main"?"quest":entry.category;
 const categoryNames={food:"食物",resource:"資源",tool:"工具",quest:"任務道具"};
 function Category({entry}:{entry:ItemDefinition}){
@@ -54,16 +55,16 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
   return ()=>{window.clearTimeout(fadeOut);window.clearTimeout(finish);};
  },[completion?.id,completion?.quantity]);
  const baseRecipe=CRAFTING_RECIPES[selected];
- const current={...baseRecipe,req:baseRecipe.req.map(([id,n])=>[id,n*quantity] as [string,number])},locked=phase!=="select";
+ const current={...baseRecipe,req:baseRecipe.req.map(([id,n])=>[id,n*quantity] as [string,number]).sort(([a],[b])=>(inventoryOrder.get(a)??Infinity)-(inventoryOrder.get(b)??Infinity))},locked=phase!=="select";
  const maxQuantity=Math.max(0,Math.min(...baseRecipe.req.map(([id,n])=>Math.floor((props.inventory[id]||0)/n))));
  function changeQuantity(delta:number){
   if(phase!=="ready")return;
   setQuantity(previous=>Math.max(1,Math.min(maxQuantity,previous+delta)));
  }
- const validAllocated=new Set([...allocated].filter(id=>(props.inventory[id]||0)>=(current.req.find(r=>r[0]===id)?.[1]||Infinity)));
- const ready=current.req.every(([id])=>validAllocated.has(id));
+ const validAllocated=new Set([...allocated].filter(id=>(props.inventory[id]||0)>0&&current.req.some(([requiredId])=>requiredId===id)));
+ const ready=current.req.every(([id,n])=>validAllocated.has(id)&&(props.inventory[id]||0)>=n);
  const progress=phase==="crafted"?current.req.length:validAllocated.size;
- const pct=Math.round(progress/current.req.length*100);
+ const pct=phase==="crafted"?100:Math.round(current.req.reduce((sum,[id,n])=>sum+(validAllocated.has(id)?Math.min(1,(props.inventory[id]||0)/n):0),0)/current.req.length*100);
  const owned=ITEM_DEFINITIONS.filter(entry=>(props.inventory[entry.id]||0)>0);
  const materials=filter?owned.filter(entry=>current.req.some(([id])=>id===entry.id)):owned;
  const pages=Math.max(1,Math.ceil(materials.length/12)),activePage=Math.min(page,pages-1);
@@ -150,7 +151,7 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
    const need=current.req.find(r=>r[0]===id);
    if(!need){setNotice("此素材不屬於目前配方");return;}
    if(validAllocated.has(id)){setNotice("這項素材已投入，可點右上角勾勾或中央格子取回");return;}
-   if((props.inventory[id]||0)<need[1]){setNotice("背包素材數量不足");return;}
+   if((props.inventory[id]||0)<=0){setNotice("背包沒有此素材");return;}
    setAllocated(new Set([...validAllocated,id]));
  }
  function prepare(){
@@ -168,7 +169,7 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
    return <button key={key} type="button" id={options.id?`craft-${options.id}`:undefined} data-craft-nav={key}
      className={`${options.className||""} ${props.controlMode==="directional"&&nav===key?"nav-focus":""} ${props.controlMode==="cursor"&&hover===key?"cursor-hover":""}`}
      disabled={!!completion||options.disabled} aria-label={options.aria} aria-pressed={options.pressed}
-     onClick={()=>{if(completionRef.current)return;navRef.current=key;setNav(key);props.onInput();action();}}>{label}</button>;
+     onClick={()=>{if(completionRef.current)return;navRef.current=key;setNav(key);props.onInput();action();}}>{(key==="prepare"||key==="reset")&&<><span className="hud-frame-art" aria-hidden="true"><span className="hud-frame-glow"/></span><span className="craft-action-texture" aria-hidden="true"/></>}{label}</button>;
  }
  const owner=props.controlMode==="pointer"?"mouse":props.controlMode;
  return <div ref={root} className="crafting-workbench starship-interaction-menu" data-owner={owner} data-control-mode={props.controlMode} data-input-mode={props.inputMode}
@@ -190,19 +191,19 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
      <div className="toolbar"><span>點選素材投入配方</span>{button("filter","僅顯示需求",()=>{setFilter(!filter);setPage(0);},{id:"filter",className:"text-button",pressed:filter,disabled:locked})}</div>
      <div id="craft-inventory" className="inventory-grid">{materials.slice(activePage*12,(activePage+1)*12).map(entry=>{
        const need=current.req.find(r=>r[0]===entry.id),added=validAllocated.has(entry.id);
-       return <div key={entry.id} className="material-cell">{need&&!added&&<span key={current.id} className="material-need-ripple" aria-hidden="true">{[0,1].map(wave=><svg key={wave} className="material-ripple-wave" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M4 1H96L99 4V96L96 99H4L1 96V4Z" vectorEffect="non-scaling-stroke"/></svg>)}</span>}{button(`material-${entry.id}`,<><Category entry={entry}/><ItemArt key={entry.id} entry={entry}/><span className="quantity">{(props.inventory[entry.id]||0)-(added?need![1]:0)}</span><span className="item-name">{entry.name}</span></>,()=>add(entry.id),{className:`item ${need?"is-needed":""} ${added?"is-added":""}`,disabled:locked,aria:`${entry.name}，${categoryNames[category(entry)]}，持有 ${props.inventory[entry.id]||0}，點選投入`})}{added&&button(`unassign-${entry.id}`,"✓",()=>{setAllocated(new Set([...validAllocated].filter(id=>id!==entry.id)));setNotice("");},{className:"material-unassign",disabled:locked,aria:`取消投入${entry.name}`})}</div>;
+       return <div key={entry.id} className="material-cell">{need&&!added&&<span key={current.id} className="material-need-ripple" aria-hidden="true">{[0,1].map(wave=><svg key={wave} className="material-ripple-wave" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M4 1H96L99 4V96L96 99H4L1 96V4Z" vectorEffect="non-scaling-stroke"/></svg>)}</span>}{button(`material-${entry.id}`,<><Category entry={entry}/><ItemArt key={entry.id} entry={entry}/><span className="quantity">{Math.max(0,(props.inventory[entry.id]||0)-(added?need![1]:0))}</span><span className="item-name">{entry.name}</span></>,()=>add(entry.id),{className:`item ${need?"is-needed":""} ${added?"is-added":""}`,disabled:locked,aria:`${entry.name}，${categoryNames[category(entry)]}，持有 ${props.inventory[entry.id]||0}，點選投入`})}{added&&button(`unassign-${entry.id}`,"✓",()=>{setAllocated(new Set([...validAllocated].filter(id=>id!==entry.id)));setNotice("");},{className:"material-unassign",disabled:locked,aria:`取消投入${entry.name}`})}</div>;
      })}{!materials.length?<span className="empty-inventory">目前沒有{filter?"所需":"可用"}素材</span>:null}</div>
      <nav className="material-pagination" aria-label="素材分頁">{button("prev-page","◀",()=>setPage((activePage-1+pages)%pages),{id:"prev-page",disabled:locked||pages===1,aria:"上一頁素材"})}<span id="craft-material-page">{activePage+1} / {pages}</span>{button("next-page","▶",()=>setPage((activePage+1)%pages),{id:"next-page",disabled:locked||pages===1,aria:"下一頁素材"})}</nav>
      <div className="panel-note"><i/> 點選投入先暫存，確認製作時才會扣除素材。</div>
     </section>
     <section className={`panel recipe ${ready||phase==="crafted"?"all-ready":""}`}><span className="craft-panel-texture" aria-hidden="true"/><div className="panel-head"><div><small>02 / ASSEMBLY CHAMBER</small><h2>合成配方</h2></div><span id="craft-progress" className="count">{progress} / {current.req.length} {phase==="crafted"?"已完成":"已投入"}</span></div>
-     <div className="recipe-target"><span>目前目標</span><strong id="craft-target-name">{item(current.id).name}</strong>{button("auto-fill","自動補齊素材",()=>{const next=new Set(validAllocated);current.req.forEach(([id,n])=>{if((props.inventory[id]||0)>=n)next.add(id);});setAllocated(next);if(next.size<current.req.length)setNotice("已補齊可投入素材，其餘素材數量不足");},{id:"auto-fill",className:"batch text-button",disabled:locked||ready})}</div>
+     <div className="recipe-target"><span>目前目標</span><strong id="craft-target-name">{item(current.id).name}</strong>{button("auto-fill","自動補齊素材",()=>{const next=new Set(validAllocated);current.req.forEach(([id,n])=>{if((props.inventory[id]||0)>0)next.add(id);});setAllocated(next);if(current.req.some(([id,n])=>(props.inventory[id]||0)<n))setNotice("已補齊可投入素材，其餘素材數量不足");},{id:"auto-fill",className:"batch text-button",disabled:locked||ready})}</div>
      <div id="craft-requirements" className="requirements">{current.req.map(([id,n],i)=>{
-       const added=validAllocated.has(id)||phase==="crafted";
-       return button(`require-${id}`,<><span className="slot-label">MATERIAL / 0{i+1}</span><ItemArt key={id} entry={item(id)}/><strong>{item(id).name}</strong><span className="ratio">{added?n:0} / {n} {added?"✓":""}</span></>,()=>setAllocated(new Set([...validAllocated].filter(key=>key!==id))),{className:`requirement ${added?"ready":""}`,disabled:locked,aria:`${item(id).name}，已投入 ${added?n:0} / ${n}，點選取回`});
+       const added=validAllocated.has(id)||phase==="crafted"; const ownedCount=props.inventory[id]||0; const enough=ownedCount>=n;
+       return button(`require-${id}`,<><span className="slot-label">MATERIAL / 0{i+1}</span><ItemArt key={id} entry={item(id)}/><strong>{item(id).name}</strong><span className="ratio"><span className={added?(enough?"is-sufficient":"is-insufficient"):undefined}>{added?ownedCount:0}</span> / {n} {added&&enough?"✓":""}</span></>,()=>setAllocated(new Set([...validAllocated].filter(key=>key!==id))),{className:`requirement ${added?(enough?"ready":"is-partial"):""}`,disabled:locked,aria:`${item(id).name}，${added?"已投入，背包持有":"未投入"} ${added?ownedCount:0} / ${n}，點選取回`});
      })}</div>
      <div className="machine-zone"><div className="feeds"><i/><i/><i/></div><div className="machine-viewport"><img className="machine-scene machine-scene-soft" src={assetUrl("ui/power-devices/工作台.png")} alt="" aria-hidden="true"/><img className="machine-scene machine-scene-sharp" src={assetUrl("ui/power-devices/工作台.png")} alt="製作工作台中央機器"/></div><div className="machine-caption">FABRICATION UNIT <b>{phase==="crafted"?"COMPLETE":ready?"READY":"STANDBY"}</b></div></div>
-     <div className="assembly-status"><div><span id="craft-status-title">{phase==="crafted"?"製作完成":ready?"素材已備齊":progress?"素材投入中":"等待投入素材"}</span><strong>{pct}%</strong></div><div className="meter"><i style={{width:`${pct}%`}}/></div><p>{phase==="crafted"?"成品已放入背包。":phase==="ready"?"確認製作將消耗投入素材，並將成品放入背包。":ready?"可以進入製作準備，查看結果物品。":"從左側點選對應素材投入；點中央素材可取回。"}</p></div>
+     <div className="assembly-status"><div><span id="craft-status-title">{phase==="crafted"?"製作完成":ready?"素材已備齊":progress===current.req.length?"素材數量不足":progress?"素材投入中":"等待投入素材"}</span><strong>{pct}%</strong></div><div className="meter"><i style={{width:`${pct}%`}}/></div><p>{phase==="crafted"?"成品已放入背包。":phase==="ready"?"確認製作將消耗投入素材，並將成品放入背包。":ready?"可以進入製作準備，查看結果物品。":"從左側點選對應素材投入；點中央素材可取回。"}</p></div>
     </section>
     <section className="panel output"><span className="craft-panel-texture" aria-hidden="true"/><div className="panel-head"><div><small>03 / {locked?"CRAFTING RESULT":"RECIPE LIBRARY"}</small><h2>{locked?"製作結果":"可製作物品"}</h2></div><span className="count">{locked?`× ${quantity}`:CRAFTING_RECIPES.length}</span></div>
      {!locked?<div id="craft-recipe-view"><div className="list-caption">選擇目標，查看素材需求</div><div id="craft-recipes" className="recipe-list" onScroll={syncScroll}>{CRAFTING_RECIPES.map((recipe,i)=>button(`recipe-${i}`,<><ItemArt key={recipe.id} entry={item(recipe.id)}/><div><strong>{item(recipe.id).name}</strong><small>{recipe.type} · {recipe.req.length} 種素材</small></div><span className="arrow">{selected===i?"›":"+"}</span></>,()=>{if(i!==selected){setSelected(i);setQuantity(1);setAllocated(new Set());}setPhase("select");},{className:`recipe-row ${selected===i?"selected":""}`,pressed:selected===i}))}</div><div className="scroll-caption"><span>{range}</span><span>捲動瀏覽更多配方 ↓</span></div><p className="output-note">備齊素材並按下「製作準備」後，<br/>此欄將切換為製作結果預覽。</p></div>:
@@ -210,8 +211,8 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
     </section>
    </div>
    <footer><div className="steps"><span className={!locked?"active":""}>01 選擇配方</span><i/><span className={progress>0&&!locked?"active":""}>02 投入素材</span><i/><span className={locked?"active":""}>03 確認結果</span></div><div className="actions">
-    {button("reset",locked?"返回配方":"清空投入",()=>{if(locked)back();else setAllocated(new Set());},{id:"reset",className:"button secondary"})}
-    {button("prepare",phase==="select"?"製作準備 →":phase==="ready"?"確認製作":"繼續製作",prepare,{id:"prepare",className:"button primary",disabled:(phase==="select"&&!ready)||(phase==="ready"&&(!ready||quantity>maxQuantity))})}
+    {button("reset",locked?"返回配方":"清空投入",()=>{if(locked)back();else setAllocated(new Set());},{id:"reset",className:"button secondary has-hud-surface"})}
+    {button("prepare",phase==="select"?<><span>製作準備</span><span className="craft-prepare-arrows" aria-hidden="true"/></>:phase==="ready"?<><span className="craft-prepare-arrows craft-confirm-arrows" aria-hidden="true"/><span>確認製作</span><span className="craft-prepare-arrows craft-confirm-arrows is-leftward" aria-hidden="true"/></>:"繼續製作",prepare,{id:"prepare",className:"button primary",disabled:(phase==="select"&&!ready)||(phase==="ready"&&(!ready||quantity>maxQuantity))})}
    </div></footer>
    <div className="bottom-line"><span>{props.inputMode==="gamepad"?<><GamepadButtonIcon button="DPad"/><GamepadButtonIcon button="LS"/> 選擇　<GamepadButtonIcon button="A"/> 確認　<GamepadButtonIcon button="B"/> 返回</>:props.inputMode==="mobile"?"輕觸：選擇配方／投入素材":"方向鍵：選擇 · Enter：確認 · Esc：返回"}</span><span>CRAFTING WORKBENCH</span></div>
    <div id="craft-toast" className={notice?"show":""} role="status" aria-live="polite">{notice}</div>

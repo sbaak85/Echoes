@@ -11230,7 +11230,8 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   background: linear-gradient(135deg, var(--hud-light), transparent 27%, transparent 73%, var(--hud-light));
 }
 :is(.quest-hud, .survival-clock > span, .survival-mini-panel, .survival-panel, .survival-mobile-minimal-panel, .survival-frame-shell)::before,
-.time-notice-texture {
+.time-notice-texture,
+.craft-action-texture {
   content: "";
   position: absolute;
   inset: 1px;
