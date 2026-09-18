@@ -1104,7 +1104,15 @@ export function parseDebugItemSpawnCommand(
 }
 
 export function isDebugGrantAllItemsCommand(command: string) {
-  return /^item\s+all$/i.test(command.trim());
+  return parseDebugGrantAllItemsCommand(command) !== null;
+}
+
+export function parseDebugGrantAllItemsCommand(command: string): { quantity: number } | null {
+  const match = command.trim().match(/^item\s+all(?:\s+(\d+))?$/i);
+  if (!match) return null;
+  const quantity = match[1] === undefined ? 1 : Number(match[1]);
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 999) return null;
+  return { quantity };
 }
 
 export function getItemDebugSpawnDelivery(
@@ -1193,10 +1201,11 @@ export function grantInventoryItem(
 
 export function grantAllInventoryItems(
   inventory: PlayerInventory,
+  quantity = 1,
 ): PlayerInventory {
   return ITEM_DEFINITIONS.reduce<PlayerInventory>(
     (nextInventory, item) =>
-      grantInventoryItem(nextInventory, item.id, 1),
+      grantInventoryItem(nextInventory, item.id, quantity),
     inventory,
   );
 }

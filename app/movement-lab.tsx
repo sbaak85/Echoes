@@ -80,7 +80,7 @@ import {
   getOwnedItemStacks,
   grantAllInventoryItems,
   grantInventoryItem,
-  isDebugGrantAllItemsCommand,
+  parseDebugGrantAllItemsCommand,
   loadPlayerInventory,
   parseDebugItemSpawnCommand,
   removeInventoryItem,
@@ -10807,9 +10807,11 @@ export function MovementLab() {
         return false;
       }
 
-      if (isDebugGrantAllItemsCommand(command)) {
+      const grantAllCommand = parseDebugGrantAllItemsCommand(command);
+      if (grantAllCommand) {
         const nextInventory = grantAllInventoryItems(
           playerInventoryRef.current,
+          grantAllCommand.quantity,
         );
         playerInventoryRef.current = nextInventory;
         setPlayerInventory(nextInventory);
@@ -10819,7 +10821,7 @@ export function MovementLab() {
           // 儲存空間不可用時，仍保留本次遊玩階段的取得結果。
         }
         showInteractionItemFeedback(
-          `Debug：已將 ${ITEM_DEFINITIONS.length} 種道具各 ×1 放入背包`,
+          `Debug：已將 ${ITEM_DEFINITIONS.length} 種道具各 ×${grantAllCommand.quantity} 放入背包`,
         );
         return true;
       }
@@ -10827,7 +10829,7 @@ export function MovementLab() {
       const parsed = parseDebugItemSpawnCommand(command);
       if (!parsed) {
         showInteractionItemFeedback(
-          "格式錯誤 · 請輸入：Item All 或 道具ID 數量（1～999）",
+          "格式錯誤 · 請輸入：Item All [數量] 或 道具ID 數量（1～999）",
         );
         return false;
       }
@@ -17810,6 +17812,7 @@ export function MovementLab() {
           onInputModeChange={activateQuestPromptInputMode}
           onControlModeChange={handleStarshipInteractionControlModeChange}
           onInput={playStarshipInteractionInput}
+          onCraftAudio={(event) => { void audioEventManagerRef.current?.play(event, { restart: true, overlap: event === "craftingItemShine" }).catch(() => {}); }}
           onSleep={(option) => startStarshipSleepRef.current(option)}
           inventory={playerInventory}
           onCraft={(recipeId, quantity = 1) => {

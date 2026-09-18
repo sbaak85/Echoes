@@ -1,4 +1,5 @@
 "use client";
+import type { CraftingAudioEvent } from "./crafting-completion-timing";
 
 import {
   forwardRef,
@@ -56,6 +57,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   onSleep: (option: StarshipSleepOption) => void;
   onClose: () => void;
   inventory: PlayerInventory;
+  onCraftAudio?: (event: CraftingAudioEvent) => void;
   onCraft: (recipeId: string, quantity?: number) => { ok: boolean; reason?: string };
 }>(function StarshipInteractionMenu({
   inputMode,
@@ -66,6 +68,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   onClose,
   inventory,
   onCraft,
+  onCraftAudio,
 }, forwardedRef) {
   const [view, setView] = useState<View>("main");
   const [selected, setSelected] = useState(0);
@@ -277,7 +280,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   if (view === "workbench") return <CraftingWorkbench ref={workbenchRef}
     inventory={inventory} inputMode={inputMode} controlMode={controlMode}
     onControlModeChange={setControlMode} onInputModeChange={onInputModeChange}
-    onInput={onInput} onCraft={onCraft} onBack={() => changeView("craft")} />;
+    onInput={onInput} onCraftAudio={onCraftAudio} onCraft={onCraft} onBack={() => changeView("craft")} />;
   return (
     <div
       className="im-stage starship-interaction-menu"

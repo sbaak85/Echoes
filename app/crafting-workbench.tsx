@@ -7,7 +7,7 @@ import { SurvivalNeedIcon } from "./survival-need-icon";
 import { GamepadButtonIcon } from "./gamepad-button-icon";
 import { idleCraftQuantityHold, stepCraftQuantityHold } from "./crafting-quantity-input";
 import { CraftingCompletionFx } from "./crafting-completion-fx";
-import { CRAFT_COMPLETION, completionItemDelay, craftingCompletionTimeline } from "./crafting-completion-timing";
+import { CRAFT_COMPLETION, completionItemDelay, craftingCompletionTimeline, craftingCompletionAudioCues, type CraftingAudioEvent } from "./crafting-completion-timing";
 import { resolveRuntimePublicAssetUrl as assetUrl } from "./public-asset-url";
 import type { StarshipInteractionMenuController, StarshipInteractionControlMode } from "./starship-interaction-menu";
 import "./crafting-workbench.css";
@@ -18,6 +18,7 @@ type Props = {
  onControlModeChange:(mode:StarshipInteractionControlMode)=>void;
  onInputModeChange:(mode:"keyboard-mouse"|"gamepad"|"mobile")=>void;
  onInput:()=>void; onBack:()=>void;
+ onCraftAudio?:(event:CraftingAudioEvent)=>void;
  onCraft:(recipeId:string,quantity?:number)=>{ok:boolean;reason?:string};
 };
 const aliases:Record<string,string>={"toughened-vine-bark":"韌化藤皮","luminescent-sac":"螢光包囊","heat-fused-ceramic-shard":"熱熔陶片"};
@@ -55,13 +56,14 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
  useEffect(()=>{
   if(!completion)return;
   const timeline=craftingCompletionTimeline(completion.quantity);
+  const audioTimers=craftingCompletionAudioCues(completion.quantity).map(cue=>window.setTimeout(()=>latest.current.onCraftAudio?.(cue.event),cue.atMs));
   const fadeOut=window.setTimeout(()=>setCompletion(value=>value?{...value,stage:"out"}:null),timeline.fadeStartMs);
   const finish=window.setTimeout(()=>{
    setCompletion(null);completionRef.current=null;committing.current=false;recipeMaterialReturn.current=false;
    setAllocated(new Set());setQuantity(1);setPhase("select");setNotice("");
    columnRef.current=2;setColumn(2);navRef.current=`recipe-${selected}`;setNav(navRef.current);setHover(null);
   },timeline.endMs);
-  return ()=>{window.clearTimeout(fadeOut);window.clearTimeout(finish);};
+  return ()=>{audioTimers.forEach(window.clearTimeout);window.clearTimeout(fadeOut);window.clearTimeout(finish);};
  },[completion?.id,completion?.quantity]);
  const baseRecipe=CRAFTING_RECIPES[selected];
  const current={...baseRecipe,req:baseRecipe.req.map(([id,n])=>[id,n*quantity] as [string,number]).sort(([a],[b])=>(inventoryOrder.get(a)??Infinity)-(inventoryOrder.get(b)??Infinity))},locked=phase!=="select";

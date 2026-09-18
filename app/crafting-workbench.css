@@ -212,9 +212,9 @@
 
 /* Approved crafting workbench layout and completion sequence. */
  .crafting-workbench .craft-completion-overlay{position:absolute;inset:0;z-index:100;display:grid;place-items:center;pointer-events:auto;isolation:isolate;animation:craft-completion-in .2s linear both}
- .crafting-workbench .craft-completion-overlay.is-out{animation:craft-completion-out var(--completion-fade,.6s) linear both}
+ .crafting-workbench .craft-completion-overlay.is-out{animation:craft-completion-out var(--completion-fade,.5s) linear both}
  .crafting-workbench .craft-stage:has(.craft-completion-overlay)>:not(.craft-completion-overlay){animation:craft-background-blur-in .2s linear both;pointer-events:none}
- .crafting-workbench .craft-stage:has(.craft-completion-overlay.is-out)>:not(.craft-completion-overlay){animation:craft-background-blur-out .6s linear both}
+ .crafting-workbench .craft-stage:has(.craft-completion-overlay.is-out)>:not(.craft-completion-overlay){animation:craft-background-blur-out .5s linear both}
  @keyframes craft-background-blur-in{from{filter:blur(0)}to{filter:blur(8px)}}
  @keyframes craft-background-blur-out{from{filter:blur(8px)}to{filter:blur(0)}}
  .crafting-workbench .craft-completion-shade{position:absolute;inset:0;background:#020810bf;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:-1}

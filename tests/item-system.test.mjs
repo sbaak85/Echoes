@@ -1,10 +1,11 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
   INITIAL_PLAYER_INVENTORY,
   isDebugGrantAllItemsCommand,
+  parseDebugGrantAllItemsCommand,
   ITEM_DATABASE,
   ITEM_DATABASE_CAPACITY,
   ITEM_DEFINITIONS,
@@ -79,7 +80,7 @@ test("MapEditor 道具選項與遊戲 Item 資料庫同步", async () => {
 test("Debug 道具生成指令支援 ID、數量與生成去向", () => {
   assert.equal(isDebugGrantAllItemsCommand("Item All"), true);
   assert.equal(isDebugGrantAllItemsCommand(" item   all "), true);
-  assert.equal(isDebugGrantAllItemsCommand("Item All 2"), false);
+  assert.equal(isDebugGrantAllItemsCommand("Item All 2"), true);
   assert.deepEqual(parseDebugItemSpawnCommand("R0004 3"), {
     itemId: "R0004",
     quantity: 3,
@@ -594,4 +595,17 @@ test("互動後生成在場上的道具堆疊會保留來源與數量", () => {
   } finally {
     delete globalThis.window;
   }
+});
+
+test("grant all accepts a per-item quantity and adds to existing inventory", () => {
+  assert.deepEqual(parseDebugGrantAllItemsCommand(" Item  all  50 "), { quantity: 50 });
+  assert.deepEqual(parseDebugGrantAllItemsCommand("ITEM ALL"), { quantity: 1 });
+  assert.deepEqual(parseDebugGrantAllItemsCommand("item all 999"), { quantity: 999 });
+  for (const suffix of ["0", "-1", "1.5", "1000", "abc", "50 extra"]) {
+    assert.equal(parseDebugGrantAllItemsCommand(`Item all ${suffix}`), null);
+  }
+  const before = { R0005: 2 };
+  const after = grantAllInventoryItems(before, 50);
+  for (const entry of ITEM_DEFINITIONS) assert.equal(after[entry.id], (before[entry.id] ?? 0) + 50);
+  assert.deepEqual(before, { R0005: 2 });
 });

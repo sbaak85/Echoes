@@ -58,6 +58,76 @@ export type LineSeDefinition = {
 export const AUDIO_EVENT_CONFIG = (
   /* AUDIO_EVENT_CONFIG_START */
   {
+    "craftingStarted": {
+      "label": "製作成功：啟動",
+      "trigger": "成功動畫開始時播放一次",
+      "sourceAssetPaths": [
+        "public/audio/製作音效2.mp3"
+      ],
+      "sources": [
+        "./audio/製作音效2.mp3"
+      ],
+      "volume": 0.7,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "craftingAssemblyStep2": {
+      "label": "製作成功：組裝第二拍",
+      "trigger": "成功動畫開始後 0.1 秒",
+      "sourceAssetPaths": [
+        "public/audio/製作2.mp3"
+      ],
+      "sources": [
+        "./audio/製作2.mp3"
+      ],
+      "volume": 0.4,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "craftingAssemblyStep3": {
+      "label": "製作成功：組裝第三拍",
+      "trigger": "成功動畫開始後 0.4 秒",
+      "sourceAssetPaths": [
+        "public/audio/製作3.mp3"
+      ],
+      "sources": [
+        "./audio/製作3.mp3"
+      ],
+      "volume": 0.1,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "craftingItemShine": {
+      "label": "製作成功：單件閃光",
+      "trigger": "每件物品的閃亮光束開始時各播放一次，支援重疊",
+      "sourceAssetPaths": [
+        "public/audio/閃亮1.mp3"
+      ],
+      "sources": [
+        "./audio/閃亮1.mp3"
+      ],
+      "volume": 0.6,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "craftingFinished": {
+      "label": "製作成功：收尾",
+      "trigger": "最後一件閃光開始後 0.2 秒，只播放一次",
+      "sourceAssetPaths": [
+        "public/audio/製作音效1.mp3"
+      ],
+      "sources": [
+        "./audio/製作音效1.mp3"
+      ],
+      "volume": 0.5,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
     "footsteps": {
       "label": "草地腳步",
       "trigger": "角色產生實際移動速度時開始；角色停止、視窗失焦或頁面進入背景時暫停。",
