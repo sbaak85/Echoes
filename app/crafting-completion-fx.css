@@ -1,0 +1,35 @@
+.crafting-workbench .craft-completion-fx{position:absolute;left:50%;top:calc(50% + 10px);width:560px;height:560px;transform:translate(-50%,-50%) scale(1.18);transform-origin:center;z-index:0;pointer-events:none}
+.craft-completion-fx *{pointer-events:none}
+.craft-completion-fx svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;fill:none;stroke:#81cbd2;stroke-width:1}
+.craft-completion-fx .craft-fx-thin{stroke-width:.6;opacity:.5}
+.craft-completion-fx text{stroke:none;fill:#a5d4d3;font:10px Consolas,monospace;letter-spacing:1px}
+.craft-fx-origin{transform-origin:280px 280px}
+.craft-fx-burst,.craft-fx-idle{position:absolute;inset:0}
+.craft-fx-halo{position:absolute;inset:0;border-radius:50%;background:radial-gradient(ellipse,#fff7d780 0%,#e8b96745 24%,#cca5541f 42%,transparent 68%);mix-blend-mode:screen}
+.craft-fx-rays{position:absolute;inset:-45px;background:repeating-conic-gradient(from 5deg,transparent 0deg 16deg,#f6d59421 18deg,#ffecc335 19deg,transparent 24deg 42deg);mask-image:radial-gradient(circle,transparent 12%,#000 25%,#0009 42%,transparent 68%);filter:blur(3px)}
+.craft-fx-flash{position:absolute;left:-65px;right:-65px;top:279px;height:2px;background:linear-gradient(90deg,transparent,#ebd09f55,#fff8db,#ebd09f55,transparent);box-shadow:0 0 18px #edcd7777}
+.craft-fx-sweep{position:absolute;inset:50px;border-radius:50%;background:conic-gradient(from 0deg,transparent 0deg 260deg,#7bcbd211 295deg,#bdfaff4d 330deg,transparent 334deg);mask-image:radial-gradient(circle,transparent 30%,#000 48%,#000 66%,transparent 70%);animation:craft-fx-sweep 3.8s both}
+.craft-fx-schematic{animation:craft-fx-schematic 3.8s both}.craft-fx-orbit{animation:craft-fx-orbit 3.8s both}.craft-fx-counter{animation:craft-fx-counter 3.8s both}.craft-fx-triangle{animation:craft-fx-triangle 3.8s both}.craft-fx-brackets{animation:craft-fx-lock 3.8s both}.craft-fx-formula{animation:craft-fx-formula 3.8s both}
+.craft-fx-idle{opacity:0;animation:craft-fx-idle-enter 3.8s ease-in-out both}
+.craft-fx-idle-glow{position:absolute;inset:25px;border-radius:50%;background:radial-gradient(circle,#e7c07a25 10%,#d7b37615 37%,transparent 68%);animation:craft-fx-idle-breathe 4s ease-in-out infinite}
+.craft-fx-idle-orbit{animation:craft-fx-idle-turn 18s linear infinite}.craft-fx-idle-counter{animation:craft-fx-idle-turn 26s linear infinite reverse}.craft-fx-idle-lock{animation:craft-fx-idle-lock 4s ease-in-out infinite}
+.craft-fx-halo{animation-name:craft-fx-burst-halo}.craft-fx-rays{animation-name:craft-fx-burst-rays}.craft-fx-flash{animation-name:craft-fx-burst-flash}.craft-fx-shock{animation-name:craft-fx-burst-shock}.craft-fx-sparks{animation-name:craft-fx-burst-sparks}
+.craft-fx-burst :is(.craft-fx-halo,.craft-fx-rays,.craft-fx-flash,.craft-fx-shock,.craft-fx-sparks){animation-duration:var(--burst-cycle);animation-delay:var(--burst-delay);animation-iteration-count:var(--burst-count);animation-timing-function:ease-out;animation-fill-mode:both}
+.craft-fx-burst .craft-fx-flash{animation-timing-function:linear}
+@keyframes craft-fx-schematic{0%{opacity:0;transform:scale(1.12)}10%{opacity:.65}29%{opacity:.8;transform:scale(1)}42%{opacity:.7}66%,100%{opacity:0;transform:scale(1.035)}}
+@keyframes craft-fx-orbit{0%{transform:rotate(-65deg);stroke-dashoffset:200;opacity:0}10%{opacity:.8}32%{transform:rotate(6deg);stroke-dashoffset:0;opacity:1}50%{opacity:.65}69%,100%{transform:rotate(28deg);opacity:0}}
+@keyframes craft-fx-counter{0%{transform:rotate(80deg);opacity:0}14%{opacity:.55}32%{transform:rotate(0deg);opacity:.8}62%,100%{transform:rotate(-28deg);opacity:0}}
+@keyframes craft-fx-triangle{0%{opacity:0;transform:scale(1.2) rotate(-12deg)}18%{opacity:.32}31%{opacity:.6;transform:scale(1) rotate(0deg)}47%{opacity:.2}62%,100%{opacity:0;transform:scale(1.07) rotate(3deg)}}
+@keyframes craft-fx-lock{0%,10%{opacity:0;transform:scale(1.24)}24%{opacity:.9;transform:scale(1.03)}31%,36%{opacity:1;transform:scale(1);stroke:#f7dfad}56%,100%{opacity:0;transform:scale(1.03);stroke:#f7dfad}}
+@keyframes craft-fx-formula{0%,6%{opacity:0;transform:translateY(6px)}14%,30%{opacity:.6;transform:none}46%,100%{opacity:0;transform:translateY(-5px)}}
+@keyframes craft-fx-sweep{0%{opacity:0;transform:rotate(-160deg)}10%{opacity:.8}33%{opacity:.7;transform:rotate(180deg)}48%,100%{opacity:0;transform:rotate(240deg)}}
+@keyframes craft-fx-idle-enter{0%,48%{opacity:0}84%,100%{opacity:.5}}
+@keyframes craft-fx-idle-turn{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes craft-fx-idle-breathe{0%,100%{opacity:.6;transform:scale(.97)}50%{opacity:1;transform:scale(1.04)}}
+@keyframes craft-fx-idle-lock{0%,100%{opacity:.4}50%{opacity:.7}}
+/* A 1.75 s pool cycle preserves the approved 1.6 s tail, then stays invisible. */
+@keyframes craft-fx-burst-halo{0%{opacity:0;transform:scale(.4)}9.142857%{opacity:.75;transform:scale(.87)}31.085714%{opacity:.4;transform:scale(1.2)}91.428571%,100%{opacity:0;transform:scale(1.35)}}
+@keyframes craft-fx-burst-rays{0%{opacity:0;transform:scale(.35) rotate(-9deg)}9.6%{opacity:.8;transform:scale(.94) rotate(0deg)}32%{opacity:.35;transform:scale(1.13) rotate(6deg)}80%,100%{opacity:0;transform:scale(1.25) rotate(10deg)}}
+@keyframes craft-fx-burst-flash{0%{opacity:0;transform:scaleX(.2)}4.114286%{opacity:.75;transform:scaleX(.9)}13.714286%,100%{opacity:0;transform:scaleX(1.2)}}
+@keyframes craft-fx-burst-shock{0%{opacity:0;transform:scale(.57)}6.8%{opacity:.5}48.571429%,100%{opacity:0;transform:scale(1.2)}}
+@keyframes craft-fx-burst-sparks{0%{opacity:0;transform:scale(.62)}10.285714%{opacity:.65}57.142857%,100%{opacity:0;transform:scale(1.19)}}

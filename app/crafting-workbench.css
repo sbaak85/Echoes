@@ -40,22 +40,26 @@
   clip-path:polygon(evenodd,8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px,8px 0,8.828px 2px,2px 8.828px,2px calc(100% - 8.828px),8.828px calc(100% - 2px),calc(100% - 8.828px) calc(100% - 2px),calc(100% - 2px) calc(100% - 8.828px),calc(100% - 2px) 8.828px,calc(100% - 8.828px) 2px,8.828px 2px,8px 0);
 }
 .crafting-workbench #craft-auto-fill{font-size:12px;white-space:nowrap;padding:7px 9px}
-/* Inventory action-button palette, with fully opaque gradient stops. */
+/* Match the approved quick-assignment action surface. */
+.crafting-workbench .inventory .toolbar{height:64px;gap:12px}
 .crafting-workbench #craft-filter,.crafting-workbench #craft-auto-fill{
-  border:1px solid rgba(131,193,212,.38);border-radius:0;
-  background:linear-gradient(135deg,#1c3b4a,#05111a);
-  color:#cdb891;opacity:1;
-  transition:filter 90ms ease,border-color 140ms ease;
+  --assign-button-edge:#487286;--assign-button-glow:rgba(99,191,216,.18);
+  border:1px solid transparent;border-radius:0;
+  background:radial-gradient(ellipse at 0 0,var(--assign-button-glow),transparent 55%),radial-gradient(ellipse at 100% 100%,var(--assign-button-glow),transparent 55%),#07131c;
+  color:#d7eef7;opacity:1;box-shadow:none;font-size:16px;font-weight:500;letter-spacing:0;
+  clip-path:polygon(4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px),0 4px);
+  transition:color 150ms ease;
 }
-.crafting-workbench #craft-filter[aria-pressed=true]{border-color:#deb869;color:#fff0c1;box-shadow:inset 0 0 12px #f8c6642e}
-.crafting-workbench[data-owner=mouse] :is(#craft-filter,#craft-auto-fill):hover:not(:disabled),.crafting-workbench :is(#craft-filter,#craft-auto-fill).nav-focus{
-  border-color:#f4cc73;color:#fff0c1;
-  background:linear-gradient(135deg,#1c3b4a,#05111a);
-  box-shadow:inset 0 0 12px #f8c6642e,0 0 8px #efb74885;
+.crafting-workbench :is(#craft-filter,#craft-auto-fill)::after{
+  content:"";position:absolute;inset:-1px;pointer-events:none;background:var(--assign-button-edge);
+  clip-path:polygon(evenodd,4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px),0 4px,4px 0,4.414px 1px,1px 4.414px,1px calc(100% - 4.414px),4.414px calc(100% - 1px),calc(100% - 4.414px) calc(100% - 1px),calc(100% - 1px) calc(100% - 4.414px),calc(100% - 1px) 4.414px,calc(100% - 4.414px) 1px,4.414px 1px,4px 0);
+  transition:background 150ms;
 }
+.crafting-workbench #craft-filter[aria-pressed=true]{--assign-button-edge:#deb869;color:#fff0c1}
+.crafting-workbench[data-owner=mouse] :is(#craft-filter,#craft-auto-fill):hover:not(:disabled),.crafting-workbench :is(#craft-filter,#craft-auto-fill):is(.nav-focus,.cursor-hover):not(:disabled){--assign-button-edge:#bdefff;--assign-button-glow:rgba(99,191,216,.27);color:#fff;box-shadow:none}
 .crafting-workbench :is(#craft-filter,#craft-auto-fill):disabled{
-  opacity:1;color:#645f56;border-color:#384047;
-  background:linear-gradient(135deg,#172c36,#09151e);box-shadow:none;
+  --assign-button-edge:#31434c;--assign-button-glow:rgba(99,191,216,.06);
+  opacity:1;color:#657680;box-shadow:none;
 }
 .crafting-workbench .material-category{position:absolute;top:6px;left:6px;width:16px;height:16px;display:grid;place-items:center;font-size:16px;line-height:1;z-index:2;pointer-events:none}
 .crafting-workbench .material-category svg{width:100%;height:100%}
@@ -183,6 +187,20 @@
 }
 
 /* HUD-style fine lines: 16px diagonals, 40px grid, corner-only visibility. */
+.crafting-workbench[data-owner=directional][data-craft-column="0"] .panel.inventory .panel-head,
+.crafting-workbench[data-owner=directional][data-craft-column="1"] .panel.recipe .panel-head,
+.crafting-workbench[data-owner=directional][data-craft-column="2"] .panel.output .panel-head{border-bottom-color:#ffe1a0;background:linear-gradient(110deg,#c8a13866,#a9832b3d);box-shadow:inset 0 1px 0 #ffe6a14d;filter:none}
+.crafting-workbench .workspace .panel-head{margin:-16px -16px 0;padding:16px 16px 11px;height:74px}
+.crafting-workbench #craft-filter,.crafting-workbench #craft-auto-fill{position:relative;width:164px;min-width:164px;height:44px;min-height:44px;flex:none;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 10px;line-height:1;white-space:nowrap;text-align:center}
+.crafting-workbench :is(#craft-filter,#craft-auto-fill) .gamepad-button-icon{position:static;width:24px;height:24px;min-width:24px;flex:none;margin:0}
+.crafting-workbench .craft-action-wrap{position:relative;display:block;min-width:0;overflow:visible}
+.crafting-workbench .craft-action-ripple{position:absolute;inset:0;pointer-events:none;z-index:5;color:#c8f5ff;filter:drop-shadow(0 0 2px #7cdfff66)}
+.crafting-workbench .craft-action-ripple.is-gold{color:#ffe4a2;filter:drop-shadow(0 0 2px #edc16c66)}
+/* Fixed-pixel travel preserves the bevel and equal spacing on long buttons. */
+.crafting-workbench .craft-action-ripple .craft-action-wave{position:absolute;pointer-events:none;background:currentColor;animation:craft-action-inward-ripple 1.8s linear infinite;
+ clip-path:polygon(evenodd,8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px,8px 0,8px 1px,1px 8px,1px calc(100% - 8px),8px calc(100% - 1px),calc(100% - 8px) calc(100% - 1px),calc(100% - 1px) calc(100% - 8px),calc(100% - 1px) 8px,calc(100% - 8px) 1px,8px 1px,8px 0)}
+@keyframes craft-action-inward-ripple{0%{inset:-4px;opacity:0}18%{opacity:.75}65%{opacity:.5}100%{inset:2px;opacity:0}}
+.crafting-workbench .text-button .gamepad-button-icon,.crafting-workbench .material-pagination .gamepad-button-icon{width:24px;height:24px;min-width:24px;object-fit:contain;margin:0 4px;vertical-align:middle;pointer-events:none}
 .crafting-workbench .craft-panel-texture{position:absolute;inset:1px;z-index:-1;pointer-events:none;clip-path:var(--frame-shape);background:repeating-linear-gradient(135deg,transparent 0 13px,#86a9b7 13px 14px,transparent 14px 16px),repeating-linear-gradient(0deg,transparent 0 39px,#86a9b7 39px 40px),repeating-linear-gradient(90deg,transparent 0 39px,#86a9b7 39px 40px);opacity:.13;mask-image:radial-gradient(ellipse 65% 120% at top left,#000,transparent 78%),radial-gradient(ellipse 65% 120% at bottom right,#000,transparent 78%);-webkit-mask-image:radial-gradient(ellipse 65% 120% at top left,#000,transparent 78%),radial-gradient(ellipse 65% 120% at bottom right,#000,transparent 78%)}
 /* SVG waves are siblings of the clipped tile, so the outside approach remains visible. */
 .crafting-workbench .material-need-ripple{position:absolute;inset:-6px;pointer-events:none;z-index:3}
@@ -194,16 +212,17 @@
 
 /* Approved crafting workbench layout and completion sequence. */
  .crafting-workbench .craft-completion-overlay{position:absolute;inset:0;z-index:100;display:grid;place-items:center;pointer-events:auto;isolation:isolate;animation:craft-completion-in .2s linear both}
- .crafting-workbench .craft-completion-overlay.is-out{animation:craft-completion-out .2s linear both}
+ .crafting-workbench .craft-completion-overlay.is-out{animation:craft-completion-out var(--completion-fade,.6s) linear both}
  .crafting-workbench .craft-stage:has(.craft-completion-overlay)>:not(.craft-completion-overlay){animation:craft-background-blur-in .2s linear both;pointer-events:none}
- .crafting-workbench .craft-stage:has(.craft-completion-overlay.is-out)>:not(.craft-completion-overlay){animation:craft-background-blur-out .2s linear both}
+ .crafting-workbench .craft-stage:has(.craft-completion-overlay.is-out)>:not(.craft-completion-overlay){animation:craft-background-blur-out .6s linear both}
  @keyframes craft-background-blur-in{from{filter:blur(0)}to{filter:blur(8px)}}
  @keyframes craft-background-blur-out{from{filter:blur(8px)}to{filter:blur(0)}}
  .crafting-workbench .craft-completion-shade{position:absolute;inset:0;background:#020810bf;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:-1}
  .crafting-workbench .craft-completion-content{width:100%;display:flex;flex-direction:column;align-items:center;pointer-events:none}
- .crafting-workbench .craft-completion-icon{width:420px;height:420px;display:grid;place-items:center}
+ .crafting-workbench .craft-completion-icon{position:relative;isolation:isolate;width:420px;height:420px;display:grid;place-items:center}
+ .crafting-workbench .craft-completion-icon img,.crafting-workbench .craft-completion-icon>.craft-art-fallback{position:relative;z-index:1}
  .crafting-workbench .craft-completion-icon img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 0 26px #e0bb6866)}
- .crafting-workbench .craft-completion-messages{position:relative;width:100%;height:90px;margin-top:20px}
+ .crafting-workbench .craft-completion-messages{position:relative;z-index:2;width:100%;height:90px;margin-top:20px}
  .crafting-workbench .craft-completion-messages p{position:absolute;inset:0;margin:0;text-align:center;color:#fff0c8;font-size:24px;line-height:40px;text-shadow:0 2px 8px #000;opacity:0;animation:craft-completion-pop 1s linear both}
  @keyframes craft-completion-in{from{opacity:0}to{opacity:1}}
  @keyframes craft-completion-out{from{opacity:1}to{opacity:0}}
@@ -247,9 +266,12 @@
   background-size:300% 100%;animation:craft-prepare-arrow-sweep 1.2s linear infinite;
 }
 @keyframes craft-prepare-arrow-sweep{from{background-position:100% 0}to{background-position:0% 0}}
-.crafting-workbench .craft-prepare-arrows.craft-confirm-arrows{width:39px;height:13px}
+.crafting-workbench .craft-prepare-arrows.craft-confirm-arrows{width:28px;height:10px}
 .crafting-workbench .craft-confirm-arrows.is-leftward{transform:scaleX(-1)}
 .crafting-workbench #craft-prepare:has(.craft-confirm-arrows){gap:7px}
+.crafting-workbench footer .actions .craft-action-content{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;pointer-events:none}
+.crafting-workbench .craft-action-content>.gamepad-button-icon{width:24px;height:24px;min-width:24px;flex:none;margin:0;transform:translateY(2px)}
+.crafting-workbench .craft-action-content>.craft-prepare-arrows:not(.craft-confirm-arrows){width:32px;height:11px}
 /* Reuse the Quest HUD surface, ring, glow, and texture renderers. */
 .crafting-workbench footer .actions :is(#craft-prepare,#craft-reset.has-hud-surface){
   --hud-light:#fff0bb;--hud-mid:#e4b64d;--hud-dim:#514123;
@@ -293,3 +315,46 @@
 }
 
 .crafting-workbench footer .actions :is(#craft-prepare,#craft-reset.has-hud-surface):disabled .hud-frame-glow{opacity:.3}
+
+/* Shortcut emphasis is not the A-button selection target. */
+.crafting-workbench #craft-auto-fill.shortcut-hover:not(:disabled){--assign-button-edge:#bdefff;--assign-button-glow:rgba(99,191,216,.27);color:#fff;box-shadow:none}
+.crafting-workbench footer .craft-control-hint{grid-column:3;min-width:0;text-align:center;white-space:nowrap;font-size:12px;color:#91b7c4;letter-spacing:0}
+.crafting-workbench .craft-control-hint .gamepad-button-icon{width:26px;height:26px;min-width:26px;margin:0 2px;vertical-align:middle}
+.crafting-workbench .bottom-line{justify-content:flex-end}
+.crafting-workbench .craft-quantity-row{grid-template-columns:78px 64px 78px}
+.crafting-workbench .craft-quantity-row>.quantity-control{grid-column:auto;display:flex;align-items:center;gap:6px}
+.crafting-workbench .quantity-control.is-minus{justify-content:flex-end}
+.crafting-workbench .quantity-control.is-plus{justify-content:flex-start}
+.crafting-workbench .quantity-control .gamepad-button-icon{width:28px;height:28px;min-width:28px;margin:0;pointer-events:none}
+.crafting-workbench .quantity-control.is-disabled .gamepad-button-icon{opacity:.3}
+
+/* Inventory selection: the approved 1px contour, without stacked inset borders. */
+.crafting-workbench .inventory-grid .material-cell .item:is(.nav-focus,.cursor-hover):not(:disabled),
+.crafting-workbench[data-owner=mouse] .inventory-grid .material-cell .item:hover:not(:disabled){
+ --corner:rgba(230,191,108,.27);--cell-edge:linear-gradient(135deg,#fff0bd,#e6bf6c 24%,#967035 50%,#e6bf6c 76%,#fff0bd);
+ background:radial-gradient(ellipse at 0 0,var(--corner),transparent 55%),radial-gradient(ellipse at 100% 100%,var(--corner),transparent 55%),#07131c;
+ border:0;box-shadow:none;
+}
+.crafting-workbench .inventory-grid .material-cell .item:is(.nav-focus,.cursor-hover):not(:disabled)::after,
+.crafting-workbench[data-owner=mouse] .inventory-grid .material-cell .item:hover:not(:disabled)::after{
+ clip-path:polygon(evenodd,4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px),0 4px,4px 0,4.414px 1px,1px 4.414px,1px calc(100% - 4.414px),4.414px calc(100% - 1px),calc(100% - 4.414px) calc(100% - 1px),calc(100% - 1px) calc(100% - 4.414px),calc(100% - 1px) 4.414px,calc(100% - 4.414px) 1px,4.414px 1px,4px 0);
+}
+.crafting-workbench .material-cell:has(>.item:is(.nav-focus,.cursor-hover):not(:disabled)) .material-ripple-wave,
+.crafting-workbench[data-owner=mouse] .material-cell:has(>.item:hover:not(:disabled)) .material-ripple-wave{stroke:#fff0bd;filter:drop-shadow(0 0 2px #e6bf6c)}
+.crafting-workbench .inventory-grid .material-cell .item:is(.nav-focus,.cursor-hover):not(:disabled) .item-name,
+.crafting-workbench[data-owner=mouse] .inventory-grid .material-cell .item:hover:not(:disabled) .item-name{color:#f3dfb0;text-shadow:none}
+
+.crafting-workbench footer .craft-control-hint{display:flex;flex-wrap:nowrap;align-items:center;justify-content:center;gap:10px}
+.crafting-workbench .craft-control-hint>div{flex:none}
+.crafting-workbench .craft-column-hint{line-height:26px;margin:0}
+.crafting-workbench .craft-column-hint .gamepad-button-icon{width:22px;height:22px;min-width:22px}
+/* Required + hovered must read brighter than an ordinary gold selection, at the same 1px width. */
+.crafting-workbench .inventory-grid .material-cell .item.is-needed:is(.nav-focus,.cursor-hover):not(:disabled),
+.crafting-workbench[data-owner=mouse] .inventory-grid .material-cell .item.is-needed:hover:not(:disabled){
+ --corner:rgba(255,212,117,.65);--cell-edge:linear-gradient(135deg,#fffbea,#ffe29c 24%,#f5ca70 50%,#ffe29c 76%,#fffbea);
+ box-shadow:inset 0 0 14px #ffd47a80,inset 0 0 30px #e7ae3d40;
+}
+.crafting-workbench .material-cell:has(>.item.is-needed:is(.nav-focus,.cursor-hover):not(:disabled)) .material-ripple-wave,
+.crafting-workbench[data-owner=mouse] .material-cell:has(>.item.is-needed:hover:not(:disabled)) .material-ripple-wave{stroke:#fff5d6;filter:drop-shadow(0 0 3px #ffda85) drop-shadow(0 0 5px #efb95180)}
+.crafting-workbench .inventory-grid .material-cell .item.is-needed:is(.nav-focus,.cursor-hover):not(:disabled) .item-name,
+.crafting-workbench[data-owner=mouse] .inventory-grid .material-cell .item.is-needed:hover:not(:disabled) .item-name{color:#fff4d5;text-shadow:0 0 5px #ffd68166}

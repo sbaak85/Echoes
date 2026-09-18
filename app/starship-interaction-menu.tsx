@@ -20,6 +20,10 @@ type NavigationDirection = "left" | "right" | "up" | "down";
 export type StarshipSleepOption = "eight-hours" | "tomorrow-six";
 export type StarshipInteractionControlMode = "pointer" | "directional" | "cursor" | "touch";
 export type StarshipInteractionMenuController = {
+  updateTriggers?: (left: boolean, right: boolean, now: number) => boolean;
+  switchColumn?: (delta: number) => void;
+  changePage?: (delta: number) => void;
+  secondary?: () => void;
   move: (direction: NavigationDirection) => void;
   hover: (index: number | null) => void;
   activate: () => void;
@@ -172,6 +176,10 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   }, [onInput, selected]);
 
   useImperativeHandle(forwardedRef, () => ({
+    updateTriggers: (left, right, now) => workbenchRef.current?.updateTriggers?.(left, right, now) ?? false,
+    switchColumn: delta => workbenchRef.current?.switchColumn?.(delta),
+    changePage: delta => workbenchRef.current?.changePage?.(delta),
+    secondary: () => workbenchRef.current?.secondary?.(),
     move: direction => view === "workbench" ? workbenchRef.current?.move(direction) : moveSpatially(direction),
     hover: index => view === "workbench" ? workbenchRef.current?.hover(index) : hoverFromVirtualCursor(index),
     activate: () => view === "workbench" ? workbenchRef.current?.activate() : activateSelected(),

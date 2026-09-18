@@ -14671,6 +14671,23 @@ export function MovementLab() {
         }
       } else if (starshipInteractionMenuOpen) {
         gameplayHotbarDpadX = 0;
+        const craftingOwnsTriggers = starshipInteractionMenuControllerRef.current?.updateTriggers?.(
+          gamepadInput.connected && gamepadInput.leftTriggerPressed,
+          gamepadInput.connected && gamepadInput.rightTriggerPressed,
+          performance.now(),
+        ) ?? false;
+        if (leftBumperJustPressed || rightBumperJustPressed) {
+          activateStarshipInteractionDirectionalMode();
+          starshipInteractionMenuControllerRef.current?.switchColumn?.(leftBumperJustPressed ? -1 : 1);
+        }
+        if (!craftingOwnsTriggers && (leftTriggerJustPressed || rightTriggerJustPressed)) {
+          activateStarshipInteractionDirectionalMode();
+          starshipInteractionMenuControllerRef.current?.changePage?.(leftTriggerJustPressed ? -1 : 1);
+        }
+        if (gamepadInput.connected && gamepadInput.secondaryActionPressed && !wasGamepadSecondaryActionPressed) {
+          activateStarshipInteractionDirectionalMode();
+          starshipInteractionMenuControllerRef.current?.secondary?.();
+        }
         const menuHorizontal = Math.sign(gamepadInput.dpadX || (Math.abs(gamepadInput.stickX) >= 0.65 ? gamepadInput.stickX : 0));
         if (menuHorizontal === 0) {
           heldGamepadDpadX = 0;
