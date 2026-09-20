@@ -1784,6 +1784,10 @@ type InventoryItemInspectView = {
 const INVENTORY_ITEM_ARTWORK_PREVIEWS: Readonly<
   Record<string, InventoryItemArtworkPreview>
 > = {
+  R0036: {
+    iconPath: uiAssetUrl("items/空試管瓶-icon-280.png"),
+    inspectPath: uiAssetUrl("items/空試管瓶-inspect-640.png"),
+  },
   R0019: {
     iconPath: uiAssetUrl("items/韌化藤皮-icon-280.png"),
     inspectPath: uiAssetUrl("items/韌化藤皮-inspect-640.png"),
@@ -1965,8 +1969,8 @@ const INVENTORY_ITEM_ARTWORK_PREVIEWS: Readonly<
     inspectPath: uiAssetUrl("items/medkit-inspect-640.png"),
   },
   T0006: {
-    iconPath: uiAssetUrl("items/lantern-icon-280.png"),
-    inspectPath: uiAssetUrl("items/lantern-inspect-640.png"),
+    iconPath: uiAssetUrl("items/螢光棒-icon-280.png"),
+    inspectPath: uiAssetUrl("items/螢光棒-inspect-640.png"),
   },
   T0007: {
     iconPath: uiAssetUrl("items/welding-tool-icon-280.png"),

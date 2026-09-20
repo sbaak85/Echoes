@@ -3221,8 +3221,18 @@
       "quantity": 1,
       "spawnPolicy": "once",
       "showOnMinimap": false,
-      "x": 455,
+      "x": 420,
       "y": 660
+    },
+    {
+      "id": "scene6-item-point-006",
+      "label": "ItemPoint 4",
+      "itemId": "R0019",
+      "quantity": 1,
+      "spawnPolicy": "once",
+      "showOnMinimap": false,
+      "x": 635,
+      "y": 535
     }
   ],
   "worldLayout": {

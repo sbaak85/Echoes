@@ -3336,14 +3336,14 @@
       "survivalEffects": {
         "stamina": -5,
         "hunger": -5,
-        "thirst": -5,
+        "thirst": -9,
         "spirit": 0,
         "timeMinutes": 0
       },
       "interactionLimitMode": "once",
       "itemRewards": [
         {
-          "itemId": "T0006",
+          "itemId": "R0036",
           "quantity": 1,
           "delivery": "world"
         }
