@@ -110,11 +110,11 @@ test("Item All 會將道具清單中的每種道具各加入背包一個", () =>
   });
 });
 
-test("中央道具資料庫固定保留 100 欄，現有 64 項道具都有分類流水號與英文名稱", () => {
+test("中央道具資料庫固定保留 100 欄，現有 67 項道具都有分類流水號與英文名稱", () => {
   assert.equal(validateItemDatabase(), true);
   assert.equal(ITEM_DATABASE.length, ITEM_DATABASE_CAPACITY);
   assert.equal(ITEM_DATABASE_CAPACITY, 100);
-  assert.equal(ITEM_DEFINITIONS.length, 64);
+  assert.equal(ITEM_DEFINITIONS.length, 67);
   ITEM_DEFINITIONS.forEach((item) => {
     assert.match(item.id, /^[RTQM]\d{4}$/);
     assert.ok(item.englishName.length > 0);

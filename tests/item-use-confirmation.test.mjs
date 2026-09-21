@@ -81,7 +81,7 @@ test("背包與快捷列共用 useAction 確認入口，確認後才規劃生成
 
   assert.match(source, /activateHotbarItem[\s\S]*useInventoryItem\(item\.id, slotIndex\)/);
   assert.match(source, /activateInventoryItem[\s\S]*useInventoryItem\(item\.id, -1\)/);
-  assert.match(source, /if \(item\.useAction\) \{[\s\S]*openItemUseConfirmation/);
+  assert.match(source, /if \(item\.useAction \|\| item\.backpackCapacityKg\) \{[\s\S]*openItemUseConfirmation/);
   assert.match(source, /role="alertdialog"/);
   assert.match(source, /autoFocus/);
   assert.match(source, /trigger\.focus\(\{ preventScroll: true \}\)/);

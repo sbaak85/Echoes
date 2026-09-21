@@ -30,6 +30,7 @@ import {
   type StoryProgress,
 } from "./story-progress.ts";
 import { saveQuestSaveData } from "./quest-runtime-manager.ts";
+import { DEFAULT_BACKPACK_ID, saveEquippedBackpack } from "./inventory-capacity.ts";
 import {
   createInitialCampPowerState,
   saveCampPowerState,
@@ -58,6 +59,7 @@ export type NewGameProgress = {
   survival: SurvivalGameState;
   interactionUsage: InteractionUsageState;
   inventory: PlayerInventory;
+  equippedBackpack: string;
   collectedWorldItemIds: Set<string>;
   droppedWorldItems: [];
   itemPointProgress: ItemPointProgress;
@@ -72,6 +74,7 @@ export function createNewGameProgress(): NewGameProgress {
     survival,
     interactionUsage: createInteractionUsageState(survival.gameMinutes),
     inventory: { ...INITIAL_PLAYER_INVENTORY },
+    equippedBackpack: DEFAULT_BACKPACK_ID,
     collectedWorldItemIds: new Set<string>(),
     droppedWorldItems: [],
     itemPointProgress: createInitialItemPointProgress(),
@@ -90,6 +93,7 @@ export function resetStoredNewGameProgress(): NewGameProgress {
   saveSurvivalState(progress.survival);
   saveInteractionUsageState(progress.interactionUsage);
   savePlayerInventory(progress.inventory);
+  saveEquippedBackpack(progress.equippedBackpack);
   saveCollectedWorldItemIds(progress.collectedWorldItemIds);
   saveDroppedWorldItems(progress.droppedWorldItems);
   saveItemPointProgress(progress.itemPointProgress);

@@ -1,3 +1,4 @@
+import { normalizeEquippedBackpack, saveEquippedBackpack } from "./inventory-capacity.ts";
 import {
   normalizePlayerInventory,
   savePlayerInventory,
@@ -63,6 +64,7 @@ export type EchoesSaveData = {
     sceneId: string;
     survival: SurvivalGameState;
     inventory: PlayerInventory;
+    equippedBackpack?: string;
     quest: QuestSaveData;
     story: StoryProgress;
     campPower: CampPowerState;
@@ -127,6 +129,7 @@ export function normalizeEchoesSaveData(value: unknown): EchoesSaveData | null {
       sceneId,
       survival,
       inventory: normalizePlayerInventory(progress.inventory),
+      equippedBackpack: normalizeEquippedBackpack(progress.equippedBackpack),
       quest,
       story: normalizeStoryProgress(progress.story),
       campPower: normalizeCampPowerState(progress.campPower, survival.gameMinutes),
@@ -272,6 +275,7 @@ export function applySaveDataToRuntimeStorage(save: EchoesSaveData) {
   const { progress } = normalized;
   saveSurvivalState(progress.survival);
   savePlayerInventory(progress.inventory);
+  saveEquippedBackpack(normalizeEquippedBackpack(progress.equippedBackpack));
   saveQuestSaveData(progress.quest);
   saveStoryProgress(progress.story);
   saveCampPowerState(progress.campPower);

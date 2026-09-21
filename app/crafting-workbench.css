@@ -329,19 +329,19 @@
 .crafting-workbench .quantity-control.is-disabled .gamepad-button-icon{opacity:.3}
 
 /* Inventory selection: the approved 1px contour, without stacked inset borders. */
-.crafting-workbench .inventory-grid .material-cell .item:is(.nav-focus,.cursor-hover):not(:disabled),
+.crafting-workbench .inventory-grid .material-cell .item:is(.nav-focus,.cursor-hover,.material-target):not(:disabled),
 .crafting-workbench[data-owner=mouse] .inventory-grid .material-cell .item:hover:not(:disabled){
  --corner:rgba(230,191,108,.27);--cell-edge:linear-gradient(135deg,#fff0bd,#e6bf6c 24%,#967035 50%,#e6bf6c 76%,#fff0bd);
  background:radial-gradient(ellipse at 0 0,var(--corner),transparent 55%),radial-gradient(ellipse at 100% 100%,var(--corner),transparent 55%),#07131c;
  border:0;box-shadow:none;
 }
-.crafting-workbench .inventory-grid .material-cell .item:is(.nav-focus,.cursor-hover):not(:disabled)::after,
+.crafting-workbench .inventory-grid .material-cell .item:is(.nav-focus,.cursor-hover,.material-target):not(:disabled)::after,
 .crafting-workbench[data-owner=mouse] .inventory-grid .material-cell .item:hover:not(:disabled)::after{
  clip-path:polygon(evenodd,4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px),0 4px,4px 0,4.414px 1px,1px 4.414px,1px calc(100% - 4.414px),4.414px calc(100% - 1px),calc(100% - 4.414px) calc(100% - 1px),calc(100% - 1px) calc(100% - 4.414px),calc(100% - 1px) 4.414px,calc(100% - 4.414px) 1px,4.414px 1px,4px 0);
 }
-.crafting-workbench .material-cell:has(>.item:is(.nav-focus,.cursor-hover):not(:disabled)) .material-ripple-wave,
+.crafting-workbench .material-cell:has(>.item:is(.nav-focus,.cursor-hover,.material-target):not(:disabled)) .material-ripple-wave,
 .crafting-workbench[data-owner=mouse] .material-cell:has(>.item:hover:not(:disabled)) .material-ripple-wave{stroke:#fff0bd;filter:drop-shadow(0 0 2px #e6bf6c)}
-.crafting-workbench .inventory-grid .material-cell .item:is(.nav-focus,.cursor-hover):not(:disabled) .item-name,
+.crafting-workbench .inventory-grid .material-cell .item:is(.nav-focus,.cursor-hover,.material-target):not(:disabled) .item-name,
 .crafting-workbench[data-owner=mouse] .inventory-grid .material-cell .item:hover:not(:disabled) .item-name{color:#f3dfb0;text-shadow:none}
 
 .crafting-workbench footer .craft-control-hint{display:flex;flex-wrap:nowrap;align-items:center;justify-content:center;gap:10px}
@@ -349,12 +349,33 @@
 .crafting-workbench .craft-column-hint{line-height:26px;margin:0}
 .crafting-workbench .craft-column-hint .gamepad-button-icon{width:22px;height:22px;min-width:22px}
 /* Required + hovered must read brighter than an ordinary gold selection, at the same 1px width. */
-.crafting-workbench .inventory-grid .material-cell .item.is-needed:is(.nav-focus,.cursor-hover):not(:disabled),
+.crafting-workbench .inventory-grid .material-cell .item.is-needed:is(.nav-focus,.cursor-hover,.material-target):not(:disabled),
 .crafting-workbench[data-owner=mouse] .inventory-grid .material-cell .item.is-needed:hover:not(:disabled){
  --corner:rgba(255,212,117,.65);--cell-edge:linear-gradient(135deg,#fffbea,#ffe29c 24%,#f5ca70 50%,#ffe29c 76%,#fffbea);
  box-shadow:inset 0 0 14px #ffd47a80,inset 0 0 30px #e7ae3d40;
 }
-.crafting-workbench .material-cell:has(>.item.is-needed:is(.nav-focus,.cursor-hover):not(:disabled)) .material-ripple-wave,
+.crafting-workbench .material-cell:has(>.item.is-needed:is(.nav-focus,.cursor-hover,.material-target):not(:disabled)) .material-ripple-wave,
 .crafting-workbench[data-owner=mouse] .material-cell:has(>.item.is-needed:hover:not(:disabled)) .material-ripple-wave{stroke:#fff5d6;filter:drop-shadow(0 0 3px #ffda85) drop-shadow(0 0 5px #efb95180)}
-.crafting-workbench .inventory-grid .material-cell .item.is-needed:is(.nav-focus,.cursor-hover):not(:disabled) .item-name,
+.crafting-workbench .inventory-grid .material-cell .item.is-needed:is(.nav-focus,.cursor-hover,.material-target):not(:disabled) .item-name,
 .crafting-workbench[data-owner=mouse] .inventory-grid .material-cell .item.is-needed:hover:not(:disabled) .item-name{color:#fff4d5;text-shadow:0 0 5px #ffd68166}
+
+/* Separate semantic buttons: the row changes recipes; its sibling locates materials. */
+.crafting-workbench .recipe-entry{position:relative;flex:0 0 calc((100% - 28px)/5);min-height:0}
+.crafting-workbench .recipe-list .recipe-entry>.recipe-row{height:100%;min-height:0}
+.crafting-workbench .recipe-entry.is-selected>.recipe-row{padding-right:124px}
+.crafting-workbench .recipe-row-copy{min-width:0}
+.crafting-workbench .recipe-row-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crafting-workbench .recipe-entry>.recipe-materials-button,
+.crafting-workbench[data-owner=mouse] .recipe-entry>.recipe-materials-button:hover:not(:disabled),
+.crafting-workbench .recipe-entry>.recipe-materials-button:is(.nav-focus,.cursor-hover){
+ position:absolute;right:6px;top:6px;bottom:6px;width:114px;padding:0 8px;
+ display:flex;align-items:center;justify-content:flex-end;background:transparent;border:0;box-shadow:none;color:#f3e6c7;
+}
+.crafting-workbench .recipe-materials-content{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-size:12px;pointer-events:none}
+.crafting-workbench .recipe-materials-content img.gamepad-button-icon{display:block;width:24px;height:24px;min-width:24px;margin:0;flex:none;transform:translateY(2px)}
+.crafting-workbench .recipe-materials-content svg{width:12px;height:18px;fill:none;stroke:#ffe88b;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;transform-origin:center;transition:transform .18s ease-out}
+.crafting-workbench[data-owner=mouse] .recipe-materials-button:hover:not(:disabled) .recipe-materials-content svg,
+.crafting-workbench .recipe-materials-button:is(.nav-focus,.cursor-hover):not(:disabled) .recipe-materials-content svg{
+ transform:scale(1.3);animation:craft-materials-breathe 1.4s ease-in-out infinite;
+}
+@keyframes craft-materials-breathe{0%,100%{filter:brightness(1);opacity:.78}50%{filter:brightness(1.35) drop-shadow(0 0 4px #ffe49c88);opacity:1}}

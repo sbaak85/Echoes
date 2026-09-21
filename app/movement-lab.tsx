@@ -11,7 +11,8 @@ import { CursorPresentationGuard, CURSOR_POSITION_STORAGE_KEY, parseCursorPositi
 import { InventoryHoverHint, useInventoryHoverHint } from "./inventory-hover-hint";
 import { InventorySurvivalFloat } from "./inventory-survival-float";
 import { RadarPlayerMarker } from "./radar-player-marker";
-import { DEFAULT_BACKPACK_CAPACITY_KG } from "./inventory-capacity";
+import { DEFAULT_BACKPACK_ID, backpackCapacity, equipBackpack, loadEquippedBackpack, saveEquippedBackpack } from "./inventory-capacity";
+import { BackpackContainer } from "./backpack-container";
 import { AssignFrame } from "./quick-assign-frame";
 import { scheduleUiAssetWarmup } from "./ui-asset-warmup";
 import { SurvivalNeedIcon } from "./survival-need-icon";
@@ -1734,8 +1735,9 @@ function formatSurvivalEffects(effects: SurvivalEffects) {
 }
 
 function formatInventoryItemInformationEffect(
-  item: Pick<ItemDefinition, "survivalEffects" | "useAction">,
+  item: Pick<ItemDefinition, "survivalEffects" | "useAction" | "backpackCapacityKg">,
 ) {
+  if (item.backpackCapacityKg) return `裝備負重上限 ${item.backpackCapacityKg}kg · 替換後移除舊背包`;
   const useActionEffect = formatItemUseActionEffect(
     item.useAction,
     (itemId) => ITEM_BY_ID.get(itemId)?.name,
@@ -1749,9 +1751,9 @@ function formatInventoryItemInformationEffect(
 }
 
 function hasConfiguredInventoryItemInformationEffect(
-  item: Pick<ItemDefinition, "survivalEffects" | "useAction">,
+  item: Pick<ItemDefinition, "survivalEffects" | "useAction" | "backpackCapacityKg">,
 ) {
-  return Boolean(item.useAction) ||
+  return Boolean(item.useAction || item.backpackCapacityKg) ||
     hasConfiguredSurvivalEffects(item.survivalEffects);
 }
 
@@ -4090,6 +4092,10 @@ export function MovementLab() {
     () => new Set<string>(),
   );
   const playerInventoryRef = useRef(playerInventory);
+  const [equippedBackpack, setEquippedBackpack] = useState(DEFAULT_BACKPACK_ID);
+  const equippedBackpackRef = useRef(equippedBackpack);
+  const observedBackpackInventoryRef = useRef(playerInventory);
+  const [pendingBackpacks, setPendingBackpacks] = useState<string[]>([]);
   const collectedWorldItemIdsRef = useRef(collectedWorldItemIds);
   const [activeHotbarSlot, setActiveHotbarSlot] = useState(0);
   const [hotbarAssignments, setHotbarAssignments] = useState<(string | null)[]>(
@@ -5259,6 +5265,10 @@ export function MovementLab() {
         }
       }
       const loadedInventory = loadPlayerInventory();
+      const loadedBackpack = loadEquippedBackpack();
+      equippedBackpackRef.current = loadedBackpack;
+      setEquippedBackpack(loadedBackpack);
+      observedBackpackInventoryRef.current = loadedInventory;
       const loadedCollectedWorldItemIds = loadCollectedWorldItemIds();
       const loadedDroppedWorldItems = loadDroppedWorldItems();
       const loadedItemPointProgress = loadItemPointProgress();
@@ -5655,7 +5665,30 @@ export function MovementLab() {
   useEffect(() => {
     if (!storyReady) return;
     requestPortableAutosaveRef.current("inventory-or-world-progress");
-  }, [campPowerState, collectedWorldItemIds, playerInventory, storyReady]);
+  }, [campPowerState, collectedWorldItemIds, playerInventory, equippedBackpack, storyReady]);
+
+  useEffect(() => {
+    if (!storyReady) return;
+    const previous = observedBackpackInventoryRef.current;
+    observedBackpackInventoryRef.current = playerInventory;
+    const acquired = Object.keys(playerInventory).filter(id =>
+      ITEM_BY_ID.get(id)?.backpackCapacityKg && playerInventory[id] > (previous[id] ?? 0));
+    if (acquired.length) setPendingBackpacks(queue => [...new Set([...queue, ...acquired])]);
+  }, [playerInventory, storyReady]);
+
+  useEffect(() => {
+    if (!storyReady || !pendingBackpacks.length || itemUseConfirmation || dialogueView ||
+        optionsOpen || restartConfirmationOpen || debugItemSpawnerOpen || powerPuzzleOpen ||
+        frequencyPuzzleOpen || weldingPuzzleOpen || starCardsOpen || starshipInteractionMenuOpen ||
+        campPowerConfirmationOpen || sceneConnectionConfirmation || chapter04SavePromptOpen ||
+        questItemSubmissionPrompt || inventoryItemInspect) return;
+    const [id, ...rest] = pendingBackpacks;
+    setPendingBackpacks(rest);
+    if ((playerInventoryRef.current[id] ?? 0) > 0) openItemUseConfirmation(id, -1);
+  }, [storyReady, pendingBackpacks, itemUseConfirmation, dialogueView, optionsOpen,
+    restartConfirmationOpen, debugItemSpawnerOpen, powerPuzzleOpen, frequencyPuzzleOpen,
+    weldingPuzzleOpen, starCardsOpen, starshipInteractionMenuOpen, campPowerConfirmationOpen,
+    sceneConnectionConfirmation, chapter04SavePromptOpen, questItemSubmissionPrompt, inventoryItemInspect]);
 
   useEffect(() => () => {
     if (portableAutosaveTimerRef.current !== null) {
@@ -6349,7 +6382,7 @@ export function MovementLab() {
     feedbackSlotIndex: number,
   ) {
     const item = ITEM_BY_ID.get(itemId);
-    if (!item?.useAction || itemUseConfirmationOpenRef.current) return;
+    if (!item || (!item.useAction && !item.backpackCapacityKg) || itemUseConfirmationOpenRef.current) return;
     if ((playerInventoryRef.current[item.id] ?? 0) <= 0) {
       showInventoryFeedback(`尚未持有「${item.name}」`, feedbackSlotIndex);
       return;
@@ -6370,6 +6403,20 @@ export function MovementLab() {
       const currentPending = pendingItemUseConfirmationRef.current;
       if (!currentPending) return;
       closeItemUseConfirmation();
+      if (ITEM_BY_ID.get(currentPending.itemId)?.backpackCapacityKg) {
+        const replacement = equipBackpack(playerInventoryRef.current, currentPending.itemId);
+        if (!replacement) return;
+        playerInventoryRef.current = replacement.inventory;
+        equippedBackpackRef.current = replacement.equippedBackpack;
+        setPlayerInventory(replacement.inventory);
+        setEquippedBackpack(replacement.equippedBackpack);
+        try {
+          savePlayerInventory(replacement.inventory);
+          saveEquippedBackpack(replacement.equippedBackpack);
+        } catch { /* Keep session equipment if local storage is unavailable. */ }
+        showInventoryFeedback(`已裝備「${ITEM_BY_ID.get(replacement.equippedBackpack)!.name}」· 舊背包已移除`, currentPending.feedbackSlotIndex);
+        return;
+      }
       executeInventoryItemUseAction(
         currentPending.itemId,
         currentPending.feedbackSlotIndex,
@@ -6381,7 +6428,7 @@ export function MovementLab() {
     settleNaturalSurvivalRef.current();
     const item = ITEM_BY_ID.get(itemId);
     if (!item) return;
-    if (item.useAction) {
+    if (item.useAction || item.backpackCapacityKg) {
       openItemUseConfirmation(item.id, feedbackSlotIndex);
       return;
     }
@@ -7770,6 +7817,7 @@ export function MovementLab() {
         sceneId: SCENE_DATA.sceneId,
         survival: runtimeSnapshot?.survival ?? survivalStateRef.current,
         inventory: playerInventoryRef.current,
+        equippedBackpack: equippedBackpackRef.current,
         quest: questSave,
         story: storyProgress,
         campPower: runtimeSnapshot?.campPower ?? campPowerStateRef.current,
@@ -16092,9 +16140,10 @@ export function MovementLab() {
       }
     : null;
   const inventoryWeight = calculateInventoryWeight(playerInventory);
+  const inventoryCapacityKg = backpackCapacity(equippedBackpack);
   const inventoryWeightPercent = Math.min(
     100,
-    (inventoryWeight / DEFAULT_BACKPACK_CAPACITY_KG) * 100,
+    (inventoryWeight / inventoryCapacityKg) * 100,
   );
   const inventoryCategoryCounts = ownedInventoryItems.reduce(
     (counts, stack) => {
@@ -16243,6 +16292,10 @@ export function MovementLab() {
     survivalStateRef.current = progress.survival;
     interactionUsageRef.current = progress.interactionUsage;
     playerInventoryRef.current = progress.inventory;
+    equippedBackpackRef.current = progress.equippedBackpack;
+    setEquippedBackpack(progress.equippedBackpack);
+    observedBackpackInventoryRef.current = progress.inventory;
+    setPendingBackpacks([]);
     collectedWorldItemIdsRef.current = progress.collectedWorldItemIds;
     hotbarAssignmentsRef.current = progress.hotbarAssignments;
     currentStoryChapterRef.current = progress.story.currentChapter;
@@ -16290,6 +16343,7 @@ export function MovementLab() {
         sceneId: DEFAULT_SCENE_ID,
         survival: progress.survival,
         inventory: progress.inventory,
+        equippedBackpack: progress.equippedBackpack,
         quest: { schemaVersion: 1, quests: {} },
         story: progress.story,
         campPower: progress.campPower,
@@ -17364,7 +17418,7 @@ export function MovementLab() {
             <i className="inventory-trigger-body" />
             <i className="inventory-trigger-pocket" />
           </span>
-          <small className="hotbar-backpack-weight">{inventoryWeight.toFixed(1)}/{DEFAULT_BACKPACK_CAPACITY_KG} kg</small>
+          <small className="hotbar-backpack-weight">{inventoryWeight.toFixed(1)}/{inventoryCapacityKg} kg</small>
         </button>
       </section>
 
@@ -17437,21 +17491,18 @@ export function MovementLab() {
                       );
                     })}
                   </section>
-                  <div className="inventory-bag-art" aria-hidden="true">
-                    <svg viewBox="0 0 180 190">
-                      <path d="M57 48c3-25 18-36 33-36s30 11 33 36" />
-                      <path d="M42 55c12-12 84-12 96 0l9 106c-17 18-97 18-114 0z" />
-                      <path d="M51 85h78v62H51z" />
-                      <path d="M68 43v112M112 43v112M35 77l-16 20 7 51M145 77l16 20-7 51" />
-                      <path d="M60 92h60M73 118h34M81 75h18" />
-                    </svg>
+                  <div className="inventory-bag-art">
+                    <div className="inventory-backpack-equipment" title={`${ITEM_BY_ID.get(equippedBackpack)!.name} · 已裝備，不可卸下`}>
+                      <small>背包</small><span>{inventoryCapacityKg}<small>kg</small></span><small>已裝備</small>
+                    </div>
+                    <BackpackContainer percent={inventoryWeightPercent} />
                   </div>
                   <div className="inventory-weight">
                     <svg className="inventory-weight-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <circle cx="12" cy="5" r="3" stroke="currentColor" strokeWidth="2" />
                       <path d="M7 8h10l4 13H3Z" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
                     </svg>
-                    <strong>{inventoryWeight.toFixed(1)} / {DEFAULT_BACKPACK_CAPACITY_KG.toFixed(1)} kg</strong>
+                    <strong>{inventoryWeight.toFixed(1)} / {inventoryCapacityKg.toFixed(1)} kg</strong>
                     <i><b style={{ width: `${inventoryWeightPercent}%` }} /></i>
                   </div>
                   <section className="inventory-category-stats">
@@ -17483,7 +17534,7 @@ export function MovementLab() {
                             alt=""
                             draggable={false}
                           />
-                        ) : selectedInventoryItem.symbol}
+                        ) : selectedInventoryItem.backpackCapacityKg ? <BackpackContainer percent={0} /> : selectedInventoryItem.symbol}
                       </span>
                     </div>
                     <section className="inventory-selected-copy">
@@ -17510,7 +17561,7 @@ export function MovementLab() {
                           inventorySelectedAction === "use" || undefined
                         }
                         onClick={() => activateInventoryItem(selectedInventoryStack?.databaseIndex ?? selectedInventoryIndex)}
-                      >使用</button>
+                      >{selectedInventoryItem.backpackCapacityKg ? "裝備" : "使用"}</button>
                       <button
                         type="button"
                         data-inventory-action="inspect"
@@ -17639,7 +17690,7 @@ export function MovementLab() {
                             alt=""
                             draggable={false}
                           />
-                        ) : item.symbol}
+                        ) : item.backpackCapacityKg ? <BackpackContainer percent={0} /> : item.symbol}
                       </span>
                       <span className="inventory-item-caption">
                         <strong>{item.name}</strong>
@@ -17666,7 +17717,7 @@ export function MovementLab() {
           </section>
 
           <footer className="inventory-screen-footer">
-            <div className="inventory-currency"><span>◉　23,450</span><span>▣　{inventoryWeight.toFixed(1)} / {DEFAULT_BACKPACK_CAPACITY_KG.toFixed(1)} kg</span></div>
+            <div className="inventory-currency"><span>◉　23,450</span><span>▣　{inventoryWeight.toFixed(1)} / {inventoryCapacityKg.toFixed(1)} kg</span></div>
           </footer>
         </div>
       ) : null}
@@ -17887,7 +17938,7 @@ export function MovementLab() {
         />
       ) : null}
 
-      {itemUseConfirmation && itemUseConfirmationItem && itemUseConfirmationAction ? (
+      {itemUseConfirmation && itemUseConfirmationItem && (itemUseConfirmationAction || itemUseConfirmationItem.backpackCapacityKg) ? (
         <div
           className="scene-connection-confirmation-overlay item-use-confirmation-overlay"
           onMouseDown={(event) => {
@@ -17905,23 +17956,30 @@ export function MovementLab() {
           >
             <small>ITEM USE CONFIRMATION</small>
             <h3 id="item-use-confirmation-title">
-              確認{itemUseConfirmationVerb}「{itemUseConfirmationItem.name}」，以取得
-              <span>{itemUseConfirmationRewardText}嗎？</span>
+              {itemUseConfirmationItem.backpackCapacityKg
+                ? `是否裝備「${itemUseConfirmationItem.name}」，取代「${ITEM_BY_ID.get(equippedBackpack)!.name}」？`
+                : <>確認{itemUseConfirmationVerb}「{itemUseConfirmationItem.name}」，以取得<span>{itemUseConfirmationRewardText}嗎？</span></>}
             </h3>
-            <ItemChangeVisualization
+            {itemUseConfirmationItem.backpackCapacityKg ? (
+              <div className="backpack-equipment-comparison">負重上限 {inventoryCapacityKg}kg → {itemUseConfirmationItem.backpackCapacityKg}kg</div>
+            ) : <ItemChangeVisualization
               className="item-use-change-visualization"
               sources={itemUseConfirmationSources}
               targets={itemUseConfirmationTargets}
               quantityPlacement="outside"
-            />
+            />}
             <p
               className="item-use-confirmation-consumption"
               id="item-use-confirmation-consumption"
             >
-              {itemUseConfirmationVerb}「{itemUseConfirmationItem.name}」後將會消耗該物件。
+              {itemUseConfirmationItem.backpackCapacityKg
+                ? "確認後舊背包將直接移除；新背包進入獨立裝備欄，不佔物品格，且不可單獨卸下。"
+                : `${itemUseConfirmationVerb}「${itemUseConfirmationItem.name}」後將會消耗該物件。`}
             </p>
             <p className="item-use-confirmation-delivery">
-              {itemUseConfirmationDeliveryText}
+              {itemUseConfirmationItem.backpackCapacityKg
+                ? `暫不替換會留在一般背包，佔一格並計入 ${itemUseConfirmationItem.weight.toFixed(1)}kg 重量；之後可選擇使用來裝備。`
+                : itemUseConfirmationDeliveryText}
             </p>
             <div className="scene-connection-confirmation-actions item-use-confirmation-actions">
               <button
@@ -17949,7 +18007,7 @@ export function MovementLab() {
                   confirmItemUseAction();
                 }}
               >
-                確認{itemUseConfirmationVerb}
+                {itemUseConfirmationItem.backpackCapacityKg ? "替換背包" : `確認${itemUseConfirmationVerb}`}
               </button>
             </div>
             <footer><GamepadHint enabled={questPromptInputMode === "gamepad"} text="左搖桿／方向鍵：選擇　A／Enter：確認　B／Esc：取消" /></footer>

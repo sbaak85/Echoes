@@ -38,6 +38,7 @@ export type ItemDefinition = {
   description: string;
   weight: number;
   usable: boolean;
+  backpackCapacityKg?: number;
   useMode?: "direct" | "interaction";
   useAction?: ItemUseAction;
   survivalEffects: SurvivalEffects;
@@ -1038,9 +1039,9 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       inventoryRules: { transferable: true, discardable: true, stackSize: 99 },
     },
   },
-  { slot: 65, item: null },
-  { slot: 66, item: null },
-  { slot: 67, item: null },
+  { slot: 65, item: { id:"T0011", englishName:"basic-backpack", name:"10kg 基礎背包", symbol:"▣", category:"tool", weight:0.5, usable:true, backpackCapacityKg:10, description:"輕量織物與加固背帶構成的入門背包，提供 10kg 負重上限。裝備於獨立背包欄，不佔物品格且不可單獨卸下。確認替換會移除舊背包；未裝備時重 0.5kg、佔一格。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
+  { slot: 66, item: { id:"T0012", englishName:"survival-backpack", name:"30kg 生存背包", symbol:"▣", category:"tool", weight:0.8, usable:true, backpackCapacityKg:30, description:"具備分艙收納與強化承重骨架的野外生存背包，提供 30kg 負重上限。裝備不佔物品格；確認替換會移除舊背包。暫不替換可留在物品欄，重 0.8kg、佔一格，稍後使用即可裝備。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
+  { slot: 67, item: { id:"T0013", englishName:"powered-backpack", name:"50kg 動力背包", symbol:"▣", category:"tool", weight:1, usable:true, backpackCapacityKg:50, description:"整合輔助承重框架的動力背包，提供 50kg 負重上限。裝備不佔物品格且不可單獨卸下；確認替換會移除舊背包。未裝備時重 1.0kg、佔一格，可由物品欄使用並裝備。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
   { slot: 68, item: null },
   { slot: 69, item: null },
   { slot: 70, item: null },
