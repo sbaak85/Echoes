@@ -251,6 +251,26 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
       }}
       onClick={() => activate(action)}
     >
+      {view === "craft" && <span className="im-workbench-hover-fx" aria-hidden="true">
+        <span className="im-workbench-fx-disc">
+          <span className="im-workbench-fx-rays" />
+          <svg viewBox="0 0 560 560" focusable="false">
+            <g className="im-workbench-fx-scaffold" opacity=".24">
+              {[200,216,232].map(radius=><circle key={radius} cx="280" cy="280" r={radius}/>) }
+            </g>
+            <g className="im-workbench-fx-orbit">
+              {Array.from({length:72},(_,i)=><path key={i}
+                d={i%6===0?"M280 48V64":"M280 48V55"}
+                transform={`rotate(${i*5} 280 280)`}
+                opacity={i%6===0?.7:.32}/>) }
+            </g>
+            <g className="im-workbench-fx-outer">
+              {Array.from({length:36},(_,i)=><path key={i} d="M280 80V84"
+                transform={`rotate(${i*10} 280 280)`}/>) }
+            </g>
+          </svg>
+        </span>
+      </span>}
       <span className="im-option-media" style={optionImageStyle(imageUrl)} aria-hidden="true" />
       <span className="im-copy"><strong>{title}</strong><small>{detail}</small></span>
       <span className="im-arrow" aria-hidden="true">›</span>
@@ -327,8 +347,8 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
             {row(1, IMAGES.sleep.card, "睡到明天 06 點", "休息至明天清晨 06:00", () => onSleep("tomorrow-six"))}
           </> : null}
           {view === "craft" ? <>
-            <button type="button" data-starship-menu-index={0} className={`im-craft-empty im-workbench-entry ${((controlMode === "directional" && selected === 0) || (controlMode === "cursor" && cursorHover === 0)) ? "is-selected" : ""}`} onFocus={() => setSelected(0)} onClick={() => activate(() => changeView("workbench"))}><span className="im-workbench-art" aria-hidden="true"><img className="im-workbench-art-soft" src={assetUrl("ui/power-devices/工作台.png")} alt=""/><img className="im-workbench-art-sharp" src={assetUrl("ui/power-devices/工作台.png")} alt=""/></span><span aria-hidden="true">⚒</span><h2>製作工作台</h2><p>選擇配方、投入素材，製作道具與補給。</p><small>開啟道具合成系統</small></button>
-            <button type="button" data-starship-menu-index={1} className={`im-craft-empty im-workbench-entry ${((controlMode === "directional" && selected === 1) || (controlMode === "cursor" && cursorHover === 1)) ? "is-selected" : ""}`} onFocus={() => setSelected(1)} onClick={() => activate(() => changeView("cooking"))}><span className="im-workbench-art" aria-hidden="true"><img className="im-workbench-art-soft" src={assetUrl("ui/power-devices/食物儲藏.png")} alt=""/><img className="im-workbench-art-sharp" src={assetUrl("ui/power-devices/食物儲藏.png")} alt=""/></span><span aria-hidden="true">♨</span><h2>料理工作台</h2><p>選擇食物配方、投入食材，製作料理與飲品。</p><small>開啟料理製作系統</small></button>
+            {row(0, assetUrl("ui/power-devices/工作台5-去背.png"), "製作工作台", "選擇配方、投入素材，製作道具與補給。", () => changeView("workbench"))}
+            {row(1, assetUrl("ui/power-devices/料理台5-去背.png"), "料理工作台", "選擇食物配方、投入食材，製作料理與飲品。", () => changeView("cooking"))}
           </> : null}
           {view === "repair" ? <div className="im-craft-empty"><span>🔧</span><h2>飛船維修台</h2><p>受損系統與艙體的維修項目將在這裡顯示。</p><small>維修功能尚未接入</small></div> : null}
         </div>

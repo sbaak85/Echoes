@@ -301,7 +301,7 @@
   white-space: nowrap;
 }
 
-.im-view-main .im-copy {
+:is(.im-view-main, .im-view-craft) .im-copy {
   width: 150px;
   max-width: 150px;
 }
@@ -386,28 +386,6 @@
 .im-craft-empty h2 { margin: 8px 0; color: #e7c9a6; font-size: 19px; font-weight: 650; }
 .im-craft-empty p { margin: 0 0 8px; font-size: 13px; }
 .im-craft-empty small { color: #788c8b; font-size: 11px; }
-.im-workbench-entry { position:relative; isolation:isolate; overflow:hidden; --entry-image-x:0px; --entry-image-y:44px; }
-.im-workbench-entry[data-starship-menu-index="1"] { --entry-image-x:24px; --entry-image-y:-62px; }
-.im-workbench-entry > .im-workbench-art {
-  position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.5;
-  mask-image:linear-gradient(to bottom,transparent,#000 136px,#000 calc(100% - 28px),transparent),linear-gradient(to right,transparent,#000 36px,#000 calc(100% - 36px),transparent);
-  mask-composite:intersect;
-  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 136px,#000 calc(100% - 28px),transparent),linear-gradient(to right,transparent,#000 36px,#000 calc(100% - 36px),transparent);
-  -webkit-mask-composite:source-in;
-}
-.im-workbench-art img { position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:calc(40% + var(--entry-image-x)) calc(45% + var(--entry-image-y));pointer-events:none; }
-.im-workbench-art-soft { filter:blur(4px); }
-.im-workbench-art-sharp {
-  mask-image:linear-gradient(to bottom,transparent,#000 152px,#000 calc(100% - 42px),transparent),linear-gradient(to right,transparent,#000 60px,#000 calc(100% - 60px),transparent);
-  mask-composite:intersect;
-  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 152px,#000 calc(100% - 42px),transparent),linear-gradient(to right,transparent,#000 60px,#000 calc(100% - 60px),transparent);
-  -webkit-mask-composite:source-in;
-}
-.im-workbench-entry :is(h2,p,small),.im-workbench-entry > span:not(.im-workbench-art) { text-shadow:0 2px 5px #000,0 0 12px #000; }
-.starship-interaction-menu button.im-craft-empty { width:100%;font-family:inherit;cursor:pointer;outline:none; }
-.starship-interaction-menu[data-control-mode="pointer"] button.im-craft-empty:hover,
-.starship-interaction-menu button.im-craft-empty.is-selected { border-color:#bdefff;box-shadow:inset 0 0 18px #79ded522;color:#e7f2ef; }
-
 .im-panel footer {
   display: flex;
   min-height: 48px;
@@ -499,7 +477,7 @@
   .im-option-media > span { font-size: 9px; }
   .im-option-media > small { display: none; }
   .im-copy { gap: 5px; }
-  .im-view-main .im-copy { width: min(145px, 100%); max-width: 100%; }
+  :is(.im-view-main, .im-view-craft) .im-copy { width: min(145px, 100%); max-width: 100%; }
   .im-copy strong { font-size: 16px; }
   .im-copy small { font-size: 10px; }
   .im-arrow { width: 38px; font-size: 20px; }
@@ -526,14 +504,14 @@
   user-select: none;
 }
 
-/* B 版只改主選單四張卡片的圖片呈現；其餘排版沿用 A 版。 */
-.im-view-main .im-row {
+/* 外層功能與工作台入口共用左圖、右文的卡片配置。 */
+:is(.im-view-main, .im-view-craft) .im-row {
   position: relative;
   isolation: isolate;
   grid-template-columns: minmax(0, 1fr) 44px;
 }
 
-.im-view-main .im-option-media {
+:is(.im-view-main, .im-view-craft) .im-option-media {
   position: absolute;
   z-index: 0;
   top: 5px;
@@ -548,8 +526,8 @@
   box-shadow: none;
 }
 
-.im-view-main .im-option-media::before,
-.im-view-main .im-option-media::after {
+:is(.im-view-main, .im-view-craft) .im-option-media::before,
+:is(.im-view-main, .im-view-craft) .im-option-media::after {
   position: absolute;
   content: "";
   pointer-events: none;
@@ -563,14 +541,14 @@
   mask-composite: intersect;
 }
 
-.im-view-main .im-option-media::before {
+:is(.im-view-main, .im-view-craft) .im-option-media::before {
   inset: -7px;
   background: var(--im-option-image) center / cover no-repeat;
   filter: blur(10px);
   opacity: .5;
 }
 
-.im-view-main .im-option-media::after {
+:is(.im-view-main, .im-view-craft) .im-option-media::after {
   inset: 0;
   border: 0;
   border-radius: 0;
@@ -579,7 +557,7 @@
   opacity: 1;
 }
 
-.im-view-main .im-copy {
+:is(.im-view-main, .im-view-craft) .im-copy {
   position: relative;
   z-index: 2;
   width: 47%;
@@ -601,53 +579,53 @@
   background-image: var(--im-option-image);
 }
 
-.im-view-main .im-copy strong,
-.im-view-main .im-copy small {
+:is(.im-view-main, .im-view-craft) .im-copy strong,
+:is(.im-view-main, .im-view-craft) .im-copy small {
   position: relative;
   z-index: 2;
 }
 
-.im-view-main .im-copy small {
+:is(.im-view-main, .im-view-craft) .im-copy small {
   white-space: normal;
 }
 
-.im-view-main .im-arrow {
+:is(.im-view-main, .im-view-craft) .im-arrow {
   position: relative;
   z-index: 2;
   grid-column: 2;
 }
 
-.im-view-main .im-row:disabled .im-option-media::before,
-.im-view-main .im-row:disabled .im-option-media::after {
+:is(.im-view-main, .im-view-craft) .im-row:disabled .im-option-media::before,
+:is(.im-view-main, .im-view-craft) .im-row:disabled .im-option-media::after {
   filter: grayscale(.72) blur(7px);
   opacity: .23;
 }
 
-.im-view-main .im-row.is-selected .im-option-media {
+:is(.im-view-main, .im-view-craft) .im-row.is-selected .im-option-media {
   border-color: transparent;
   box-shadow: none;
 }
 
 @media (max-width: 520px) {
-  .im-view-main .im-row {
+  :is(.im-view-main, .im-view-craft) .im-row {
     grid-template-columns: minmax(0, 1fr) 38px;
   }
-  .im-view-main .im-option-media {
+  :is(.im-view-main, .im-view-craft) .im-option-media {
     width: 62%;
   }
-  .im-view-main .im-copy {
+  :is(.im-view-main, .im-view-craft) .im-copy {
     width: 52%;
     max-width: 52%;
   }
 }
 
 /* B 版外層與睡眠內層共用同一條文字左緣基準線。 */
-.im-view-main .im-row,
+:is(.im-view-main, .im-view-craft) .im-row,
 .im-view-sleep .im-row {
   position: relative;
 }
 
-.im-view-main .im-copy,
+:is(.im-view-main, .im-view-craft) .im-copy,
 .im-view-sleep .im-copy {
   position: absolute;
   z-index: 2;
@@ -661,6 +639,203 @@
   transform: translateY(-50%);
 }
 
-.im-view-main .im-copy {
+:is(.im-view-main, .im-view-craft) .im-copy {
   left: calc(52.78% - 3.7px);
+}
+
+/* 裝置靠底擺放，只有接近卡片底線的 15px 漸層模糊。 */
+.im-view-craft .im-row { min-height: 180px; }
+.im-view-craft .im-option-media {
+  --entry-image-bottom: -35px;
+  width: 49%; top: 0; bottom: 0;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 15px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 15px), transparent);
+}
+.im-view-craft .im-option-media::before,
+.im-view-craft .im-option-media::after {
+  width: min(119.5425%, 239.085px);
+  height: auto;
+  top: auto;
+  bottom: var(--entry-image-bottom);
+  aspect-ratio: 1;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  background-size: contain;
+  background-position: center bottom;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.im-view-craft .im-option-media::before {
+  filter: blur(4px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent calc(100% + var(--entry-image-bottom) - 15px), #000 calc(100% + var(--entry-image-bottom)));
+  mask-image: linear-gradient(to bottom, transparent calc(100% + var(--entry-image-bottom) - 15px), #000 calc(100% + var(--entry-image-bottom)));
+}
+.im-view-craft .im-option-media::after {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% + var(--entry-image-bottom) - 15px), transparent calc(100% + var(--entry-image-bottom)));
+  mask-image: linear-gradient(to bottom, #000 calc(100% + var(--entry-image-bottom) - 15px), transparent calc(100% + var(--entry-image-bottom)));
+}
+.im-view-craft [data-starship-menu-index="1"] .im-option-media { --entry-image-bottom: -47px; }
+.im-view-craft [data-starship-menu-index="1"] .im-option-media::before,
+.im-view-craft [data-starship-menu-index="1"] .im-option-media::after {
+  width: min(119.5425%, 262.9935px);
+}
+
+/* 已確認的製作介面風格：斜切角框線與對角底紋。 */
+.starship-interaction-menu {
+  --im-frame-shape: polygon(8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px);
+  --im-frame-ring: polygon(evenodd,8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px,8px 0,8.414px 1px,1px 8.414px,1px calc(100% - 8.414px),8.414px calc(100% - 1px),calc(100% - 8.414px) calc(100% - 1px),calc(100% - 1px) calc(100% - 8.414px),calc(100% - 1px) 8.414px,calc(100% - 8.414px) 1px,8.414px 1px,8px 0);
+  --im-frame-edge: linear-gradient(135deg,#fff 0%,#dcfaff 5%,#86d8f2 15%,#315064 35%,#294657 65%,#79cde9 85%,#e8ffff 96%,#fff 100%);
+}
+.starship-interaction-menu .im-panel,
+.starship-interaction-menu .im-row,
+.starship-interaction-menu .im-back,
+.starship-interaction-menu .im-craft-empty {
+  position: relative;
+  isolation: isolate;
+  border: 0;
+  border-radius: 0;
+  clip-path: var(--im-frame-shape);
+  background: radial-gradient(ellipse at top left, #3f94b22c, transparent 48%), radial-gradient(ellipse at bottom right, #3f94b22c, transparent 48%), #07131c;
+  box-shadow: none;
+}
+.starship-interaction-menu .im-panel::before,
+.starship-interaction-menu .im-row::before,
+.starship-interaction-menu .im-back::before,
+.starship-interaction-menu .im-craft-empty::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(135deg,transparent 0 13px,#86a9b7 13px 14px,transparent 14px 16px),repeating-linear-gradient(0deg,transparent 0 39px,#86a9b7 39px 40px),repeating-linear-gradient(90deg,transparent 0 39px,#86a9b7 39px 40px);
+  opacity: .13;
+  mask-image: radial-gradient(ellipse 65% 120% at top left,#000,transparent 78%),radial-gradient(ellipse 65% 120% at bottom right,#000,transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse 65% 120% at top left,#000,transparent 78%),radial-gradient(ellipse 65% 120% at bottom right,#000,transparent 78%);
+}
+.starship-interaction-menu .im-panel::after,
+.starship-interaction-menu .im-row::after,
+.starship-interaction-menu .im-back::after,
+.starship-interaction-menu .im-craft-empty::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: var(--im-frame-edge);
+  clip-path: var(--im-frame-ring);
+}
+.starship-interaction-menu .im-panel > * { position: relative; z-index: 1; }
+.starship-interaction-menu .im-hero { background: transparent; }
+.starship-interaction-menu .im-row .im-copy strong { color: #dac28d; }
+.starship-interaction-menu .im-row .im-copy small { color: #8faaaF; }
+.starship-interaction-menu[data-control-mode="pointer"] .im-row:hover:not(:disabled),
+.starship-interaction-menu .im-row.is-selected,
+.starship-interaction-menu[data-control-mode="pointer"] .im-back:hover,
+.starship-interaction-menu .im-back.is-selected {
+  --im-frame-edge: linear-gradient(135deg,#fffbea,#ffe29c 16%,#967035 42%,#967035 58%,#ffe29c 84%,#fffbea);
+  background: radial-gradient(ellipse at top left,#e6bf6c36,transparent 55%),radial-gradient(ellipse at bottom right,#e6bf6c36,transparent 55%),#0b1921;
+  box-shadow: none;
+}
+.starship-interaction-menu .im-row:disabled { opacity: .55; }
+.starship-interaction-menu .im-view-main .im-row::before { display: none; }
+
+/* 工作台選擇頁的外層底紋只留在內容區左上與右下角。 */
+.starship-interaction-menu .im-view-craft::before {
+  top: 290px;
+  -webkit-mask-image: radial-gradient(ellipse 45% 28% at top left, #000, transparent 85%), radial-gradient(ellipse 49.5% 30.8% at bottom right, #000, transparent 85%);
+  mask-image: radial-gradient(ellipse 45% 28% at top left, #000, transparent 85%), radial-gradient(ellipse 49.5% 30.8% at bottom right, #000, transparent 85%);
+}
+@media (max-height: 720px) {
+  .starship-interaction-menu .im-view-craft::before { top: 176px; }
+}
+@media (max-width: 520px) {
+  .starship-interaction-menu .im-view-craft::before { top: 205px; }
+}
+
+/* 工作台預選動效共用目前的輸入擁有者；特效完全不參與命中測試。 */
+.im-view-craft .im-row {
+  --im-fx-play: paused;
+  --im-fx-opacity: 0;
+  --im-image-breathe: none;
+}
+.starship-interaction-menu[data-control-mode="pointer"] .im-view-craft .im-row:hover,
+.starship-interaction-menu:is([data-control-mode="cursor"], [data-control-mode="directional"]) .im-view-craft .im-row.is-selected {
+  --im-fx-play: running;
+  --im-fx-opacity: 1;
+  --im-image-breathe: im-workbench-image-breathe;
+}
+.im-view-craft .im-option-media::before,
+.im-view-craft .im-option-media::after {
+  /* 只縮放背景圖，承載圖片的圖層與底部遮罩位置固定。 */
+  background-size: 100% 100%;
+  animation: var(--im-image-breathe) 4.8s ease-in-out infinite;
+}
+@keyframes im-workbench-image-breathe {
+  0%, 100% { background-size: 100% 100%; }
+  50% { background-size: 102% 102%; }
+}
+.starship-interaction-menu .im-view-craft .im-row::before {
+  /* 16px 斜紋週期沿 X 軸為 16√2px；流速為 10px/s。 */
+  background-size: 22.627417px 22.627417px, auto, auto;
+  animation: im-workbench-texture-drift 2.2627417s linear infinite;
+  animation-play-state: var(--im-fx-play);
+}
+.im-view-craft .im-option-media { z-index: 1; }
+.im-workbench-hover-fx {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: var(--im-fx-opacity);
+  transition: opacity 220ms ease;
+  mask-image: linear-gradient(to bottom, transparent, #000 24px, #000 calc(100% - 15px), transparent), linear-gradient(to right, transparent, #000 24px, #000 65%, transparent 90%);
+  mask-composite: intersect;
+}
+.im-workbench-fx-disc {
+  position: absolute;
+  width: 86.8%;
+  aspect-ratio: 1;
+  left: calc(24.49% + 5px);
+  top: 100%;
+  transform: translate(-50%, -50%);
+}
+.im-workbench-fx-rays {
+  position: absolute;
+  inset: -8%;
+  translate: 0 -28px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, transparent 0deg 9deg, #efd49280 13deg, #bceae34a 17deg, transparent 22deg 30deg);
+  mask-image: radial-gradient(circle, transparent 3%, #000 18%, #000a 42%, transparent 70%);
+  filter: blur(2px);
+  animation: im-workbench-light-turn 28s linear infinite, im-workbench-breathe 4s ease-in-out infinite;
+  animation-play-state: var(--im-fx-play);
+}
+.im-workbench-fx-disc svg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  fill: none; stroke: #acd8d5; stroke-width: 1; opacity: .48;
+  mask-image: radial-gradient(circle closest-side, #000 55%, #000b 78%, transparent 100%);
+}
+.im-workbench-fx-orbit, .im-workbench-fx-outer {
+  transform-origin: 280px 280px;
+  animation: im-workbench-clockwise 80s linear infinite;
+  animation-play-state: var(--im-fx-play);
+}
+.im-workbench-fx-outer { animation-duration: 115s; stroke: #dec38a; opacity: .5; }
+@keyframes im-workbench-light-turn { to { transform: rotate(360deg); } }
+@keyframes im-workbench-clockwise { to { transform: rotate(360deg); } }
+@keyframes im-workbench-breathe { 0%, 100% { opacity: .28; } 50% { opacity: .8; } }
+@keyframes im-workbench-texture-drift {
+  from { background-position: 0 0, 0 0, 0 0; }
+  to { background-position: 22.627417px 0, 0 0, 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .im-view-craft .im-option-media::before,
+  .im-view-craft .im-option-media::after,
+  .starship-interaction-menu .im-view-craft .im-row::before,
+  .im-workbench-fx-rays, .im-workbench-fx-orbit, .im-workbench-fx-outer { animation: none; }
 }
