@@ -58,6 +58,46 @@ export type LineSeDefinition = {
 export const AUDIO_EVENT_CONFIG = (
   /* AUDIO_EVENT_CONFIG_START */
   {
+    "workbenchToolOpen": {
+      "label": "工作臺頁面：開啟工具",
+      "trigger": "確認製作工作臺卡片並進入道具合成頁面時播放一次",
+      "sourceAssetPaths": ["Assets/Audio/開啟工具2.mp3"],
+      "sources": ["./audio/開啟工具2.mp3"],
+      "volume": 0.7,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "workbenchCookingOpen": {
+      "label": "工作臺頁面：開啟料理",
+      "trigger": "確認料理工作臺卡片並進入料理合成頁面時播放一次",
+      "sourceAssetPaths": ["Assets/Audio/開啟料理2.mp3"],
+      "sources": ["./audio/開啟料理2.mp3"],
+      "volume": 0.7,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "workbenchToolHover": {
+      "label": "工作臺卡片：製作工具",
+      "trigger": "製作工作臺進入 Hover／預選 Tween 時單次播放；切換時前音軌 0.1 秒淡出後靜音自然播完",
+      "sourceAssetPaths": ["Assets/Audio/製作工具.mp3"],
+      "sources": ["./audio/製作工具.mp3"],
+      "volume": 0.7,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "workbenchCookingHover": {
+      "label": "工作臺卡片：煮食切菜",
+      "trigger": "料理工作臺進入 Hover／預選 Tween 時單次播放；切換時前音軌 0.1 秒淡出後靜音自然播完",
+      "sourceAssetPaths": ["Assets/Audio/煮食切菜.mp3"],
+      "sources": ["./audio/煮食切菜.mp3"],
+      "volume": 0.7,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
     "craftingStarted": {
       "label": "製作成功：啟動",
       "trigger": "成功動畫開始時播放一次",
@@ -1581,6 +1621,51 @@ export function getAudioFadeDurationMilliseconds(
 }
 
 export class AudioEventManager {
+  private activeWorkbenchVoice: AudioEventRuntime | null = null;
+  private readonly workbenchVoices = new Set<AudioEventRuntime>();
+
+  /** Separate voices preserve A→B→A tails; never rewind a fading voice. */
+  playWorkbenchHover(eventName: "workbenchToolHover" | "workbenchCookingHover" | null) {
+    if (this.disposed) return Promise.resolve();
+    const previous = this.activeWorkbenchVoice;
+    this.activeWorkbenchVoice = null;
+    if (previous) {
+      this.cancelPendingPlay(previous);
+      const started = performance.now();
+      const initialVolume = previous.audio.volume;
+      const fade = (now: number) => {
+        const progress = Math.min(1, Math.max(0, (now - started) / 100));
+        previous.audio.volume = initialVolume * (1 - progress);
+        previous.fadeFrameId = progress < 1
+          ? window.requestAnimationFrame(fade) : null;
+        // Do not pause/reset: the remainder finishes silently and releases on ended.
+      };
+      previous.fadeFrameId = window.requestAnimationFrame(fade);
+    }
+    if (!eventName) return Promise.resolve();
+    const definition = this.getRuntime(eventName).definition;
+    const voice: AudioEventRuntime = {
+      audio: new Audio(definition.sources[0]), definition,
+      delayResolve: null, delayTimerId: null, fadeFrameId: null,
+      endedHandler: () => {}, pendingPlay: null, requestId: 0, sourceIndex: 0,
+    };
+    voice.audio.preload = "auto";
+    voice.audio.loop = false;
+    voice.audio.volume = clampVolume(definition.volume);
+    const release = () => {
+      this.cancelPendingPlay(voice);
+      voice.audio.removeEventListener("ended", release);
+      voice.audio.removeEventListener("error", release);
+      this.workbenchVoices.delete(voice);
+      if (this.activeWorkbenchVoice === voice) this.activeWorkbenchVoice = null;
+    };
+    voice.endedHandler = release;
+    voice.audio.addEventListener("ended", release);
+    voice.audio.addEventListener("error", release);
+    this.activeWorkbenchVoice = voice;
+    this.workbenchVoices.add(voice);
+    return this.startPlayback(voice, ++voice.requestId).catch(error => { release(); throw error; });
+  }
   private disposed = false;
   private readonly runtimes = new Map<AudioEventName, AudioEventRuntime>();
   private readonly recentPlayStarts = new Map<AudioEventName, number[]>();
@@ -1802,6 +1887,12 @@ export class AudioEventManager {
 
   dispose() {
     if (this.disposed) return;
+    this.workbenchVoices.forEach(voice => {
+      voice.endedHandler();
+      voice.audio.pause();
+    });
+    this.workbenchVoices.clear();
+    this.activeWorkbenchVoice = null;
     this.weldingSparksActive = false;
     this.weldingSparksRequestId += 1;
     this.cancelWeldingSparksFade();

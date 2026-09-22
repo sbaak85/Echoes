@@ -1,6 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CRAFTING_RECIPES, COOKING_RECIPES, WORKBENCH_RECIPES, isCookingMaterial, isWorkbenchMaterial, craftInventoryRecipe } from "../app/crafting-recipes.ts";
+
+test("料理素材背包僅保留十五項食品素材並隱藏十四項非食材", () => {
+ const allowed=['R0004','R0012',...Array.from({length:13},(_,i)=>`R${String(i+23).padStart(4,'0')}`)];
+ assert.deepEqual([...ITEM_BY_ID.values()].filter(item=>isCookingMaterial(item.id)).map(item=>item.id).sort(),allowed.sort());
+ for(const id of ['R0001','R0002','R0003','R0007','R0008','R0009','R0010','R0011','R0018','R0019','R0020','R0021','R0022','R0036']) {
+  assert.equal(isCookingMaterial(id),false,id);
+ }
+ assert.equal(isCookingMaterial('unknown'),false);
+});
 import { ITEM_BY_ID } from "../app/item-database.ts";
 test("all 22 recipes resolve to valid catalog items and positive quantities",()=>{
  assert.equal(CRAFTING_RECIPES.length,22);

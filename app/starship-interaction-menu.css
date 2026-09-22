@@ -833,9 +833,6 @@
   from { background-position: 0 0, 0 0, 0 0; }
   to { background-position: 22.627417px 0, 0 0, 0 0; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .im-view-craft .im-option-media::before,
-  .im-view-craft .im-option-media::after,
-  .starship-interaction-menu .im-view-craft .im-row::before,
-  .im-workbench-fx-rays, .im-workbench-fx-orbit, .im-workbench-fx-outer { animation: none; }
-}
+/* User-approved exception: retain the two workbench cards' original selected
+   motion even when the browser reports reduced motion. Unselected cards still
+   pause/hide via --im-fx-play/--im-fx-opacity; other UI preferences are unchanged. */

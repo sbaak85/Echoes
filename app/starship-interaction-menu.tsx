@@ -59,6 +59,8 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   onClose: () => void;
   inventory: PlayerInventory;
   onCraftAudio?: (event: CraftingAudioEvent) => void;
+  onWorkbenchHoverAudio?: (event: "workbenchToolHover" | "workbenchCookingHover" | null) => void;
+  onWorkbenchOpenAudio?: (event: "workbenchToolOpen" | "workbenchCookingOpen") => void;
   onCraft: (recipeId: string, quantity?: number) => { ok: boolean; reason?: string };
 }>(function StarshipInteractionMenu({
   inputMode,
@@ -70,10 +72,21 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   inventory,
   onCraft,
   onCraftAudio,
+  onWorkbenchHoverAudio,
+  onWorkbenchOpenAudio,
 }, forwardedRef) {
   const [view, setView] = useState<View>("main");
   const [selected, setSelected] = useState(0);
   const [cursorHover, setCursorHover] = useState<number | null>(null);
+  const [pointerHover, setPointerHover] = useState<number | null>(null);
+  const hoverAudioRef = useRef(onWorkbenchHoverAudio);
+  hoverAudioRef.current = onWorkbenchHoverAudio;
+  const openAudioRef = useRef(onWorkbenchOpenAudio);
+  openAudioRef.current = onWorkbenchOpenAudio;
+  useEffect(() => {
+    if (view === "workbench") openAudioRef.current?.("workbenchToolOpen");
+    else if (view === "cooking") openAudioRef.current?.("workbenchCookingOpen");
+  }, [view]);
   const [controlMode, setControlModeState] = useState<StarshipInteractionControlMode>(
     inputMode === "gamepad" ? "directional" : inputMode === "mobile" ? "touch" : "pointer",
   );
@@ -82,6 +95,20 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   const mainSelectionRef = useRef(0);
   const entrySelectionRef = useRef(0);
   const craftSelectionRef = useRef(0);
+  const activeWorkbench = view !== "craft" ? null
+    : controlMode === "directional" ? selected
+    : controlMode === "cursor" ? cursorHover
+    : controlMode === "pointer" ? pointerHover : null;
+  const hoverEvent = activeWorkbench === 0 ? "workbenchToolHover"
+    : activeWorkbench === 1 ? "workbenchCookingHover" : null;
+  useEffect(() => {
+    hoverAudioRef.current?.(hoverEvent);
+  }, [hoverEvent]);
+  useEffect(() => () => { hoverAudioRef.current?.(null); }, []);
+  useEffect(() => {
+    const hovered = panelRef.current?.querySelector<HTMLElement>(".im-row:hover");
+    setPointerHover(hovered ? Number(hovered.dataset.starshipMenuIndex) : null);
+  }, [view]);
   const getButtons = useCallback(() => Array.from(
     panelRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [],
   ), []);
@@ -93,6 +120,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
     const nextSelection = next === "main" ? mainSelectionRef.current : next === "craft" ? craftSelectionRef.current : 0;
     entrySelectionRef.current = nextSelection;
     setCursorHover(null);
+    setPointerHover(null);
     setSelected(nextSelection);
     setView(next);
   }, []);
@@ -242,6 +270,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
       onFocus={() => setSelected(index)}
       onPointerEnter={(event) => {
         if (event.pointerType === "mouse") {
+          setPointerHover(index);
           onInputModeChange("keyboard-mouse");
           setControlMode("pointer");
           if (selected !== index) onInput();
@@ -249,6 +278,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
         setSelected(index);
         event.currentTarget.focus({ preventScroll: true });
       }}
+      onPointerLeave={() => setPointerHover(null)}
       onClick={() => activate(action)}
     >
       {view === "craft" && <span className="im-workbench-hover-fx" aria-hidden="true">
@@ -316,6 +346,8 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
       }}
       onPointerMove={(event) => {
         if (event.pointerType === "mouse") {
+          const row = (event.target as Element).closest<HTMLElement>(".im-row[data-starship-menu-index]");
+          setPointerHover(row ? Number(row.dataset.starshipMenuIndex) : null);
           onInputModeChange("keyboard-mouse");
           setControlMode("pointer");
         }

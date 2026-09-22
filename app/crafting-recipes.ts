@@ -63,7 +63,7 @@ export function isWorkbenchMaterial(id:string,recipeId?:string) {
  return item.category!=="food"&&!FOOD_MATERIAL_IDS.has(id);
 }
 export function isCookingMaterial(id:string) {
- return ITEM_BY_ID.get(id)?.category==="resource"||COOKING_INGREDIENT_IDS.has(id);
+ return FOOD_MATERIAL_IDS.has(id);
 }
 export type CraftingResult = {ok:true;inventory:PlayerInventory;itemId:string;quantity:number}|{ok:false;reason:string};
 export function craftInventoryRecipe(inventory:PlayerInventory,recipeId:string,quantity=1):CraftingResult {

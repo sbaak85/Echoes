@@ -17868,6 +17868,8 @@ export function MovementLab() {
           onControlModeChange={handleStarshipInteractionControlModeChange}
           onInput={playStarshipInteractionInput}
           onCraftAudio={(event) => { void audioEventManagerRef.current?.play(event, { restart: true, overlap: event === "craftingItemShine" }).catch(() => {}); }}
+          onWorkbenchHoverAudio={(event) => { void audioEventManagerRef.current?.playWorkbenchHover(event).catch(() => {}); }}
+          onWorkbenchOpenAudio={(event) => { void audioEventManagerRef.current?.play(event).catch(() => {}); }}
           onSleep={(option) => startStarshipSleepRef.current(option)}
           inventory={playerInventory}
           onCraft={(recipeId, quantity = 1) => {
