@@ -40,6 +40,9 @@ function Category({entry}:{entry:ItemDefinition}){
 export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Props>(function CraftingWorkbench(props,ref){
  const root=useRef<HTMLDivElement>(null), latest=useRef(props);latest.current=props;
  const [selected,setSelected]=useState(0),[allocated,setAllocated]=useState<Set<string>>(new Set());
+ const detailReturn=useRef("recipe-0");
+ const [detail,setDetail]=useState<number|null>(null);
+ const detailRecipe=detail===null?null:(props.mode==="cooking"?COOKING_RECIPES:WORKBENCH_RECIPES)[detail];
  const [phase,setPhase]=useState<"select"|"ready"|"crafted">("select");
  const [filter,setFilter]=useState(false),[page,setPage]=useState(0),[nav,setNav]=useState("recipe-0"),[hover,setHover]=useState<string|null>(null);
  const [notice,setNotice]=useState(""),[scale,setScale]=useState(1),[range,setRange]=useState("");
@@ -115,7 +118,23 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
    columnRef.current=0;setColumn(0);focusKey(key);
    setPointerMaterialTarget(modeRef.current==="pointer"?key:null);
  }
- function columnButtons(index:number){return choices().filter(b=>index===0?b.classList.contains("item"):index===1?b.classList.contains("requirement"):["recipe-row","quantity-step"].some(c=>b.classList.contains(c)));}
+ function openDetail(index:number){
+   detailReturn.current=navRef.current;
+   setDetail(index);setHover(null);columnRef.current=2;setColumn(2);focusKey("detail-close");
+ }
+ function closeDetail(){
+   const previous=detail;setDetail(null);setHover(null);columnRef.current=2;setColumn(2);
+   focusKey(detailReturn.current||`detail-${previous??selected}`);
+ }
+ function detailTarget(){
+   if(locked||completionRef.current||detail!==null||props.inputMode!=="gamepad")return null;
+   const key=modeRef.current==="cursor"?hover:modeRef.current==="directional"&&columnRef.current===2?navRef.current:null;
+   if(key==="show-materials")return selected;
+   const match=key?.match(/^(?:recipe|detail)-(\d+)$/);
+   return match?Number(match[1]):null;
+ }
+ function inspect(){const index=detailTarget();if(index===null)return;props.onInput();openDetail(index);}
+ function columnButtons(index:number){return choices().filter(b=>index===0?b.classList.contains("item"):index===1?b.classList.contains("requirement"):["recipe-row","recipe-detail-button","detail-close","quantity-step"].some(c=>b.classList.contains(c)));}
  function switchColumn(delta:number){
    if(completionRef.current)return;
    if(phase==="ready")return;
@@ -177,6 +196,7 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
  function back(){
    if(completionRef.current)return;
    props.onInput();setNotice("");
+   if(detail!==null){closeDetail();return;}
    if(phase==="select"&&recipeMaterialReturn.current&&columnRef.current!==2){
      columnRef.current=2;setColumn(2);mode("directional");focusKey(`recipe-${selected}`);return;
    }
@@ -197,6 +217,12 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
      let index=group.findIndex(b=>b.dataset.craftNav===key);if(index<0)index=0;
      let target:HTMLButtonElement|undefined;
      if(columnRef.current===2&&phase==="select"){
+       if(detail!==null){focusKey("detail-close");return;}
+       const detailFocused=key.startsWith("detail-");
+       const rowIndex=detailFocused?Number(key.slice(7)):selected;
+       if(direction==="left"){focusKey(`detail-${rowIndex}`);props.onInput();return;}
+       if(direction==="right"){group.find(b=>b.dataset.craftNav===`recipe-${rowIndex}`)?.click();return;}
+       if(detailFocused){focusKey(`detail-${(rowIndex+(direction==="down"?1:-1)+recipes.length)%recipes.length}`);props.onInput();return;}
        if(direction!=="up"&&direction!=="down")return;
        const next=(selected+(direction==="down"?1:-1)+recipes.length)%recipes.length;
        target=group.find(b=>b.dataset.craftNav===`recipe-${next}`);
@@ -238,13 +264,14 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
  }
  const api=useRef<StarshipInteractionMenuController>(null);
  api.current={
-   move,back,setControlMode:mode,switchColumn,changePage,secondary,updateTriggers,
+   move,back,setControlMode:mode,switchColumn,changePage,secondary,updateTriggers,inspect,
    hover:index=>{if(completionRef.current||modeRef.current!=="cursor")return;const b=index===null?null:choices()[index];setHover(b?.dataset.craftNav||null);if(b){navRef.current=b.dataset.craftNav!;setNav(navRef.current);}},
    activate:()=>{if(completionRef.current)return;if(modeRef.current==="cursor"&&!hover)return;
      if(props.inputMode==="gamepad"&&modeRef.current==="directional"&&phase==="select"&&columnRef.current===2&&navRef.current.startsWith("recipe-")){focusFirstRequiredMaterial();return;}
      choices().find(b=>b.dataset.craftNav===navRef.current)?.click();}
  };
  useImperativeHandle(ref,()=>({
+   inspect:()=>api.current?.inspect?.(),
    updateTriggers:(left,right,now)=>api.current?.updateTriggers?.(left,right,now)??false,
    move:d=>api.current?.move(d),back:()=>api.current?.back(),hover:i=>api.current?.hover(i),
    activate:()=>api.current?.activate(),setControlMode:m=>api.current?.setControlMode(m),
@@ -254,7 +281,7 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
    const list=choices();list.forEach((b,i)=>{b.dataset.starshipMenuIndex=String(i);});
    let chosen=list.find(b=>b.dataset.craftNav===nav);
    if(!chosen){chosen=columnButtons(columnRef.current)[0]||list.find(b=>b.dataset.craftNav==="prepare")||list[0];if(chosen)focusKey(chosen.dataset.craftNav!);}
-   if(props.controlMode==="directional"&&chosen?.classList.contains("recipe-row")){
+   if(props.controlMode==="directional"&&chosen?.closest(".recipe-entry")){
      const parent=chosen.closest<HTMLElement>(".recipe-list")!,r=chosen.getBoundingClientRect(),box=parent.getBoundingClientRect();
      if(r.top<box.top)parent.scrollTop-=(box.top-r.top)/scale;
      else if(r.bottom>box.bottom)parent.scrollTop+=(r.bottom-box.bottom)/scale;
@@ -290,7 +317,7 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
  }
  function prepare(){
    if(completionRef.current)return;
-   if(phase==="select"){if(ready){committing.current=false;setPhase("ready");columnRef.current=2;setColumn(2);setHover(null);focusKey("prepare");}}
+   if(phase==="select"){if(ready){setDetail(null);committing.current=false;setPhase("ready");columnRef.current=2;setColumn(2);setHover(null);focusKey("prepare");}}
    else if(phase==="ready"){
      if(committing.current)return;committing.current=true;
      try{const result=props.onCraft(current.id,quantity);if(result.ok){setPhase("crafted");setAllocated(new Set());setNotice("");
@@ -350,18 +377,26 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
      <div className="machine-zone"><div className="feeds"><i/><i/><i/></div><div className="machine-viewport"><img className="machine-scene machine-scene-soft" src={machineImage} alt="" aria-hidden="true"/><img className="machine-scene machine-scene-sharp" src={machineImage} alt={cooking?"料理工作台食物儲藏櫃":"製作工作台中央機器"}/></div><div className="machine-caption">FABRICATION UNIT <b>{phase==="crafted"?"COMPLETE":ready?"READY":"STANDBY"}</b></div></div>
      <div className="assembly-status"><div><span id="craft-status-title">{phase==="crafted"?"製作完成":ready?"素材已備齊":progress===current.req.length?"素材數量不足":progress?"素材投入中":"等待投入素材"}</span><strong>{pct}%</strong></div><div className="meter"><i style={{width:`${pct}%`}}/></div><p>{phase==="crafted"?"成品已放入背包。":phase==="ready"?"確認製作將消耗投入素材，並將成品放入背包。":ready?"可以進入製作準備，查看結果物品。":"從左側點選對應素材投入；點中央素材可取回。"}</p></div>
     </section>
-    <section className="panel output"><span className="craft-panel-texture" aria-hidden="true"/><div className="panel-head"><div><small>03 / {locked?"CRAFTING RESULT":"RECIPE LIBRARY"}</small><h2>{locked?"製作結果":"可製作物品"}</h2></div><span className="count">{locked?`× ${quantity}`:recipes.length}</span></div>
-     {!locked?<div id="craft-recipe-view"><div className="list-caption">選擇目標，查看素材需求</div><div id="craft-recipes" className="recipe-list" onScroll={syncScroll}>{recipes.map((recipe,i)=><div key={recipe.id} className={`recipe-entry ${selected===i?"is-selected":""}`}>
-      {button(`recipe-${i}`,<><ItemArt key={recipe.id} entry={item(recipe.id)}/><div className="recipe-row-copy"><strong>{item(recipe.id).name}</strong><small>{recipe.type} · {recipe.req.length} 種素材</small></div>{selected!==i&&<span className="arrow" aria-hidden="true">+</span>}</>,()=>{if(i!==selected){setSelected(i);setQuantity(1);setAllocated(new Set());}setPhase("select");},{className:`recipe-row ${selected===i?"selected":""}`,pressed:selected===i})}
-      {selected===i&&button("show-materials",<span className="recipe-materials-content">{showRecipeMaterialConfirm&&<GamepadButtonIcon button="A"/>}<span>需求素材</span><svg className="recipe-materials-arrow" viewBox="0 0 16 24" aria-hidden="true" focusable="false"><path d="M2 3H6L14 12L6 21H2L10 12Z"/></svg></span>,focusFirstRequiredMaterial,{className:"recipe-materials-button",aria:`查看${item(recipe.id).name}的需求素材`})}
+    <section className="panel output"><span className="craft-panel-texture" aria-hidden="true"/><div className="panel-head"><div><small>03 / {detailRecipe?"ITEM DETAILS":locked?"CRAFTING RESULT":"RECIPE LIBRARY"}</small><h2>{detailRecipe?"物品資訊":locked?"製作結果":"可製作物品"}</h2></div>{!detailRecipe&&<span className="count">{locked?`× ${quantity}`:recipes.length}</span>}</div>
+     {!locked?<div id="craft-recipe-view" hidden={detail!==null}><div className="list-caption">選擇目標，查看素材需求</div><div id="craft-recipes" className="recipe-list" onScroll={syncScroll}>{recipes.map((recipe,i)=><div key={recipe.id} className={`recipe-entry ${selected===i?"is-selected":""}`}>
+      {button(`recipe-${i}`,<><span className="recipe-icon-space" aria-hidden="true"/><div className="recipe-row-copy"><strong>{item(recipe.id).name}</strong><small>{recipe.type} · {recipe.req.length} 種素材</small></div>{selected!==i&&<span className="arrow" aria-hidden="true">+</span>}</>,()=>{if(i!==selected){setSelected(i);setQuantity(1);setAllocated(new Set());}setPhase("select");},{className:`recipe-row ${selected===i?"selected":""}`,pressed:selected===i})}
+      {button(`detail-${i}`,<ItemArt key={recipe.id} entry={item(recipe.id)}/>,()=>openDetail(i),{className:"recipe-detail-button",aria:`查看${item(recipe.id).name}的詳細資訊`})}
+      {selected===i&&button("show-materials",<span className="recipe-materials-content">{showRecipeMaterialConfirm&&<GamepadButtonIcon button="A"/>}<span>需求素材</span><svg className="recipe-materials-arrow" viewBox="0 0 16 24" aria-hidden="true" focusable="false"><path d="M2 3H6L14 12L6 21H2L10 12Z"/></svg></span>,focusFirstRequiredMaterial,{className:`recipe-materials-button ${showRecipeMaterialConfirm&&props.controlMode==="directional"?"is-preselected":""}`,aria:`查看${item(recipe.id).name}的需求素材`})}
      </div>)}</div><div className="scroll-caption"><span>{range}</span><span>捲動瀏覽更多配方 ↓</span></div><p className="output-note">備齊素材並按下「製作準備」後，<br/>此欄將切換為製作結果預覽。</p></div>:
      <div id="craft-result-view"><div className="result-art"><ItemArt key={current.id} entry={item(current.id)} large/><span className="result-badge">{phase==="crafted"?"製作完成":"預期產出"} × {quantity}</span></div><h3 className="result-name">{item(current.id).name}</h3><div className="result-en">{current.en}</div><p className="result-desc">{item(current.id).description}</p><div className="result-spec"><span>分類 <strong>{categoryNames[category(item(current.id))]}</strong></span><span>重量 <strong>{item(current.id).weight} kg</strong></span></div>{phase==="ready"?<div className="craft-quantity-row"><span>指定製作數量</span>{button("quantity-minus",<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 10.5H19L20.5 12L19 13.5H5L3.5 12Z"/></svg>,()=>changeQuantity(-1),{className:"quantity-step",disabled:quantity<=1,id:"quantity-minus",aria:"減少製作數量"})}<output id="craft-quantity" aria-live="polite">{quantity}</output>{button("quantity-plus",<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.5 5L12 3.5L13.5 5V10.5H19L20.5 12L19 13.5H13.5V19L12 20.5L10.5 19V13.5H5L3.5 12L5 10.5H10.5Z"/></svg>,()=>changeQuantity(1),{className:"quantity-step",disabled:quantity>=maxQuantity,id:"quantity-plus",aria:"增加製作數量"})}</div>:<p className="batch-completed">已製作 {quantity} 件</p>}</div>}
+     {detailRecipe&&<div id="craft-item-detail-view" className="craft-item-detail-view" key={detailRecipe.id}>
+      <div className="result-art"><ItemArt key={detailRecipe.id} entry={item(detailRecipe.id)} large/></div>
+      <h3 className="result-name">{item(detailRecipe.id).name}</h3><div className="result-en">{detailRecipe.en}</div>
+      <p className="result-desc">{item(detailRecipe.id).description}</p>
+      <div className="result-spec"><span>分類 <strong>{categoryNames[category(item(detailRecipe.id))]}</strong></span><span>重量 <strong>{item(detailRecipe.id).weight} kg</strong></span></div>
+      <div className="detail-close-row">{button("detail-close","關閉",closeDetail,{className:"detail-close button secondary",aria:"關閉物品資訊"})}</div>
+     </div>}
     </section>
    </div>
    <footer><div className="steps"><span className={!locked?"active":""}>01 選擇配方</span><i/><span className={progress>0&&!locked?"active":""}>02 投入素材</span><i/><span className={locked?"active":""}>03 確認結果</span></div><div className="actions">
     {button("reset",locked?"返回配方":"返回製作選單",()=>{if(locked)back();else props.onBack();},{id:"reset",className:"button secondary has-hud-surface"})}
     {button("prepare",phase==="select"?<><span>製作準備</span><span className="craft-prepare-arrows" aria-hidden="true"/></>:phase==="ready"?<><span>確認製作</span><span className="craft-prepare-arrows craft-confirm-arrows is-leftward" aria-hidden="true"/></>:"繼續製作",prepare,{id:"prepare",className:"button primary",disabled:(phase==="select"&&!ready)||(phase==="ready"&&(!ready||quantity>maxQuantity))})}
-   </div><div className="craft-control-hint">{props.inputMode==="gamepad"?<>{!locked&&<div className="craft-column-hint"><GamepadButtonIcon button="LB"/><GamepadButtonIcon button="RB"/> 切換欄位</div>}<div><GamepadButtonIcon button="DPad"/><GamepadButtonIcon button="LS"/> 選擇　<GamepadButtonIcon button="A"/> 確認　<GamepadButtonIcon button="B"/> 返回</div></>:props.inputMode==="mobile"?"輕觸：選擇配方／投入素材":"方向鍵：選擇 · Enter：確認 · Esc：返回"}</div></footer>
+   </div><div className="craft-control-hint">{props.inputMode==="gamepad"?<>{!locked&&<div className="craft-column-hint"><GamepadButtonIcon button="LB"/><GamepadButtonIcon button="RB"/> 切換欄位</div>}<div><GamepadButtonIcon button="DPad"/><GamepadButtonIcon button="LS"/> 選擇　<GamepadButtonIcon button="A"/> 確認　<GamepadButtonIcon button="B"/> 返回{detailTarget()!==null&&<span className="craft-detail-hint">　<GamepadButtonIcon button="Y"/> 詳細</span>}</div></>:props.inputMode==="mobile"?"輕觸：選擇配方／投入素材":"方向鍵：選擇 · Enter：確認 · Esc：返回"}</div></footer>
    <div className="bottom-line"><span>CRAFTING WORKBENCH</span></div>
    <div id="craft-toast" className={notice?"show":""} role="status" aria-live="polite">{notice}</div>
   </main>

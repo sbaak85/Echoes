@@ -61,9 +61,13 @@ export const AUDIO_EVENT_CONFIG = (
     "workbenchToolOpen": {
       "label": "工作臺頁面：開啟工具",
       "trigger": "確認製作工作臺卡片並進入道具合成頁面時播放一次",
-      "sourceAssetPaths": ["Assets/Audio/開啟工具2.mp3"],
-      "sources": ["./audio/開啟工具2.mp3"],
-      "volume": 0.7,
+      "sourceAssetPaths": [
+        "Assets/Audio/開啟工具2.mp3"
+      ],
+      "sources": [
+        "./audio/開啟工具2.mp3"
+      ],
+      "volume": 0.4,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
@@ -71,9 +75,13 @@ export const AUDIO_EVENT_CONFIG = (
     "workbenchCookingOpen": {
       "label": "工作臺頁面：開啟料理",
       "trigger": "確認料理工作臺卡片並進入料理合成頁面時播放一次",
-      "sourceAssetPaths": ["Assets/Audio/開啟料理2.mp3"],
-      "sources": ["./audio/開啟料理2.mp3"],
-      "volume": 0.7,
+      "sourceAssetPaths": [
+        "Assets/Audio/開啟料理2.mp3"
+      ],
+      "sources": [
+        "./audio/開啟料理2.mp3"
+      ],
+      "volume": 0.4,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
@@ -81,9 +89,13 @@ export const AUDIO_EVENT_CONFIG = (
     "workbenchToolHover": {
       "label": "工作臺卡片：製作工具",
       "trigger": "製作工作臺進入 Hover／預選 Tween 時單次播放；切換時前音軌 0.1 秒淡出後靜音自然播完",
-      "sourceAssetPaths": ["Assets/Audio/製作工具.mp3"],
-      "sources": ["./audio/製作工具.mp3"],
-      "volume": 0.7,
+      "sourceAssetPaths": [
+        "Assets/Audio/製作工具.mp3"
+      ],
+      "sources": [
+        "./audio/製作工具.mp3"
+      ],
+      "volume": 0.4,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
@@ -91,9 +103,13 @@ export const AUDIO_EVENT_CONFIG = (
     "workbenchCookingHover": {
       "label": "工作臺卡片：煮食切菜",
       "trigger": "料理工作臺進入 Hover／預選 Tween 時單次播放；切換時前音軌 0.1 秒淡出後靜音自然播完",
-      "sourceAssetPaths": ["Assets/Audio/煮食切菜.mp3"],
-      "sources": ["./audio/煮食切菜.mp3"],
-      "volume": 0.7,
+      "sourceAssetPaths": [
+        "Assets/Audio/煮食切菜.mp3"
+      ],
+      "sources": [
+        "./audio/煮食切菜.mp3"
+      ],
+      "volume": 0.45,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0

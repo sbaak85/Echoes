@@ -14738,6 +14738,9 @@ export function MovementLab() {
           activateStarshipInteractionDirectionalMode();
           starshipInteractionMenuControllerRef.current?.changePage?.(leftTriggerJustPressed ? -1 : 1);
         }
+        if (gamepadInput.connected && gamepadInput.hotbarUsePressed && !wasGamepadHotbarUsePressed) {
+          starshipInteractionMenuControllerRef.current?.inspect?.();
+        }
         if (gamepadInput.connected && gamepadInput.secondaryActionPressed && !wasGamepadSecondaryActionPressed) {
           activateStarshipInteractionDirectionalMode();
           starshipInteractionMenuControllerRef.current?.secondary?.();

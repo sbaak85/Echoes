@@ -373,10 +373,10 @@
 }
 .crafting-workbench .recipe-materials-content{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-size:12px;line-height:18px;pointer-events:none}
 .crafting-workbench .recipe-materials-content img.gamepad-button-icon{display:block;width:24px;height:24px;min-width:24px;margin:0;flex:none;transform:translateY(2px)}
-.crafting-workbench .recipe-materials-content .recipe-materials-arrow{display:block;align-self:center;width:12px;height:18px;flex:none;fill:#ffe88b;stroke:none;transform-origin:center;transition:transform .18s ease-out}
+.crafting-workbench .recipe-materials-content .recipe-materials-arrow{display:block;align-self:center;width:10px;height:15px;flex:none;fill:#ffe88b;stroke:none;transform-origin:center;transition:transform .18s ease-out}
 .crafting-workbench[data-owner=mouse] .recipe-materials-button:hover:not(:disabled) .recipe-materials-content .recipe-materials-arrow,
 .crafting-workbench .recipe-materials-button:is(.nav-focus,.cursor-hover):not(:disabled) .recipe-materials-content .recipe-materials-arrow{
- transform:scale(1.3);animation:craft-materials-breathe 1.4s ease-in-out infinite;
+ transform:scale(1.2);animation:craft-materials-breathe 1.4s ease-in-out infinite;
 }
 @keyframes craft-materials-breathe{0%,100%{filter:brightness(1);opacity:.78}50%{filter:brightness(1.35) drop-shadow(0 0 4px #ffe49c88);opacity:1}}
 .crafting-workbench[data-owner=mouse] .recipe-row:hover:not(:disabled),
@@ -385,3 +385,30 @@
   outline:none;border-color:#e5be72;
   box-shadow:inset 0 0 0 1px #e3bd7388;background-color:#263e45;
 }
+
+/* Item inspection is a sibling action, never a nested recipe button. */
+.crafting-workbench #craft-recipe-view[hidden]{display:none}
+.crafting-workbench .recipe-icon-space{display:block;width:44px;height:44px;flex:none}
+.crafting-workbench .recipe-entry>.recipe-detail-button{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:52px;height:58px;padding:4px;background:transparent;border:0;display:grid;place-items:center;z-index:2}
+.crafting-workbench .recipe-detail-button img{width:44px;height:44px;object-fit:contain;pointer-events:none;transform-origin:center;filter:brightness(1)}
+.crafting-workbench[data-owner=mouse] .recipe-detail-button:hover img,
+.crafting-workbench[data-owner=cursor] .recipe-detail-button.cursor-hover img,
+.crafting-workbench[data-owner=directional] .recipe-detail-button.nav-focus img{animation:recipe-detail-breathe 2.4s ease-in-out infinite}
+@keyframes recipe-detail-breathe{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.08);filter:brightness(1.3) drop-shadow(0 0 4px #e5d8a855)}}
+.crafting-workbench .recipe-detail-button:active img{transform:scale(.96);filter:brightness(1.5);animation:none}
+.crafting-workbench .craft-item-detail-view{display:flex;flex-direction:column;flex:1;min-height:0;padding-top:16px;text-align:center;animation:craft-detail-open .28s ease-out}
+.crafting-workbench .detail-close-row{display:flex;justify-content:center;margin-top:16px;padding-bottom:2px}
+.crafting-workbench .detail-close{min-width:144px;height:40px;padding:0 24px}
+@keyframes craft-detail-open{from{opacity:.65;filter:brightness(1.4)}to{opacity:1;filter:brightness(1)}}
+@media(prefers-reduced-motion:reduce){.crafting-workbench .recipe-detail-button img,.crafting-workbench .craft-item-detail-view{animation:none!important}}
+
+.crafting-workbench[data-owner=mouse] .recipe-entry>.recipe-detail-button:hover:not(:disabled),
+.crafting-workbench .recipe-entry>.recipe-detail-button:is(.nav-focus,.cursor-hover):not(:disabled){background:transparent;border:0;outline:none;box-shadow:none}
+.crafting-workbench .detail-close-row>.detail-close{font-size:18px;color:#e6f5fb}
+
+/* Directional preselection breathes at base size; direct hover is 20% larger. */
+.crafting-workbench[data-input-mode=gamepad][data-owner=directional] .recipe-materials-button.is-preselected .recipe-materials-arrow{--materials-arrow-scale:1;animation:craft-materials-selected-breathe 1.8s ease-in-out infinite;transform:scale(1)}
+.crafting-workbench[data-owner=mouse] .recipe-materials-button:hover:not(:disabled) .recipe-materials-arrow,
+.crafting-workbench[data-owner=cursor] .recipe-materials-button.cursor-hover:not(:disabled) .recipe-materials-arrow{--materials-arrow-scale:1.2;animation:craft-materials-selected-breathe 1.8s ease-in-out infinite;transform:scale(1.2)}
+@keyframes craft-materials-selected-breathe{0%,100%{transform:scale(calc(var(--materials-arrow-scale)*.98));filter:brightness(1);opacity:.78}50%{transform:scale(var(--materials-arrow-scale));filter:brightness(1.25) drop-shadow(0 0 3px #ffe49c66);opacity:1}}
+@media(prefers-reduced-motion:reduce){.crafting-workbench .recipe-materials-content .recipe-materials-arrow{animation:none!important}}

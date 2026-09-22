@@ -5423,14 +5423,14 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 .quest-item-submission-confirmation {
   /* Count all displayed requirements, including submitted ones, to avoid
      resizing the confirmation while the player is submitting items. */
-  width: min(clamp(450px, calc(330px + var(--submission-item-count, 3) * 120px), 690px), calc(100% - 24px));
+  width: min(clamp(450px, calc(330px + var(--submission-item-count, 3) * 120px), 550px), calc(100% - 24px));
 }
 
 /* Center the complete conversion row, with bounded gaps around the arrow. */
 .quest-item-submission-confirmation .quest-item-submission-visualization {
   grid-template-columns: minmax(0, max-content) clamp(36px, 9vw, 82px) minmax(0, max-content);
   justify-content: center;
-  gap: clamp(10px, 3vw, 32px);
+  gap: clamp(8px, 1.6vw, 16px);
 }
 .quest-item-submission-confirmation .quest-item-submission-visualization .item-change-visual-arrow {
   width: min(100%, 82px);
@@ -5438,6 +5438,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 }
 .quest-item-submission-confirmation .quest-item-submission-visualization .item-change-visual-group {
   flex-wrap: nowrap;
+  gap: clamp(8px, 1.2vw, 10px);
   align-items: center;
 }
 .quest-item-submission-confirmation .quest-item-submission-visualization .item-change-visual-group.is-source .item-change-visual-card {

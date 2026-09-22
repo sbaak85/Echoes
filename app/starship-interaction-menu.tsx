@@ -26,6 +26,7 @@ export type StarshipInteractionMenuController = {
   switchColumn?: (delta: number) => void;
   changePage?: (delta: number) => void;
   secondary?: () => void;
+  inspect?: () => void;
   move: (direction: NavigationDirection) => void;
   hover: (index: number | null) => void;
   activate: () => void;
@@ -214,6 +215,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
     switchColumn: delta => workbenchRef.current?.switchColumn?.(delta),
     changePage: delta => workbenchRef.current?.changePage?.(delta),
     secondary: () => workbenchRef.current?.secondary?.(),
+    inspect: () => workbenchRef.current?.inspect?.(),
     move: direction => (view === "workbench" || view === "cooking") ? workbenchRef.current?.move(direction) : moveSpatially(direction),
     hover: index => (view === "workbench" || view === "cooking") ? workbenchRef.current?.hover(index) : hoverFromVirtualCursor(index),
     activate: () => (view === "workbench" || view === "cooking") ? workbenchRef.current?.activate() : activateSelected(),
