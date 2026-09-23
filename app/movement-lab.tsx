@@ -2020,11 +2020,12 @@ const INVENTORY_ITEM_ARTWORK_PREVIEWS: Readonly<
 };
 
 function getInventoryItemArtworkPreview(itemId: string) {
+  const definition = ITEM_BY_ID.get(itemId);
   const artworkStem = ITEM_BY_ID.get(itemId)?.artworkStem;
   if (artworkStem) {
     return {
       iconPath: uiAssetUrl(`items/${artworkStem}-icon-280.png`),
-      inspectPath: uiAssetUrl(`items/${artworkStem}-inspect-640.png`),
+      inspectPath: uiAssetUrl(`items/${artworkStem}-inspect-${definition?.artworkInspectSize ?? 640}.png`),
     };
   }
   return INVENTORY_ITEM_ARTWORK_PREVIEWS[itemId];

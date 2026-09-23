@@ -24,7 +24,7 @@ type Props = {
  onCraft:(recipeId:string,quantity?:number)=>{ok:boolean;reason?:string};
 };
 const aliases:Record<string,string>={"empty-test-tube":"空試管瓶","lantern":"螢光棒","toughened-vine-bark":"韌化藤皮","luminescent-sac":"螢光包囊","heat-fused-ceramic-shard":"熱熔陶片"};
-const image=(item:ItemDefinition,large=false)=>assetUrl(`ui/items/${aliases[item.englishName]||item.englishName}-${large?"inspect-640":"icon-280"}.png`);
+const image=(item:ItemDefinition,large=false)=>assetUrl(`ui/items/${aliases[item.englishName]||item.englishName}-${large?`inspect-${item.artworkInspectSize??640}`:"icon-280"}.png`);
 function ItemArt({entry,large=false}:{entry:ItemDefinition;large?:boolean}){
  const [failed,setFailed]=useState(false);
  return failed?<span className="craft-art-fallback" aria-label={entry.name}>{entry.symbol}</span>:<img src={image(entry,large)} alt="" onError={()=>setFailed(true)}/>;

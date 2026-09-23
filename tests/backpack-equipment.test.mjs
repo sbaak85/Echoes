@@ -18,11 +18,12 @@ test("backpack catalog capacities, empty weights and individual stack limits", (
   }
 });
 
-test("三款背包各有透明 280 圖示與 640 查看圖，並由 ItemDatabase 指向", async () => {
+test("三款背包各有透明 280 圖示與 1024 特規查看圖，並由 ItemDatabase 指向", async () => {
   const source = await readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
   for (const [id, stem] of [["T0011", "basic-backpack"], ["T0012", "survival-backpack"], ["T0013", "powered-backpack"]]) {
     assert.equal(ITEM_BY_ID.get(id)?.artworkStem, stem);
-    for (const [kind, size] of [["icon", 280], ["inspect", 640]]) {
+    assert.equal(ITEM_BY_ID.get(id)?.artworkInspectSize, 1024);
+    for (const [kind, size] of [["icon", 280], ["inspect", 1024]]) {
       const png = await readFile(new URL(`../public/ui/items/${stem}-${kind}-${size}.png`, import.meta.url));
       assert.equal(png.toString("ascii", 1, 4), "PNG");
       assert.equal(png.readUInt32BE(16), size);
@@ -30,6 +31,7 @@ test("三款背包各有透明 280 圖示與 640 查看圖，並由 ItemDatabase
       assert.equal(png[25], 6, "PNG 必須使用帶 alpha 的 RGBA 色版");
     }
   }
+  assert.ok(source.includes("definition?.artworkInspectSize ?? 640"));
   assert.match(source, /ITEM_BY_ID\.get\(itemId\)\?\.artworkStem/);
   assert.match(source, /getInventoryItemArtworkPreview\(equippedBackpackItem\.id\)\?\.iconPath/);
   assert.match(source, /getInventoryItemArtworkPreview\(itemUseConfirmationItem\.id\)\?\.iconPath/);

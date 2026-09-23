@@ -40,6 +40,7 @@ export type ItemDefinition = {
   usable: boolean;
   backpackCapacityKg?: number;
   artworkStem?: string;
+  artworkInspectSize?: 640 | 1024;
   useMode?: "direct" | "interaction";
   useAction?: ItemUseAction;
   survivalEffects: SurvivalEffects;
@@ -1040,9 +1041,9 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       inventoryRules: { transferable: true, discardable: true, stackSize: 99 },
     },
   },
-  { slot: 65, item: { id:"T0011", englishName:"basic-backpack", name:"10kg 基礎背包", symbol:"▣", category:"tool", weight:0.5, usable:true, backpackCapacityKg:10, artworkStem:"basic-backpack", description:"輕量織物與加固背帶構成的入門背包。遊戲開始時固定裝在背包裝備格，提供 10kg 負重上限；不佔一般背包格，不能卸下或丟棄。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
-  { slot: 66, item: { id:"T0012", englishName:"survival-backpack", name:"30kg 生存背包", symbol:"▣", category:"tool", weight:0.8, usable:true, backpackCapacityKg:30, artworkStem:"survival-backpack", description:"強化分艙與承重骨架的背包升級材料。需先裝備 10kg 基礎背包；確認升級會消耗此道具，與原背包整併於固定裝備格，將負重上限提升至 30kg。暫不升級則佔一般背包一格、重 0.8kg。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
-  { slot: 67, item: { id:"T0013", englishName:"powered-backpack", name:"50kg 動力背包", symbol:"▣", category:"tool", weight:1, usable:true, backpackCapacityKg:50, artworkStem:"powered-backpack", description:"整合輔助承重框架的背包升級材料。需先裝備 30kg 生存背包；確認升級會消耗此道具，與原背包整併於固定裝備格，將負重上限提升至 50kg。未升級時佔一般背包一格、重 1.0kg。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
+  { slot: 65, item: { id:"T0011", englishName:"basic-backpack", name:"10kg 基礎背包", symbol:"▣", category:"tool", weight:0.5, usable:true, backpackCapacityKg:10, artworkStem:"basic-backpack", artworkInspectSize:1024, description:"輕量織物與加固背帶構成的入門背包。遊戲開始時固定裝在背包裝備格，提供 10kg 負重上限；不佔一般背包格，不能卸下或丟棄。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
+  { slot: 66, item: { id:"T0012", englishName:"survival-backpack", name:"30kg 生存背包", symbol:"▣", category:"tool", weight:0.8, usable:true, backpackCapacityKg:30, artworkStem:"survival-backpack", artworkInspectSize:1024, description:"強化分艙與承重骨架的背包升級材料。需先裝備 10kg 基礎背包；確認升級會消耗此道具，與原背包整併於固定裝備格，將負重上限提升至 30kg。暫不升級則佔一般背包一格、重 0.8kg。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
+  { slot: 67, item: { id:"T0013", englishName:"powered-backpack", name:"50kg 動力背包", symbol:"▣", category:"tool", weight:1, usable:true, backpackCapacityKg:50, artworkStem:"powered-backpack", artworkInspectSize:1024, description:"整合輔助承重框架的背包升級材料。需先裝備 30kg 生存背包；確認升級會消耗此道具，與原背包整併於固定裝備格，將負重上限提升至 50kg。未升級時佔一般背包一格、重 1.0kg。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
   { slot: 68, item: null },
   { slot: 69, item: null },
   { slot: 70, item: null },

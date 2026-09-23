@@ -36,7 +36,26 @@
 .crafting-workbench .inventory-grid .item.is-needed:not(.is-added) img{filter:brightness(1.13) drop-shadow(0 0 8px rgba(109,225,255,.3))}
 .crafting-workbench .inventory-grid .item.is-needed:not(.is-added) .item-name{color:#daf6fa;text-shadow:0 0 7px #8eeaff55}
 .crafting-workbench .inventory-grid .item.is-added,.crafting-workbench .recipe .requirement.ready{--corner:rgba(255,219,144,.55);--cell-edge:linear-gradient(135deg,#fff,#fff2c9 24%,#efcf87 50%,#fff2c9 76%,#fff);box-shadow:inset 0 0 8px #fff0b9a6,inset 0 0 28px #e3b45f66}
-.crafting-workbench .recipe .requirement.ready:after{
+/* Match the mouse surface highlight for each authoritative input owner. */
+.crafting-workbench[data-owner=mouse] .recipe .requirement:hover:not(:disabled),
+.crafting-workbench[data-owner=cursor] .recipe .requirement.cursor-hover:not(:disabled),
+.crafting-workbench[data-owner=directional] .recipe .requirement.nav-focus:not(:disabled){
+  background-color:#263e45;
+}
+/* Empty slots use a bright, thin cyan-white edge without an inset thick outline. */
+.crafting-workbench[data-owner=mouse] .recipe .requirement:not(.ready):not(.is-partial):hover:not(:disabled),
+.crafting-workbench[data-owner=cursor] .recipe .requirement:not(.ready):not(.is-partial).cursor-hover:not(:disabled),
+.crafting-workbench[data-owner=directional] .recipe .requirement:not(.ready):not(.is-partial).nav-focus:not(:disabled){
+  --corner:rgba(116,225,255,.58);
+  --cell-edge:linear-gradient(135deg,#fff 0%,#d9ffff 12%,#76c6df 28%,#385f70 50%,#76c6df 72%,#d9ffff 88%,#fff 100%);
+  background:radial-gradient(ellipse at 0 0,var(--corner),transparent 58%),radial-gradient(ellipse at 100% 100%,var(--corner),transparent 58%),#07131c;
+  box-shadow:none;
+}
+/* Allocated is status; only the active input owner's target gets a thick ring. */
+.crafting-workbench[data-owner=mouse] .recipe .requirement:is(.ready,.is-partial):hover:not(:disabled):after,
+.crafting-workbench[data-owner=cursor] .recipe .requirement:is(.ready,.is-partial).cursor-hover:not(:disabled):after,
+.crafting-workbench[data-owner=directional] .recipe .requirement:is(.ready,.is-partial).nav-focus:not(:disabled):after{
+  background:linear-gradient(135deg,#fff0bd,#e6bf6c 24%,#967035 50%,#e6bf6c 76%,#fff0bd);
   clip-path:polygon(evenodd,8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px,8px 0,8.828px 2px,2px 8.828px,2px calc(100% - 8.828px),8.828px calc(100% - 2px),calc(100% - 8.828px) calc(100% - 2px),calc(100% - 2px) calc(100% - 8.828px),calc(100% - 2px) 8.828px,calc(100% - 8.828px) 2px,8.828px 2px,8px 0);
 }
 .crafting-workbench #craft-auto-fill{font-size:12px;white-space:nowrap;padding:7px 9px}
