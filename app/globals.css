@@ -4050,15 +4050,6 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   border-top: 1px solid rgba(176, 131, 65, 0.24);
 }
 
-.inventory-category-stats h4 {
-  margin: 0 0 10px;
-  color: #cba764;
-  font-family: var(--inventory-font-family);
-  font-size: 20px;
-  font-weight: 500;
-  text-align: center;
-}
-
 .inventory-category-stats p {
   display: flex;
   align-items: center;
@@ -5423,7 +5414,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 .quest-item-submission-confirmation {
   /* Count all displayed requirements, including submitted ones, to avoid
      resizing the confirmation while the player is submitting items. */
-  width: min(clamp(450px, calc(330px + var(--submission-item-count, 3) * 120px), 550px), calc(100% - 24px));
+  width: min(clamp(450px, calc(330px + var(--submission-item-count, 3) * 120px), 600px), calc(100% - 24px));
 }
 
 /* Center the complete conversion row, with bounded gaps around the arrow. */
@@ -5724,6 +5715,10 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   color: #e2c26f;
 }
 
+.item-use-change-visualization .item-change-visual-icon > .backpack-container {
+  zoom: 0.5;
+}
+
 .item-use-change-visualization .item-change-visual-card {
   container-type: inline-size;
 }
@@ -5827,6 +5822,97 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 .item-use-confirmation-actions button:focus,
 .item-use-confirmation-actions button:focus-visible {
   outline: none;
+}
+
+/* Shared staged response: width, spacing, labels, then uniform panel scaling.
+   Scoped specificity intentionally overrides the older 620px shared rules. */
+.item-use-confirmation-overlay,
+.camp-power-confirmation-overlay:has(> .quest-item-submission-confirmation) {
+  padding: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+.scene-connection-confirmation.item-use-confirmation,
+.camp-power-confirmation.quest-item-submission-confirmation {
+  --confirmation-compact: 0;
+  --confirmation-label: 0;
+  --confirmation-gap: calc(12px - 6px * var(--confirmation-compact));
+  --confirmation-inset: calc(22px - 10px * var(--confirmation-compact));
+  width: var(--confirmation-width, 600px);
+  min-width: 420px;
+  max-width: none;
+  transform: scale(var(--confirmation-scale, 1));
+  transform-origin: center;
+}
+:is(.item-use-confirmation, .quest-item-submission-confirmation) .item-change-visualization {
+  grid-template-columns: minmax(0, 1fr) calc(80px - 44px * var(--confirmation-compact)) minmax(0, 1fr);
+  gap: var(--confirmation-gap);
+  margin-inline: var(--confirmation-inset);
+  padding: 16px calc(16px - 8px * var(--confirmation-compact));
+}
+.quest-item-submission-confirmation .quest-item-submission-visualization {
+  grid-template-columns: minmax(0, max-content) calc(80px - 44px * var(--confirmation-compact)) minmax(0, max-content);
+}
+:is(.item-use-confirmation, .quest-item-submission-confirmation) .item-change-visualization .item-change-visual-group {
+  gap: calc(10px - 4px * var(--confirmation-compact));
+  flex-wrap: nowrap;
+}
+.quest-item-submission-confirmation .quest-item-submission-visualization .item-change-visual-group.is-source .item-change-visual-card {
+  width: calc(82px - 12px * var(--confirmation-compact));
+  flex: 0 0 calc(82px - 12px * var(--confirmation-compact));
+}
+:is(.item-use-confirmation, .quest-item-submission-confirmation) .item-change-visualization .item-change-visual-group .item-change-visual-icon {
+  width: 68px;
+  height: 68px;
+  aspect-ratio: 1;
+  flex-shrink: 0;
+}
+.item-use-confirmation .item-change-visual-card.has-outside-quantity {
+  grid-template-columns: 68px minmax(28px, auto);
+  column-gap: calc(10px - 4px * var(--confirmation-compact));
+}
+.item-use-confirmation .item-change-visual-card > .item-change-visual-quantity.is-outside {
+  font-size: 30px;
+}
+:is(.item-use-confirmation, .quest-item-submission-confirmation) .item-change-visualization .item-change-visual-card > small {
+  white-space: nowrap;
+  word-break: normal;
+  max-width: 100%;
+  text-overflow: clip;
+  font-size: calc(16px - 4px * var(--confirmation-label));
+}
+.quest-item-submission-confirmation .quest-item-submission-visualization .is-source .item-change-visual-card > small {
+  font-size: calc(12px - 2px * var(--confirmation-label));
+}
+.item-use-confirmation .item-change-visual-card.has-outside-quantity > small {
+  grid-column: 1;
+  justify-self: center;
+  width: max-content;
+  max-width: calc(110px - 20px * var(--confirmation-compact));
+}
+:is(.item-use-confirmation, .quest-item-submission-confirmation) > h3 {
+  font-size: 25px;
+  white-space: nowrap;
+}
+:is(.item-use-confirmation, .quest-item-submission-confirmation) > p {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: calc(16px - 2px * var(--confirmation-label));
+}
+.quest-item-submission-confirmation > .camp-power-confirmation-owned {
+  font-size: calc(14px - 1px * var(--confirmation-label));
+}
+.item-use-confirmation > .item-use-confirmation-consumption,
+.item-use-confirmation > .item-use-confirmation-delivery {
+  font-size: calc(13px - 1px * var(--confirmation-label));
+}
+.quest-item-submission-confirmation .quest-item-submission-visualization .item-change-visual-group.is-target .item-change-visual-card > small {
+  font-size: calc(16px - 4px * var(--confirmation-label));
+}
+:is(.item-use-confirmation, .quest-item-submission-confirmation) > [class$="confirmation-actions"] {
+  gap: var(--confirmation-gap);
+  padding-inline: var(--confirmation-inset);
 }
 
 /* Emergency power-routing puzzle. */

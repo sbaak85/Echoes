@@ -1,5 +1,6 @@
 import {
   INITIAL_PLAYER_INVENTORY,
+  ITEM_BY_ID,
   ITEM_DEFINITIONS,
   resolveItemId,
   type PlayerInventory,
@@ -11,7 +12,7 @@ export function createHotbarAssignmentsFromInventory(
   inventory: Readonly<PlayerInventory>,
 ): (string | null)[] {
   const ownedItemIds = ITEM_DEFINITIONS
-    .filter((item) => (inventory[item.id] ?? 0) > 0)
+    .filter((item) => (inventory[item.id] ?? 0) > 0 && !item.backpackCapacityKg)
     .map((item) => item.id)
     .slice(0, HOTBAR_SLOT_COUNT);
   return Array.from(
@@ -40,7 +41,8 @@ export function normalizeHotbarAssignments(value: unknown) {
   return Array.from({ length: HOTBAR_SLOT_COUNT }, (_, index) => {
     const itemId = value[index];
     if (typeof itemId !== "string") return null;
-    return resolveItemId(itemId);
+    const resolved = resolveItemId(itemId);
+    return resolved && !ITEM_BY_ID.get(resolved)?.backpackCapacityKg ? resolved : null;
   });
 }
 
@@ -77,6 +79,12 @@ export function assignHotbarSlot(
     return normalizeHotbarAssignments(assignments);
   }
   const next = normalizeHotbarAssignments(assignments);
-  next[slotIndex] = itemId === null ? null : resolveItemId(itemId);
+  if (itemId !== null) {
+    const resolved = resolveItemId(itemId);
+    if (!resolved || ITEM_BY_ID.get(resolved)?.backpackCapacityKg) return next;
+    next[slotIndex] = resolved;
+  } else {
+    next[slotIndex] = null;
+  }
   return next;
 }

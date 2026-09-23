@@ -1,0 +1,60 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {Presentation, PresentationFile} from '@oai/artifact-tool';
+const base=path.resolve(import.meta.dirname,'..');
+const dir=import.meta.dirname;
+const skill='C:/Users/sbaak.fang/.codex/plugins/cache/openai-primary-runtime/presentations/26.909.12148/skills/presentations';
+const {finalizePresentation}=await import(pathToFileURL(skill+'/container_tools/artifact_tool_utils.mjs'));
+const p=Presentation.create({slideSize:{width:1280,height:720}});
+const font='Microsoft JhengHei';
+const c={bg:'#09191F',ink:'#F3EEE2',muted:'#BBC9C9',accent:'#8BD7CF',gold:'#E6BD86'};
+function text(s,t,x,y,w,h,size=26,color=c.ink,bold=false){const a=s.shapes.add({geometry:'textbox',position:{left:x,top:y,width:w,height:h},fill:'none',line:{fill:'none',width:0}});a.text=t;a.text.style={typeface:font,fontSize:size,color,bold,autoFit:'none'};return a;}
+async function pic(s,file,x,y,w,h,fit='cover'){s.images.add({blob:new Uint8Array(await fs.readFile(dir+'/'+file)),contentType:'image/png',alt:file,fit,position:{left:x,top:y,width:w,height:h}});}
+function slide(){let s=p.slides.add();s.background.fill=c.bg;return s;}
+function notes(s,t){s.speakerNotes.textFrame.setText('資料來源：使用者提供《遠星迴聲》遊戲主題與創意概念報告.txt，2026-09-23。\n'+t);}
+let s=slide();
+await pic(s,'cover.png',0,0,1280,720);
+text(s,'遠星迴聲',66,130,650,108,80,c.ink,true);
+text(s,'Echoes of Distant Stars',72,244,600,40,25,c.accent);
+text(s,'你終於能回家了。\n但那個等你的人，還在另一顆星球。',72,334,680,118,32,c.ink,true);
+text(s,'單人科幻冒險\n異星求生、營地經營與跨物種友情',74,516,570,84,25,c.muted);
+text(s,'合作概念提案',74,657,400,30,19,c.accent);
+text(s,'概念示意',1120,668,125,24,16,c.muted);
+notes(s,'一句話介紹：墜落異星的工程師，靠探索與修復尋找歸途，卻在與外星生命「迴」的相處中重新理解陪伴。英文名稱依文件為暫定。插圖由內建 imagegen 生成，屬氛圍提案，不代表實機或定案角色外觀。');
+s=slide();
+text(s,'玩家的一天：帶著目的探索，帶著收穫回家',54,36,1170,64,42,c.ink,true);
+await pic(s,'gameplay.png',54,122,825,392,'contain');
+text(s,'開發中實機畫面／營地與 HUD',58,519,790,26,17,c.muted);
+text(s,'今天先修供水，\n還是追查未知訊號？',920,162,315,100,30,c.gold,true);
+text(s,'固定 45° 等角視角\n\n在補給、探索與工程之間\n做出每天的選擇。',920,298,320,168,25,c.muted);
+const steps=[['01 探索','尋找食物、零件與線索'],['02 安頓','種植、烹飪，照顧營地'],['03 修復','完成工程，打開新路徑'],['04 發現','帶著新線索再次出發']];
+steps.forEach((a,i)=>{text(s,a[0],56+i*305,579,290,44,27,c.accent,true);text(s,a[1],56+i*305,632,290,38,22,c.ink);});
+notes(s,'依文件第二、三、五、九、十一節整理核心循環。營地穩定後，基礎生存逐步自動化，讓注意力轉向探索、關係與大型工程。截圖取自 2026-09-23 本機運行版本 http://127.0.0.1:3000/，展示目前營地、角色與 HUD。下方循環是設計方向，不宣稱所有系統均已完成。');
+s=slide();
+text(s,'與「迴」建立語言，也建立牽掛',54,36,1170,64,44,c.ink,true);
+await pic(s,'friend.png',54,128,650,488);
+text(s,'情境概念示意／角色外觀未定案',56,635,655,30,17,c.muted);
+text(s,'沒有共同語言的朋友',750,145,475,48,30,c.accent,true);
+text(s,'交換物品、模仿動作、拼出符號含義。\n理解會出錯，信任靠共同生活累積。',750,213,474,112,25,c.ink);
+text(s,'一段尚未發出的回聲',750,375,475,48,30,c.gold,true);
+text(s,'收到的求救訊號，可能來自未來的自己。\n當時間真相浮現，早期線索有了新意義。',750,442,474,123,25,c.ink);
+text(s,'回家之後，故事仍有下一個選擇。',750,610,477,48,25,c.accent,true);
+notes(s,'依文件第四、六、七、八、十六節。迴是有自身目的的另一位故事主角。時間訊號來源與拯救途徑尚保留可能性，本頁以「可能」呈現。避免將尚未定案的分支設定包裝成完成劇情。概念插圖由內建 imagegen 生成，人物與迴的外觀均非定案。');
+s=slide();
+text(s,'合作起點：一段能讓玩家在意「迴」的試玩',54,36,1190,65,42,c.ink,true);
+await pic(s,'inventory.png',54,148,770,366,'contain');
+text(s,'開發中實機畫面／背包與生存狀態 UI',58,529,780,28,17,c.muted);
+text(s,'建議先驗證的體驗',864,145,375,47,30,c.accent,true);
+text(s,'建立第一個營地\n完成一次修復\n與「迴」第一次成功交流\n收到一段矛盾的訊號',864,212,375,186,26,c.ink);
+text(s,'合作討論重點',864,429,375,42,28,c.gold,true);
+text(s,'敘事與關卡共同打磨\n美術演出與試玩回饋',864,482,375,87,25,c.muted);
+text(s,'預期定位：中型規模的單人敘事生存冒險',56,605,1165,45,29,c.ink,true);
+text(s,'先確認玩家是否願意留下，再一起定義製作範圍與合作分工。',56,658,1165,34,23,c.accent);
+notes(s,'產品定位依文件第十四節。試玩順序與合作討論項目是本簡報建議，並非已承諾的交期、預算或合作條件。現有背包截圖來自 2026-09-23 本機運行版本，僅證明展示的 UI 存在，不推論完整生存或敘事系統皆已完成。建議合作對象評估第一次交流的可理解性與情感效果，再定義試玩範圍。');
+await fs.mkdir(base+'/deliverables',{recursive:true});
+const candidate=dir+'/candidate.pptx';
+await (await PresentationFile.exportPptx(p)).save(candidate);
+for(let i=0;i<4;i++){const blob=await p.export({slide:p.slides.items[i],format:'png',scale:1});await fs.writeFile(dir+`/slide-${i+1}.png`,new Uint8Array(await blob.arrayBuffer()));}
+await finalizePresentation({workspaceDir:base,candidatePath:candidate,finalPath:base+'/deliverables/遠星迴聲_合作創意提案_4頁.pptx',pythonExecutable:'C:/Users/sbaak.fang/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe',integrityValidatorPath:skill+'/container_tools/inspect_presentation_package_integrity.py',layoutValidatorPath:skill+'/container_tools/inspect_presentation_layout_geometry.py',layoutArgs:['--expected-slide-size-emu','12192000,6858000','--validate-bullet-geometry','--validate-heading-fit'],fontPolicy:{basis:'design',families:[font]},explicitTotalSlideCount:4,verifyArtifactToolImport:true,receiptPath:dir+'/validation.json'});
+console.log('COMPLETE');

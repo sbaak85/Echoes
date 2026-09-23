@@ -1,4 +1,5 @@
 "use client";
+import { useResponsiveConfirmation } from "./responsive-confirmation";
 import { createTouchJoystickView } from "./touch-joystick-view";
 import { useInteractionIllustration, InteractionIllustrationOverlay, type InteractionIllustration } from "./interaction-illustration";
 import { runInteractionIllustrationFlow } from "./interaction-illustration-flow";
@@ -11,7 +12,7 @@ import { CursorPresentationGuard, CURSOR_POSITION_STORAGE_KEY, parseCursorPositi
 import { InventoryHoverHint, useInventoryHoverHint } from "./inventory-hover-hint";
 import { InventorySurvivalFloat } from "./inventory-survival-float";
 import { RadarPlayerMarker } from "./radar-player-marker";
-import { DEFAULT_BACKPACK_ID, backpackCapacity, equipBackpack, loadEquippedBackpack, saveEquippedBackpack } from "./inventory-capacity";
+import { DEFAULT_BACKPACK_ID, backpackCapacity, canUpgradeBackpack, equipBackpack, loadEquippedBackpack, normalizeBackpackInventory, saveEquippedBackpack } from "./inventory-capacity";
 import { BackpackContainer } from "./backpack-container";
 import { AssignFrame } from "./quick-assign-frame";
 import { scheduleUiAssetWarmup } from "./ui-asset-warmup";
@@ -566,6 +567,7 @@ type ItemChangeVisualEntry = {
   item?: ItemDefinition | null;
   label: string;
   quantity?: number;
+  quantityLabel?: string;
   state: ItemChangeVisualState;
   imageSrc?: string;
 };
@@ -597,10 +599,11 @@ function ItemChangeVisualCard({
   quantityPlacement: ItemChangeQuantityPlacement;
 }) {
   const quantity = Math.max(1, Math.floor(Number(entry.quantity) || 1));
+  const quantityLabel = entry.quantityLabel ?? `×${quantity}`;
   return (
     <div
       className={`item-change-visual-card is-${entry.state} has-${quantityPlacement}-quantity`}
-      aria-label={`${entry.label} ×${quantity}${
+      aria-label={`${entry.label} ${quantityLabel}${
         entry.state === "submitted"
           ? "，已投入"
           : entry.state === "missing"
@@ -613,18 +616,20 @@ function ItemChangeVisualCard({
           // This is a compact, transparent game HUD asset rather than page content.
           // eslint-disable-next-line @next/next/no-img-element
           <img src={entry.imageSrc} alt="" draggable={false} />
+        ) : entry.item?.backpackCapacityKg ? (
+          <BackpackContainer percent={0} />
         ) : (
           <span aria-hidden="true">{entry.item?.symbol ?? "◇"}</span>
         )}
         {entry.quantity && quantityPlacement === "inside" ? (
-          <b className="item-change-visual-quantity">×{quantity}</b>
+          <b className="item-change-visual-quantity">{quantityLabel}</b>
         ) : null}
         {entry.state === "submitted" ? (
           <i className="item-change-visual-check" aria-hidden="true">✓</i>
         ) : null}
       </span>
       {entry.quantity && quantityPlacement === "outside" ? (
-        <b className="item-change-visual-quantity is-outside">×{quantity}</b>
+        <b className="item-change-visual-quantity is-outside">{quantityLabel}</b>
       ) : null}
       <small>{entry.label}</small>
     </div>
@@ -1737,7 +1742,9 @@ function formatSurvivalEffects(effects: SurvivalEffects) {
 function formatInventoryItemInformationEffect(
   item: Pick<ItemDefinition, "survivalEffects" | "useAction" | "backpackCapacityKg">,
 ) {
-  if (item.backpackCapacityKg) return `裝備負重上限 ${item.backpackCapacityKg}kg · 替換後移除舊背包`;
+  if (item.backpackCapacityKg) return item.backpackCapacityKg === 10
+    ? "固定背包裝備格 · 負重上限 10kg"
+    : `升級後負重上限 ${item.backpackCapacityKg}kg · 消耗此升級材料`;
   const useActionEffect = formatItemUseActionEffect(
     item.useAction,
     (itemId) => ITEM_BY_ID.get(itemId)?.name,
@@ -2013,6 +2020,13 @@ const INVENTORY_ITEM_ARTWORK_PREVIEWS: Readonly<
 };
 
 function getInventoryItemArtworkPreview(itemId: string) {
+  const artworkStem = ITEM_BY_ID.get(itemId)?.artworkStem;
+  if (artworkStem) {
+    return {
+      iconPath: uiAssetUrl(`items/${artworkStem}-icon-280.png`),
+      inspectPath: uiAssetUrl(`items/${artworkStem}-inspect-640.png`),
+    };
+  }
   return INVENTORY_ITEM_ARTWORK_PREVIEWS[itemId];
 }
 
@@ -3565,6 +3579,8 @@ function drawMiniMapGeometry(canvas: HTMLCanvasElement) {
 const INITIAL_SURVIVAL_STATE = createInitialSurvivalState();
 
 export function MovementLab() {
+  const itemUseResponsiveRef = useResponsiveConfirmation();
+  const submissionResponsiveRef = useResponsiveConfirmation();
   const interactionIllustration = useInteractionIllustration(() => {
     void audioEventManagerRef.current?.play("signalDetectorIllustrationOpened", { restart: true }).catch(() => {
       // Audio availability must never block the illustration or dialogue flow.
@@ -3745,6 +3761,7 @@ export function MovementLab() {
   const selectedInventoryIndexRef = useRef(
     DEFAULT_SELECTED_INVENTORY_INDEX,
   );
+  const inventoryEquippedBackpackSelectedRef = useRef(false);
   const droppedWorldItemsRef = useRef<DroppedWorldItem[]>([]);
   const itemPointProgressRef = useRef<ItemPointProgress>(
     createInitialItemPointProgress(),
@@ -3770,6 +3787,7 @@ export function MovementLab() {
   const inventoryCursorRearmRequiredRef = useRef(false);
   const inventoryDirectionRearmRequiredRef = useRef(false);
   const inventoryPointerItemIndexRef = useRef<number | null>(null);
+  const inventoryPointerEquipmentHoverRef = useRef(false);
   const inventoryGamepadFocusRef = useRef<"items" | "actions">("items");
   const quickAssignReturnToInventoryRef = useRef(false);
   const inventorySelectedActionRef = useRef<InventorySelectedAction>("use");
@@ -4110,6 +4128,7 @@ export function MovementLab() {
   const [selectedInventoryIndex, setSelectedInventoryIndex] = useState(
     DEFAULT_SELECTED_INVENTORY_INDEX,
   );
+  const [selectedEquippedBackpack, setSelectedEquippedBackpack] = useState(false);
   const [inventoryGamepadFocus, setInventoryGamepadFocus] =
     useState<"items" | "actions">("items");
   const [inventorySelectedAction, setInventorySelectedAction] =
@@ -5264,8 +5283,8 @@ export function MovementLab() {
           setCurrentSceneId(savedScene.sceneId);
         }
       }
-      const loadedInventory = loadPlayerInventory();
       const loadedBackpack = loadEquippedBackpack();
+      const loadedInventory = normalizeBackpackInventory(loadPlayerInventory(), loadedBackpack);
       equippedBackpackRef.current = loadedBackpack;
       setEquippedBackpack(loadedBackpack);
       observedBackpackInventoryRef.current = loadedInventory;
@@ -5672,7 +5691,7 @@ export function MovementLab() {
     const previous = observedBackpackInventoryRef.current;
     observedBackpackInventoryRef.current = playerInventory;
     const acquired = Object.keys(playerInventory).filter(id =>
-      ITEM_BY_ID.get(id)?.backpackCapacityKg && playerInventory[id] > (previous[id] ?? 0));
+      canUpgradeBackpack(equippedBackpackRef.current, id) && playerInventory[id] > (previous[id] ?? 0));
     if (acquired.length) setPendingBackpacks(queue => [...new Set([...queue, ...acquired])]);
   }, [playerInventory, storyReady]);
 
@@ -5985,6 +6004,7 @@ export function MovementLab() {
   }, [debugItemSpawnerOpen]);
 
   const setHotbarSlotAssignment = (slotIndex: number, itemId: string | null) => {
+    if (itemId && ITEM_BY_ID.get(itemId)?.backpackCapacityKg) return;
     const next = assignHotbarSlot(
       hotbarAssignmentsRef.current,
       slotIndex,
@@ -6013,7 +6033,7 @@ export function MovementLab() {
     }
   };
   const beginQuickAssign = (itemId: string) => {
-    if ((playerInventoryRef.current[itemId] ?? 0) <= 0) return;
+    if ((playerInventoryRef.current[itemId] ?? 0) <= 0 || ITEM_BY_ID.get(itemId)?.backpackCapacityKg) return;
     const empty = hotbarAssignmentsRef.current.findIndex((id) => id === null);
     const slotIndex = empty < 0 ? 0 : empty;
     quickAssignReturnToInventoryRef.current = inventoryOpenRef.current &&
@@ -6105,8 +6125,18 @@ export function MovementLab() {
   const selectInventoryItem = (slotIndex: number) => {
     const item = ITEM_DATABASE[slotIndex]?.item;
     if (!item || (playerInventoryRef.current[item.id] ?? 0) <= 0) return;
+    inventoryEquippedBackpackSelectedRef.current = false;
+    setSelectedEquippedBackpack(false);
     selectedInventoryIndexRef.current = slotIndex;
     setSelectedInventoryIndex(slotIndex);
+  };
+
+  const selectEquippedBackpack = () => {
+    inventoryEquippedBackpackSelectedRef.current = true;
+    setSelectedEquippedBackpack(true);
+    setInventoryGamepadFocusValue("items");
+    setInventoryContextMenu(null);
+    clearInventoryHoverHint();
   };
 
   const setInventoryGamepadFocusValue = (
@@ -6132,6 +6162,7 @@ export function MovementLab() {
     clearInventoryHoverHint();
     if (document.activeElement instanceof HTMLElement &&
       document.activeElement.closest(".inventory-selected-actions")) document.activeElement.blur();
+    if (inventoryEquippedBackpackSelectedRef.current) return;
     const selected = ITEM_DATABASE[selectedInventoryIndexRef.current]?.item;
     if (selected && (playerInventoryRef.current[selected.id] ?? 0) > 0) return;
     const candidates = Array.from(document.querySelectorAll<HTMLElement>(".inventory-item[data-inventory-index]"))
@@ -6145,6 +6176,16 @@ export function MovementLab() {
   }
 
   const enterInventorySelectedActions = () => {
+    if (inventoryEquippedBackpackSelectedRef.current) {
+      if (!getInventoryItemArtworkPreview(equippedBackpackRef.current)) return;
+      clearInventoryHoverHint();
+      inventoryGamepadModeRef.current = "dpad";
+      setInventoryGamepadMode("dpad");
+      inventoryCursorRearmRequiredRef.current = true;
+      setInventorySelectedActionValue("inspect");
+      setInventoryGamepadFocusValue("actions");
+      return;
+    }
     const item = ITEM_DATABASE[selectedInventoryIndexRef.current]?.item;
     if (!item || (playerInventoryRef.current[item.id] ?? 0) <= 0) return;
     clearInventoryHoverHint();
@@ -6327,6 +6368,7 @@ export function MovementLab() {
         nextInventory,
         reward.item.id,
         reward.quantity,
+        equippedBackpackRef.current,
       );
     }
 
@@ -6387,6 +6429,16 @@ export function MovementLab() {
       showInventoryFeedback(`尚未持有「${item.name}」`, feedbackSlotIndex);
       return;
     }
+    if (item.backpackCapacityKg && !canUpgradeBackpack(equippedBackpackRef.current, item.id)) {
+      const currentCapacity = backpackCapacity(equippedBackpackRef.current);
+      showInventoryFeedback(
+        item.backpackCapacityKg > currentCapacity
+          ? `需先裝備前一階背包，才能使用「${item.name}」升級`
+          : `目前背包已達 ${currentCapacity}kg，無法使用「${item.name}」升級`,
+        feedbackSlotIndex,
+      );
+      return;
+    }
     const pending = { itemId: item.id, feedbackSlotIndex };
     itemUseConfirmationTriggerRef.current =
       document.activeElement instanceof HTMLElement
@@ -6404,7 +6456,7 @@ export function MovementLab() {
       if (!currentPending) return;
       closeItemUseConfirmation();
       if (ITEM_BY_ID.get(currentPending.itemId)?.backpackCapacityKg) {
-        const replacement = equipBackpack(playerInventoryRef.current, currentPending.itemId);
+        const replacement = equipBackpack(playerInventoryRef.current, currentPending.itemId, equippedBackpackRef.current);
         if (!replacement) return;
         playerInventoryRef.current = replacement.inventory;
         equippedBackpackRef.current = replacement.equippedBackpack;
@@ -6414,7 +6466,7 @@ export function MovementLab() {
           savePlayerInventory(replacement.inventory);
           saveEquippedBackpack(replacement.equippedBackpack);
         } catch { /* Keep session equipment if local storage is unavailable. */ }
-        showInventoryFeedback(`已裝備「${ITEM_BY_ID.get(replacement.equippedBackpack)!.name}」· 舊背包已移除`, currentPending.feedbackSlotIndex);
+        showInventoryFeedback(`背包已升級為「${ITEM_BY_ID.get(replacement.equippedBackpack)!.name}」· 升級材料已消耗`, currentPending.feedbackSlotIndex);
         return;
       }
       executeInventoryItemUseAction(
@@ -6520,7 +6572,7 @@ export function MovementLab() {
     event: ReactPointerEvent<HTMLButtonElement>,
     itemId: string,
   ) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || ITEM_BY_ID.get(itemId)?.backpackCapacityKg) return;
     const pending: PendingInventoryDrag = {
       itemId,
       pointerId: event.pointerId,
@@ -6756,7 +6808,21 @@ export function MovementLab() {
     const buttons = Array.from(
       document.querySelectorAll<HTMLButtonElement>(".inventory-item[data-inventory-index]"),
     );
-    if (buttons.length === 0) return;
+    if (buttons.length === 0) {
+      selectEquippedBackpack();
+      return;
+    }
+    const grid = document.querySelector<HTMLElement>(".inventory-items");
+    const columnCount = grid
+      ? Math.max(1, window.getComputedStyle(grid).gridTemplateColumns.split(" ").length)
+      : 4;
+    if (inventoryEquippedBackpackSelectedRef.current) {
+      if (horizontal > 0 || vertical > 0) {
+        const nextIndex = Number(buttons[0].dataset.inventoryIndex);
+        if (Number.isInteger(nextIndex)) selectInventoryItem(nextIndex);
+      }
+      return;
+    }
     const currentPosition = Math.max(
       0,
       buttons.findIndex(
@@ -6767,6 +6833,10 @@ export function MovementLab() {
 
     if (horizontal !== 0) {
       const pages = document.querySelector<HTMLElement>(".inventory-pages");
+      if (horizontal < 0 && currentPosition % columnCount === 0 && Number(pages?.dataset.page) === 0) {
+        selectEquippedBackpack();
+        return;
+      }
       const target = getInventoryHorizontalTarget(
         currentPosition, buttons.length, horizontal,
         Number(pages?.dataset.page) + 1 < Number(pages?.dataset.pageCount),
@@ -6779,13 +6849,6 @@ export function MovementLab() {
       }
       nextPosition = target.position;
     } else if (vertical !== 0) {
-      const grid = document.querySelector<HTMLElement>(".inventory-items");
-      const columnCount = grid
-        ? Math.max(
-            1,
-            window.getComputedStyle(grid).gridTemplateColumns.split(" ").length,
-          )
-        : 4;
       const candidate = currentPosition + vertical * columnCount;
       if (candidate >= 0 && candidate < buttons.length) nextPosition = candidate;
     }
@@ -8273,6 +8336,7 @@ export function MovementLab() {
     if (open) dismissTimeElapsedNotice();
     const wasOpen = inventoryOpenRef.current;
     inventoryPointerItemIndexRef.current = null;
+    inventoryPointerEquipmentHoverRef.current = false;
     inventoryCursorRearmRequiredRef.current = true;
     inventoryGamepadModeRef.current = questPromptInputModeRef.current === "gamepad" ? "dpad" : "cursor";
     setInventoryGamepadMode(inventoryGamepadModeRef.current);
@@ -9500,8 +9564,9 @@ export function MovementLab() {
     };
 
     const activateInventoryDpadMode = () => {
-      if (inventoryGamepadModeRef.current === "cursor" && inventoryPointerItemIndexRef.current !== null) {
-        selectInventoryItem(inventoryPointerItemIndexRef.current);
+      if (inventoryGamepadModeRef.current === "cursor") {
+        if (inventoryPointerEquipmentHoverRef.current) selectEquippedBackpack();
+        else if (inventoryPointerItemIndexRef.current !== null) selectInventoryItem(inventoryPointerItemIndexRef.current);
       }
       clearInventoryHoverHint();
       inventoryGamepadModeRef.current = "dpad";
@@ -10704,7 +10769,8 @@ export function MovementLab() {
             saveDroppedWorldItems(scenarioDroppedWorldItems);
           }
 
-          playerInventoryRef.current = plan.inventory;
+          const scenarioInventory = normalizeBackpackInventory(plan.inventory, equippedBackpackRef.current);
+          playerInventoryRef.current = scenarioInventory;
           survivalStateRef.current = plan.survival;
           interactionUsageRef.current = plan.interactionUsage;
           storyProgressRef.current = plan.story;
@@ -10721,10 +10787,10 @@ export function MovementLab() {
             plan.survival.gameMinutes,
           );
 
-          setPlayerInventory(plan.inventory);
+          setPlayerInventory(scenarioInventory);
           setSurvivalState(plan.survival);
           applyCampPowerState(nextCampPower);
-          savePlayerInventory(plan.inventory);
+          savePlayerInventory(scenarioInventory);
           saveSurvivalState(plan.survival);
           saveInteractionUsageState(plan.interactionUsage);
           saveStoryProgress(plan.story);
@@ -10864,6 +10930,7 @@ export function MovementLab() {
         const nextInventory = grantAllInventoryItems(
           playerInventoryRef.current,
           grantAllCommand.quantity,
+          equippedBackpackRef.current,
         );
         playerInventoryRef.current = nextInventory;
         setPlayerInventory(nextInventory);
@@ -10873,7 +10940,7 @@ export function MovementLab() {
           // 儲存空間不可用時，仍保留本次遊玩階段的取得結果。
         }
         showInteractionItemFeedback(
-          `Debug：已將 ${ITEM_DEFINITIONS.length} 種道具各 ×${grantAllCommand.quantity} 放入背包`,
+          `Debug：已加入可持有道具；背包依裝備階級與唯一性規則處理`,
         );
         return true;
       }
@@ -10893,10 +10960,12 @@ export function MovementLab() {
       }
 
       if (getItemDebugSpawnDelivery(item) === "inventory") {
+        const previousCount = playerInventoryRef.current[item.id] ?? 0;
         const nextInventory = grantInventoryItem(
           playerInventoryRef.current,
           item.id,
           parsed.quantity,
+          equippedBackpackRef.current,
         );
         playerInventoryRef.current = nextInventory;
         setPlayerInventory(nextInventory);
@@ -10906,7 +10975,9 @@ export function MovementLab() {
           // 儲存空間不可用時，仍保留本次遊玩階段的生成結果。
         }
         showInteractionItemFeedback(
-          `Debug：${item.name} ×${parsed.quantity} 已放入背包`,
+          (nextInventory[item.id] ?? 0) > previousCount
+            ? `Debug：${item.name} ×${(nextInventory[item.id] ?? 0) - previousCount} 已放入背包`
+            : `Debug：「${item.name}」已裝備或持有，未重複加入背包`,
         );
         return true;
       }
@@ -11083,6 +11154,7 @@ export function MovementLab() {
           nextInventory,
           item.id,
           reward.quantity,
+          equippedBackpackRef.current,
         );
       }
       if (nextInventory !== playerInventoryRef.current) {
@@ -11287,6 +11359,19 @@ export function MovementLab() {
         return openInteractionFailureDialogue(interactable, source);
       }
 
+      if (interactable.type === "pickup" && interactable.itemId) {
+        const pickupItem = ITEM_BY_ID.get(interactable.itemId);
+        if (pickupItem?.backpackCapacityKg && grantInventoryItem(
+          playerInventoryRef.current,
+          pickupItem.id,
+          1,
+          equippedBackpackRef.current,
+        ) === playerInventoryRef.current) {
+          showInteractionItemFeedback(`「${pickupItem.name}」已裝備或持有，不能重複拾取。`);
+          return false;
+        }
+      }
+
       // 有生成獎勵的互動必須先成功建立獎勵，才結算生存值與每日額度。
       // 找不到合法落點時，整次互動保持失敗，避免玩家白白被扣次數。
       if (
@@ -11373,6 +11458,7 @@ export function MovementLab() {
             playerInventoryRef.current,
             item.id,
             quantity,
+            equippedBackpackRef.current,
           );
           playerInventoryRef.current = nextInventory;
           setPlayerInventory(nextInventory);
@@ -14486,6 +14572,7 @@ export function MovementLab() {
         const bounds = canvas.getBoundingClientRect();
         const x = bounds.left + virtualCursor.x, y = bounds.top + virtualCursor.y;
         const target = document.elementFromPoint(x, y)?.closest<HTMLElement>(".inventory-item[data-inventory-item-id]");
+        inventoryPointerEquipmentHoverRef.current = Boolean(document.elementFromPoint(x, y)?.closest("[data-inventory-equipment]"));
         const item = target ? ITEM_BY_ID.get(target.dataset.inventoryItemId ?? "") : null;
         inventoryPointerItemIndexRef.current = target ? Number(target.dataset.inventoryIndex) : null;
         const actionButton = document.elementFromPoint(x, y)?.closest<HTMLButtonElement>("button[data-inventory-action]");
@@ -16132,16 +16219,17 @@ export function MovementLab() {
     currentInventoryPage * 16,
     currentInventoryPage * 16 + 16,
   );
-  const selectedInventoryStack =
-    ownedInventoryItems.find(
-      (stack) => stack.databaseIndex === selectedInventoryIndex,
-    ) ?? ownedInventoryItems[0] ?? null;
-  const selectedInventoryItem = selectedInventoryStack
-    ? {
-        ...selectedInventoryStack.definition,
-        count: selectedInventoryStack.count,
-      }
-    : null;
+  const selectedInventoryStack = selectedEquippedBackpack
+    ? null
+    : ownedInventoryItems.find(
+        (stack) => stack.databaseIndex === selectedInventoryIndex,
+      ) ?? ownedInventoryItems[0] ?? null;
+  const equippedBackpackItem = ITEM_BY_ID.get(equippedBackpack) ?? ITEM_BY_ID.get(DEFAULT_BACKPACK_ID)!;
+  const selectedInventoryItem = selectedEquippedBackpack && equippedBackpackItem
+    ? { ...equippedBackpackItem, count: 1 }
+    : selectedInventoryStack
+      ? { ...selectedInventoryStack.definition, count: selectedInventoryStack.count }
+      : null;
   const inventoryWeight = calculateInventoryWeight(playerInventory);
   const inventoryCapacityKg = backpackCapacity(equippedBackpack);
   const inventoryWeightPercent = Math.min(
@@ -16541,7 +16629,16 @@ export function MovementLab() {
       })()
     : "";
   const itemUseConfirmationSources: ItemChangeVisualEntry[] =
-    itemUseConfirmationItem && itemUseConfirmationAction
+    itemUseConfirmationItem?.backpackCapacityKg
+      ? [{
+          item: equippedBackpackItem,
+          label: equippedBackpackItem.name.replace(/^\d+kg\s*/, ""),
+          quantity: 1,
+          quantityLabel: `${equippedBackpackItem.backpackCapacityKg}kg`,
+          state: "available",
+          imageSrc: getInventoryItemArtworkPreview(equippedBackpackItem.id)?.iconPath,
+        }]
+      : itemUseConfirmationItem && itemUseConfirmationAction
       ? [{
           item: itemUseConfirmationItem,
           label: itemUseConfirmationItem.name,
@@ -16554,7 +16651,16 @@ export function MovementLab() {
         }]
       : [];
   const itemUseConfirmationTargets: ItemChangeVisualEntry[] =
-    itemUseConfirmationAction
+    itemUseConfirmationItem?.backpackCapacityKg
+      ? [{
+          item: itemUseConfirmationItem,
+          label: itemUseConfirmationItem.name.replace(/^\d+kg\s*/, ""),
+          quantity: 1,
+          quantityLabel: `${itemUseConfirmationItem.backpackCapacityKg}kg`,
+          state: "result",
+          imageSrc: getInventoryItemArtworkPreview(itemUseConfirmationItem.id)?.iconPath,
+        }]
+      : itemUseConfirmationAction
       ? itemUseConfirmationAction.rewards.map((reward) => {
           const item = ITEM_BY_ID.get(reward.itemId) ?? null;
           return {
@@ -17450,6 +17556,7 @@ export function MovementLab() {
               const target = event.target instanceof Element ? event.target : null;
               const item = target?.closest<HTMLElement>("[data-inventory-index]");
               inventoryPointerItemIndexRef.current = item ? Number(item.dataset.inventoryIndex) : null;
+              inventoryPointerEquipmentHoverRef.current = Boolean(target?.closest("[data-inventory-equipment]"));
               const action = target?.closest<HTMLButtonElement>("button[data-inventory-action]");
               if (action && !action.disabled) {
                 setInventorySelectedActionValue(action.dataset.inventoryAction as InventorySelectedAction);
@@ -17495,9 +17602,24 @@ export function MovementLab() {
                     })}
                   </section>
                   <div className="inventory-bag-art">
-                    <div className="inventory-backpack-equipment" title={`${ITEM_BY_ID.get(equippedBackpack)!.name} · 已裝備，不可卸下`}>
-                      <small>背包</small><span>{inventoryCapacityKg}<small>kg</small></span><small>已裝備</small>
-                    </div>
+                    {equippedBackpackItem ? (
+                      <button
+                        className={`inventory-item inventory-backpack-equipment is-${equippedBackpackItem.category}${selectedEquippedBackpack ? " is-selected" : ""}`}
+                        type="button"
+                        data-inventory-equipment="true"
+                        aria-pressed={selectedEquippedBackpack}
+                        aria-label={`已裝備背包：${equippedBackpackItem.name}，不可卸下或丟棄。點擊查看資訊`}
+                        onPointerLeave={() => { inventoryPointerEquipmentHoverRef.current = false; }}
+                        onContextMenu={(event) => { event.preventDefault(); selectEquippedBackpack(); }}
+                        onClick={selectEquippedBackpack}
+                      >
+                        <span className="inventory-item-icon" aria-hidden="true">
+                          {getInventoryItemArtworkPreview(equippedBackpackItem.id) ? (
+                            <img src={getInventoryItemArtworkPreview(equippedBackpackItem.id)!.iconPath} alt="" draggable={false} />
+                          ) : <BackpackContainer percent={0} />}
+                        </span>
+                      </button>
+                    ) : null}
                     <BackpackContainer percent={inventoryWeightPercent} />
                   </div>
                   <div className="inventory-weight">
@@ -17509,7 +17631,6 @@ export function MovementLab() {
                     <i><b style={{ width: `${inventoryWeightPercent}%` }} /></i>
                   </div>
                   <section className="inventory-category-stats">
-                    <h4>分類統計</h4>
                     {(["food", "resource", "tool", "quest"] as const).map((category) => (
                       <p key={category}>
                         <span className="inventory-category-stat-label">
@@ -17552,19 +17673,20 @@ export function MovementLab() {
                       <p className={`inventory-survival-effects${hasConfiguredInventoryItemInformationEffect(selectedInventoryItem) ? " is-configured" : ""}`}>
                         {formatInventoryItemInformationEffect(selectedInventoryItem)}
                       </p>
-                      <output>重量　{selectedInventoryItem.weight.toFixed(2)} kg　　持有 ×{selectedInventoryItem.count}</output>
+                      <output>重量　{selectedInventoryItem.weight.toFixed(2)} kg　　{selectedEquippedBackpack ? "裝備中 · 不佔背包格" : `持有 ×${selectedInventoryItem.count}`}</output>
                     </section>
                     <div className="inventory-selected-actions">
                       <button
                         type="button"
                         data-inventory-action="use"
+                        disabled={selectedEquippedBackpack}
                         data-gamepad-selected={
                           questPromptInputMode === "gamepad" &&
                           inventoryGamepadFocus === "actions" &&
                           inventorySelectedAction === "use" || undefined
                         }
                         onClick={() => activateInventoryItem(selectedInventoryStack?.databaseIndex ?? selectedInventoryIndex)}
-                      >{selectedInventoryItem.backpackCapacityKg ? "裝備" : "使用"}</button>
+                      >{selectedEquippedBackpack ? "已裝備" : selectedInventoryItem.backpackCapacityKg ? "裝備" : "使用"}</button>
                       <button
                         type="button"
                         data-inventory-action="inspect"
@@ -17586,6 +17708,7 @@ export function MovementLab() {
                       <button
                         type="button"
                         data-inventory-action="quick"
+                        disabled={selectedEquippedBackpack || !!selectedInventoryItem.backpackCapacityKg}
                         data-gamepad-selected={
                           questPromptInputMode === "gamepad" &&
                           inventoryGamepadFocus === "actions" &&
@@ -17602,9 +17725,11 @@ export function MovementLab() {
                           inventoryGamepadFocus === "actions" &&
                           inventorySelectedAction === "discard" || undefined
                         }
-                        disabled={!selectedInventoryItem.inventoryRules.discardable}
+                        disabled={selectedEquippedBackpack || !selectedInventoryItem.inventoryRules.discardable}
                         title={
-                          selectedInventoryItem.inventoryRules.discardable
+                          selectedEquippedBackpack
+                            ? "已裝備的背包不可丟棄"
+                            : selectedInventoryItem.inventoryRules.discardable
                             ? "丟棄一個到角色附近"
                             : "此道具不可丟棄"
                         }
@@ -17804,7 +17929,7 @@ export function MovementLab() {
           >
             查看
           </button>
-          <button type="button" onClick={() => { if (contextInventoryItem) beginQuickAssign(contextInventoryItem.id); }}>快捷</button>
+          <button type="button" disabled={!!contextInventoryItem?.backpackCapacityKg} onClick={() => { if (contextInventoryItem) beginQuickAssign(contextInventoryItem.id); }}>快捷</button>
           <button
             className="is-danger"
             type="button"
@@ -17879,10 +18004,11 @@ export function MovementLab() {
             if (!starshipInteractionMenuOpenRef.current) return { ok: false, reason: "製作介面已關閉" };
             const result = craftInventoryRecipe(playerInventoryRef.current, recipeId, quantity);
             if (!result.ok) return result;
-            playerInventoryRef.current = result.inventory;
-            setPlayerInventory(result.inventory);
-            try { savePlayerInventory(result.inventory); } catch { /* Keep the in-memory transaction if storage is unavailable. */ }
-            questRuntimeManagerRef.current?.syncCurrentInventory(result.inventory);
+            const craftedInventory = normalizeBackpackInventory(result.inventory, equippedBackpackRef.current);
+            playerInventoryRef.current = craftedInventory;
+            setPlayerInventory(craftedInventory);
+            try { savePlayerInventory(craftedInventory); } catch { /* Keep the in-memory transaction if storage is unavailable. */ }
+            questRuntimeManagerRef.current?.syncCurrentInventory(craftedInventory);
             showPlayerItemGain(ITEM_BY_ID.get(result.itemId)!.name, result.quantity);
             return { ok: true };
           }}
@@ -17954,6 +18080,7 @@ export function MovementLab() {
         >
           <section
             className="scene-connection-confirmation item-use-confirmation"
+            ref={itemUseResponsiveRef}
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="item-use-confirmation-title"
@@ -17962,28 +18089,26 @@ export function MovementLab() {
             <small>ITEM USE CONFIRMATION</small>
             <h3 id="item-use-confirmation-title">
               {itemUseConfirmationItem.backpackCapacityKg
-                ? `是否裝備「${itemUseConfirmationItem.name}」，取代「${ITEM_BY_ID.get(equippedBackpack)!.name}」？`
+                ? <>是否升級成「{itemUseConfirmationItem.name}」?</>
                 : <>確認{itemUseConfirmationVerb}「{itemUseConfirmationItem.name}」，以取得<span>{itemUseConfirmationRewardText}嗎？</span></>}
             </h3>
-            {itemUseConfirmationItem.backpackCapacityKg ? (
-              <div className="backpack-equipment-comparison">負重上限 {inventoryCapacityKg}kg → {itemUseConfirmationItem.backpackCapacityKg}kg</div>
-            ) : <ItemChangeVisualization
+            <ItemChangeVisualization
               className="item-use-change-visualization"
               sources={itemUseConfirmationSources}
               targets={itemUseConfirmationTargets}
               quantityPlacement="outside"
-            />}
+            />
             <p
               className="item-use-confirmation-consumption"
               id="item-use-confirmation-consumption"
             >
               {itemUseConfirmationItem.backpackCapacityKg
-                ? "確認後舊背包將直接移除；新背包進入獨立裝備欄，不佔物品格，且不可單獨卸下。"
+                ? "升級後會改裝此背包，將與舊背包整合並提升負重能力。"
                 : `${itemUseConfirmationVerb}「${itemUseConfirmationItem.name}」後將會消耗該物件。`}
             </p>
             <p className="item-use-confirmation-delivery">
               {itemUseConfirmationItem.backpackCapacityKg
-                ? `暫不替換會留在一般背包，佔一格並計入 ${itemUseConfirmationItem.weight.toFixed(1)}kg 重量；之後可選擇使用來裝備。`
+                ? `可暫不升級，新背包會先存放在背包格並佔用${itemUseConfirmationItem.weight.toFixed(1)}kg重量。`
                 : itemUseConfirmationDeliveryText}
             </p>
             <div className="scene-connection-confirmation-actions item-use-confirmation-actions">
@@ -18012,7 +18137,7 @@ export function MovementLab() {
                   confirmItemUseAction();
                 }}
               >
-                {itemUseConfirmationItem.backpackCapacityKg ? "替換背包" : `確認${itemUseConfirmationVerb}`}
+                {itemUseConfirmationItem.backpackCapacityKg ? "升級背包" : `確認${itemUseConfirmationVerb}`}
               </button>
             </div>
             <footer><GamepadHint enabled={questPromptInputMode === "gamepad"} text="左搖桿／方向鍵：選擇　A／Enter：確認　B／Esc：取消" /></footer>
@@ -18092,6 +18217,7 @@ export function MovementLab() {
             style={questItemSubmissionPrompt ? {
               "--submission-item-count": Math.max(1, questItemSubmissionSources.length),
             } as CSSProperties : undefined}
+            ref={questItemSubmissionPrompt ? submissionResponsiveRef : undefined}
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="camp-power-confirmation-title"

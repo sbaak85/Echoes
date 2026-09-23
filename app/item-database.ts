@@ -39,6 +39,7 @@ export type ItemDefinition = {
   weight: number;
   usable: boolean;
   backpackCapacityKg?: number;
+  artworkStem?: string;
   useMode?: "direct" | "interaction";
   useAction?: ItemUseAction;
   survivalEffects: SurvivalEffects;
@@ -1039,9 +1040,9 @@ export const ITEM_DATABASE: readonly ItemDatabaseSlot[] = [
       inventoryRules: { transferable: true, discardable: true, stackSize: 99 },
     },
   },
-  { slot: 65, item: { id:"T0011", englishName:"basic-backpack", name:"10kg 基礎背包", symbol:"▣", category:"tool", weight:0.5, usable:true, backpackCapacityKg:10, description:"輕量織物與加固背帶構成的入門背包，提供 10kg 負重上限。裝備於獨立背包欄，不佔物品格且不可單獨卸下。確認替換會移除舊背包；未裝備時重 0.5kg、佔一格。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
-  { slot: 66, item: { id:"T0012", englishName:"survival-backpack", name:"30kg 生存背包", symbol:"▣", category:"tool", weight:0.8, usable:true, backpackCapacityKg:30, description:"具備分艙收納與強化承重骨架的野外生存背包，提供 30kg 負重上限。裝備不佔物品格；確認替換會移除舊背包。暫不替換可留在物品欄，重 0.8kg、佔一格，稍後使用即可裝備。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
-  { slot: 67, item: { id:"T0013", englishName:"powered-backpack", name:"50kg 動力背包", symbol:"▣", category:"tool", weight:1, usable:true, backpackCapacityKg:50, description:"整合輔助承重框架的動力背包，提供 50kg 負重上限。裝備不佔物品格且不可單獨卸下；確認替換會移除舊背包。未裝備時重 1.0kg、佔一格，可由物品欄使用並裝備。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
+  { slot: 65, item: { id:"T0011", englishName:"basic-backpack", name:"10kg 基礎背包", symbol:"▣", category:"tool", weight:0.5, usable:true, backpackCapacityKg:10, artworkStem:"basic-backpack", description:"輕量織物與加固背帶構成的入門背包。遊戲開始時固定裝在背包裝備格，提供 10kg 負重上限；不佔一般背包格，不能卸下或丟棄。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
+  { slot: 66, item: { id:"T0012", englishName:"survival-backpack", name:"30kg 生存背包", symbol:"▣", category:"tool", weight:0.8, usable:true, backpackCapacityKg:30, artworkStem:"survival-backpack", description:"強化分艙與承重骨架的背包升級材料。需先裝備 10kg 基礎背包；確認升級會消耗此道具，與原背包整併於固定裝備格，將負重上限提升至 30kg。暫不升級則佔一般背包一格、重 0.8kg。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
+  { slot: 67, item: { id:"T0013", englishName:"powered-backpack", name:"50kg 動力背包", symbol:"▣", category:"tool", weight:1, usable:true, backpackCapacityKg:50, artworkStem:"powered-backpack", description:"整合輔助承重框架的背包升級材料。需先裝備 30kg 生存背包；確認升級會消耗此道具，與原背包整併於固定裝備格，將負重上限提升至 50kg。未升級時佔一般背包一格、重 1.0kg。", survivalEffects:{}, inventoryRules:{transferable:true,discardable:true,stackSize:1} } },
   { slot: 68, item: null },
   { slot: 69, item: null },
   { slot: 70, item: null },
@@ -1174,7 +1175,11 @@ export function normalizePlayerInventory(value: unknown): PlayerInventory {
     if (!currentItemId || typeof rawCount !== "number") return;
     const count = Math.max(0, Math.floor(rawCount));
     if (count > 0) {
-      inventory[currentItemId] = (inventory[currentItemId] ?? 0) + count;
+      const item = ITEM_BY_ID.get(currentItemId)!;
+      if (item.backpackCapacityKg === 10) return;
+      inventory[currentItemId] = item.backpackCapacityKg
+        ? 1
+        : (inventory[currentItemId] ?? 0) + count;
     }
   });
   return inventory;
@@ -1203,11 +1208,17 @@ export function grantInventoryItem(
   inventory: PlayerInventory,
   itemId: string,
   quantity: number,
+  equippedBackpackId = "T0011",
 ): PlayerInventory {
   const definition = ITEM_BY_ID.get(itemId);
   if (!definition) throw new Error(`Unknown item id: ${itemId}`);
   const grantedQuantity = Math.max(0, Math.floor(quantity));
   if (grantedQuantity === 0) return inventory;
+  if (definition.backpackCapacityKg) {
+    const equippedCapacity = ITEM_BY_ID.get(equippedBackpackId)?.backpackCapacityKg ?? 10;
+    if (definition.backpackCapacityKg <= equippedCapacity || (inventory[itemId] ?? 0) > 0) return inventory;
+    return { ...inventory, [itemId]: 1 };
+  }
   return {
     ...inventory,
     [itemId]: (inventory[itemId] ?? 0) + grantedQuantity,
@@ -1217,10 +1228,11 @@ export function grantInventoryItem(
 export function grantAllInventoryItems(
   inventory: PlayerInventory,
   quantity = 1,
+  equippedBackpackId = "T0011",
 ): PlayerInventory {
   return ITEM_DEFINITIONS.reduce<PlayerInventory>(
     (nextInventory, item) =>
-      grantInventoryItem(nextInventory, item.id, quantity),
+      grantInventoryItem(nextInventory, item.id, quantity, equippedBackpackId),
     inventory,
   );
 }

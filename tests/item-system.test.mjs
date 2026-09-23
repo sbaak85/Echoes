@@ -102,11 +102,11 @@ test("Debug 道具生成指令支援 ID、數量與生成去向", () => {
   assert.equal(getItemDebugSpawnDelivery(worldItem), "world");
 });
 
-test("Item All 會將道具清單中的每種道具各加入背包一個", () => {
+test("Item All 會加入可存放的道具，10kg 基礎背包只留在裝備格", () => {
   const inventory = grantAllInventoryItems({ R0005: 2 });
-  assert.equal(Object.keys(inventory).length, ITEM_DEFINITIONS.length);
+  assert.equal(Object.keys(inventory).length, ITEM_DEFINITIONS.length - 1);
   ITEM_DEFINITIONS.forEach((item) => {
-    assert.equal(inventory[item.id], item.id === "R0005" ? 3 : 1);
+    assert.equal(inventory[item.id], item.id === "T0011" ? undefined : item.id === "R0005" ? 3 : 1);
   });
 });
 
@@ -606,6 +606,7 @@ test("grant all accepts a per-item quantity and adds to existing inventory", () 
   }
   const before = { R0005: 2 };
   const after = grantAllInventoryItems(before, 50);
-  for (const entry of ITEM_DEFINITIONS) assert.equal(after[entry.id], (before[entry.id] ?? 0) + 50);
+  for (const entry of ITEM_DEFINITIONS) assert.equal(after[entry.id],
+    entry.id === "T0011" ? undefined : entry.backpackCapacityKg ? 1 : (before[entry.id] ?? 0) + 50);
   assert.deepEqual(before, { R0005: 2 });
 });

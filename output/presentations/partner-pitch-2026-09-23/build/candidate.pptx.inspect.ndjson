@@ -1,0 +1,48 @@
+{"kind":"deck","id":"pr/4raw41","name":"Deck"}
+{"kind":"layout","layoutId":"36e3d652-863d-43ae-802e-de25e78f19b1","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"882c1b37-1aa8-43f2-bc52-dd903dbd30ed","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/ox9lbp","slide":1,"title":"遠星迴聲","textShapes":6}
+{"kind":"textbox","id":"sh/5czq5s3y","slide":1,"text":"遠星迴聲","textPreview":"遠星迴聲","textChars":4,"textLines":1,"bbox":[66,130,650,108]}
+{"kind":"textbox","id":"sh/4b69cn2d","slide":1,"text":"Echoes of Distant Stars","textPreview":"Echoes of Distant Stars","textChars":23,"textLines":1,"bbox":[72,244,600,40]}
+{"kind":"textbox","id":"sh/rehs72l4","slide":1,"text":"你終於能回家了。\n但那個等你的人，還在另一顆星球。","textPreview":"你終於能回家了。 | 但那個等你的人，還在另一顆星球。","textChars":25,"textLines":2,"bbox":[72,334,680,118]}
+{"kind":"textbox","id":"sh/qd8rexkj","slide":1,"text":"單人科幻冒險\n異星求生、營地經營與跨物種友情","textPreview":"單人科幻冒險 | 異星求生、營地經營與跨物種友情","textChars":22,"textLines":2,"bbox":[74,516,570,84]}
+{"kind":"textbox","id":"sh/d0za9c3a","slide":1,"text":"合作概念提案","textPreview":"合作概念提案","textChars":6,"textLines":1,"bbox":[74,657,400,30]}
+{"kind":"textbox","id":"sh/szq9g72p","slide":1,"text":"概念示意","textPreview":"概念示意","textChars":4,"textLines":1,"bbox":[1120,668,125,24]}
+{"kind":"image","id":"im/zqlo7el0","slide":1,"name":"","alt":"cover.png","bbox":[0,0,1280,720]}
+{"kind":"notes","id":"nt/ox9lbp","slide":1,"text":"資料來源：使用者提供《遠星迴聲》遊戲主題與創意概念報告.txt，2026-09-23。\n一句話介紹：墜落異星的工程師，靠探索與修復尋找歸途，卻在與外星生命「迴」的相處中重新理解陪伴。英文名稱依文件為暫定。插圖由內建 imagegen 生成，屬氛圍提案，不代表實機或定案角色外觀。"}
+{"kind":"slide","id":"sl/2kk8no","slide":2,"title":"玩家的一天：帶著目的探索，帶著收穫回家","textShapes":12}
+{"kind":"textbox","id":"sh/nal4jad8","slide":2,"text":"玩家的一天：帶著目的探索，帶著收穫回家","textPreview":"玩家的一天：帶著目的探索，帶著收穫回家","textChars":19,"textLines":1,"bbox":[54,36,1170,64]}
+{"kind":"textbox","id":"sh/9c3mlkve","slide":2,"text":"開發中實機畫面／營地與 HUD","textPreview":"開發中實機畫面／營地與 HUD","textChars":15,"textLines":1,"bbox":[58,519,790,26]}
+{"kind":"textbox","id":"sh/yls365cr","slide":2,"text":"今天先修供水，\n還是追查未知訊號？","textPreview":"今天先修供水， | 還是追查未知訊號？","textChars":17,"textLines":2,"bbox":[920,162,315,100]}
+{"kind":"textbox","id":"sh/zml4fadc","slide":2,"text":"固定 45° 等角視角\n\n在補給、探索與工程之間\n做出每天的選擇。","textPreview":"固定 45° 等角視角 |  | 在補給、探索與工程之間 | 做出每天的選擇。","textChars":33,"textLines":4,"bbox":[920,298,320,168]}
+{"kind":"textbox","id":"sh/0nul8fux","slide":2,"text":"01 探索","textPreview":"01 探索","textChars":5,"textLines":1,"bbox":[56,579,290,44]}
+{"kind":"textbox","id":"sh/l83mhkv2","slide":2,"text":"尋找食物、零件與線索","textPreview":"尋找食物、零件與線索","textChars":10,"textLines":1,"bbox":[56,632,290,38]}
+{"kind":"textbox","id":"sh/qhs32lcf","slide":2,"text":"02 安頓","textPreview":"02 安頓","textChars":5,"textLines":1,"bbox":[361,579,290,44]}
+{"kind":"textbox","id":"sh/bi14bqd0","slide":2,"text":"種植、烹飪，照顧營地","textPreview":"種植、烹飪，照顧營地","textChars":10,"textLines":1,"bbox":[361,632,290,38]}
+{"kind":"textbox","id":"sh/rud8ni54","slide":2,"text":"03 修復","textPreview":"03 修復","textChars":5,"textLines":1,"bbox":[666,579,290,44]}
+{"kind":"textbox","id":"sh/qt47edoj","slide":2,"text":"完成工程，打開新路徑","textPreview":"完成工程，打開新路徑","textChars":10,"textLines":1,"bbox":[666,632,290,38]}
+{"kind":"textbox","id":"sh/dwvqp8na","slide":2,"text":"04 發現","textPreview":"04 發現","textChars":5,"textLines":1,"bbox":[971,579,290,44]}
+{"kind":"textbox","id":"sh/cvmpgn6p","slide":2,"text":"帶著新線索再次出發","textPreview":"帶著新線索再次出發","textChars":9,"textLines":1,"bbox":[971,632,290,38]}
+{"kind":"image","id":"im/l43alcbu","slide":2,"name":"","alt":"gameplay.png","bbox":[54,122,825,392]}
+{"kind":"notes","id":"nt/2kk8no","slide":2,"text":"資料來源：使用者提供《遠星迴聲》遊戲主題與創意概念報告.txt，2026-09-23。\n依文件第二、三、五、九、十一節整理核心循環。營地穩定後，基礎生存逐步自動化，讓注意力轉向探索、關係與大型工程。截圖取自 2026-09-23 本機運行版本 http://127.0.0.1:3000/，展示目前營地、角色與 HUD。下方循環是設計方向，不宣稱所有系統均已完成。"}
+{"kind":"slide","id":"sl/vcunaa","slide":3,"title":"與「迴」建立語言，也建立牽掛","textShapes":7}
+{"kind":"textbox","id":"sh/4je14zm1","slide":3,"text":"與「迴」建立語言，也建立牽掛","textPreview":"與「迴」建立語言，也建立牽掛","textChars":14,"textLines":1,"bbox":[54,36,1170,64]}
+{"kind":"textbox","id":"sh/ixwj294v","slide":3,"text":"情境概念示意／角色外觀未定案","textPreview":"情境概念示意／角色外觀未定案","textChars":14,"textLines":1,"bbox":[56,635,655,30]}
+{"kind":"textbox","id":"sh/hwn2t4na","slide":3,"text":"沒有共同語言的朋友","textPreview":"沒有共同語言的朋友","textChars":9,"textLines":1,"bbox":[750,145,475,48]}
+{"kind":"textbox","id":"sh/gve10zmp","slide":3,"text":"交換物品、模仿動作、拼出符號含義。\n理解會出錯，信任靠共同生活累積。","textPreview":"交換物品、模仿動作、拼出符號含義。 | 理解會出錯，信任靠共同生活累積。","textChars":34,"textLines":2,"bbox":[750,213,474,112]}
+{"kind":"textbox","id":"sh/vu5kru54","slide":3,"text":"一段尚未發出的回聲","textPreview":"一段尚未發出的回聲","textChars":9,"textLines":1,"bbox":[750,375,475,48]}
+{"kind":"textbox","id":"sh/utwjyp4j","slide":3,"text":"收到的求救訊號，可能來自未來的自己。\n當時間真相浮現，早期線索有了新意義。","textPreview":"收到的求救訊號，可能來自未來的自己。 | 當時間真相浮現，早期線索有了新意義。","textChars":37,"textLines":2,"bbox":[750,442,474,123]}
+{"kind":"textbox","id":"sh/tsn2pkne","slide":3,"text":"回家之後，故事仍有下一個選擇。","textPreview":"回家之後，故事仍有下一個選擇。","textChars":15,"textLines":1,"bbox":[750,610,477,48]}
+{"kind":"image","id":"im/a1ojqlgz","slide":3,"name":"","alt":"friend.png","bbox":[54,128,650,488]}
+{"kind":"notes","id":"nt/vcunaa","slide":3,"text":"資料來源：使用者提供《遠星迴聲》遊戲主題與創意概念報告.txt，2026-09-23。\n依文件第四、六、七、八、十六節。迴是有自身目的的另一位故事主角。時間訊號來源與拯救途徑尚保留可能性，本頁以「可能」呈現。避免將尚未定案的分支設定包裝成完成劇情。概念插圖由內建 imagegen 生成，人物與迴的外觀均非定案。"}
+{"kind":"slide","id":"sl/reycjq","slide":4,"title":"合作起點：一段能讓玩家在意「迴」的試玩","textShapes":8}
+{"kind":"textbox","id":"sh/ih872dkj","slide":4,"text":"合作起點：一段能讓玩家在意「迴」的試玩","textPreview":"合作起點：一段能讓玩家在意「迴」的試玩","textChars":19,"textLines":1,"bbox":[54,36,1190,65]}
+{"kind":"textbox","id":"sh/kjq94n2p","slide":4,"text":"開發中實機畫面／背包與生存狀態 UI","textPreview":"開發中實機畫面／背包與生存狀態 UI","textChars":18,"textLines":1,"bbox":[58,529,780,28]}
+{"kind":"textbox","id":"sh/7mh8zi1g","slide":4,"text":"建議先驗證的體驗","textPreview":"建議先驗證的體驗","textChars":8,"textLines":1,"bbox":[864,145,375,47]}
+{"kind":"textbox","id":"sh/6l8r6dkv","slide":4,"text":"建立第一個營地\n完成一次修復\n與「迴」第一次成功交流\n收到一段矛盾的訊號","textPreview":"建立第一個營地 | 完成一次修復 | 與「迴」第一次成功交流 | 收到一段矛盾的訊號","textChars":36,"textLines":4,"bbox":[864,212,375,186]}
+{"kind":"textbox","id":"sh/tojq1sj6","slide":4,"text":"合作討論重點","textPreview":"合作討論重點","textChars":6,"textLines":1,"bbox":[864,429,375,42]}
+{"kind":"textbox","id":"sh/snq98n21","slide":4,"text":"敘事與關卡共同打磨\n美術演出與試玩回饋","textPreview":"敘事與關卡共同打磨 | 美術演出與試玩回饋","textChars":19,"textLines":2,"bbox":[864,482,375,87]}
+{"kind":"textbox","id":"sh/nqx8ny1w","slide":4,"text":"預期定位：中型規模的單人敘事生存冒險","textPreview":"預期定位：中型規模的單人敘事生存冒險","textChars":18,"textLines":1,"bbox":[56,605,1165,45]}
+{"kind":"textbox","id":"sh/mpo7utkr","slide":4,"text":"先確認玩家是否願意留下，再一起定義製作範圍與合作分工。","textPreview":"先確認玩家是否願意留下，再一起定義製作範圍與合作分工。","textChars":27,"textLines":1,"bbox":[56,658,1165,34]}
+{"kind":"image","id":"im/s3e58v6p","slide":4,"name":"","alt":"inventory.png","bbox":[54,148,770,366]}
+{"kind":"notes","id":"nt/reycjq","slide":4,"text":"資料來源：使用者提供《遠星迴聲》遊戲主題與創意概念報告.txt，2026-09-23。\n產品定位依文件第十四節。試玩順序與合作討論項目是本簡報建議，並非已承諾的交期、預算或合作條件。現有背包截圖來自 2026-09-23 本機運行版本，僅證明展示的 UI 存在，不推論完整生存或敘事系統皆已完成。建議合作對象評估第一次交流的可理解性與情感效果，再定義試玩範圍。"}

@@ -1,9 +1,5 @@
-import { normalizeEquippedBackpack, saveEquippedBackpack } from "./inventory-capacity.ts";
-import {
-  normalizePlayerInventory,
-  savePlayerInventory,
-  type PlayerInventory,
-} from "./item-database.ts";
+import { normalizeBackpackInventory, normalizeEquippedBackpack, saveEquippedBackpack } from "./inventory-capacity.ts";
+import { savePlayerInventory, type PlayerInventory } from "./item-database.ts";
 import {
   normalizeSurvivalState,
   saveSurvivalState,
@@ -128,7 +124,7 @@ export function normalizeEchoesSaveData(value: unknown): EchoesSaveData | null {
     progress: {
       sceneId,
       survival,
-      inventory: normalizePlayerInventory(progress.inventory),
+      inventory: normalizeBackpackInventory(progress.inventory, normalizeEquippedBackpack(progress.equippedBackpack)),
       equippedBackpack: normalizeEquippedBackpack(progress.equippedBackpack),
       quest,
       story: normalizeStoryProgress(progress.story),

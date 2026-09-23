@@ -61,6 +61,21 @@ test("道具可指派、覆蓋及移除快捷格，不會改變背包資料", ()
   assert.deepEqual(inventory, { R0004: 3, R0006: 2 });
 });
 
+test("背包升級 Item 不可指派快捷格，舊版快捷設定會自動清除", async () => {
+  assert.deepEqual(createHotbarAssignmentsFromInventory({ T0011: 1, T0012: 1, T0013: 1, R0005: 1 }),
+    ["R0005", null, null, null, null, null]);
+  assert.deepEqual(normalizeHotbarAssignments(["T0011", "T0012", "T0013", "R0005"]),
+    [null, null, null, "R0005", null, null]);
+  const assignments = ["R0005", null, null, null, null, null];
+  for (const id of ["T0011", "T0012", "T0013"]) {
+    assert.deepEqual(assignHotbarSlot(assignments, 0, id), assignments);
+  }
+  const source = await readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(source, /data-inventory-action="quick"\s+disabled=\{selectedEquippedBackpack \|\| !!selectedInventoryItem\.backpackCapacityKg\}/);
+  assert.match(source, /disabled=\{!!contextInventoryItem\?\.backpackCapacityKg\} onClick=\{\(\) => \{ if \(contextInventoryItem\) beginQuickAssign/);
+  assert.match(source, /if \(event\.button !== 0 \|\| ITEM_BY_ID\.get\(itemId\)\?\.backpackCapacityKg\) return/);
+});
+
 test("未知道具不會進入快捷格，六格指派可保存與讀回", () => {
   const values = installMemoryLocalStorage();
   try {

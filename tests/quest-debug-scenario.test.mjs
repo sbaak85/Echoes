@@ -90,10 +90,10 @@ test("movement lab exposes Quest commands and the ] short/long press hotkey", ()
 test("the first Quest debug jump applies Item All once", () => {
   const first = prepareQuestDebugItemAllInventory({ R0005: 2 }, false, false);
   assert.equal(first.applied, true);
-  assert.equal(Object.keys(first.inventory).length, ITEM_DEFINITIONS.length);
+  assert.equal(Object.keys(first.inventory).length, ITEM_DEFINITIONS.length - 1);
   assert.equal(first.inventory.R0005, 3);
   for (const item of ITEM_DEFINITIONS) {
-    assert.ok((first.inventory[item.id] ?? 0) >= 1);
+    assert.equal(first.inventory[item.id] ?? 0, item.id === "T0011" ? 0 : item.id === "R0005" ? 3 : 1);
   }
 
   const next = prepareQuestDebugItemAllInventory(first.inventory, true, false);
@@ -104,7 +104,7 @@ test("the first Quest debug jump applies Item All once", () => {
   const freshGoto = prepareQuestDebugItemAllInventory({ R0005: 2 }, true, true);
   assert.equal(freshGoto.applied, true);
   assert.equal(freshGoto.inventory.R0005, 3);
-  assert.equal(Object.keys(freshGoto.inventory).length, ITEM_DEFINITIONS.length);
+  assert.equal(Object.keys(freshGoto.inventory).length, ITEM_DEFINITIONS.length - 1);
 });
 
 test("Quest Goto 3 builds the skipped outcomes without replaying quest flows", () => {

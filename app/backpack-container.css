@@ -20,14 +20,15 @@
 .backpack-container.is-full .flap .lid-fill{top:4.5px;background-position:0 2.1px;background-color:#d83b46}
 .backpack-container.is-empty .body:before,.backpack-container.is-empty .side:before,.backpack-container.is-empty .lid-fill{opacity:0}
 .inventory-dialog .inventory-bag-art{position:relative;min-height:116px}
-.inventory-backpack-equipment{position:absolute;left:0;top:12px;width:54px;min-height:58px;display:grid;place-items:center;gap:1px;border:1px solid #a98c54;background:#07131dcc;color:#ddc28a;line-height:1.1}
-.inventory-backpack-equipment>small{font-size:9px}.inventory-backpack-equipment>span{font-size:21px}.inventory-backpack-equipment>span small{font-size:10px}
-.backpack-equipment-comparison{padding:20px;text-align:center;color:#ddc28a;font-size:20px}
+.inventory-dialog .inventory-bag-art > .backpack-container{transform:translateX(14px)}
+.inventory-dialog .inventory-backpack-equipment{position:absolute;z-index:1;left:0;top:calc(50% - 42px);width:60px;height:60px;min-height:0;grid-template-rows:1fr;padding:3px}
+.inventory-dialog .inventory-backpack-equipment:focus,.inventory-dialog .inventory-backpack-equipment:focus-visible{outline:none}
+.inventory-dialog .inventory-backpack-equipment .inventory-item-icon{width:46px;height:50px;transform:none}
+.inventory-dialog .inventory-backpack-equipment .inventory-item-icon>.backpack-container{zoom:.4}
 .inventory-item-icon>.backpack-container{zoom:.55}
 .inventory-feature-art .backpack-container{transform:scale(1.8)}
 @container inventory-dialog (max-height:650px){
   .inventory-dialog .inventory-survival-panel{gap:4px;margin:8px 0 4px;padding:8px 12px}
   .inventory-dialog .inventory-category-stats{padding-top:6px}
-  .inventory-dialog .inventory-category-stats h4{margin-bottom:4px}
   .inventory-dialog .inventory-category-stats p{margin:4px 0}
 }
