@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync, existsSync } from "node:fs";
 import { runInteractionIllustrationFlow } from "../app/interaction-illustration-flow.ts";
+import { isSignalDetectorIllustration } from "../app/signal-detector-screens.ts";
 
 test("concurrent artwork opens before dialogue and completion waits for its fade-out", async () => {
   const events = []; let finishDialogue, finishFade;
@@ -33,5 +34,18 @@ test("all three specified Scene6 interactions reference the available illustrati
     const item = scene.interactables.find(item => item.id === id);
     assert.deepEqual(item.completionIllustration, { enabled: true, withDialogue: true, imagePath: "/ui/interaction-illustrations/訊號探測儀_C.png" });
     assert.ok(existsSync(new URL(`../public${item.completionIllustration.imagePath}`, import.meta.url)));
+  }
+});
+
+test("both phototropic interactions show the plant artwork without detector effects", () => {
+  const scene = JSON.parse(readFileSync(new URL("../public/maps/map_scene_06B.scene.json", import.meta.url), "utf8"));
+  for (const id of ["scene6-interaction-020", "scene6-interaction-021"]) {
+    const item = scene.interactables.find(item => item.id === id);
+    assert.ok(item, id);
+    assert.deepEqual(item.completionIllustration, {
+      enabled: true, withDialogue: true, imagePath: "/ui/interaction-illustrations/趨光植物背景.png",
+    });
+    assert.ok(existsSync(new URL(`../public${item.completionIllustration.imagePath}`, import.meta.url)));
+    assert.equal(isSignalDetectorIllustration(item.completionIllustration.imagePath), false);
   }
 });

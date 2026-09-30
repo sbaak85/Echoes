@@ -3,6 +3,9 @@ import { useResponsiveConfirmation } from "./responsive-confirmation";
 import { createTouchJoystickView } from "./touch-joystick-view";
 import { useInteractionIllustration, InteractionIllustrationOverlay, type InteractionIllustration } from "./interaction-illustration";
 import { runInteractionIllustrationFlow } from "./interaction-illustration-flow";
+import { usePhototropicPuzzle, PhototropicPuzzleOverlay } from "./phototropic-puzzle-ui";
+import { runPhototropicInteractionFlow } from "./phototropic-interaction-flow";
+import { plantSideForInteraction, PLANT_OBJECTIVE_ID, PLANT_QUEST_ID, PLANT_SUCCESS_MESSAGE } from "./phototropic-puzzle";
 import { isQuestObjectiveVisible, isQuestObjectiveCheckmarkVisible } from "./quest-hud-timing";
 import { canShareMobileHudSpace, changeMobileHudMode, cycleMobileHudMode, type MobileHudPanelMode } from "./mobile-hud-layout";
 
@@ -3588,6 +3591,20 @@ export function MovementLab() {
     });
   });
   const illustrationController = interactionIllustration.controller;
+  const [plantSuccessVisible, setPlantSuccessVisible] = useState(false);
+  const plantPuzzle = usePhototropicPuzzle(() => {
+    setPlantSuccessVisible(true);
+    const manager = questRuntimeManagerRef.current;
+    // Respect the intentionally inactive objective. Completion is replayed when it is activated later.
+    if (manager?.exportSave().quests[PLANT_QUEST_ID]?.state === "active" && manager.completeObjective(PLANT_QUEST_ID, PLANT_OBJECTIVE_ID)) saveQuestSaveData(manager.exportSave());
+    requestPortableAutosaveRef.current("phototropic-solved");
+  }, () => requestPortableAutosaveRef.current("phototropic-placement"));
+  const plantController = plantPuzzle.controller;
+  useEffect(() => {
+    if (!plantSuccessVisible) return;
+    const timer = window.setTimeout(() => setPlantSuccessVisible(false), 2600);
+    return () => window.clearTimeout(timer);
+  }, [plantSuccessVisible]);
   const [currentSceneId, setCurrentSceneId] = useState(DEFAULT_SCENE_ID);
   const currentSceneData =
     SCENE_REGISTRY.get(currentSceneId) ?? SCENE_REGISTRY.get(DEFAULT_SCENE_ID)!;
@@ -5300,6 +5317,7 @@ export function MovementLab() {
         loadedSurvivalState.gameMinutes,
       );
       const loadedStoryProgress = loadStoryProgress();
+      plantController.hydrate();
       const loadedQuestSave = loadQuestSaveData();
       const loadedCampPowerState = activateCampPowerDailyConsumptionAfterQuest(
         loadCampPowerState(loadedSurvivalState.gameMinutes),
@@ -5500,6 +5518,12 @@ export function MovementLab() {
             playOneShotAudio("questObjectiveProgressed");
           },
           onObjectiveActivated: (questId, objectiveId, _stageId, entry) => {
+            if (questId === PLANT_QUEST_ID && objectiveId === PLANT_OBJECTIVE_ID && plantController.state.solved) {
+              queueMicrotask(() => {
+                const manager = questRuntimeManagerRef.current;
+                if (manager?.completeObjective(questId, objectiveId)) saveQuestSaveData(manager.exportSave());
+              });
+            }
             const presentationKey = `${questId}:${_stageId}:${objectiveId}`;
             const due = entry.objectives[objectiveId]?.startPresentationAvailableAtEpochMs;
             const presented = questObjectiveActivationPresentationsRef.current;
@@ -7366,6 +7390,17 @@ export function MovementLab() {
   ) => {
     const config = interactable.completionIllustration;
     if (!config?.enabled || !config.imagePath?.trim()) return false;
+    const side = plantSideForInteraction(interactable.id);
+    if (side) {
+      const imagePath = resolveRuntimePublicAssetUrl(config.imagePath.replace(/^\/+/, ""));
+      void runPhototropicInteractionFlow(play, {
+        showBackground: () => { void illustrationController.open(imagePath, true); },
+        hideBackground: () => illustrationController.cancel(),
+        openPuzzle: () => plantController.open(side, imagePath),
+        cancelPuzzle: () => plantController.cancel(),
+      }, complete).catch(error => console.error("[Phototropic interaction]", error));
+      return true;
+    }
     void runInteractionIllustrationFlow(config.withDialogue === true, play, {
       open: (concurrent) => illustrationController.open(resolveRuntimePublicAssetUrl(config.imagePath.replace(/^\/+/, "")), concurrent),
       close: () => illustrationController.close(),
@@ -7903,6 +7938,7 @@ export function MovementLab() {
         itemPointProgress: itemPointProgressRef.current,
         collectedWorldItemIds: Array.from(collectedWorldItemIdsRef.current),
         droppedWorldItems: droppedWorldItemsRef.current,
+        phototropic: plantController.state,
       },
     };
   };
@@ -8247,7 +8283,7 @@ export function MovementLab() {
       !open &&
       chapter04ManualSaveActiveRef.current &&
       !chapter04TransitionCompletingRef.current;
-    if (open && (powerPuzzleOpenRef.current || starCardsOpenRef.current)) return;
+    if (open && (plantController.isOpen || powerPuzzleOpenRef.current || starCardsOpenRef.current)) return;
     if (open && storyFlowActiveRef.current) {
       cancelStorySkipHold();
       chapterFlowManager.pause();
@@ -10080,6 +10116,7 @@ export function MovementLab() {
     resize();
 
     const isWorldInteractionBlockedByUi = () =>
+      plantController.isOpen ||
       illustrationController.isOpen ||
       Boolean(quickAssignRef.current) ||
       storyInputLockedRef.current ||
@@ -10103,6 +10140,7 @@ export function MovementLab() {
       Boolean(survivalStateRef.current.gameOverReason);
 
     const canUseQuestSkipHotkey = () =>
+      !plantController.isOpen &&
       !illustrationController.isOpen &&
       !timePassInputLockedRef.current &&
       !storyInputLockedRef.current &&
@@ -10134,6 +10172,12 @@ export function MovementLab() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
+      if (plantController.isOpen) {
+        event.preventDefault();
+        if (["arrowleft", "arrowright", "arrowup", "arrowdown", "tab", "enter", " ", "escape"].includes(key)) activateDirectionalCursor();
+        plantController.key(key, event.repeat);
+        return;
+      }
       const eventTarget = event.target;
       if (starshipInteractionMenuOpenRef.current) return;
       if (
@@ -12469,6 +12513,14 @@ export function MovementLab() {
         bounds.left + virtualCursor.x,
         bounds.top + virtualCursor.y,
       );
+      if (plantController.isOpen && element instanceof Element && element.closest(".plant-puzzle-overlay")) {
+        if (element.closest(".plant-angle-dial")) {
+          plantController.point(bounds.left + virtualCursor.x, bounds.top + virtualCursor.y);
+        } else {
+          element.closest<HTMLButtonElement>("button:not(:disabled)")?.click();
+        }
+        return "blocked";
+      }
       if (!(element instanceof HTMLElement) || !element.closest(".game-shell")) {
         return "none";
       }
@@ -14744,6 +14796,7 @@ export function MovementLab() {
         }
       } else if (
         backJustPressed &&
+        !plantController.isOpen &&
         !timePassInputLockedRef.current &&
         !storyInputLockedRef.current &&
         !newPlayerTutorialOpenRef.current &&
@@ -14807,6 +14860,14 @@ export function MovementLab() {
           if (quickAssignCursorRef.current) activateVirtualCursorUi();
           else confirmQuickAssign();
         }
+      } else if (plantController.isOpen) {
+        gameplayHotbarDpadX = 0;
+        const x = gamepadInput.dpadX || gamepadInput.stickX;
+        const y = gamepadInput.dpadY || gamepadInput.stickY;
+        const confirm = gamepadInput.confirmPressed && !wasGamepadConfirmPressed;
+        if (Math.abs(x) > .55 || Math.abs(y) > .55) activateDirectionalCursor();
+        if (cursorOwnership.owner === "gamepad" && confirm) activateVirtualCursorUi();
+        else plantController.pad(x, y, confirm, backJustPressed, deltaTime);
       } else if (illustrationController.isOpen && !dialoguePlaybackRef.current) {
         gameplayHotbarDpadX = 0;
         if (backJustPressed || (gamepadInput.confirmPressed && !wasGamepadConfirmPressed)) {
@@ -15526,6 +15587,7 @@ export function MovementLab() {
       );
       if (
         quickAssignRef.current ||
+        plantController.isOpen ||
         illustrationController.isOpen ||
         storyInputLockedRef.current ||
         newPlayerTutorialOpenRef.current ||
@@ -16847,6 +16909,8 @@ export function MovementLab() {
       <span className="mobile-hud-space-probe" aria-hidden="true" />
       {interactionIllustration.view && <InteractionIllustrationOverlay view={interactionIllustration.view}
         onClose={() => { void illustrationController.close(); }} onError={() => illustrationController.cancel()} />}
+      {plantPuzzle.view && <PhototropicPuzzleOverlay key={plantPuzzle.view.id} ref={plantPuzzle.control} view={plantPuzzle.view} onIntroduced={() => plantController.markIntroduced()} onFinish={(state, solved) => plantController.finish(state, solved)} />}
+      {plantSuccessVisible && <div className="plant-success-message" role="status"><span>{PLANT_SUCCESS_MESSAGE}</span></div>}
       <canvas
         ref={canvasRef}
         className={`game-canvas${virtualCursorControlsEnabled ? "" : " physical-cursor-enabled"}`}

@@ -31,6 +31,7 @@ import {
 } from "./story-progress.ts";
 import { saveQuestSaveData } from "./quest-runtime-manager.ts";
 import { DEFAULT_BACKPACK_ID, saveEquippedBackpack } from "./inventory-capacity.ts";
+import { initialPhototropicState, savePhototropicState } from "./phototropic-puzzle.ts";
 import {
   createInitialCampPowerState,
   saveCampPowerState,
@@ -100,6 +101,7 @@ export function resetStoredNewGameProgress(): NewGameProgress {
   saveHotbarAssignments(progress.hotbarAssignments);
   saveStoryProgress(progress.story);
   saveCampPowerState(progress.campPower);
+  savePhototropicState(initialPhototropicState());
   saveQuestSaveData({ schemaVersion: 1, quests: {} });
   return progress;
 }

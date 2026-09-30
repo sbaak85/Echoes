@@ -1,4 +1,5 @@
 import { normalizeBackpackInventory, normalizeEquippedBackpack, saveEquippedBackpack } from "./inventory-capacity.ts";
+import { normalizePhototropicState, savePhototropicState, type PhototropicState } from "./phototropic-puzzle.ts";
 import { savePlayerInventory, type PlayerInventory } from "./item-database.ts";
 import {
   normalizeSurvivalState,
@@ -69,6 +70,7 @@ export type EchoesSaveData = {
     collectedWorldItemIds: string[];
     /** Includes sceneId plus exact world and interaction-point coordinates. */
     droppedWorldItems: DroppedWorldItem[];
+    phototropic?: PhototropicState;
   };
 };
 
@@ -136,6 +138,7 @@ export function normalizeEchoesSaveData(value: unknown): EchoesSaveData | null {
             (id): id is string => typeof id === "string" && id.trim().length > 0,
           ))] : [],
       droppedWorldItems: normalizeDroppedWorldItems(progress.droppedWorldItems),
+      phototropic: normalizePhototropicState(progress.phototropic),
     },
   };
 }
@@ -279,6 +282,7 @@ export function applySaveDataToRuntimeStorage(save: EchoesSaveData) {
   saveItemPointProgress(progress.itemPointProgress);
   saveCollectedWorldItemIds(new Set(progress.collectedWorldItemIds));
   saveDroppedWorldItems(progress.droppedWorldItems);
+  savePhototropicState(normalizePhototropicState(progress.phototropic));
   window.localStorage.setItem(SAVE_DATA_SCENE_STORAGE_KEY, progress.sceneId);
 }
 
