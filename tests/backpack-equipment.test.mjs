@@ -134,7 +134,7 @@ test("背包裝備格只顯示圖示，仍可點選查看資訊", async () => {
   assert.match(slot, /onClick=\{selectEquippedBackpack\}/);
   assert.match(slot, /<span className="inventory-item-icon"/);
   assert.doesNotMatch(slot, /inventory-item-caption|inventory-equipment-status|inventory-item-kind/);
-  assert.match(styles, /\.inventory-dialog \.inventory-backpack-equipment\{[^}]*left:0;top:calc\(50% - 42px\);width:60px;height:60px/);
+  assert.match(styles, /\.inventory-dialog \.inventory-backpack-equipment\{[^}]*left:0;top:8px;width:60px;height:60px/);
   assert.doesNotMatch(source, /<h4>分類統計<\/h4>/);
   assert.match(source, /<section className="inventory-category-stats">[\s\S]*?\["food", "resource", "tool", "quest"\]/);
 });

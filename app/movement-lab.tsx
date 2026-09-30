@@ -4120,6 +4120,7 @@ export function MovementLab() {
   const [hotbarAssignments, setHotbarAssignments] = useState<(string | null)[]>(
     () => [...DEFAULT_HOTBAR_ASSIGNMENTS],
   );
+  const [backpackDropTarget, setBackpackDropTarget] = useState(false);
   const [inventoryDrag, setInventoryDrag] = useState<InventoryDragState | null>(null);
   const [hotbarDropTarget, setHotbarDropTarget] = useState<number | null>(null);
   const [inventoryContextMenu, setInventoryContextMenu] =
@@ -6550,6 +6551,9 @@ export function MovementLab() {
     };
   };
 
+  const isBackpackEquipmentAtPoint = (x: number, y: number) =>
+    Boolean(document.elementFromPoint(x, y)?.closest("[data-inventory-equipment='true']"));
+
   const startInventoryDrag = (pending: PendingInventoryDrag, x: number, y: number) => {
     if (pendingInventoryDragRef.current !== pending) return;
     pending.active = true;
@@ -6573,7 +6577,7 @@ export function MovementLab() {
     event: ReactPointerEvent<HTMLButtonElement>,
     itemId: string,
   ) => {
-    if (event.button !== 0 || ITEM_BY_ID.get(itemId)?.backpackCapacityKg) return;
+    if (event.button !== 0) return;
     const pending: PendingInventoryDrag = {
       itemId,
       pointerId: event.pointerId,
@@ -6608,7 +6612,9 @@ export function MovementLab() {
     setInventoryDrag((current) => current
       ? { ...current, x: pointer.x, y: pointer.y }
       : current);
-    setHotbarDropTarget(getHotbarSlotAtPoint(event.clientX, event.clientY));
+    const backpack = Boolean(ITEM_BY_ID.get(pending.itemId)?.backpackCapacityKg);
+    setBackpackDropTarget(backpack && isBackpackEquipmentAtPoint(event.clientX, event.clientY));
+    setHotbarDropTarget(backpack ? null : getHotbarSlotAtPoint(event.clientX, event.clientY));
   };
 
   const finishInventoryDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -6618,9 +6624,14 @@ export function MovementLab() {
     if (pending.active) {
       event.preventDefault();
       suppressInventoryClickRef.current = true;
-      const slotIndex = getHotbarSlotAtPoint(event.clientX, event.clientY);
-      if (slotIndex !== null) {
-        setHotbarSlotAssignment(slotIndex, pending.itemId);
+      if (ITEM_BY_ID.get(pending.itemId)?.backpackCapacityKg) {
+        if (isBackpackEquipmentAtPoint(event.clientX, event.clientY)) {
+          const feedbackSlot = ITEM_DATABASE.findIndex(slot => slot.item?.id === pending.itemId);
+          openItemUseConfirmation(pending.itemId, feedbackSlot);
+        }
+      } else {
+        const slotIndex = getHotbarSlotAtPoint(event.clientX, event.clientY);
+        if (slotIndex !== null) setHotbarSlotAssignment(slotIndex, pending.itemId);
       }
       window.setTimeout(() => {
         suppressInventoryClickRef.current = false;
@@ -6628,6 +6639,7 @@ export function MovementLab() {
     }
     pendingInventoryDragRef.current = null;
     setInventoryDrag(null);
+    setBackpackDropTarget(false);
     setHotbarDropTarget(null);
   };
 
@@ -6637,6 +6649,7 @@ export function MovementLab() {
     if (pending.timerId !== null) window.clearTimeout(pending.timerId);
     pendingInventoryDragRef.current = null;
     setInventoryDrag(null);
+    setBackpackDropTarget(false);
     setHotbarDropTarget(null);
   };
 
@@ -8352,6 +8365,7 @@ export function MovementLab() {
       }
       pendingInventoryDragRef.current = null;
       setInventoryDrag(null);
+      setBackpackDropTarget(false);
       setHotbarDropTarget(null);
       setInventoryContextMenu(null);
     }
@@ -17605,7 +17619,7 @@ export function MovementLab() {
                   <div className="inventory-bag-art">
                     {equippedBackpackItem ? (
                       <button
-                        className={`inventory-item inventory-backpack-equipment is-${equippedBackpackItem.category}${selectedEquippedBackpack ? " is-selected" : ""}`}
+                        className={`inventory-item inventory-backpack-equipment is-${equippedBackpackItem.category}${backpackDropTarget ? " is-drop-target" : ""}${selectedEquippedBackpack ? " is-selected" : ""}`}
                         type="button"
                         data-inventory-equipment="true"
                         aria-pressed={selectedEquippedBackpack}
@@ -17901,7 +17915,7 @@ export function MovementLab() {
             ) : draggedInventoryItem.symbol}
           </span>
           <strong>{draggedInventoryItem.name}</strong>
-          <small>拖曳至快捷格</small>
+          <small>{draggedInventoryItem.backpackCapacityKg ? "拖曳至背包裝備格" : "拖曳至快捷格"}</small>
         </div>
       ) : null}
 
