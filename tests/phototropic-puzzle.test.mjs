@@ -68,6 +68,22 @@ test("entrance is shared by both interactions and reopening resumes saved light 
   assert.match(css, /\[data-play-entrance=false\] \.plant-vines\{animation:plant-vine-in 500ms/);
   assert.match(css, /@keyframes plant-vine-in\{from\{opacity:0\}to\{opacity:1\}\}/);
 });
+test("socket placement, 8px chamfers and B glyph follow the requested UI contract", () => {
+  const css = readFileSync(new URL("../app/phototropic-puzzle.css", import.meta.url), "utf8");
+  const ui = readFileSync(new URL("../app/phototropic-puzzle-ui.tsx", import.meta.url), "utf8");
+  const runtime = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(css, /\.plant-controls-heading\{position:absolute;top:19\.4%;/);
+  assert.match(css, /\.plant-controls-unframed \.plant-slots\{position:absolute;top:65\.6%;/);
+  assert.match(css, /--item-shape: polygon\(8px 0, calc\(100% - 8px\)/);
+  assert.match(css, /clip-path: polygon\(evenodd, 8px 0/);
+  assert.match(ui, /gamepadMode && mode !== "mouse" && mode !== "touch" && <GamepadButtonIcon button=\{dirty \? "A" : "B"\}/);
+  assert.match(css, /aspect-ratio: 1;/);
+  assert.match(css, /rgba\(7, 19, 28, \.2\)/);
+  assert.match(css, /--hud-mid: #e4b64d;/);
+  assert.match(css, /bottom: calc\(50% - var\(--plant-stick-size\) \* \.25\);/);
+  assert.doesNotMatch(ui, /className="plant-base"|已插入|空槽/);
+  assert.match(runtime, /gamepadMode=\{questPromptInputMode === "gamepad"\}/);
+});
 test("production integration blocks the world and leaves quest activation untouched", () => {
   const runtime = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
   assert.match(runtime, /const isWorldInteractionBlockedByUi = \(\) =>\s*plantController.isOpen/);

@@ -1,6 +1,8 @@
 "use client";
 import { forwardRef, useEffect, useLayoutEffect, useImperativeHandle, useRef, useState, type CSSProperties } from "react";
 import { cursorOwnership } from "./cursor-ownership";
+import { createPlantPadState, stepPlantPad } from "./phototropic-gamepad";
+import { GamepadButtonIcon } from "./gamepad-button-icon";
 import "./phototropic-puzzle.css";
 import { resolveRuntimePublicAssetUrl } from "./public-asset-url";
 import { createPlantVines } from "./phototropic-vines";
@@ -10,7 +12,7 @@ import { initialPhototropicState, isPhototropicClear, loadPhototropicState, norm
 type PlantView = { id?: number; side: PlantSide; imagePath: string; initial: PhototropicState };
 export type PlantUiController = {
   key: (key: string, repeat: boolean) => void;
-  pad: (x: number, y: number, confirm: boolean, back: boolean, dt: number) => void;
+  pad: (x: number, y: number, confirm: boolean, back: boolean, dt: number, rightX?: number) => void;
   point: (x: number, y: number) => void;
 };
 export function usePhototropicPuzzle(onSolved: () => void, onSaved: () => void) {
@@ -45,7 +47,7 @@ export function usePhototropicPuzzle(onSolved: () => void, onSaved: () => void) 
     },
     cancel() { const resolve = pending.current; pending.current = null; setView(null); resolve?.(false); },
     key(key: string, repeat: boolean) { control.current?.key(key, repeat); },
-    pad(x: number, y: number, confirm: boolean, back: boolean, dt: number) { control.current?.pad(x, y, confirm, back, dt); },
+    pad(x: number, y: number, confirm: boolean, back: boolean, dt: number, rightX = 0) { control.current?.pad(x, y, confirm, back, dt, rightX); },
     point(x: number, y: number) { control.current?.point(x, y); },
   });
   useEffect(() => () => { pending.current?.(false); pending.current = null; }, []);
@@ -54,22 +56,21 @@ export function usePhototropicPuzzle(onSolved: () => void, onSaved: () => void) 
 
 function Socket({ occupied, angle }: { occupied: boolean; angle: number }) {
   return <span className={`plant-socket${occupied ? " occupied" : ""}`} style={{ "--plant-beam-angle": `${angle - 60}deg` } as CSSProperties} aria-hidden="true">
-    <span className="plant-stick-beam" />
-    <img src={resolveRuntimePublicAssetUrl("ui/phototropic/glow-stick.png")} className="plant-stick" alt="" draggable={false} />
-    <span className="plant-base"><span className="plant-hole" /><span className="plant-rim" /></span>
+    {occupied && <><span className="plant-stick-beam" />
+    <img src={resolveRuntimePublicAssetUrl("ui/phototropic/glow-stick.png")} className="plant-stick" alt="" draggable={false} /></>}
   </span>;
 }
 
-export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: PlantView; onFinish: (state: PhototropicState, solved: boolean) => void; onIntroduced?: () => void }>(function PhototropicPuzzleOverlay({ view, onFinish, onIntroduced }, ref) {
+export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: PlantView; onFinish: (state: PhototropicState, solved: boolean) => void; onIntroduced?: () => void; gamepadMode?: boolean }>(function PhototropicPuzzleOverlay({ view, onFinish, onIntroduced, gamepadMode = false }, ref) {
   const [draft, setDraft] = useState(() => normalizePhototropicState(view.initial));
   const draftRef = useRef(draft); draftRef.current = draft;
   const presentation = useRef(plantPresentationStart(view.initial)).current;
   const [ready, setReady] = useState(!presentation.playEntrance);
   const readyRef = useRef(!presentation.playEntrance);
   const [dirty, setDirty] = useState(false);
-  const [selected, setSelected] = useState(0);
-  const selectedRef = useRef(0);
-  const [mode, setMode] = useState(cursorOwnership.owner);
+  const [selected, setSelected] = useState(gamepadMode ? 1 : -1);
+  const selectedRef = useRef(gamepadMode ? 1 : -1);
+  const [mode, setMode] = useState(gamepadMode && cursorOwnership.owner === "gamepad" ? "directional" : cursorOwnership.owner);
   const [dragging, setDragging] = useState(false);
   const dialDrag = useRef<{ id: number; offset: number; element: SVGSVGElement; owner: typeof cursorOwnership.owner } | null>(null);
   const leftHost = useRef<HTMLDivElement>(null), rightHost = useRef<HTMLDivElement>(null);
@@ -77,7 +78,7 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
   const closing = useRef(false);
   const finishRef = useRef(onFinish); finishRef.current = onFinish;
   const introducedRef = useRef(onIntroduced); introducedRef.current = onIntroduced;
-  const repeat = useRef({ dir: "", seconds: 0, armed: false });
+  const repeat = useRef(createPlantPadState());
   const endDialDrag = () => {
     const active = dialDrag.current; dialDrag.current = null;
     if (active?.element.hasPointerCapture(active.id)) active.element.releasePointerCapture(active.id);
@@ -100,18 +101,25 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
     endDialDrag();
     closing.current = true; finishRef.current(draftRef.current, solved);
   };
-  const select = (index: number) => { selectedRef.current = index; setSelected(index); };
+  const select = (index: number) => { selectedRef.current = index; if (index >= 0 && index < 3) repeat.current.slot = index; setSelected(index); };
   const navigate = (direction: string) => {
     if (!readyRef.current || closing.current) return;
     cursorOwnership.take("directional");
-    const lamp = draftRef.current[view.side], index = selectedRef.current;
+    const lamp = draftRef.current[view.side], index = selectedRef.current < 0 ? 1 : selectedRef.current;
     if (index === 3 && (direction === "left" || direction === "right")) change(lamp.slot, lamp.angle + (direction === "left" ? -1 : 1));
     else { const options = lamp.slot === null ? [0, 1, 2, 4] : [0, 1, 2, 3, 4]; select(options[(options.indexOf(index) + (direction === "left" || direction === "up" ? -1 : 1) + options.length) % options.length]); }
   };
-  const activate = () => {
+  const place = (index: number, fromGamepad = false) => {
+    if (!readyRef.current || closing.current) return;
+    change(index);
+    // Preserve the socket as the horizontal navigation anchor, then hand A to confirmation.
+    select(index);
+    if (fromGamepad) select(4);
+  };
+  const activate = (fromGamepad = false) => {
     if (!readyRef.current) return;
     const index = selectedRef.current;
-    if (index < 3) change(index);
+    if (index >= 0 && index < 3) place(index, fromGamepad);
     else if (index === 4) finish();
   };
   useImperativeHandle(ref, () => ({
@@ -127,20 +135,25 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
       else if (!held && ["enter", " "].includes(key)) activate();
       else if (!held && key === "escape") finish();
     },
-    pad(x, y, confirm, back, dt) {
-      const r = repeat.current, dir = Math.abs(x) > .55 ? (x > 0 ? "right" : "left") : Math.abs(y) > .55 ? (y > 0 ? "down" : "up") : "";
-      if (!r.armed) { if (!dir && !confirm && !back) r.armed = true; return; }
-      if (dir) { r.seconds -= dt; if (dir !== r.dir || r.seconds <= 0) { navigate(dir); r.seconds = dir !== r.dir ? .36 : .115; } } else r.seconds = 0;
-      r.dir = dir;
-      if (confirm) { cursorOwnership.take("directional"); activate(); }
-      if (back) finish();
+    pad(x, y, confirm, back, dt, rightX = 0) {
+      if (!readyRef.current || closing.current) return;
+      const action = stepPlantPad(repeat.current, { x, y, rightX, confirm, back, dt, selected: selectedRef.current, lamp: draftRef.current[view.side] });
+      if (action.active) {
+        cursorOwnership.take("directional");
+        // A mouse/keyboard dial target is not part of gamepad navigation.
+        select(action.selected === 3 ? repeat.current.slot : action.selected);
+      }
+      if (action.angle !== null) change(draftRef.current[view.side].slot, action.angle);
+      if (action.activate) activate(true);
+      if (action.back) finish();
     },
   }));
   useEffect(() => {
-    return cursorOwnership.subscribe(owner => { if (dialDrag.current && dialDrag.current.owner !== owner) endDialDrag(); setMode(owner); document.activeElement instanceof HTMLElement && document.activeElement.blur(); if (owner === "mouse" || owner === "touch") repeat.current = { dir: "", seconds: 0, armed: false }; });
+    if (cursorOwnership.owner === "gamepad") { cursorOwnership.take("directional"); setMode("directional"); }
+    return cursorOwnership.subscribe(owner => { if (dialDrag.current && dialDrag.current.owner !== owner) endDialDrag(); setMode(owner); document.activeElement instanceof HTMLElement && document.activeElement.blur(); if (owner === "mouse" || owner === "touch") repeat.current = { ...createPlantPadState(), slot: repeat.current.slot }; });
   }, []);
   useEffect(() => {
-    const reset = () => { endDialDrag(); repeat.current = { dir: "", seconds: 0, armed: false }; };
+    const reset = () => { endDialDrag(); repeat.current = { ...createPlantPadState(), slot: repeat.current.slot }; };
     window.addEventListener("blur", reset); window.addEventListener("gamepaddisconnected", reset);
     return () => { endDialDrag(); window.removeEventListener("blur", reset); window.removeEventListener("gamepaddisconnected", reset); };
   }, []);
@@ -170,6 +183,10 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
     return () => { cancelAnimationFrame(raf); vines.dispose(); };
   }, []);
   const lamp = draft[view.side];
+  const showPadTips = gamepadMode && mode === "directional";
+  // Presentation is centered on the forward direction; saved puzzle angles stay 0..120.
+  const displayAngle = lamp.angle - 60;
+  const displayAngleText = displayAngle > 0 ? `+${displayAngle}` : String(displayAngle);
   const phi = (lamp.angle - 60) * Math.PI / 180, knobX = PLANT_DIAL.x + Math.sin(phi) * PLANT_DIAL.radius, knobY = PLANT_DIAL.y - Math.cos(phi) * PLANT_DIAL.radius;
   const dialPoint = (event: React.PointerEvent<SVGSVGElement>) => {
     const point = dialCoordinates(event.currentTarget, event.clientX, event.clientY);
@@ -201,14 +218,21 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
       <p className="plant-eyebrow">PHOTOTROPIC FIELD CONTROL</p>
       <h2>{view.side === "L" ? "左側光源" : "右側光源"}</h2>
       <p className="plant-description">插入螢光棒，觀察兩叢藤蔓，再調整照射方向。</p>
+      <p className="plant-note">本側調整會同時牽動兩叢植物 · 確定後保留設定</p>
       </header>
-      <div className="plant-slots">{[0, 1, 2].map(i => <button key={i} type="button" aria-label={`${view.side}${i + 1}`} aria-pressed={lamp.slot === i} data-selected={mode === "directional" && selected === i || undefined} className={lamp.slot === i ? "is-inserted" : ""} onClick={() => change(i)}>
-        <Socket occupied={lamp.slot === i} angle={lamp.angle} /><strong>{view.side}{i + 1}</strong><small>{lamp.slot === i ? "已插入" : "空槽"}</small>
+      <div className="plant-slots">
+        {showPadTips && <p className="plant-position-tip"><GamepadButtonIcon button="LS" /><span className="plant-dpad-tip"><GamepadButtonIcon button="DPadLeft" /><GamepadButtonIcon button="DPadRight" /></span><span>更換位置</span></p>}
+        {[0, 1, 2].map(i => <button key={i} type="button" aria-label={`${view.side}${i + 1}`} aria-pressed={lamp.slot === i} data-selected={mode === "directional" && selected === i || undefined} className={lamp.slot === i ? "is-inserted" : ""} onClick={() => place(i)}>
+        <Socket occupied={lamp.slot === i} angle={lamp.angle} /><span className="plant-slot-label">{lamp.slot === i ? "已放置" : ["靠左", "置中", "靠右"][i]}</span>
+        {showPadTips && selected === i && <span className="plant-place-tip"><GamepadButtonIcon button="A" /><span>擺放</span></span>}
       </button>)}</div>
       {lamp.slot !== null && <div className={`plant-angle-control${dragging ? " is-dragging" : ""}`} data-selected={mode === "directional" && selected === 3 || undefined}>
-        <span className="plant-angle-texture" aria-hidden="true" />
-        <div className="plant-angle-heading"><span><small>{view.side}{lamp.slot + 1} / LIGHT DIRECTION</small><strong>照射角度</strong></span><output aria-live="off">{String(lamp.angle).padStart(3, "0")}<span>°</span></output></div>
-        <div className="plant-angle-body"><svg viewBox="0 0 360 180" className="plant-angle-dial" role="slider" aria-label="照射角度" aria-valuemin={0} aria-valuemax={120} aria-valuenow={lamp.angle} aria-valuetext={`${lamp.angle} 度`} tabIndex={0} data-selected={mode === "directional" && selected === 3 || undefined}
+        <p className="plant-angle-tip">
+          {mode === "mouse" && <img className="plant-angle-input-icon" src={resolveRuntimePublicAssetUrl("ui/input/mouse-left.svg")} alt="滑鼠左鍵" draggable={false} />}
+          {gamepadMode && (mode === "directional" || mode === "gamepad") && <GamepadButtonIcon button="RS" />}
+          <span>調整角度</span>
+        </p>
+        <div className="plant-angle-body"><svg viewBox="0 0 360 180" className="plant-angle-dial" role="slider" aria-label="照射角度" aria-valuemin={-60} aria-valuemax={60} aria-valuenow={displayAngle} aria-valuetext={`${displayAngleText} 度`} tabIndex={0} data-selected={mode === "directional" && selected === 3 || undefined}
           onFocus={() => select(3)} onPointerDown={startDialDrag} onPointerMove={e => { if (dialDrag.current?.id === e.pointerId) dialPoint(e); }} onPointerUp={endDialDrag} onPointerCancel={endDialDrag} onLostPointerCapture={endDialDrag}>
           <path d="M180 146 L93.397 96 A100 100 0 0 1 266.603 96 Z" className="plant-dial-sector" />
           <path d="M76.077 86 A120 120 0 0 1 283.923 86" className="plant-dial-outer" />
@@ -225,13 +249,16 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
             </g>
           </g>
           <circle cx="180" cy="146" r="14" className="plant-dial-pivot" /><circle cx="180" cy="146" r="5" className="plant-dial-pivot-core" />
-          <text x="60" y="114" textAnchor="middle">0°</text><text x="180" y="16" textAnchor="middle">60°</text><text x="300" y="114" textAnchor="middle">120°</text>
-          <text x="180" y="173" textAnchor="middle" className="plant-dial-range">0 — 120°</text>
+          <foreignObject x="130" y="86" width="100" height="42" className="plant-dial-readout">
+            <output className="plant-angle-value" aria-label="目前照射角度" aria-live="off">{displayAngleText}<span>°</span></output>
+          </foreignObject>
         </svg></div>
-        <div className="plant-angle-footer"><span>{mode === "directional" ? "左右微調角度" : "拖曳拉桿調整角度"}</span><small>{dragging ? "調整中" : "可調整"}</small></div>
       </div>}
-      <button className="plant-confirm" type="button" data-selected={mode === "directional" && selected === 4 || undefined} onClick={() => finish()}>{dirty ? "擺放確定" : "返回場景"}</button>
-      <p className="plant-note">本側調整會同時牽動兩叢植物 · 確定後保留設定</p>
+      <button className="plant-confirm" type="button" data-selected={mode === "directional" && selected === 4 || undefined} onClick={() => finish()}>
+        <span className="hud-frame-art" aria-hidden="true"><span className="hud-frame-glow" /></span><span className="craft-action-texture" aria-hidden="true" />
+        {gamepadMode && mode !== "mouse" && mode !== "touch" && <GamepadButtonIcon button={dirty ? "A" : "B"} />}
+        <span>{dirty ? "確定擺放" : "返回場景"}</span>
+      </button>
     </section>}
   </div>;
 });

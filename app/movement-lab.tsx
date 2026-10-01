@@ -10174,6 +10174,8 @@ export function MovementLab() {
       const key = event.key.toLowerCase();
       if (plantController.isOpen) {
         event.preventDefault();
+        activeInputMode = "keyboard-mouse";
+        activateQuestPromptInputMode("keyboard-mouse");
         if (["arrowleft", "arrowright", "arrowup", "arrowdown", "tab", "enter", " ", "escape"].includes(key)) activateDirectionalCursor();
         plantController.key(key, event.repeat);
         return;
@@ -14257,7 +14259,7 @@ export function MovementLab() {
               gamepadInput.rightTriggerPressed ||
               gamepadInput.acceleratePressed
             );
-      if (gamepadInput.connected && hasGamepadActivity) {
+      if (gamepadInput.connected && hasGamepadActivity && !plantController.isOpen) {
         // A connected controller or held right stick must not reclaim the mouse.
         if (!sharedCursorRearmRequired && !starCardsCursorRearmRequired &&
           cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD) {
@@ -14511,6 +14513,7 @@ export function MovementLab() {
         }
       }
       const menuCursorCanTakeControl =
+        !plantController.isOpen &&
         !dialogueHistoryOpenRef.current &&
         (!inventoryOpenRef.current ||
           (!inventoryCursorRearmRequiredRef.current && (inventoryItemInspectOpenRef.current || !inventoryDirectionActive) &&
@@ -14667,6 +14670,7 @@ export function MovementLab() {
         !powerPuzzleOpenRef.current &&
         !starCardsOpenRef.current &&
         !starshipInteractionMenuOpenRef.current &&
+        !plantController.isOpen &&
         !itemUseConfirmationOpenRef.current &&
         !campPowerConfirmationOpenRef.current &&
         !chapter04SavePromptOpenRef.current &&
@@ -14865,9 +14869,17 @@ export function MovementLab() {
         const x = gamepadInput.dpadX || gamepadInput.stickX;
         const y = gamepadInput.dpadY || gamepadInput.stickY;
         const confirm = gamepadInput.confirmPressed && !wasGamepadConfirmPressed;
-        if (Math.abs(x) > .55 || Math.abs(y) > .55) activateDirectionalCursor();
-        if (cursorOwnership.owner === "gamepad" && confirm) activateVirtualCursorUi();
-        else plantController.pad(x, y, confirm, backJustPressed, deltaTime);
+        // Right stick belongs exclusively to the dial while this puzzle is open.
+        // Keep shared cursor coordinates, but require release before its return.
+        if (cursorInputLength > .1) sharedCursorRearmRequired = true;
+        plantController.pad(x, y, confirm, backJustPressed, deltaTime, gamepadInput.cursorX);
+        if (cursorOwnership.owner === "directional") {
+          activateDirectionalCursor();
+          if (Math.abs(x) > .55 || Math.abs(y) > .55 || Math.abs(gamepadInput.cursorX) > .55 || confirm || backJustPressed) {
+            activeInputMode = "gamepad";
+            activateQuestPromptInputMode("gamepad");
+          }
+        }
       } else if (illustrationController.isOpen && !dialoguePlaybackRef.current) {
         gameplayHotbarDpadX = 0;
         if (backJustPressed || (gamepadInput.confirmPressed && !wasGamepadConfirmPressed)) {
@@ -16909,7 +16921,7 @@ export function MovementLab() {
       <span className="mobile-hud-space-probe" aria-hidden="true" />
       {interactionIllustration.view && <InteractionIllustrationOverlay view={interactionIllustration.view}
         onClose={() => { void illustrationController.close(); }} onError={() => illustrationController.cancel()} />}
-      {plantPuzzle.view && <PhototropicPuzzleOverlay key={plantPuzzle.view.id} ref={plantPuzzle.control} view={plantPuzzle.view} onIntroduced={() => plantController.markIntroduced()} onFinish={(state, solved) => plantController.finish(state, solved)} />}
+      {plantPuzzle.view && <PhototropicPuzzleOverlay key={plantPuzzle.view.id} ref={plantPuzzle.control} view={plantPuzzle.view} gamepadMode={questPromptInputMode === "gamepad"} onIntroduced={() => plantController.markIntroduced()} onFinish={(state, solved) => plantController.finish(state, solved)} />}
       {plantSuccessVisible && <div className="plant-success-message" role="status"><span>{PLANT_SUCCESS_MESSAGE}</span></div>}
       <canvas
         ref={canvasRef}

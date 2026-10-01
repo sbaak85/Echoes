@@ -1,4 +1,4 @@
-.plant-puzzle-overlay{position:absolute;inset:0;z-index:42;display:grid;place-items:center;isolation:isolate;overflow:hidden;background:transparent;touch-action:none;color:#dbe9dc}
+.plant-puzzle-overlay{position:absolute;inset:0;z-index:42;display:grid;place-items:center;isolation:isolate;overflow:hidden;background:transparent;touch-action:none;user-select:none;-webkit-user-select:none;color:#dbe9dc}
 .plant-puzzle-overlay::after{content:"";position:absolute;inset:0;z-index:-4;pointer-events:none;background:rgba(0,0,0,.85)}
 .plant-puzzle-overlay::before{content:"";position:absolute;inset:0;z-index:-3;pointer-events:none;background:rgba(0,16,16,.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);mask-image:radial-gradient(ellipse closest-side at center,#000 65%,transparent 100%);-webkit-mask-image:radial-gradient(ellipse closest-side at center,#000 65%,transparent 100%)}
 .plant-puzzle-background{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;z-index:-2}
@@ -11,13 +11,13 @@
 .plant-panel{width:min(440px,calc(100% - 32px));max-height:calc(100% - 24px);overflow:auto;padding:22px;background:#071c21ed;border:1px solid #72a79a;border-radius:16px;box-shadow:0 16px 60px #0008;animation:plant-controls-in 350ms ease-out both;scrollbar-width:thin}
 .plant-panel.plant-controls-unframed{position:absolute;top:0;bottom:0;width:min(480px,calc(100% - 32px));max-height:none;box-sizing:border-box;padding:0;background:none;border:0;border-radius:0;box-shadow:none;overflow:visible;pointer-events:none;text-shadow:0 2px 5px #00100f,0 0 12px #00100f}
 .plant-controls-unframed>button,.plant-controls-unframed .plant-slots,.plant-controls-unframed .plant-angle-control{pointer-events:auto}
-.plant-controls-heading{position:absolute;top:30%;left:0;right:0}
-.plant-controls-unframed .plant-slots{position:absolute;top:63.5%;left:0;right:0;height:14.5%;margin:0;gap:20px}
+.plant-controls-heading{position:absolute;top:19.4%;left:0;right:0;text-align:center}
+.plant-controls-unframed .plant-slots{position:absolute;top:65.6%;left:50%;width:min(414px,100%);transform:translateX(-50%);height:auto;align-items:flex-start;margin:0;gap:clamp(10px,3.7vw,44px)}
 .plant-controls-unframed .plant-slots button{display:flex;flex-direction:column;align-items:center}
-.plant-controls-unframed .plant-socket{flex:1;min-height:0;height:auto}
+.plant-controls-unframed .plant-socket{position:absolute;inset:7px 7px 24px;width:auto;min-height:0;height:auto}
 .plant-controls-unframed .plant-angle-control{position:absolute;top:42%;left:50%;transform:translateX(-50%)}
 .plant-controls-unframed>.plant-confirm{position:absolute;top:84.3%;left:20%;width:60%;height:6%;min-height:36px;max-height:58px;margin:0}
-.plant-controls-unframed>.plant-note{position:absolute;top:91%;left:0;right:0;margin:0}
+.plant-controls-heading .plant-note{margin:6px 0 0}
 .plant-panel h2{font-size:24px;letter-spacing:3px;margin:12px 0}.plant-eyebrow{font-size:10px;letter-spacing:3px;color:#abd5c9;margin:0}.plant-description{font-size:12px;line-height:1.7;color:#b9cec3}
 .plant-slots{display:flex;gap:10px;margin:12px 0}.plant-slots button{flex:1;min-width:0;padding:4px 4px 10px;background:linear-gradient(160deg,#102b2d,#061517);border:1px solid #365d5c;border-radius:8px;color:inherit;font:inherit;cursor:pointer}.plant-slots strong{display:block;font-size:16px;letter-spacing:2px}.plant-slots small{display:block;font-size:10px;letter-spacing:2px;color:#89a7a0;margin-top:4px}.plant-slots .is-inserted{border-color:#86dacf;background:linear-gradient(160deg,#153c3c,#092326)}
 .plant-socket{display:block;position:relative;height:145px;width:100%;pointer-events:none;isolation:isolate}
@@ -36,14 +36,16 @@
 @media(prefers-reduced-motion:reduce){.plant-stick,.plant-stick-beam{transition:none}}
 .plant-preview-choices button{border:1px solid #658c80;background:#133331;border-radius:8px;padding:10px 16px;color:#d5e7d6;cursor:pointer}.plant-preview-choices button:focus,.plant-preview-choices button:focus-visible{outline:none;box-shadow:none}.plant-preview-choices button:disabled{opacity:.4;pointer-events:none}.plant-preview-choices[data-owner=directional] button[data-selected=true]{border-color:#d6e6b0;background:#284e40}.plant-preview-choices[data-owner=mouse] button:hover{border-color:#d6e6b0}
 
-/* Approved inventory Item tile skin: 4px chamfers and a complete 1px edge. */
+/* Inventory Item tile skin, with the requested 8px socket chamfers. */
 .plant-panel .plant-slots button {
   --item-corner-glow: rgba(99, 191, 216, .18);
   --item-edge: linear-gradient(135deg, #b6e4ed, #456874 22%, #243f4c 50%, #456874 78%, #b6e4ed);
-  --item-shape: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px);
+  --item-shape: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
   position: relative;
   isolation: isolate;
-  border-color: transparent;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
   border-radius: 0;
   background: none;
   color: #c7b896;
@@ -61,7 +63,7 @@
   background:
     radial-gradient(ellipse at 0 0, var(--item-corner-glow), transparent 55%),
     radial-gradient(ellipse at 100% 100%, var(--item-corner-glow), transparent 55%),
-    #07131c;
+    rgba(7, 19, 28, .2);
 }
 .plant-panel .plant-slots button::after {
   content: "";
@@ -69,126 +71,135 @@
   inset: -1px;
   pointer-events: none;
   background: var(--item-edge);
-  clip-path: polygon(evenodd, 4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px, 4px 0, 4.414px 1px, 1px 4.414px, 1px calc(100% - 4.414px), 4.414px calc(100% - 1px), calc(100% - 4.414px) calc(100% - 1px), calc(100% - 1px) calc(100% - 4.414px), calc(100% - 1px) 4.414px, calc(100% - 4.414px) 1px, 4.414px 1px, 4px 0);
+  clip-path: polygon(evenodd, 8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px, 8px 0, 8.414px 1px, 1px 8.414px, 1px calc(100% - 8.414px), 8.414px calc(100% - 1px), calc(100% - 8.414px) calc(100% - 1px), calc(100% - 1px) calc(100% - 8.414px), calc(100% - 1px) 8.414px, calc(100% - 8.414px) 1px, 8.414px 1px, 8px 0);
 }
-.plant-panel .plant-slots button.is-inserted { --item-corner-glow: rgba(99, 191, 216, .27); }
+.plant-panel .plant-slots button.is-inserted { --item-corner-glow: rgba(99, 216, 225, .4); }
 .plant-puzzle-overlay[data-control-mode="mouse"] .plant-slots button:hover,
 .plant-puzzle-overlay[data-control-mode="directional"] .plant-slots button[data-selected="true"] {
-  --item-corner-glow: rgba(230, 191, 108, .27);
-  --item-edge: linear-gradient(135deg, #fff0bd, #e6bf6c 24%, #967035 50%, #e6bf6c 76%, #fff0bd);
+  --item-corner-glow: rgba(255, 219, 136, .55);
+  --item-edge: linear-gradient(135deg, #fff9dc, #ffd884 24%, #b48d43 50%, #ffd884 76%, #fff9dc);
   border-color: transparent;
   box-shadow: none;
 }
+.plant-puzzle-overlay[data-control-mode="mouse"] .plant-slots button:hover::after,
+.plant-puzzle-overlay[data-control-mode="directional"] .plant-slots button[data-selected="true"]::after {
+  filter: drop-shadow(0 0 3px #ffda88) drop-shadow(0 0 7px #ffcb6866);
+}
+.plant-slot-label {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: #e0cfaa;
+  pointer-events: none;
+}
+.plant-position-tip,.plant-place-tip{display:flex;align-items:center;justify-content:center;gap:7px;position:absolute;margin:0;white-space:nowrap;color:#f4e3ba;font-size:13px;line-height:26px;pointer-events:none;user-select:none;text-shadow:0 2px 5px #00100f}
+.plant-position-tip{left:50%;bottom:calc(100% + 18px);transform:translateX(-50%)}
+.plant-place-tip{top:calc(100% + 7px);left:50%;transform:translateX(-50%)}
+.plant-dpad-tip{display:flex;align-items:center;gap:1px}
+.plant-position-tip .gamepad-button-icon,.plant-place-tip .gamepad-button-icon{width:26px;height:26px;min-width:26px;margin:0;pointer-events:none}
+/* Make room for the placement hint on shorter screens, without shifting mouse UI. */
+.plant-controls-unframed:has(.plant-position-tip)>.plant-confirm{top:max(84.3%,calc(65.6% + 150px))}
 .plant-panel .plant-slots button:active { transform: scale(.96); }
 .plant-panel .plant-socket {
   container-type: size;
-  --plant-stick-size: min(96px, max(18px, calc(100cqh - 30px)));
+  --plant-stick-size: min(96px, 76cqw);
 }
 .plant-panel .plant-socket .plant-stick {
   width: var(--plant-stick-size);
   height: var(--plant-stick-size);
-  bottom: 20px;
+  top: 50%;
+  bottom: auto;
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 .plant-panel .plant-socket .plant-stick-beam {
-  bottom: calc(20px + var(--plant-stick-size) * .9);
+  /* Just above the lower metal cap, relative to the upright Item image. */
+  bottom: calc(50% - var(--plant-stick-size) * .25);
 }
 
-/* Match the inventory's four rectangular action buttons. */
+/* Reuse the crafting confirmation's gold HUD frame and diagonal texture. */
 .plant-controls-unframed > .plant-confirm {
-  border: 1px solid rgba(131, 193, 212, .38);
+  --hud-light: #fff0bb;
+  --hud-mid: #e4b64d;
+  --hud-dim: #514123;
+  --hud-tint: #c194382b;
+  --hud-base: #16130b;
+  --hud-shape: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
+  --hud-ring: polygon(evenodd,8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px,8px 0,8.414px 1px,1px 8.414px,1px calc(100% - 8.414px),8.414px calc(100% - 1px),calc(100% - 8.414px) calc(100% - 1px),calc(100% - 1px) calc(100% - 8.414px),calc(100% - 1px) 8.414px,calc(100% - 8.414px) 1px,8.414px 1px,8px 0);
+  isolation: isolate;
+  clip-path: var(--hud-shape);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
   border-radius: 0;
-  background: linear-gradient(135deg, rgba(28, 59, 74, .6), rgba(5, 17, 26, .72));
-  color: #cdb891;
+  background: transparent;
+  color: #fff0c1;
   font-family: var(--inventory-font-family);
   box-shadow: none;
   transition: transform 90ms ease, filter 90ms ease, border-color 140ms ease, background 140ms ease;
 }
+.plant-confirm .gamepad-button-icon{width:1.65em;height:1.65em;min-width:1.65em;margin:0;pointer-events:none;user-select:none}
 .plant-puzzle-overlay[data-control-mode="mouse"] .plant-controls-unframed > .plant-confirm:hover {
-  border-color: #deb869;
-  background: rgba(89, 66, 31, .28);
+  --hud-tint: #e4b64d45;
+  filter: brightness(1.2);
 }
 .plant-puzzle-overlay[data-control-mode="directional"] .plant-controls-unframed > .plant-confirm[data-selected="true"] {
-  border-color: #f4cc73;
-  background: linear-gradient(115deg, rgba(112, 74, 24, .3), rgba(36, 71, 70, .52));
-  color: #fff0c1;
-  box-shadow: inset 0 0 12px rgba(248, 198, 100, .18), 0 0 8px rgba(239, 183, 72, .52), 0 0 18px rgba(210, 145, 45, .24);
-  text-shadow: 0 0 7px rgba(255, 222, 157, .62);
-  animation: inventory-selected-action-pulse .9s ease-in-out infinite alternate;
+  background: transparent;
+  --hud-light: #fff9da;
+  --hud-mid: #ffdc84;
+  --hud-dim: #bd9143;
+  --hud-tint: #ffd57870;
+  --hud-base: #302514;
+  color: #fff7da;
+  box-shadow: inset 0 0 0 2px #fff4c9;
+  text-shadow: 0 0 8px rgba(255, 222, 157, .75);
 }
+.plant-puzzle-overlay[data-control-mode="directional"] .plant-confirm[data-selected="true"]>.hud-frame-art::after{filter:brightness(1.35)}
+.plant-puzzle-overlay[data-control-mode="directional"] .plant-confirm[data-selected="true"]>.craft-action-texture{opacity:.26}
 
-/* Instrument panel using the approved diagonal grid and chamfered frame. */
+/* Free-standing dial: only the signed readout and the shaded fan remain. */
 .plant-controls-unframed .plant-angle-control {
-  --angle-shape: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
-  --angle-ring: polygon(evenodd,8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px,8px 0,8.414px 1px,1px 8.414px,1px calc(100% - 8.414px),8.414px calc(100% - 1px),calc(100% - 8.414px) calc(100% - 1px),calc(100% - 1px) calc(100% - 8.414px),calc(100% - 1px) 8.414px,calc(100% - 8.414px) 1px,8.414px 1px,8px 0);
-  --angle-light: #b9efff;
-  --angle-mid: #72b7d0;
-  width: min(320px, calc(100% - 12px));
+  width: min(216px, calc(100% - 12px));
   height: 20.5%;
   min-height: 148px;
   max-height: 220px;
-  padding: 8px 12px 6px;
+  padding: 0 0 20px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   isolation: isolate;
   border: 0;
   border-radius: 0;
   background: none;
   box-shadow: none;
   color: #d6e8ef;
-  text-shadow: none;
+  text-shadow: 0 2px 5px #00100f;
 }
-.plant-angle-control::before, .plant-angle-control::after, .plant-angle-texture {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-.plant-angle-control::before {
-  z-index: -2;
-  clip-path: var(--angle-shape);
-  background: radial-gradient(ellipse at top left, #3f94b22b, transparent 48%), radial-gradient(ellipse at bottom right, #3f94b22b, transparent 48%), rgba(5, 14, 24, .92);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-.plant-angle-control::after {
-  z-index: 2;
-  clip-path: var(--angle-ring);
-  background: linear-gradient(135deg, #fff, var(--angle-light) 6%, var(--angle-mid) 18%, #294657 38%, #294657 62%, var(--angle-mid) 82%, var(--angle-light) 94%, #fff);
-}
-.plant-angle-texture {
-  z-index: -1;
-  inset: 1px;
-  clip-path: var(--angle-shape);
-  background: repeating-linear-gradient(135deg, transparent 0 8.45px, #86d8f2 8.45px 9.1px, transparent 9.1px 10.4px), repeating-linear-gradient(0deg, transparent 0 25.35px, #86d8f2 25.35px 26px), repeating-linear-gradient(90deg, transparent 0 25.35px, #86d8f2 25.35px 26px);
-  opacity: .13;
-  mask-image: radial-gradient(ellipse 65% 120% at top left, #000, transparent 78%), radial-gradient(ellipse 65% 120% at bottom right, #000, transparent 78%);
-}
-.plant-angle-control .plant-angle-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex: 0 0 auto;
-  min-height: 30px;
-  gap: 10px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid #83dfff26;
-}
-.plant-angle-heading > span { display: grid; gap: 2px; }
-.plant-angle-heading strong { font-size: 13px; font-weight: 600; letter-spacing: .14em; }
-.plant-angle-heading small { font-size: 8px; letter-spacing: .16em; color: #79a7b9; }
-.plant-angle-control .plant-angle-heading output { color: #e6c88e; font: 600 28px/1 var(--inventory-font-family); font-variant-numeric: tabular-nums; letter-spacing: .04em; text-shadow: 0 0 14px #e6c88e26; }
-.plant-angle-heading output > span { margin-left: 3px; color: #ae9468; font-size: 15px; }
-.plant-angle-body { flex: 1; min-height: 0; }
+.plant-controls-unframed .plant-angle-control[data-selected="true"] { background: none; box-shadow: none; }
+.plant-angle-tip { display: flex; flex: 0 0 30px; align-items: center; justify-content: center; gap: 6px; margin: 0; color: #d7e6e4; font-size: 14px; }
+.plant-angle-tip .gamepad-button-icon,.plant-angle-input-icon { width: 26px; height: 26px; min-width: 26px; margin: 0; pointer-events: none; }
+.plant-angle-control .plant-angle-value { display: block; text-align: center; color: #e6c88e; font: 600 36px/42px var(--inventory-font-family); font-variant-numeric: tabular-nums; letter-spacing: .02em; text-shadow: 0 2px 5px #00100f, 2px 0 5px #00100f, -2px 0 5px #00100f, 0 0 14px #e6c88e26; }
+.plant-angle-value > span { margin-left: 3px; color: #c6af82; font-size: 24px; }
+.plant-angle-body { flex: 1; min-height: 0; position: relative; }
 .plant-controls-unframed .plant-angle-body .plant-angle-dial {
-  width: 100%; height: 100%; max-width: none; margin: 0;
+  /* Preserve the previous instrument viewport, then enlarge only the dial.
+     SVG screen CTM includes this transform, so pointer dragging stays exact. */
+  position: absolute; left: 50%; top: 50%;
+  width: 296px; height: 100%; max-width: none; margin: 0;
+  transform: translate(-50%, -50%) scale(1.3); transform-origin: center;
   border: 0; border-radius: 0; background: none; box-shadow: none;
-  cursor: grab; outline: none; user-select: none;
+  cursor: grab; outline: none; user-select: none; pointer-events: none;
 }
-.plant-angle-control .plant-angle-dial text { fill: #93b7c6; font: 13px var(--inventory-font-family); }
-.plant-angle-control .plant-dial-range { fill: #50788b; font-size: 9px; letter-spacing: .15em; }
-.plant-angle-control .plant-dial-sector { fill: #72cfff08; stroke: none; }
+/* The zoomed SVG's transparent gutters must not become oversized hit areas. */
+.plant-controls-unframed .plant-angle-dial > * { pointer-events: visiblePainted; }
+.plant-controls-unframed .plant-angle-dial .plant-dial-readout,.plant-dial-readout * { pointer-events: none; }
+.plant-angle-control .plant-dial-sector { fill: rgba(5, 21, 30, .72); stroke: #72b7d044; stroke-width: 1; }
 .plant-dial-outer { fill: none; stroke: #49758a; stroke-width: 1; }
 .plant-dial-track-bed { fill: none; stroke: #142f40; stroke-width: 10; stroke-linecap: round; }
 .plant-angle-control .plant-dial-track { fill: none; stroke: #507e92; stroke-width: 2; stroke-linecap: round; }
@@ -204,15 +215,12 @@
 .plant-dial-handle-ring { fill: #071722; stroke: #79cbe7; stroke-width: 2; }
 .plant-angle-control .plant-dial-handle { fill: #163747; stroke: #e2f8ff; stroke-width: 1.5; }
 .plant-dial-grip-lines { fill: none; stroke: #badce8; stroke-width: 2; stroke-linecap: round; pointer-events: none; }
-.plant-angle-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding-top: 4px; border-top: 1px solid #83dfff1f; color: #8baab9; font-size: 9px; line-height: 1.4; }
-.plant-angle-footer small { color: #69c6d8; font-size: 8px; white-space: nowrap; }
-.plant-puzzle-overlay[data-control-mode="directional"] .plant-angle-control[data-selected="true"], .plant-angle-control.is-dragging { --angle-light: #fff0bd; --angle-mid: #e6bf6c; }
+.plant-puzzle-overlay[data-control-mode="directional"] .plant-angle-control[data-selected="true"] .plant-dial-track { stroke: #e6bf6c; }
 .plant-angle-control.is-dragging .plant-angle-dial, .plant-angle-control.is-dragging .plant-dial-grip { cursor: grabbing; }
 .plant-angle-control.is-dragging .plant-dial-handle-ring { stroke: #e6bf6c; }
 .plant-puzzle-overlay[data-control-mode="mouse"] .plant-dial-grip:hover .plant-dial-handle { fill: #28596a; stroke: #fff; }
 @media (max-height:650px) {
-  .plant-controls-heading { top: 24.5%; }
+  .plant-controls-heading { top: 19.4%; }
   .plant-controls-unframed .plant-angle-control { top: 37%; }
-  .plant-angle-heading strong { font-size: 12px; }
-  .plant-angle-control .plant-angle-heading output { font-size: 24px; }
+  .plant-angle-control .plant-angle-value { font-size: 32px; }
 }

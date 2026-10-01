@@ -16,17 +16,19 @@ export default function PhototropicPreview() {
   const dialogueButtons = useRef<HTMLElement>(null);
   const [menuSelection, setMenuSelection] = useState(0);
   const [owner, setOwner] = useState(cursorOwnership.owner);
+  const [gamepadMode, setGamepadMode] = useState(false);
   const imagePath = resolveRuntimePublicAssetUrl("ui/interaction-illustrations/趨光植物背景.png");
   useEffect(() => {
     let selected = 0;
     const choices = () => [...((dialogueButtons.current ?? buttons.current)?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
     const menuMove = (dir: number) => { const items = choices(); if (!items.length) return; cursorOwnership.take("directional"); selected = (selected + dir + items.length) % items.length; setMenuSelection(selected); items[selected]?.focus(); };
     const key = (e: KeyboardEvent) => {
+      setGamepadMode(false);
       if (controller.current) { e.preventDefault(); controller.current.key(e.key.toLowerCase(), e.repeat); }
       else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab"].includes(e.key)) { e.preventDefault(); menuMove(e.key === "ArrowLeft" || e.key === "ArrowUp" || e.shiftKey ? -1 : 1); }
       else if (!e.repeat && ["Enter", " "].includes(e.key)) { e.preventDefault(); cursorOwnership.take("directional"); choices()[selected]?.click(); }
     };
-    const unsubscribe = cursorOwnership.subscribe(setOwner);
+    const unsubscribe = cursorOwnership.subscribe(owner => { setOwner(owner); if (owner === "mouse" || owner === "touch") setGamepadMode(false); });
     window.addEventListener("keydown", key);
     let raf = 0, previous = performance.now(), a = true, b = true, menuDir = 0;
     const frame = (now: number) => {
@@ -35,7 +37,12 @@ export default function PhototropicPreview() {
         const confirm = pad.buttons[0]?.pressed, back = pad.buttons[1]?.pressed;
         const x = (pad.buttons[15]?.pressed ? 1 : pad.buttons[14]?.pressed ? -1 : pad.axes[0]) || 0;
         const y = (pad.buttons[13]?.pressed ? 1 : pad.buttons[12]?.pressed ? -1 : pad.axes[1]) || 0;
-        if (controller.current) controller.current.pad(x, y, confirm && !a, back && !b, dt);
+        // Match the production input reader's 0.18 radial-axis dead zone before
+        // applying the puzzle's pressure curve, so identical pushes feel alike.
+        const rawRightX = pad.axes[2] || 0;
+        const rightX = Math.abs(rawRightX) <= .18 ? 0 : Math.sign(rawRightX) * Math.min(1, (Math.abs(rawRightX) - .18) / .82);
+        if (Math.abs(x) > .55 || Math.abs(y) > .55 || Math.abs(rightX) > .55 || confirm && !a || back && !b) setGamepadMode(true);
+        if (controller.current) controller.current.pad(x, y, confirm && !a, back && !b, dt, rightX);
         else {
           const dir = Math.abs(x) > .55 ? Math.sign(x) : Math.abs(y) > .55 ? Math.sign(y) : 0;
           if (dir && dir !== menuDir) menuMove(dir);
@@ -63,6 +70,6 @@ export default function PhototropicPreview() {
     {side && dialogue > 0 && <div className="plant-puzzle-overlay"><img className="plant-puzzle-background" src={imagePath} alt="趨光植物背景" /><section className="plant-panel" ref={dialogueButtons}>
       <h2>Sbaak</h2><p>{dialogue === 1 ? "現在來驗證這個趨光性理論看看。" : "先決定螢光棒的位置，再調整照射藤蔓的角度。"}</p><button className="plant-confirm" data-selected={owner === "directional" || undefined} onClick={() => setDialogue(dialogue === 1 ? 2 : 0)}>繼續對話</button>
     </section></div>}
-    {side && dialogue === 0 && <PhototropicPuzzleOverlay key={side} ref={controller} view={{ side, imagePath, initial: state }} onIntroduced={() => setState(previous => ({ ...previous, introduced: true }))} onFinish={finish} />}
+    {side && dialogue === 0 && <PhototropicPuzzleOverlay key={side} ref={controller} view={{ side, imagePath, initial: state }} gamepadMode={gamepadMode} onIntroduced={() => setState(previous => ({ ...previous, introduced: true }))} onFinish={finish} />}
   </main>;
 }
