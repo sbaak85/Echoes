@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { initialPhototropicState, normalizePhototropicState, plantInfluence, plantEquilibrium, plantPresentationStart, isPhototropicClear, plantAngleFromPoint, plantSideForInteraction } from "../app/phototropic-puzzle.ts";
+import { initialPhototropicState, normalizePhototropicState, plantInfluence, plantEquilibrium, plantPresentationStart, isPhototropicClear, plantAngleFromPoint, plantDialAngle, PLANT_DIAL, plantSideForInteraction } from "../app/phototropic-puzzle.ts";
 import { normalizeEchoesSaveData, applySaveDataToRuntimeStorage, SAVE_DATA_FORMAT } from "../app/save-data.ts";
 import { runPhototropicInteractionFlow } from "../app/phototropic-interaction-flow.ts";
 import { QuestRuntimeManager } from "../app/quest-runtime-manager.ts";
@@ -12,6 +12,17 @@ test("interaction sides and empty initial sockets are explicit", () => {
 test("120 degree fan maps both boundaries and center", () => {
   assert.equal(plantAngleFromPoint(-86.6025, -50), 0); assert.equal(plantAngleFromPoint(0, -100), 60); assert.equal(plantAngleFromPoint(86.6025, -50), 120);
   assert.equal(plantAngleFromPoint(100, 100), 120); assert.equal(plantAngleFromPoint(-100, 100), 0);
+});
+test("dial keeps its angle near the pivot and off-center grabs retain the full range", () => {
+  assert.equal(plantDialAngle(PLANT_DIAL.x, PLANT_DIAL.y, 93), 93);
+  assert.equal(plantDialAngle(PLANT_DIAL.x - 12, PLANT_DIAL.y + 8, 41), 41);
+  const pointAt = angle => {
+    const radians = (angle - 60) * Math.PI / 180;
+    return [PLANT_DIAL.x + Math.sin(radians) * 100, PLANT_DIAL.y - Math.cos(radians) * 100];
+  };
+  assert.equal(plantDialAngle(...pointAt(74), 60, -14), 60);
+  assert.equal(plantDialAngle(...pointAt(134), 60, -14), 120);
+  assert.equal(plantDialAngle(...pointAt(-14), 60, 14), 0);
 });
 test("both lights influence both plants and equilibrium never accumulates", () => {
   const state = initialPhototropicState(); state.L = { slot: 0, angle: 40 };

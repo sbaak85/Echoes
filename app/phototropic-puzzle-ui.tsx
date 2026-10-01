@@ -4,7 +4,8 @@ import { cursorOwnership } from "./cursor-ownership";
 import "./phototropic-puzzle.css";
 import { resolveRuntimePublicAssetUrl } from "./public-asset-url";
 import { createPlantVines } from "./phototropic-vines";
-import { initialPhototropicState, isPhototropicClear, loadPhototropicState, normalizePhototropicState, plantAngleFromPoint, plantEquilibrium, plantPresentationStart, PLANT_GROW_MS, savePhototropicState, type PhototropicState, type PlantSide } from "./phototropic-puzzle";
+import { smoothVineProgress } from "./phototropic-vine-geometry.js";
+import { initialPhototropicState, isPhototropicClear, loadPhototropicState, normalizePhototropicState, plantDialAngle, PLANT_DIAL, plantEquilibrium, plantPresentationStart, PLANT_GROW_MS, savePhototropicState, type PhototropicState, type PlantSide } from "./phototropic-puzzle";
 
 type PlantView = { id?: number; side: PlantSide; imagePath: string; initial: PhototropicState };
 export type PlantUiController = {
@@ -69,20 +70,34 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
   const [selected, setSelected] = useState(0);
   const selectedRef = useRef(0);
   const [mode, setMode] = useState(cursorOwnership.owner);
+  const [dragging, setDragging] = useState(false);
+  const dialDrag = useRef<{ id: number; offset: number; element: SVGSVGElement; owner: typeof cursorOwnership.owner } | null>(null);
   const leftHost = useRef<HTMLDivElement>(null), rightHost = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLDivElement>(null);
   const closing = useRef(false);
   const finishRef = useRef(onFinish); finishRef.current = onFinish;
   const introducedRef = useRef(onIntroduced); introducedRef.current = onIntroduced;
   const repeat = useRef({ dir: "", seconds: 0, armed: false });
+  const endDialDrag = () => {
+    const active = dialDrag.current; dialDrag.current = null;
+    if (active?.element.hasPointerCapture(active.id)) active.element.releasePointerCapture(active.id);
+    setDragging(false);
+  };
+  const dialCoordinates = (dial: SVGSVGElement, x: number, y: number) => {
+    const matrix = dial.getScreenCTM();
+    return matrix ? new DOMPoint(x, y).matrixTransform(matrix.inverse()) : null;
+  };
   const change = (slot: number | null, angle = draftRef.current[view.side].angle) => {
     if (!readyRef.current || closing.current) return;
+    const clamped = Math.max(0, Math.min(120, Math.round(angle)));
+    if (draftRef.current[view.side].slot === slot && draftRef.current[view.side].angle === clamped) return;
     setDirty(true);
-    const next = { ...draftRef.current, [view.side]: { slot, angle: Math.max(0, Math.min(120, Math.round(angle))) } };
+    const next = { ...draftRef.current, [view.side]: { slot, angle: clamped } };
     draftRef.current = next; setDraft(next);
   };
   const finish = (solved = false) => {
     if (closing.current) return;
+    endDialDrag();
     closing.current = true; finishRef.current(draftRef.current, solved);
   };
   const select = (index: number) => { selectedRef.current = index; setSelected(index); };
@@ -101,10 +116,10 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
   };
   useImperativeHandle(ref, () => ({
     point(x, y) {
-      const dial = overlay.current?.querySelector(".plant-angle-dial");
+      const dial = overlay.current?.querySelector<SVGSVGElement>(".plant-angle-dial");
       if (!dial || draftRef.current[view.side].slot === null) return;
-      const box = dial.getBoundingClientRect();
-      change(draftRef.current[view.side].slot, plantAngleFromPoint((x - box.left) / box.width * 300 - 150, (y - box.top) / box.height * 185 - 150));
+      const point = dialCoordinates(dial, x, y);
+      if (point) change(draftRef.current[view.side].slot, plantDialAngle(point.x, point.y, draftRef.current[view.side].angle));
     },
     key(key, held) {
       if (["arrowleft", "arrowright", "arrowup", "arrowdown", "tab", "enter", " ", "escape"].includes(key)) cursorOwnership.take("directional");
@@ -122,12 +137,12 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
     },
   }));
   useEffect(() => {
-    return cursorOwnership.subscribe(owner => { setMode(owner); document.activeElement instanceof HTMLElement && document.activeElement.blur(); if (owner === "mouse" || owner === "touch") repeat.current = { dir: "", seconds: 0, armed: false }; });
+    return cursorOwnership.subscribe(owner => { if (dialDrag.current && dialDrag.current.owner !== owner) endDialDrag(); setMode(owner); document.activeElement instanceof HTMLElement && document.activeElement.blur(); if (owner === "mouse" || owner === "touch") repeat.current = { dir: "", seconds: 0, armed: false }; });
   }, []);
   useEffect(() => {
-    const reset = () => { repeat.current = { dir: "", seconds: 0, armed: false }; };
+    const reset = () => { endDialDrag(); repeat.current = { dir: "", seconds: 0, armed: false }; };
     window.addEventListener("blur", reset); window.addEventListener("gamepaddisconnected", reset);
-    return () => { window.removeEventListener("blur", reset); window.removeEventListener("gamepaddisconnected", reset); };
+    return () => { endDialDrag(); window.removeEventListener("blur", reset); window.removeEventListener("gamepaddisconnected", reset); };
   }, []);
   useLayoutEffect(() => {
     const vines = createPlantVines(leftHost.current!, rightHost.current!);
@@ -137,7 +152,7 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
     vines.update(position.left, position.right, previous / 1000, 0, presentation.playEntrance ? 0 : 1);
     const frame = (now: number) => {
       const dt = Math.max(0, Math.min(.05, (now - previous) / 1000)); previous = now;
-      const growth = presentation.playEntrance ? Math.max(0, Math.min(1, (now - started) / PLANT_GROW_MS)) : 1;
+      const growth = presentation.playEntrance ? smoothVineProgress((now - started) / PLANT_GROW_MS) : 1;
       if (growth >= 1 && !readyRef.current) {
         draftRef.current = { ...draftRef.current, introduced: true };
         setDraft(draftRef.current); readyRef.current = true; setReady(true);
@@ -155,10 +170,25 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
     return () => { cancelAnimationFrame(raf); vines.dispose(); };
   }, []);
   const lamp = draft[view.side];
-  const phi = (lamp.angle - 60) * Math.PI / 180, knobX = 150 + Math.sin(phi) * 100, knobY = 150 - Math.cos(phi) * 100;
+  const phi = (lamp.angle - 60) * Math.PI / 180, knobX = PLANT_DIAL.x + Math.sin(phi) * PLANT_DIAL.radius, knobY = PLANT_DIAL.y - Math.cos(phi) * PLANT_DIAL.radius;
   const dialPoint = (event: React.PointerEvent<SVGSVGElement>) => {
-    const box = event.currentTarget.getBoundingClientRect();
-    change(lamp.slot, plantAngleFromPoint((event.clientX - box.left) / box.width * 300 - 150, (event.clientY - box.top) / box.height * 185 - 150));
+    const point = dialCoordinates(event.currentTarget, event.clientX, event.clientY);
+    if (!point || Math.hypot(point.x - PLANT_DIAL.x, point.y - PLANT_DIAL.y) < PLANT_DIAL.deadZone) return;
+    const active = dialDrag.current;
+    change(draftRef.current[view.side].slot, plantDialAngle(point.x, point.y, draftRef.current[view.side].angle, active?.offset ?? 0));
+  };
+  const startDialDrag = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    if (event.pointerType === "touch") cursorOwnership.take("touch");
+    else cursorOwnership.recordMouse(event.clientX, event.clientY, true);
+    const point = dialCoordinates(event.currentTarget, event.clientX, event.clientY);
+    if (!point) return;
+    const current = draftRef.current[view.side].angle;
+    const onHandle = (event.target as Element).closest(".plant-dial-grip");
+    const pointerAngle = Math.atan2(point.x - PLANT_DIAL.x, PLANT_DIAL.y - point.y) * 180 / Math.PI + 60;
+    dialDrag.current = { id: event.pointerId, element: event.currentTarget, owner: cursorOwnership.owner, offset: onHandle ? current - pointerAngle : 0 };
+    event.currentTarget.setPointerCapture(event.pointerId); setDragging(true); select(3); dialPoint(event);
   };
   return <div ref={overlay} className="plant-puzzle-overlay" data-control-mode={mode} data-play-entrance={presentation.playEntrance} data-restored-left={presentation.position.left} data-restored-right={presentation.position.right} role="dialog" aria-modal="true" aria-label={`${view.side === "L" ? "左" : "右"}側趨光植物光源調整`}
     onPointerDown={e => { e.stopPropagation(); if (e.pointerType === "touch") cursorOwnership.take("touch"); else cursorOwnership.recordMouse(e.clientX, e.clientY, true); }}
@@ -167,22 +197,38 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
     <div className="plant-vines plant-vines-left" ref={leftHost} /><div className="plant-vines plant-vines-right" ref={rightHost} />
     {!ready && <p className="plant-growing-message" role="status">藤蔓正在延伸，擋住中央通道…</p>}
     {ready && <section className="plant-panel plant-controls-unframed">
+      <header className="plant-controls-heading">
       <p className="plant-eyebrow">PHOTOTROPIC FIELD CONTROL</p>
       <h2>{view.side === "L" ? "左側光源" : "右側光源"}</h2>
       <p className="plant-description">插入螢光棒，觀察兩叢藤蔓，再調整照射方向。</p>
+      </header>
       <div className="plant-slots">{[0, 1, 2].map(i => <button key={i} type="button" aria-label={`${view.side}${i + 1}`} aria-pressed={lamp.slot === i} data-selected={mode === "directional" && selected === i || undefined} className={lamp.slot === i ? "is-inserted" : ""} onClick={() => change(i)}>
         <Socket occupied={lamp.slot === i} angle={lamp.angle} /><strong>{view.side}{i + 1}</strong><small>{lamp.slot === i ? "已插入" : "空槽"}</small>
       </button>)}</div>
-      {lamp.slot !== null && <div className="plant-angle-control">
-        <div className="plant-angle-heading"><span>照射角度</span><output>{lamp.angle}°</output></div>
-        <svg viewBox="0 0 300 185" className="plant-angle-dial" role="slider" aria-label="照射角度" aria-valuemin={0} aria-valuemax={120} aria-valuenow={lamp.angle} tabIndex={0} data-selected={mode === "directional" && selected === 3 || undefined}
-          onFocus={() => select(3)} onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); dialPoint(e); }} onPointerMove={e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) dialPoint(e); }} onPointerUp={e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); }}>
-          <path d="M150 150 L63.4 100 A100 100 0 0 1 236.6 100 Z" className="plant-dial-sector" />
-          <path d="M63.4 100 A100 100 0 0 1 236.6 100" className="plant-dial-track" />
-          {Array.from({ length: 13 }, (_, i) => { const t = (i * 10 - 60) * Math.PI / 180; return <line key={i} x1={150 + Math.sin(t) * 90} y1={150 - Math.cos(t) * 90} x2={150 + Math.sin(t) * 100} y2={150 - Math.cos(t) * 100} className="plant-dial-tick" />; })}
-          <line x1="150" y1="150" x2={knobX} y2={knobY} className="plant-dial-pointer" /><circle cx="150" cy="150" r="12" className="plant-dial-pivot" /><circle cx={knobX} cy={knobY} r="9" className="plant-dial-handle" />
-          <text x="44" y="127">0°</text><text x="137" y="32">60°</text><text x="242" y="127">120°</text>
-        </svg><small>按住扇形旋鈕拖曳 · 方向控制選到旋鈕後左右微調</small>
+      {lamp.slot !== null && <div className={`plant-angle-control${dragging ? " is-dragging" : ""}`} data-selected={mode === "directional" && selected === 3 || undefined}>
+        <span className="plant-angle-texture" aria-hidden="true" />
+        <div className="plant-angle-heading"><span><small>{view.side}{lamp.slot + 1} / LIGHT DIRECTION</small><strong>照射角度</strong></span><output aria-live="off">{String(lamp.angle).padStart(3, "0")}<span>°</span></output></div>
+        <div className="plant-angle-body"><svg viewBox="0 0 360 180" className="plant-angle-dial" role="slider" aria-label="照射角度" aria-valuemin={0} aria-valuemax={120} aria-valuenow={lamp.angle} aria-valuetext={`${lamp.angle} 度`} tabIndex={0} data-selected={mode === "directional" && selected === 3 || undefined}
+          onFocus={() => select(3)} onPointerDown={startDialDrag} onPointerMove={e => { if (dialDrag.current?.id === e.pointerId) dialPoint(e); }} onPointerUp={endDialDrag} onPointerCancel={endDialDrag} onLostPointerCapture={endDialDrag}>
+          <path d="M180 146 L93.397 96 A100 100 0 0 1 266.603 96 Z" className="plant-dial-sector" />
+          <path d="M76.077 86 A120 120 0 0 1 283.923 86" className="plant-dial-outer" />
+          <path d="M93.397 96 A100 100 0 0 1 266.603 96" className="plant-dial-track-bed" />
+          <path d="M93.397 96 A100 100 0 0 1 266.603 96" className="plant-dial-track" />
+          {lamp.angle > 0 && <path d={`M93.397 96 A100 100 0 0 1 ${knobX} ${knobY}`} className="plant-dial-progress" />}
+          {Array.from({ length: 25 }, (_, i) => { const t = (i * 5 - 60) * Math.PI / 180, major = i % 6 === 0; return <line key={i} x1={180 + Math.sin(t) * (major ? 107 : 112)} y1={146 - Math.cos(t) * (major ? 107 : 112)} x2={180 + Math.sin(t) * 120} y2={146 - Math.cos(t) * 120} className={`plant-dial-tick${major ? " is-major" : ""}`} />; })}
+          <g transform={`rotate(${lamp.angle - 60} 180 146)`}>
+            <path d="M180 146 L180 46" className="plant-dial-lever-bed" /><path d="M180 134 L180 65" className="plant-dial-pointer" />
+            <g className="plant-dial-grip" transform="translate(180 46)">
+              <circle r="38" className="plant-dial-hit" />
+              <circle r="23" className="plant-dial-handle-ring" /><rect x="-17" y="-13" width="34" height="26" rx="5" className="plant-dial-handle" />
+              <path d="M-7 -5 V5 M0 -5 V5 M7 -5 V5" className="plant-dial-grip-lines" />
+            </g>
+          </g>
+          <circle cx="180" cy="146" r="14" className="plant-dial-pivot" /><circle cx="180" cy="146" r="5" className="plant-dial-pivot-core" />
+          <text x="60" y="114" textAnchor="middle">0°</text><text x="180" y="16" textAnchor="middle">60°</text><text x="300" y="114" textAnchor="middle">120°</text>
+          <text x="180" y="173" textAnchor="middle" className="plant-dial-range">0 — 120°</text>
+        </svg></div>
+        <div className="plant-angle-footer"><span>{mode === "directional" ? "左右微調角度" : "拖曳拉桿調整角度"}</span><small>{dragging ? "調整中" : "可調整"}</small></div>
       </div>}
       <button className="plant-confirm" type="button" data-selected={mode === "directional" && selected === 4 || undefined} onClick={() => finish()}>{dirty ? "擺放確定" : "返回場景"}</button>
       <p className="plant-note">本側調整會同時牽動兩叢植物 · 確定後保留設定</p>

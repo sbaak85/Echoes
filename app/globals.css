@@ -3560,14 +3560,35 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: rgba(0, 0, 0, .8);
+  background: rgba(0, 0, 0, var(--illustration-backdrop-opacity, .8));
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   animation: interaction-illustration-backdrop-in 200ms ease-out both;
 }
 @keyframes interaction-illustration-backdrop-in {
   from { background: rgba(0, 0, 0, 0); backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); }
-  to { background: rgba(0, 0, 0, .8); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+  to { background: rgba(0, 0, 0, var(--illustration-backdrop-opacity, .8)); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+}
+.interaction-illustration-overlay.is-feathered-backdrop::before {
+  /* Keep the 50% backdrop beside the artwork, then reveal the world at the screen edge. */
+  mask-image: radial-gradient(ellipse closest-side at center, #000 65%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse closest-side at center, #000 65%, transparent 100%);
+}
+.interaction-illustration-overlay.is-feathered-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background: rgba(0, 0, 0, .85);
+  animation: interaction-illustration-dim-in 200ms ease-out both;
+}
+@keyframes interaction-illustration-dim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.interaction-illustration-overlay.is-feathered-backdrop.is-closing::after {
+  animation: interaction-illustration-dim-in 200ms ease-in reverse both;
 }
 .interaction-illustration-overlay.is-closing::before {
   animation: interaction-illustration-backdrop-in 200ms ease-in reverse both;

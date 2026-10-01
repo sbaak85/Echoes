@@ -52,6 +52,14 @@ export function isPhototropicClear(state: PhototropicState) {
 export function plantAngleFromPoint(x: number, y: number) {
   return Math.round(Math.max(0, Math.min(120, Math.atan2(x, -y) * 180 / Math.PI + 60)));
 }
+export const PLANT_DIAL = { x: 180, y: 146, radius: 100, deadZone: 28 };
+export function plantDialAngle(x: number, y: number, fallback: number, grabOffset = 0) {
+  const dx = x - PLANT_DIAL.x, dy = y - PLANT_DIAL.y;
+  // Angular direction becomes unstable near the pivot. Keep the current angle.
+  if (Math.hypot(dx, dy) < PLANT_DIAL.deadZone) return fallback;
+  // Apply the grab offset before clamping so an off-center grab can still reach both ends.
+  return Math.round(Math.max(0, Math.min(120, Math.atan2(dx, -dy) * 180 / Math.PI + 60 + grabOffset)));
+}
 export function loadPhototropicState(): PhototropicState {
   try { return normalizePhototropicState(JSON.parse(window.localStorage.getItem(PHOTOTROPIC_STORAGE_KEY) ?? "null")); }
   catch { return initialPhototropicState(); }

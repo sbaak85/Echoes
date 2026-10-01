@@ -7394,7 +7394,7 @@ export function MovementLab() {
     if (side) {
       const imagePath = resolveRuntimePublicAssetUrl(config.imagePath.replace(/^\/+/, ""));
       void runPhototropicInteractionFlow(play, {
-        showBackground: () => { void illustrationController.open(imagePath, true); },
+        showBackground: () => { void illustrationController.open(imagePath, true, 0.5); },
         hideBackground: () => illustrationController.cancel(),
         openPuzzle: () => plantController.open(side, imagePath),
         cancelPuzzle: () => plantController.cancel(),

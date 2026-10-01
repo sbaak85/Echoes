@@ -5,7 +5,7 @@ import { isSignalDetectorIllustration } from "./signal-detector-screens";
 
 export type InteractionIllustration = { enabled: boolean; imagePath: string; withDialogue?: boolean };
 export const INTERACTION_ILLUSTRATION_FADE_MS = 200;
-type View = { imagePath: string; withDialogue: boolean; closing: boolean };
+type View = { imagePath: string; withDialogue: boolean; closing: boolean; backdropOpacity?: number };
 
 export function useInteractionIllustration(onSignalDetectorOpen?: () => void) {
   const onSignalDetectorOpenRef = useRef(onSignalDetectorOpen);
@@ -18,10 +18,10 @@ export function useInteractionIllustration(onSignalDetectorOpen?: () => void) {
   const api = useRef({
     get isOpen() { return controller.current.view !== null; },
     get withDialogue() { return controller.current.view?.withDialogue === true; },
-    open(imagePath: string, withDialogue: boolean) {
+    open(imagePath: string, withDialogue: boolean, backdropOpacity?: number) {
       api.current.cancel();
       const state = controller.current;
-      state.view = { imagePath, withDialogue, closing: false };
+      state.view = { imagePath, withDialogue, closing: false, backdropOpacity };
       state.done = new Promise<boolean>(resolve => { state.resolve = resolve; });
       setView(state.view);
       if (isSignalDetectorIllustration(imagePath)) onSignalDetectorOpenRef.current?.();
@@ -65,7 +65,8 @@ export function useInteractionIllustration(onSignalDetectorOpen?: () => void) {
 export function InteractionIllustrationOverlay({ view, onClose, onError }: {
   view: View; onClose: () => void; onError: () => void;
 }) {
-  return <div className={`interaction-illustration-overlay${view.closing ? " is-closing" : ""}${view.withDialogue ? " is-with-dialogue" : ""}`}
+  return <div className={`interaction-illustration-overlay${view.closing ? " is-closing" : ""}${view.withDialogue ? " is-with-dialogue" : ""}${view.backdropOpacity !== undefined ? " is-feathered-backdrop" : ""}`}
+    style={view.backdropOpacity === undefined ? undefined : { "--illustration-backdrop-opacity": view.backdropOpacity } as React.CSSProperties}
     role={view.withDialogue ? undefined : "dialog"} aria-modal={view.withDialogue ? undefined : true} aria-label="互動插圖"
     onPointerDown={event => event.stopPropagation()}>
     {isSignalDetectorIllustration(view.imagePath)
