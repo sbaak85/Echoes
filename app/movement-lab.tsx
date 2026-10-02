@@ -42,8 +42,6 @@ import {
 } from "react";
 import { getGamepadGlyphUrl } from "./gamepad-glyph";
 import {
-  buildDialogueHistoryView,
-  canOpenDialogueHistory,
   getDialogueHistoryRightStickScrollDelta,
   hasDialogueHistoryRightStickInput,
   hasDialogueHistoryScrollbar,
@@ -154,7 +152,6 @@ import {
   getUnmetInteractionUseRequirements,
   normalizeInteractionItemRewards,
   normalizeInteractionUseRequirements,
-  resolveWeightedDialogueLines,
   selectInteractionDialogue,
   selectInteractionFeedbackPoint,
   selectPreferredInteractionTarget,
@@ -259,6 +256,8 @@ import {
   type SceneItemPoint,
 } from "./item-point-manager";
 import { DialogueManager } from "./dialogue-manager";
+import { createDialoguePlayer, type DialoguePlayback as SharedDialoguePlayback, type DialogueView, type DialogueTyping } from "./dialogue-player";
+import { DialoguePlayerView } from "./dialogue-player-view";
 import { StoryEventManager } from "./story-event-manager";
 import { MainObjectiveMarker } from "./main-objective-marker";
 import {
@@ -680,25 +679,7 @@ function ItemChangeVisualization({
     </div>
   );
 }
-type DialoguePlayback = {
-  dialogueId: string;
-  interactable: SceneInteractable;
-  lineIndex: number;
-  pageIndex: number;
-  pages: string[];
-  lastBgmCueLineId?: string;
-  lastLineSeLineId?: string;
-  onComplete?: () => void;
-};
-type DialogueView = { speaker: string; text: string; canReview: boolean } | null;
-type DialogueTyping = {
-  characters: string[];
-  visibleCount: number;
-  speaker: string;
-  delayMilliseconds: number;
-  timerId: number | null;
-  resume: () => void;
-};
+type DialoguePlayback = SharedDialoguePlayback<SceneInteractable>;
 type InventoryDragState = {
   itemId: string;
   pointerId: number;
@@ -2645,72 +2626,6 @@ function findNearestInteractionPoint(
   }
 
   return nearest;
-}
-
-function splitDialoguePages(text: string, maximumCharacters = 96) {
-  const normalized = text.trim() || "...";
-  const pages: string[] = [];
-  let remainder = normalized;
-  while (remainder.length > maximumCharacters) {
-    const candidates = ["。", "！", "？", "，", "、", " "];
-    let cut = -1;
-    for (const marker of candidates) {
-      const index = remainder.lastIndexOf(marker, maximumCharacters);
-      if (index >= Math.floor(maximumCharacters * 0.55)) {
-        cut = index + 1;
-        break;
-      }
-    }
-    if (cut < 1) cut = maximumCharacters;
-    pages.push(remainder.slice(0, cut).trim());
-    remainder = remainder.slice(cut).trim();
-  }
-  if (remainder) pages.push(remainder);
-  return pages.length > 0 ? pages : ["..."];
-}
-
-function splitDialogueRevealUnits(text: string) {
-  const characters = Array.from(text);
-  const units: string[] = [];
-  let pendingWhitespace = "";
-
-  for (let index = 0; index < characters.length; index += 1) {
-    const character = characters[index];
-    if (/\s/u.test(character)) {
-      pendingWhitespace += character;
-      continue;
-    }
-
-    if (/\p{P}/u.test(character)) {
-      let punctuation = character;
-      while (
-        index + 1 < characters.length &&
-        /\p{P}/u.test(characters[index + 1])
-      ) {
-        punctuation += characters[index + 1];
-        index += 1;
-      }
-      units.push(pendingWhitespace + punctuation);
-      pendingWhitespace = "";
-      continue;
-    }
-
-    units.push(pendingWhitespace + character);
-    pendingWhitespace = "";
-  }
-
-  if (pendingWhitespace) {
-    if (units.length > 0) units[units.length - 1] += pendingWhitespace;
-    else units.push(pendingWhitespace);
-  }
-  return units.length > 0 ? units : ["..."];
-}
-
-function resolveDialogueSpeaker(
-  interactable: SceneInteractable,
-  lineIndex: number,
-) {
-  return interactable.dialogue?.lines[lineIndex]?.speaker?.trim() ?? "";
 }
 
 function distanceToSegment(point: Point, start: Point, end: Point) {
@@ -7095,202 +7010,33 @@ export function MovementLab() {
     });
   };
 
-  const stopDialogueTyping = () => {
-    const typing = dialogueTypingRef.current;
-    if (typing?.timerId !== null && typing?.timerId !== undefined) {
-      window.clearTimeout(typing.timerId);
-    }
-    stopDialogueTypingAudio();
-    dialogueTypingRef.current = null;
-  };
-
-  const pauseDialogueTyping = () => {
-    const typing = dialogueTypingRef.current;
-    if (!typing || typing.timerId === null) return;
-    window.clearTimeout(typing.timerId);
-    typing.timerId = null;
-    stopDialogueTypingAudio();
-  };
-
-  const resumeDialogueTyping = () => {
-    const typing = dialogueTypingRef.current;
-    if (!typing || typing.visibleCount >= typing.characters.length) return;
-    typing.resume();
-  };
-
-  const openDialogueHistory = () => {
-    const playback = dialoguePlaybackRef.current;
-    const lines = playback?.interactable.dialogue?.lines;
-    if (!playback || !lines || dialogueHistoryOpenRef.current ||
-      !canOpenDialogueHistory(playback.lineIndex, lines.length)) return false;
-    pauseDialogueTyping();
-    dialogueHistoryOpenRef.current = true;
-    setDialogueHistoryView(
-      buildDialogueHistoryView(playback.dialogueId, lines, playback.lineIndex),
-    );
-    playOneShotAudio("uiInput");
-    window.requestAnimationFrame(() => {
-      const history = dialogueHistoryScrollRef.current;
-      if (history) history.scrollTop = history.scrollHeight;
-      dialogueHistoryCloseRef.current?.focus({ preventScroll: true });
-    });
-    return true;
-  };
-
-  const closeDialogueHistory = () => {
-    if (!dialogueHistoryOpenRef.current) return false;
-    dialogueHistoryOpenRef.current = false;
-    setDialogueHistoryView(null);
-    resumeDialogueTyping();
-    playOneShotAudio("uiInput");
-    window.requestAnimationFrame(() => {
-      dialogueBoxRef.current?.focus({ preventScroll: true });
-    });
-    return true;
-  };
-
-  const toggleDialogueHistory = () =>
-    dialogueHistoryOpenRef.current
-      ? closeDialogueHistory()
-      : openDialogueHistory();
-
-  const closeDialogue = () => {
-    dialogueHistoryOpenRef.current = false;
-    setDialogueHistoryView(null);
-    stopDialogueTyping();
-    audioEventManagerRef.current?.clearDialogueLineSe();
-    dialoguePlaybackRef.current = null;
-    document.documentElement.classList.remove("dialogue-cursor-active");
-    setDialogueView(null);
-  };
-
-  const finishDialogue = () => {
-    const onComplete = dialoguePlaybackRef.current?.onComplete;
-    closeDialogue();
-    onComplete?.();
-  };
-
-  const showDialoguePage = (playback: DialoguePlayback) => {
-    const line = playback.interactable.dialogue?.lines[playback.lineIndex];
-    if (!line) {
-      finishDialogue();
-      return;
-    }
-    const lineId = line.lineId?.trim() ?? "";
-    if (playback.lastLineSeLineId !== lineId) {
-      playback.lastLineSeLineId = lineId;
-      audioEventManagerRef.current?.triggerDialogueLineSe(lineId);
-    }
-    if (lineId && playback.lastBgmCueLineId !== lineId) {
-      playback.lastBgmCueLineId = lineId;
-      bgmDirectorRef.current?.triggerDialogueLine(lineId);
-    }
-    stopDialogueTyping();
-    const speaker = resolveDialogueSpeaker(playback.interactable, playback.lineIndex);
-    const characters = splitDialogueRevealUnits(
-      playback.pages[playback.pageIndex] ?? "...",
-    );
-    const delayMilliseconds =
-      clamp(
-        playback.interactable.dialogue?.characterDelaySeconds ?? 0.02,
-        0,
-        2,
-      ) * 1000;
-    const typing: DialogueTyping = {
-      characters,
-      visibleCount: 0,
-      speaker,
-      delayMilliseconds,
-      timerId: null,
-      resume: () => {},
-    };
-    dialogueTypingRef.current = typing;
-
-    const revealNextCharacter = () => {
-      if (dialogueTypingRef.current !== typing) return;
-      typing.visibleCount = Math.min(
-        typing.characters.length,
-        typing.visibleCount + 1,
-      );
-      setDialogueView({
-        speaker: typing.speaker,
-        text: typing.characters.slice(0, typing.visibleCount).join(""),
-        canReview: canOpenDialogueHistory(playback.lineIndex, playback.interactable.dialogue?.lines.length ?? 0),
+  const dialoguePlayer = createDialoguePlayer<SceneInteractable>({
+    playback: dialoguePlaybackRef, typing: dialogueTypingRef, historyOpen: dialogueHistoryOpenRef,
+    setView: setDialogueView, setHistory: setDialogueHistoryView,
+    setTimer: (callback, delay) => window.setTimeout(callback, delay), clearTimer: timer => window.clearTimeout(timer),
+    onTypingStart: requestDialogueTypingAudioPlayback, onTypingStop: stopDialogueTypingAudio,
+    onLineSe: lineId => audioEventManagerRef.current?.triggerDialogueLineSe(lineId),
+    onLineBgm: lineId => bgmDirectorRef.current?.triggerDialogueLine(lineId),
+    onStart: () => { hideHotbarSelectionHint(); document.documentElement.classList.add("dialogue-cursor-active"); playOneShotAudio("dialogueOpened"); },
+    onClose: () => { audioEventManagerRef.current?.clearDialogueLineSe(); document.documentElement.classList.remove("dialogue-cursor-active"); },
+    onHistoryOpen: () => {
+      playOneShotAudio("uiInput");
+      window.requestAnimationFrame(() => {
+        const history = dialogueHistoryScrollRef.current;
+        if (history) history.scrollTop = history.scrollHeight;
+        dialogueHistoryCloseRef.current?.focus({ preventScroll: true });
       });
-      if (typing.visibleCount < typing.characters.length) {
-        typing.timerId = window.setTimeout(
-          revealNextCharacter,
-          typing.delayMilliseconds,
-        );
-      } else {
-        typing.timerId = null;
-        stopDialogueTypingAudio();
-      }
-    };
-
-    typing.resume = () => {
-      if (
-        dialogueTypingRef.current !== typing ||
-        typing.timerId !== null ||
-        typing.visibleCount >= typing.characters.length
-      ) {
-        return;
-      }
-      requestDialogueTypingAudioPlayback(false);
-      typing.timerId = window.setTimeout(
-        revealNextCharacter,
-        Math.max(0, typing.delayMilliseconds),
-      );
-    };
-
-    if (delayMilliseconds <= 0) {
-      typing.visibleCount = characters.length;
-      setDialogueView({ speaker, text: characters.join(""),
-        canReview: canOpenDialogueHistory(playback.lineIndex, playback.interactable.dialogue?.lines.length ?? 0),
-      });
-    } else {
-      requestDialogueTypingAudioPlayback(true);
-      revealNextCharacter();
-    }
-  };
-
-  const presentDialogue = (
-    dialogueId: string,
-    interactable: SceneInteractable,
-    onComplete?: () => void,
-    dialogue: InteractionDialogueScript | null | undefined = interactable.dialogue,
-  ) => {
-    hideHotbarSelectionHint();
-    dialogueHistoryOpenRef.current = false;
-    setDialogueHistoryView(null);
-    const lines = resolveWeightedDialogueLines(
-      dialogue?.lines?.filter((line) => line.text.trim()) ?? [],
-    );
-    const effectiveLines = lines.length > 0 ? lines : [{ speaker: "", text: "..." }];
-    const normalized = {
-      ...interactable,
-      dialogue: {
-        characterDelaySeconds:
-          dialogue?.characterDelaySeconds ?? 0.02,
-        speakers:
-          dialogue?.speakers?.filter((speaker) => speaker.trim()) ??
-          ["Sbaak", "Echo"],
-        lines: effectiveLines,
-      },
-    };
-    const playback: DialoguePlayback = {
-      dialogueId,
-      interactable: normalized,
-      lineIndex: 0,
-      pageIndex: 0,
-      pages: splitDialoguePages(effectiveLines[0].text),
-      onComplete,
-    };
-    dialoguePlaybackRef.current = playback;
-    document.documentElement.classList.add("dialogue-cursor-active");
-    playOneShotAudio("dialogueOpened");
-    showDialoguePage(playback);
-  };
+    },
+    onHistoryClose: () => { playOneShotAudio("uiInput"); window.requestAnimationFrame(() => dialogueBoxRef.current?.focus({ preventScroll: true })); },
+  });
+  const stopDialogueTyping = dialoguePlayer.stopTyping;
+  const pauseDialogueTyping = dialoguePlayer.pauseTyping;
+  const resumeDialogueTyping = dialoguePlayer.resumeTyping;
+  const openDialogueHistory = dialoguePlayer.openHistory;
+  const closeDialogueHistory = dialoguePlayer.closeHistory;
+  const toggleDialogueHistory = dialoguePlayer.toggleHistory;
+  const closeDialogue = dialoguePlayer.close;
+  const presentDialogue = dialoguePlayer.present;
 
   if (!dialogueManagerRef.current) {
     dialogueManagerRef.current = new DialogueManager<SceneInteractable>();
@@ -7425,39 +7171,7 @@ export function MovementLab() {
     );
   };
 
-  const advanceDialogue = () => {
-    if (dialogueHistoryOpenRef.current) return true;
-    const playback = dialoguePlaybackRef.current;
-    if (!playback) return false;
-    const typing = dialogueTypingRef.current;
-    if (typing && typing.visibleCount < typing.characters.length) {
-      if (typing.timerId !== null) window.clearTimeout(typing.timerId);
-      typing.visibleCount = typing.characters.length;
-      typing.timerId = null;
-      stopDialogueTypingAudio();
-      setDialogueView({
-        speaker: typing.speaker,
-        text: typing.characters.join(""),
-        canReview: canOpenDialogueHistory(playback.lineIndex, playback.interactable.dialogue?.lines.length ?? 0),
-      });
-      return true;
-    }
-    if (playback.pageIndex + 1 < playback.pages.length) {
-      playback.pageIndex += 1;
-      showDialoguePage(playback);
-      return true;
-    }
-    const lines = playback.interactable.dialogue?.lines ?? [];
-    if (playback.lineIndex + 1 < lines.length) {
-      playback.lineIndex += 1;
-      playback.pageIndex = 0;
-      playback.pages = splitDialoguePages(lines[playback.lineIndex].text);
-      showDialoguePage(playback);
-      return true;
-    }
-    finishDialogue();
-    return true;
-  };
+  const advanceDialogue = dialoguePlayer.advance;
 
   const markStoryEventCompleted = (eventId: string) => {
     const current = storyProgressRef.current;
@@ -10172,11 +9886,13 @@ export function MovementLab() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
-      if (plantController.isOpen) {
+      if (plantController.isOpen && !dialoguePlaybackRef.current) {
         event.preventDefault();
+        if (["arrowleft", "arrowright", "arrowup", "arrowdown", "tab", "enter", " ", "escape"].includes(key)) activateDirectionalCursor();
+        // Directional takeover also runs the shared owner listener; record the
+        // actual device afterwards so keyboard input cannot acquire pad glyphs.
         activeInputMode = "keyboard-mouse";
         activateQuestPromptInputMode("keyboard-mouse");
-        if (["arrowleft", "arrowright", "arrowup", "arrowdown", "tab", "enter", " ", "escape"].includes(key)) activateDirectionalCursor();
         plantController.key(key, event.repeat);
         return;
       }
@@ -10213,6 +9929,11 @@ export function MovementLab() {
             behavior: "smooth",
           });
         }
+        return;
+      }
+      if (plantController.isOpen && dialoguePlaybackRef.current) {
+        event.preventDefault();
+        if (!event.repeat && ["enter", " ", keyboardInteractionKey].includes(key)) advanceDialogue();
         return;
       }
       if (survivalStateRef.current.gameOverReason) {
@@ -12515,7 +12236,7 @@ export function MovementLab() {
         bounds.left + virtualCursor.x,
         bounds.top + virtualCursor.y,
       );
-      if (plantController.isOpen && element instanceof Element && element.closest(".plant-puzzle-overlay")) {
+      if (plantController.isOpen && !dialoguePlaybackRef.current && element instanceof Element && element.closest(".plant-puzzle-overlay")) {
         if (element.closest(".plant-angle-dial")) {
           plantController.point(bounds.left + virtualCursor.x, bounds.top + virtualCursor.y);
         } else {
@@ -14259,7 +13980,7 @@ export function MovementLab() {
               gamepadInput.rightTriggerPressed ||
               gamepadInput.acceleratePressed
             );
-      if (gamepadInput.connected && hasGamepadActivity && !plantController.isOpen) {
+      if (gamepadInput.connected && hasGamepadActivity && (!plantController.isOpen || dialoguePlaybackRef.current)) {
         // A connected controller or held right stick must not reclaim the mouse.
         if (!sharedCursorRearmRequired && !starCardsCursorRearmRequired &&
           cursorInputLength >= OPTIONS_CURSOR_TAKEOVER_THRESHOLD) {
@@ -14864,21 +14585,25 @@ export function MovementLab() {
           if (quickAssignCursorRef.current) activateVirtualCursorUi();
           else confirmQuickAssign();
         }
+      } else if (plantController.isOpen && dialoguePlaybackRef.current) {
+        // The retained puzzle is scenery now. A advances only the dialogue;
+        // neither stick nor B may edit lamps, save early or close the puzzle.
+        gameplayHotbarDpadX = 0;
+        if (cursorInputLength > .1) sharedCursorRearmRequired = true;
+        if (gamepadInput.confirmPressed && !wasGamepadConfirmPressed) advanceDialogue();
       } else if (plantController.isOpen) {
         gameplayHotbarDpadX = 0;
-        const x = gamepadInput.dpadX || gamepadInput.stickX;
+        const x = gamepadInput.stickX;
         const y = gamepadInput.dpadY || gamepadInput.stickY;
         const confirm = gamepadInput.confirmPressed && !wasGamepadConfirmPressed;
         // Right stick belongs exclusively to the dial while this puzzle is open.
         // Keep shared cursor coordinates, but require release before its return.
         if (cursorInputLength > .1) sharedCursorRearmRequired = true;
-        plantController.pad(x, y, confirm, backJustPressed, deltaTime, gamepadInput.cursorX);
-        if (cursorOwnership.owner === "directional") {
+        const plantPadActive = plantController.pad(x, y, confirm, backJustPressed, deltaTime, gamepadInput.cursorX, gamepadInput.dpadX);
+        if (plantPadActive) {
           activateDirectionalCursor();
-          if (Math.abs(x) > .55 || Math.abs(y) > .55 || Math.abs(gamepadInput.cursorX) > .55 || confirm || backJustPressed) {
-            activeInputMode = "gamepad";
-            activateQuestPromptInputMode("gamepad");
-          }
+          activeInputMode = "gamepad";
+          activateQuestPromptInputMode("gamepad");
         }
       } else if (illustrationController.isOpen && !dialoguePlaybackRef.current) {
         gameplayHotbarDpadX = 0;
@@ -16921,7 +16646,7 @@ export function MovementLab() {
       <span className="mobile-hud-space-probe" aria-hidden="true" />
       {interactionIllustration.view && <InteractionIllustrationOverlay view={interactionIllustration.view}
         onClose={() => { void illustrationController.close(); }} onError={() => illustrationController.cancel()} />}
-      {plantPuzzle.view && <PhototropicPuzzleOverlay key={plantPuzzle.view.id} ref={plantPuzzle.control} view={plantPuzzle.view} gamepadMode={questPromptInputMode === "gamepad"} onIntroduced={() => plantController.markIntroduced()} onFinish={(state, solved) => plantController.finish(state, solved)} />}
+      {plantPuzzle.view && <PhototropicPuzzleOverlay key={plantPuzzle.view.id} ref={plantPuzzle.control} view={plantPuzzle.view} gamepadMode={questPromptInputMode === "gamepad"} onIntroduced={() => plantController.markIntroduced()} onSuccessDialogue={id => dialogueManager.playRegistered(id, { id, label: id, type: "dialogue" })} onFinish={(state, solved) => plantController.finish(state, solved)} />}
       {plantSuccessVisible && <div className="plant-success-message" role="status"><span>{PLANT_SUCCESS_MESSAGE}</span></div>}
       <canvas
         ref={canvasRef}
@@ -17118,120 +16843,10 @@ export function MovementLab() {
         </div>
       </section>
 
-      {dialogueView ? (
-        <>
-          {dialogueView.canReview ? (
-          <button
-            className="dialogue-history-trigger"
-            type="button"
-            aria-haspopup="dialog"
-            aria-expanded={Boolean(dialogueHistoryView)}
-            aria-hidden={Boolean(dialogueHistoryView)}
-            disabled={Boolean(dialogueHistoryView)}
-            onClick={(event) => {
-              event.stopPropagation();
-              openDialogueHistory();
-            }}
-          >
-            {questPromptInputMode === "gamepad" ? (
-              <GamepadHint text="按 [LT] 回顧訊息" />
-            ) : (
-              <>
-                <span>按</span>
-                <img
-                  className="dialogue-mouse-button-icon"
-                  src={uiAssetUrl("input/mouse-right.svg")}
-                  alt="滑鼠右鍵"
-                  draggable={false}
-                />
-                <span>回顧訊息</span>
-              </>
-            )}
-          </button>
-          ) : null}
-          <button
-            ref={dialogueBoxRef}
-            className={`dialogue-box dialogue-size-${dialogueTextSize}${dialogueHistoryView ? " is-history-open" : ""}`}
-            type="button"
-            aria-label="對話；按下顯示下一頁"
-            disabled={Boolean(dialogueHistoryView)}
-            onClick={advanceDialogue}
-          >
-            <span className="dialogue-frame-surface" aria-hidden="true" />
-            <span className="dialogue-frame-bloom" aria-hidden="true" />
-            {dialogueView.speaker ? (
-              <strong className="dialogue-speaker">{dialogueView.speaker}</strong>
-            ) : null}
-            <span className="dialogue-text">{dialogueView.text}</span>
-            <span className="dialogue-next" aria-hidden="true" />
-          </button>
-        </>
-      ) : null}
-
-      {dialogueHistoryView ? (
-        <section
-          className="dialogue-history-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="dialogue-history-title"
-          data-dialogue-id={dialogueHistoryView.dialogueId}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="dialogue-history-panel">
-            <span className="dialogue-frame-surface" aria-hidden="true" />
-            <span className="dialogue-frame-bloom" aria-hidden="true" />
-            <header className="dialogue-history-header">
-              <strong id="dialogue-history-title">訊息回顧</strong>
-            </header>
-            <div
-              className="dialogue-history-list"
-              ref={dialogueHistoryScrollRef}
-            >
-              {dialogueHistoryView.entries.length > 0 ? (
-                dialogueHistoryView.entries.map((entry) => (
-                  <article className="dialogue-history-entry" key={entry.lineId}>
-                    {entry.speaker ? <strong>{entry.speaker}</strong> : null}
-                    <p>{entry.text}</p>
-                  </article>
-                ))
-              ) : (
-                <p className="dialogue-history-empty">目前沒有更早的訊息</p>
-              )}
-            </div>
-            <button
-              ref={dialogueHistoryCloseRef}
-              className="dialogue-history-close"
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                closeDialogueHistory();
-              }}
-            >
-              {questPromptInputMode === "gamepad" ? (
-                <GamepadHint
-                  text={
-                    dialogueHistoryScrollable
-                      ? "按 [LT] 關閉 ／ 推動 [右搖桿] 捲動訊息"
-                      : "按 [LT] 關閉"
-                  }
-                />
-              ) : (
-                <>
-                  <span>按</span>
-                  <img
-                    className="dialogue-mouse-button-icon"
-                    src={uiAssetUrl("input/mouse-right.svg")}
-                    alt="滑鼠右鍵"
-                    draggable={false}
-                  />
-                  <span>關閉</span>
-                </>
-              )}
-            </button>
-          </div>
-        </section>
-      ) : null}
+      <DialoguePlayerView view={dialogueView} history={dialogueHistoryView} historyScrollable={dialogueHistoryScrollable}
+        textSize={dialogueTextSize} gamepadMode={questPromptInputMode === "gamepad"}
+        boxRef={dialogueBoxRef} historyScrollRef={dialogueHistoryScrollRef} historyCloseRef={dialogueHistoryCloseRef}
+        onAdvance={advanceDialogue} onOpenHistory={openDialogueHistory} onCloseHistory={closeDialogueHistory} />
 
       {timeElapsedNotice ? (
         <section

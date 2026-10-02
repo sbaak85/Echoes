@@ -3134,7 +3134,7 @@
     },
     {
       "id": "scene6-interaction-020",
-      "label": "\u8DA8\u5149\u6027\u690D\u7269",
+      "label": "\u5DE6\u5074\u8DA8\u5149\u690D\u7269",
       "shape": "polygon",
       "points": [
         {
@@ -3237,7 +3237,7 @@
     },
     {
       "id": "scene6-interaction-021",
-      "label": "\u8DA8\u5149\u6027\u690D\u7269",
+      "label": "\u53F3\u5074\u8DA8\u5149\u690D\u7269",
       "shape": "polygon",
       "points": [
         {

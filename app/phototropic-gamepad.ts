@@ -8,25 +8,33 @@ export function plantAngleSpeedForAxis(axis: number) {
   return PLANT_ANGLE_SPEED + (PLANT_ANGLE_MAX_SPEED - PLANT_ANGLE_SPEED) * pressure ** 2;
 }
 export function createPlantPadState() {
-  return { armed: false, dir: "", seconds: 0, slot: 1, angle: null as number | null };
+  return { armed: false, dir: "", fineDir: 0, seconds: 0, slot: 1, angle: null as number | null };
+}
+// The prompt and activation handler must describe the same primary action.
+export function plantPrimaryAction(selected: number, occupied: number | null) {
+  if (selected === 4) return "finish";
+  if (selected >= 0 && selected < 3 && selected !== occupied) return "place";
+  return null;
 }
 export function stepPlantPad(state: ReturnType<typeof createPlantPadState>, input: {
-  x: number; y: number; rightX: number; confirm: boolean; back: boolean;
+  x: number; y: number; rightX: number; fineX?: number; confirm: boolean; back: boolean;
   dt: number; selected: number; lamp: { slot: number | null; angle: number };
 }) {
   const { x, y, rightX, confirm, back, selected, lamp } = input;
+  const fineDir = Math.sign(input.fineX ?? 0);
   const dir = Math.abs(x) > .55 ? (x > 0 ? "right" : "left") : Math.abs(y) > .55 ? (y > 0 ? "down" : "up") : "";
   const angleSpeed = plantAngleSpeedForAxis(rightX);
   const analog = angleSpeed > 0;
-  const result = { selected: selected < 0 ? 1 : selected, angle: null as number | null, activate: false, back: false, active: false };
+  const result = { selected: selected < 0 || selected === 3 ? state.slot : selected, angle: null as number | null, activate: false, back: false, active: false };
   if (!state.armed) {
-    if (!dir && !analog && !confirm && !back) state.armed = true;
+    if (!dir && !analog && !fineDir && !confirm && !back) state.armed = true;
     return result;
   }
   const dt = Math.max(0, Math.min(.05, input.dt));
-  result.active = Boolean(dir || analog || confirm || back);
-  if (selected < 0) state.slot = 1;
-  else if (selected < 3) state.slot = selected;
+  result.active = Boolean(dir || analog || fineDir || confirm || back);
+  // Back wins over a simultaneous placement, navigation or angle adjustment.
+  if (back) { result.back = true; return result; }
+  if (selected >= 0 && selected < 3) state.slot = selected;
   if (dir) {
     state.seconds -= dt;
     if (dir !== state.dir || state.seconds <= 0) {
@@ -38,13 +46,19 @@ export function stepPlantPad(state: ReturnType<typeof createPlantPadState>, inpu
     }
   } else state.seconds = 0;
   state.dir = dir;
-  if (analog && lamp.slot !== null) {
+  if (fineDir) {
+    // One degree per press, without moving the A target or accumulating a
+    // held input. Fine adjustment takes priority over simultaneous analog input.
+    if (!dir && !confirm && selected >= 0) result.selected = selected;
+    if (fineDir !== state.fineDir && lamp.slot !== null) result.angle = Math.max(0, Math.min(120, lamp.angle + fineDir));
+    state.angle = null;
+  } else if (analog && lamp.slot !== null) {
     // Keep fractional progress so slow motion works identically at 30/60/120fps.
     if (state.angle === null || Math.round(state.angle) !== lamp.angle) state.angle = lamp.angle;
     state.angle = Math.max(0, Math.min(120, state.angle + Math.sign(rightX) * angleSpeed * dt));
     result.angle = Math.round(state.angle);
   } else state.angle = null;
-  result.activate = confirm;
-  result.back = back;
+  state.fineDir = fineDir;
+  result.activate = confirm && plantPrimaryAction(result.selected, lamp.slot) !== null;
   return result;
 }

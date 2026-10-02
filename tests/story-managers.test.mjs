@@ -401,16 +401,12 @@ test("ChapterFlowManager 的任務腳本可依序啟用多個 OBJ", async () => 
 });
 
 test("blank dialogue speaker stays blank instead of inheriting the previous line", async () => {
-  const [movementLabSource, dialogueEditorSource] = await Promise.all([
-    readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8"),
+  const [playerSource, dialogueEditorSource] = await Promise.all([
+    readFile(new URL("../app/dialogue-player.ts", import.meta.url), "utf8"),
     readFile(new URL("../MapEditor/DialogueEditorForm.cs", import.meta.url), "utf8"),
   ]);
-  const resolverSource = movementLabSource.slice(
-    movementLabSource.indexOf("function resolveDialogueSpeaker"),
-    movementLabSource.indexOf("function distanceToSegment"),
-  );
-  assert.match(resolverSource, /lines\[lineIndex\]\?\.speaker\?\.trim\(\) \?\? ""/);
-  assert.doesNotMatch(resolverSource, /for \(|lineIndex; index >= 0/);
+  assert.match(playerSource, /speaker: line\.speaker\?\.trim\(\) \?\? ""/);
+  assert.doesNotMatch(playerSource, /lineIndex; index >= 0/);
   assert.match(dialogueEditorSource, /發話者（空白＝不顯示發話者）/);
   assert.doesNotMatch(dialogueEditorSource, /其餘空白＝延續上一位/);
 });

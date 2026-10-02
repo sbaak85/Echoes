@@ -3621,6 +3621,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 }
 .interaction-illustration-overlay > button:focus-visible { outline: none; box-shadow: none; }
 .game-shell[data-interaction-illustration="open"] .dialogue-box { z-index: 40; }
+.game-shell[data-interaction-illustration="open"] .dialogue-history-trigger { z-index: 41; }
 .game-shell[data-interaction-illustration="open"] .dialogue-box.is-history-open { z-index: 97; }
 
 .inventory-item-inspect-overlay:hover:where(:root:not([data-cursor-owner]) *, :root[data-cursor-owner="mouse"] *),

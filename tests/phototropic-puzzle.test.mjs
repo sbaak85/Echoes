@@ -76,9 +76,8 @@ test("socket placement, 8px chamfers and B glyph follow the requested UI contrac
   assert.match(css, /\.plant-controls-unframed \.plant-slots\{position:absolute;top:65\.6%;/);
   assert.match(css, /--item-shape: polygon\(8px 0, calc\(100% - 8px\)/);
   assert.match(css, /clip-path: polygon\(evenodd, 8px 0/);
-  assert.match(ui, /gamepadMode && mode !== "mouse" && mode !== "touch" && <GamepadButtonIcon button=\{dirty \? "A" : "B"\}/);
   assert.match(css, /aspect-ratio: 1;/);
-  assert.match(css, /rgba\(7, 19, 28, \.2\)/);
+  assert.match(css, /\.plant-panel \.plant-slots button::before \{[^}]*opacity: \.75;[^}]*#07131c;/);
   assert.match(css, /--hud-mid: #e4b64d;/);
   assert.match(css, /bottom: calc\(50% - var\(--plant-stick-size\) \* \.25\);/);
   assert.doesNotMatch(ui, /className="plant-base"|已插入|空槽/);

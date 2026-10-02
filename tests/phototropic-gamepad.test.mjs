@@ -74,6 +74,47 @@ test("simultaneous sticks independently move socket focus and change angle; A/B 
   assert.equal(result.activate, true); assert.equal(result.back, false);
   assert.equal(r.step({ x: 0, rightX: 0, confirm: false, back: true }).back, true);
 });
+test("D-pad left/right change exactly one degree per press and preserve every existing focus", () => {
+  for (const selected of [0, 1, 2, 3, 4]) for (const fineX of [-1, 1]) for (const fps of [30, 60, 120]) {
+    const r = rig();
+    const result = r.step({ selected, fineX, dt: 1 / fps });
+    assert.equal(result.angle, 60 + fineX);
+    assert.equal(result.selected, selected);
+    assert.equal(result.activate, false);
+    for (let frame = 0; frame < fps; frame++) {
+      assert.equal(r.step().angle, null, "holding a fine-adjust key does not overshoot");
+      assert.equal(r.input.selected, selected);
+    }
+    r.step({ fineX: 0 });
+    assert.equal(r.step({ fineX }).angle, 60 + 2 * fineX);
+    assert.equal(r.step({ fineX: -fineX }).angle, 60 + fineX);
+  }
+});
+test("fine adjustment ignores empty lamps, clamps endpoints, and requires neutral after entry", () => {
+  const r = rig();
+  assert.equal(r.step({ fineX: 1, lamp: { slot: null, angle: 60 } }).angle, null);
+  for (const [fineX, angle] of [[-1, 0], [1, 120]]) {
+    r.step({ fineX: 0 });
+    assert.equal(r.step({ fineX, lamp: { slot: 1, angle } }).angle, angle);
+  }
+  r.state.armed = false;
+  assert.equal(r.step({ fineX: 1 }).active, false);
+  assert.equal(r.state.armed, false);
+  r.step({ fineX: 0 });
+  assert.equal(r.state.armed, true);
+  assert.equal(r.step({ fineX: -1, lamp: { slot: 1, angle: 60 } }).angle, 59);
+});
+test("fine adjustment wins over analog without stale fractional progress; B still takes precedence", () => {
+  const r = rig();
+  r.step({ rightX: .775, dt: 1 / 120 }); // .375 degrees of fractional progress.
+  assert.equal(r.step({ fineX: 1 }).angle, 61);
+  assert.equal(r.state.angle, null);
+  assert.equal(r.step().angle, null);
+  assert.equal(r.step({ fineX: 0 }).angle, 61, "analog restarts from the fine-adjusted value");
+  const exit = r.step({ fineX: -1, back: true });
+  assert.equal(exit.back, true);
+  assert.equal(exit.angle, null);
+});
 test("uninserted lamps ignore angle, drift is ignored, and bounds are clamped", () => {
   const r = rig();
   assert.equal(r.step({ rightX: 1, lamp: { slot: null, angle: 60 } }).angle, null);
@@ -90,16 +131,42 @@ test("entry and handoff require neutral on BOTH sticks and buttons", () => {
   r.step({ confirm: false }); assert.equal(r.state.armed, true);
   assert.equal(r.step({ rightX: 1 }).active, true);
 });
-test("production and preview route right X exclusively to the plant dial", () => {
+test("A has exactly one meaningful target and B wins over simultaneous input", () => {
+  for (const slot of [null, 0, 1, 2]) for (const selected of [0, 1, 2, 4]) {
+    const r = rig();
+    const action = r.step({ selected, lamp: { slot, angle: 60 }, confirm: true });
+    assert.equal(action.activate, selected === 4 || selected !== slot);
+    const exit = r.step({ x: 1, rightX: 1, confirm: true, back: true });
+    assert.equal(exit.back, true); assert.equal(exit.activate, false); assert.equal(exit.angle, null);
+    assert.equal(exit.selected, action.selected);
+  }
+});
+test("pad takeover from the dial or an unselected pointer remembers the current socket", () => {
+  for (const selected of [-1, 3]) {
+    const r = rig(); r.state.slot = 2;
+    const action = r.step({ selected, lamp: { slot: 2, angle: 60 }, confirm: true });
+    assert.equal(action.selected, 2); assert.equal(action.activate, false);
+    r.step({ confirm: false });
+    assert.equal(r.step({ x: 1 }).selected, 0);
+  }
+});
+test("production and preview keep D-pad fine adjustment separate from left-stick navigation", () => {
   const runtime = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
   const preview = readFileSync(new URL("../app/phototropic-preview/page.tsx", import.meta.url), "utf8");
   const css = readFileSync(new URL("../app/phototropic-puzzle.css", import.meta.url), "utf8");
   assert.match(runtime, /const menuCursorCanTakeControl =\s*!plantController\.isOpen &&/);
-  assert.match(runtime, /hasGamepadActivity && !plantController\.isOpen/);
+  assert.match(runtime, /hasGamepadActivity && \(!plantController\.isOpen \|\| dialoguePlaybackRef\.current\)/);
   const branch = runtime.split("} else if (plantController.isOpen) {")[1].split("} else if (illustrationController")[0];
-  assert.match(branch, /plantController\.pad\(x, y, confirm, backJustPressed, deltaTime, gamepadInput\.cursorX\)/);
+  assert.match(branch, /const x = gamepadInput\.stickX;/);
+  assert.match(branch, /plantController\.pad\(x, y, confirm, backJustPressed, deltaTime, gamepadInput\.cursorX, gamepadInput\.dpadX\)/);
+  assert.match(branch, /if \(plantPadActive\)/);
   assert.doesNotMatch(branch, /activateVirtualCursorUi/);
-  assert.match(preview, /controller\.current\.pad\(x, y, confirm && !a, back && !b, dt, rightX\)/);
+  assert.match(preview, /controller\.current\.pad\(stickX, y, confirm && !a, back && !b, dt, rightX, fineX\)/);
   assert.match(css, /width: min\(216px, calc\(100% - 12px\)\)/);
   assert.match(css, /scale\(1\.3\)/);
+});
+test("keyboard records its device after the shared directional-owner notification", () => {
+  const runtime = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  const branch = runtime.split('const onKeyDown = (event: KeyboardEvent) => {')[1].split('const eventTarget = event.target;')[0];
+  assert.ok(branch.indexOf('activateDirectionalCursor()') < branch.indexOf('activateQuestPromptInputMode("keyboard-mouse")'));
 });
