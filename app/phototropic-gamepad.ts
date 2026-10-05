@@ -18,14 +18,14 @@ export function plantPrimaryAction(selected: number, occupied: number | null) {
 }
 export function stepPlantPad(state: ReturnType<typeof createPlantPadState>, input: {
   x: number; y: number; rightX: number; fineX?: number; confirm: boolean; back: boolean;
-  dt: number; selected: number; lamp: { slot: number | null; angle: number };
+  dt: number; selected: number; lamp: { slot: number | null; angle: number }; readOnly?: boolean;
 }) {
   const { x, y, rightX, confirm, back, selected, lamp } = input;
   const fineDir = Math.sign(input.fineX ?? 0);
   const dir = Math.abs(x) > .55 ? (x > 0 ? "right" : "left") : Math.abs(y) > .55 ? (y > 0 ? "down" : "up") : "";
   const angleSpeed = plantAngleSpeedForAxis(rightX);
   const analog = angleSpeed > 0;
-  const result = { selected: selected < 0 || selected === 3 ? state.slot : selected, angle: null as number | null, activate: false, back: false, active: false };
+  const result = { selected: input.readOnly ? 4 : selected < 0 || selected === 3 ? state.slot : selected, angle: null as number | null, activate: false, back: false, active: false };
   if (!state.armed) {
     if (!dir && !analog && !fineDir && !confirm && !back) state.armed = true;
     return result;
@@ -34,6 +34,9 @@ export function stepPlantPad(state: ReturnType<typeof createPlantPadState>, inpu
   result.active = Boolean(dir || analog || fineDir || confirm || back);
   // Back wins over a simultaneous placement, navigation or angle adjustment.
   if (back) { result.back = true; return result; }
+  // A solved puzzle has one enabled target: return. Keep the neutral gate and
+  // B priority, but never navigate sockets or mutate the read-only dial.
+  if (input.readOnly) { result.activate = confirm; return result; }
   if (selected >= 0 && selected < 3) state.slot = selected;
   if (dir) {
     state.seconds -= dt;

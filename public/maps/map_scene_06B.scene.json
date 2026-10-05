@@ -3189,6 +3189,19 @@
           "disableStageId": "",
           "quantity": 1,
           "chapter": 1
+        },
+        {
+          "dialogueId": "",
+          "kind": "item",
+          "scope": "both",
+          "itemId": "T0006",
+          "questId": "",
+          "stageId": "",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
         }
       ],
       "completionIllustration": {
@@ -3288,6 +3301,19 @@
           "stageMode": "CurrentStageOnly",
           "objectiveId": "QUEST_CH04_MAIN_001_OBJ_18",
           "objectiveState": "unlocked",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        },
+        {
+          "dialogueId": "",
+          "kind": "item",
+          "scope": "both",
+          "itemId": "T0006",
+          "questId": "",
+          "stageId": "",
+          "stageMode": "CurrentStageOnly",
           "disableQuestId": "",
           "disableStageId": "",
           "quantity": 1,

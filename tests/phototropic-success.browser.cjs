@@ -17,7 +17,7 @@ const output = process.env.PLANT_SUCCESS_SCREENSHOT_DIR;
     });
     await page.goto(process.env.PLANT_PREVIEW_URL || 'http://127.0.0.1:3000/phototropic-preview');
     await page.waitForTimeout(1000); // Wait for client hydration before the first click.
-    const open = async side => {
+    const open = async (side, configure = true) => {
       await page.getByRole('button', { name: side === 'L' ? '互動 020 · 左側' : '互動 021 · 右側' }).click();
       const id = side === 'L' ? 'scene6-interaction-020' : 'scene6-interaction-021';
       const intro = page.locator(`.dialogue-box[data-dialogue-id="${id}"]`);
@@ -28,8 +28,10 @@ const output = process.env.PLANT_SUCCESS_SCREENSHOT_DIR;
         await intro.click();
       }
       await page.locator('.plant-controls-unframed').waitFor();
-      await page.getByRole('button', { name: side + '1', exact: true }).click();
-      for (let i = 0; i < 20; i++) await page.getByRole('slider', { name: '照射角度' }).press('ArrowLeft');
+      if (configure) {
+        await page.getByRole('button', { name: side + '1', exact: true }).click();
+        for (let i = 0; i < 20; i++) await page.getByRole('slider', { name: '照射角度' }).press('ArrowLeft');
+      }
       assert.equal(await page.getByRole('slider', { name: '照射角度' }).getAttribute('aria-valuenow'), '-20');
     };
     const padButton = async (index, pressed) => {
@@ -108,6 +110,36 @@ const output = process.env.PLANT_SUCCESS_SCREENSHOT_DIR;
     assert.equal(await page.getByRole('button', { name: '互動 020 · 左側' }).isEnabled(), true);
     const response = await page.request.get(new URL(newSrc, page.url()).href), hash = b => createHash('sha256').update(b).digest('hex');
     assert.equal(hash(await response.body()), hash(readFileSync('public/ui/interaction-illustrations/趨光植物背景_2.png')));
+    // Reopening the completed production overlay is read-only for every input
+    // path, with one enabled return target and no second success presentation.
+    for (const side of ['L', 'R']) {
+      await open(side, false);
+      const slider = page.getByRole('slider', { name: '照射角度' });
+      assert.equal(await page.locator('.plant-slots button:disabled').count(), 3);
+      assert.equal(await slider.getAttribute('aria-disabled'), 'true');
+      assert.equal(await slider.getAttribute('tabindex'), '-1');
+      assert.equal(await page.locator('.plant-position-tip, .plant-place-tip, .plant-angle-tip').count(), 0);
+      await page.keyboard.press('Tab'); await page.keyboard.press('ArrowRight');
+      const grip = page.locator('.plant-dial-grip'), box = await grip.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2); await page.mouse.up();
+      assert.equal(await grip.evaluate(e => getComputedStyle(e).cursor), 'default');
+      await slider.dispatchEvent('pointerdown', { button: 0, pointerType: 'touch', pointerId: 7, clientX: box.x, clientY: box.y, bubbles: true });
+      await slider.dispatchEvent('pointerup', { button: 0, pointerType: 'touch', pointerId: 7, bubbles: true });
+      await page.evaluate(() => { window.testPad.axes[0] = 1; window.testPad.axes[2] = 1; window.testPad.buttons[15] = { pressed: true, value: 1 }; });
+      await page.waitForTimeout(250);
+      await page.evaluate(() => { window.testPad.axes = [0, 0, 0, 0]; window.testPad.buttons[15] = { pressed: false, value: 0 }; });
+      await page.waitForTimeout(80);
+      assert.equal(await slider.getAttribute('aria-valuenow'), '-20');
+      assert.equal(await page.getByRole('button', { name: side + '1', exact: true }).getAttribute('aria-pressed'), 'true');
+      assert.equal(await page.locator('.plant-confirm').getAttribute('data-selected'), 'true');
+      assert.equal(await page.locator('.plant-slots [data-selected=true]').count(), 0);
+      assert.equal(await page.locator('.plant-success-curtain, .dialogue-box').count(), 0);
+      if (side === 'L') await padPress(0); else await page.keyboard.press('Escape');
+      await page.locator('.plant-puzzle-overlay').waitFor({ state: 'detached' });
+      assert.equal(await page.locator('.plant-success-curtain, .dialogue-box').count(), 0);
+      assert.match(await page.locator('.plant-preview-choices').innerText(), /L1 · 40°[\s\S]*R1 · 40°/);
+    }
     // Reload while the asynchronous dialogue is pending: no old return fires.
     await page.reload(); await page.waitForTimeout(1000);
     await open('L'); await page.locator('.plant-confirm').click(); await open('R'); await waitPhase('dialogue');
@@ -116,6 +148,6 @@ const output = process.env.PLANT_SUCCESS_SCREENSHOT_DIR;
     assert.match(await page.locator('.plant-preview-choices').innerText(), /左側：未放置\s+右側：未放置/);
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({ phases: phases.map(p => p.phase), durationsMs: durations, image }));
-    console.log('PASS: timed cover/black/reveal/hold; exact supplied PNG; controls and beams removed; vines retained; all four real script lines; held-pad handoff; A/Space/pointer/Enter dialogue; no early return; 500ms final fade; cancellation cleanup.');
+    console.log('PASS: timed cover/black/reveal/hold; exact supplied PNG; controls and beams removed; vines retained; all four real script lines; held-pad handoff; A/Space/pointer/Enter dialogue; no early return; 500ms final fade; read-only solved state for keyboard/mouse/simulated touch/gamepad; return without success replay; cancellation cleanup.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -16,6 +16,23 @@ function rig() {
   step();
   return { state, input, step };
 }
+test("read-only gamepad controls keep only return selected, block adjustments, and retain the neutral gate", () => {
+  const state = createPlantPadState();
+  const input = { x: 1, y: 1, rightX: 1, fineX: 1, confirm: true, back: false, dt: .05, selected: 0, lamp: { slot: 0, angle: 40 }, readOnly: true };
+  let result = stepPlantPad(state, input);
+  assert.equal(result.active, false); assert.equal(result.activate, false); assert.equal(result.angle, null);
+  Object.assign(input, { x: 0, y: 0, rightX: 0, fineX: 0, confirm: false });
+  stepPlantPad(state, input);
+  for (let frame = 0; frame < 30; frame++) {
+    result = stepPlantPad(state, { ...input, x: 1, y: -1, rightX: 1, fineX: 1 });
+    assert.equal(result.selected, 4); assert.equal(result.angle, null); assert.equal(result.activate, false);
+  }
+  result = stepPlantPad(state, { ...input, x: 1, rightX: 1, confirm: true });
+  assert.equal(result.selected, 4); assert.equal(result.activate, true); assert.equal(result.angle, null);
+  result = stepPlantPad(state, { ...input, confirm: true, back: true });
+  assert.equal(result.back, true); assert.equal(result.activate, false); assert.equal(result.angle, null);
+  assert.equal(input.lamp.angle, 40);
+});
 test("gamepad starts at center, and its first horizontal input immediately selects an adjacent socket", () => {
   assert.equal(createPlantPadState().slot, 1);
   for (const [x, expected] of [[-1, 0], [1, 2]]) for (const selected of [-1, 1]) {

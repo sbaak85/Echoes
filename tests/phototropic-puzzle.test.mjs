@@ -63,7 +63,7 @@ test("entrance is shared by both interactions and reopening resumes saved light 
   assert.match(ui, /data-play-entrance=\{presentation\.playEntrance\}/);
   assert.match(ui, /useLayoutEffect\(\(\) => \{\s*const vines = createPlantVines/);
   assert.match(ui, /introducedRef\.current\?\.\(\)/);
-  assert.match(ui, /markIntroduced\(\)[\s\S]*?savePhototropicState\(state\.current\)/);
+  assert.match(ui, /markIntroduced\(\)[\s\S]*?persist\(\)/);
   const css = readFileSync(new URL("../app/phototropic-puzzle.css", import.meta.url), "utf8");
   assert.match(css, /\[data-play-entrance=false\] \.plant-vines\{animation:plant-vine-in 500ms/);
   assert.match(css, /@keyframes plant-vine-in\{from\{opacity:0\}to\{opacity:1\}\}/);

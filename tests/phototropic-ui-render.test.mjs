@@ -95,14 +95,171 @@ function createOverlayRig(initial = { ...puzzle.initialPhototropicState(), intro
   });
   const ref = { current: null }, finished = [];
   const props = { view: { side: "L", imagePath: "/plant.png", initial }, gamepadMode, onFinish(state) { finished.push(state); } };
-  function render() { stateIndex = refIndex = 0; return renderToStaticMarkup(module.PhototropicPuzzleOverlay.render(props, ref)); }
-  return { ref, props, finished, render, transitionTo(phase) {
+  let tree;
+  function render() { stateIndex = refIndex = 0; tree = module.PhototropicPuzzleOverlay.render(props, ref); return renderToStaticMarkup(tree); }
+  return { ref, props, finished, render, get tree() { return tree; }, transitionTo(phase) {
     const index = states.findIndex(value => ["cover", "black", "reveal", "hold", "dialogue", "exit"].includes(value));
     assert.ok(index >= 0); states[index] = phase;
   } };
 }
 const primaryCount = html => (html.match(/data-gamepad-glyph="A"/g) || []).length;
 const footer = html => html.match(/<button class="plant-confirm"[\s\S]*?<\/button>/)?.[0];
+
+function createPuzzleRig(onSolved = () => {}, onSaved = () => {}) {
+  const states = [], refs = [];
+  let stateIndex = 0, refIndex = 0;
+  const hooks = {
+    ...React,
+    useState(initial) { const i = stateIndex++; if (!(i in states)) states[i] = initial; return [states[i], value => { states[i] = value; }]; },
+    useRef(initial) { const i = refIndex++; return refs[i] ??= { current: initial }; },
+    useEffect() {},
+  };
+  const module = loadJsx("../app/phototropic-puzzle-ui.tsx", {
+    react: hooks, "react/jsx-runtime": jsxRuntime, "./cursor-ownership": { cursorOwnership },
+    "./gamepad-button-icon": icons, "./phototropic-puzzle.css": {}, "./phototropic-gamepad": plantGamepad,
+    "./phototropic-success-transition": plantSuccess,
+    "./public-asset-url": { resolveRuntimePublicAssetUrl: path => `/${path}` },
+    "./phototropic-vines": {}, "./phototropic-vine-geometry.js": {}, "./phototropic-puzzle": puzzle,
+  });
+  return () => { stateIndex = refIndex = 0; return module.usePhototropicPuzzle(onSolved, onSaved); };
+}
+
+async function withPlantStorage(run) {
+  const previousWindow = globalThis.window, originalWarn = console.warn;
+  const storage = new Map(), warnings = [];
+  let denied = false;
+  globalThis.window = { localStorage: {
+    getItem: key => storage.get(key) ?? null,
+    setItem(key, value) { if (denied) throw Error("storage denied"); storage.set(key, value); },
+  } };
+  console.warn = (...args) => warnings.push(args);
+  try { await run({ storage, warnings, deny: value => { denied = value; } }); }
+  finally { console.warn = originalWarn; if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow; }
+}
+
+test("denied local storage still closes the overlay, resolves once, and retains state for a later save", async () => {
+  await withPlantStorage(async ({ deny, storage, warnings }) => {
+    let saved = 0, solved = 0;
+    const render = createPuzzleRig(() => solved++, () => saved++);
+    const { controller, control } = render();
+    const pending = controller.open("L", "/plant.png");
+    assert.ok(render().view);
+    control.current = { key() { assert.fail("closed controls must not receive keys"); } };
+    const next = { ...puzzle.initialPhototropicState(), introduced: true, L: { slot: 1, angle: 75 } };
+    deny(true);
+    assert.doesNotThrow(() => controller.finish(next, false));
+    assert.equal(await pending, true);
+    assert.equal(controller.isOpen, false);
+    assert.equal(render().view, null);
+    assert.equal(control.current, null);
+    controller.key("enter", false);
+    assert.deepEqual(controller.state, next);
+    assert.equal(saved, 1); assert.equal(solved, 0); assert.equal(warnings.length, 1);
+    controller.finish(next, false); assert.equal(saved, 1, "a duplicate close is ignored");
+    deny(false);
+    const reopened = controller.open("R", "/plant.png");
+    assert.deepEqual(render().view.initial, next, "reopening uses the retained session state");
+    controller.finish(next, false); assert.equal(await reopened, true);
+    assert.deepEqual(JSON.parse(storage.get(puzzle.PHOTOTROPIC_STORAGE_KEY)), next);
+  });
+});
+
+test("entrance persistence failure cannot interrupt animation or replay the entrance in the same session", async () => {
+  await withPlantStorage(async ({ deny, warnings }) => {
+    let saved = 0;
+    const render = createPuzzleRig(() => {}, () => saved++), { controller } = render();
+    const pending = controller.open("L", "/plant.png"); deny(true);
+    assert.doesNotThrow(() => controller.markIntroduced());
+    assert.equal(controller.state.introduced, true);
+    assert.equal(controller.isOpen, true);
+    controller.markIntroduced(); assert.equal(saved, 1); assert.equal(warnings.length, 1);
+    controller.cancel(); assert.equal(await pending, false);
+    const reopened = controller.open("R", "/plant.png");
+    assert.equal(puzzle.plantPresentationStart(render().view.initial).playEntrance, false);
+    controller.cancel(); assert.equal(await reopened, false);
+  });
+});
+
+test("autosave and completion callback failures still release a solved puzzle and its pending promise", async () => {
+  await withPlantStorage(async ({ deny, warnings }) => {
+    let saved = 0, solved = 0;
+    const render = createPuzzleRig(() => { solved++; throw Error("quest save denied"); }, () => { saved++; throw Error("autosave unavailable"); });
+    const { controller } = render(), pending = controller.open("L", "/plant.png");
+    const solution = { introduced: true, solved: false, L: { slot: 0, angle: 40 }, R: { slot: 0, angle: 40 } };
+    deny(true);
+    assert.doesNotThrow(() => controller.finish(solution, true));
+    assert.equal(await pending, true); assert.equal(controller.isOpen, false); assert.equal(render().view, null);
+    assert.equal(controller.state.solved, true); assert.equal(saved, 1); assert.equal(solved, 1);
+    assert.equal(warnings.length, 3);
+  });
+});
+
+test("controller rejects stale edits to a completed puzzle and never repeats its completion callback", async () => {
+  await withPlantStorage(async ({ storage }) => {
+    let solved = 0;
+    const render = createPuzzleRig(() => solved++), { controller } = render();
+    const solution = { introduced: true, solved: true, L: { slot: 0, angle: 40 }, R: { slot: 0, angle: 40 } };
+    controller.hydrate(solution);
+    for (const side of ["L", "R"]) {
+      const pending = controller.open(side, "/plant.png");
+      const stale = { ...solution, solved: false, [side]: { slot: 2, angle: 120 } };
+      controller.finish(stale, true); assert.equal(await pending, true);
+      assert.deepEqual(controller.state, solution);
+      assert.deepEqual(JSON.parse(storage.get(puzzle.PHOTOTROPIC_STORAGE_KEY)), solution);
+    }
+    assert.equal(solved, 0);
+  });
+});
+
+function findElement(node, predicate) {
+  if (!React.isValidElement(node)) return null;
+  if (predicate(node)) return node;
+  for (const child of React.Children.toArray(node.props.children)) {
+    const found = findElement(child, predicate); if (found) return found;
+  }
+  return null;
+}
+
+test("completed overlays keep every light control read-only and A/B/Escape/click return without replay", () => {
+  try {
+    cursorOwnership.owner = "directional";
+    const solution = { introduced: true, solved: true, L: { slot: 0, angle: 40 }, R: { slot: 0, angle: 40 } };
+    for (const side of ["L", "R"]) for (const exit of ["A", "B", "Enter", "Escape", "click"]) {
+      const rig = createOverlayRig(solution); rig.props.view.side = side;
+      let html = rig.render();
+      assert.equal((html.match(/disabled="" aria-label="[LR][123]"/g) || []).length, 3);
+      assert.match(html, /aria-disabled="true" tabindex="-1"/);
+      assert.match(html, /光源設定已鎖定/);
+      assert.doesNotMatch(html, /plant-position-tip|plant-place-tip|plant-angle-tip/);
+      assert.match(footer(html), /data-selected="true"[\s\S]*data-gamepad-glyph="A"/);
+      assert.equal(primaryCount(html), 1);
+      const disabledSlot = findElement(rig.tree, node => node.type === "button" && node.props["aria-label"] === `${side}3`);
+      disabledSlot.props.onClick(); // Even a stale/programmatic handler cannot place.
+      const dial = findElement(rig.tree, node => node.type === "svg" && node.props.role === "slider");
+      for (const pointerType of ["mouse", "touch"]) {
+        dial.props.onPointerDown({ button: 0, pointerType, preventDefault() { assert.fail("locked dial cannot start a drag"); } });
+      }
+      rig.tree.props.ref.current = { querySelector() { assert.fail("locked virtual-pointer adjustment must be ignored"); } };
+      rig.ref.current.point(100, 100);
+      for (const key of ["tab", "arrowleft", "arrowright", "arrowup", "arrowdown"]) rig.ref.current.key(key, false);
+      rig.ref.current.pad(0, 0, false, false, .05);
+      for (let frame = 0; frame < 30; frame++) rig.ref.current.pad(1, 1, false, false, .05, 1, 1);
+      html = rig.render();
+      assert.match(html, /aria-valuenow="-20"/);
+      assert.match(html, new RegExp(`aria-label="${side}1" aria-pressed="true"`));
+      assert.match(footer(html), /data-selected="true"/);
+      assert.doesNotMatch(html, /data-success-phase=|設定已變更/);
+      if (exit === "A" || exit === "B") {
+        rig.ref.current.pad(0, 0, false, false, .05);
+        rig.ref.current.pad(1, 1, exit === "A", exit === "B", .05, 1, 1);
+      } else if (exit === "click") findElement(rig.tree, node => node.type === "button" && node.props.className === "plant-confirm").props.onClick();
+      else rig.ref.current.key(exit.toLowerCase(), false);
+      rig.ref.current.key("escape", false);
+      assert.equal(rig.finished.length, 1, `${side}/${exit}`);
+      assert.deepEqual(rig.finished[0], solution);
+    }
+  } finally { cursorOwnership.reset(); }
+});
 
 test("controller navigation and activation sound once per accepted input, without held-frame or automatic-focus replay", () => {
   try {

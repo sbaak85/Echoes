@@ -61,7 +61,8 @@
 .plant-confirm{display:block;width:100%;padding:10px;margin-top:14px;border:1px solid #6d9183;border-radius:8px;background:#183a37;color:#e2edce;font:inherit;cursor:pointer}.plant-note{font-size:10px;color:#93ac9c;text-align:center;margin:12px 0 0}
 .plant-panel button:focus,.plant-panel button:focus-visible,.plant-angle-dial:focus,.plant-angle-dial:focus-visible{outline:none;box-shadow:none;-webkit-tap-highlight-color:transparent}
 .plant-panel [data-selected=true]{border-color:#d6e6b0;box-shadow:0 0 16px #adebc64d;background-color:#25483e}
-:root[data-cursor-owner=mouse] .plant-panel button:hover{border-color:#d6e6b0}
+:root[data-cursor-owner=mouse] .plant-panel button:not(:disabled):hover{border-color:#d6e6b0}
+.plant-slots button:disabled{cursor:default}
 .plant-puzzle-overlay[data-control-mode=directional],.plant-puzzle-overlay[data-control-mode=directional] *,.plant-puzzle-overlay[data-control-mode=touch],.plant-puzzle-overlay[data-control-mode=touch] *{cursor:none!important}
 .plant-success-message{position:absolute;inset:0;z-index:43;display:grid;place-items:center;pointer-events:none;background:#06141033}.plant-success-message span{padding:22px 35px;border-block:1px solid #b1d6a155;background:linear-gradient(90deg,transparent,#091f20ee 20%,#091f20ee 80%,transparent);color:#e5f2c9;font-size:clamp(16px,2vw,26px);letter-spacing:3px;animation:plant-controls-in .4s ease-out both;text-align:center}
 @keyframes plant-vine-in{from{opacity:0}to{opacity:1}}@keyframes plant-controls-in{from{opacity:0}to{opacity:1}}
@@ -109,14 +110,14 @@
   clip-path: polygon(evenodd, 8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px, 8px 0, 8.414px 1px, 1px 8.414px, 1px calc(100% - 8.414px), 8.414px calc(100% - 1px), calc(100% - 8.414px) calc(100% - 1px), calc(100% - 1px) calc(100% - 8.414px), calc(100% - 1px) 8.414px, calc(100% - 8.414px) 1px, 8.414px 1px, 8px 0);
 }
 .plant-panel .plant-slots button.is-inserted { --item-corner-glow: rgba(99, 216, 225, .4); }
-.plant-puzzle-overlay[data-control-mode="mouse"] .plant-slots button:hover,
+.plant-puzzle-overlay[data-control-mode="mouse"] .plant-slots button:not(:disabled):hover,
 .plant-puzzle-overlay[data-control-mode="directional"] .plant-slots button[data-selected="true"] {
   --item-corner-glow: rgba(255, 219, 136, .55);
   --item-edge: linear-gradient(135deg, #fff9dc, #ffd884 24%, #b48d43 50%, #ffd884 76%, #fff9dc);
   border-color: transparent;
   box-shadow: none;
 }
-.plant-puzzle-overlay[data-control-mode="mouse"] .plant-slots button:hover::after,
+.plant-puzzle-overlay[data-control-mode="mouse"] .plant-slots button:not(:disabled):hover::after,
 .plant-puzzle-overlay[data-control-mode="directional"] .plant-slots button[data-selected="true"]::after {
   filter: drop-shadow(0 0 3px #ffda88) drop-shadow(0 0 7px #ffcb6866);
 }
@@ -256,7 +257,8 @@
 .plant-puzzle-overlay[data-control-mode="directional"] .plant-angle-control[data-selected="true"] .plant-dial-track { stroke: #e6bf6c; }
 .plant-angle-control.is-dragging .plant-angle-dial, .plant-angle-control.is-dragging .plant-dial-grip { cursor: grabbing; }
 .plant-angle-control.is-dragging .plant-dial-handle-ring { stroke: #e6bf6c; }
-.plant-puzzle-overlay[data-control-mode="mouse"] .plant-dial-grip:hover .plant-dial-handle { fill: #28596a; stroke: #fff; }
+.plant-puzzle-overlay[data-control-mode="mouse"] .plant-angle-dial:not([aria-disabled=true]) .plant-dial-grip:hover .plant-dial-handle { fill: #28596a; stroke: #fff; }
+.plant-controls-unframed .plant-angle-dial[aria-disabled=true],.plant-angle-dial[aria-disabled=true] .plant-dial-grip{cursor:default}
 @media (max-height:800px) {
   .plant-controls-unframed .plant-angle-control { top: max(35%, calc(19.4% + 128px)); height: 18.5%; min-height: 132px; }
 }
