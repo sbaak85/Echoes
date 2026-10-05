@@ -958,6 +958,65 @@ button {
 .time-elapsed-notice::before { top: 0; }
 .time-elapsed-notice::after { bottom: 0; }
 
+/* Time notice uses the approved HUD surface below, with open, fading sides. */
+.time-elapsed-notice:not(.quest-event-notice) {
+  --hud-mid: #819454;
+  --hud-tint: #7c90542b;
+  --hud-base: rgba(13, 20, 12, .4);
+  --hud-shape: inset(0);
+  isolation: isolate;
+  min-height: 76px;
+  color: #eff6df;
+  background: transparent;
+  box-shadow: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.32) 11%, #000 28%, #000 72%, rgba(0, 0, 0, 0.32) 89%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.32) 11%, #000 28%, #000 72%, rgba(0, 0, 0, 0.32) 89%, transparent 100%);
+}
+
+.time-elapsed-notice:not(.quest-event-notice)::before,
+.time-elapsed-notice:not(.quest-event-notice)::after {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(178, 190, 128, 0.12) 8%,
+    rgba(219, 226, 176, 0.72) 27%,
+    rgba(255, 255, 241, 0.98) 46%,
+    #fff 50%,
+    rgba(255, 255, 241, 0.98) 54%,
+    rgba(219, 226, 176, 0.72) 73%,
+    rgba(178, 190, 128, 0.12) 92%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 2px rgba(255, 255, 255, 0.98),
+    0 0 7px rgba(222, 226, 173, 0.8),
+    0 0 15px rgba(132, 151, 84, 0.48);
+}
+
+.time-elapsed-notice:not(.quest-event-notice)::before {
+  top: 0;
+}
+
+.time-elapsed-notice:not(.quest-event-notice)::after {
+  bottom: 0;
+}
+
+.time-elapsed-notice:not(.quest-event-notice) .time-elapsed-notice-content {
+  text-shadow: 0 1px 8px rgba(7, 12, 6, 0.82), 0 0 7px rgba(129, 148, 84, 0.24);
+}
+
+.time-elapsed-notice:not(.quest-event-notice) .time-elapsed-clock-icon {
+  border-color: rgba(229, 237, 207, 0.94);
+  background: radial-gradient(circle at center, #eff6df 0 2px, transparent 2.5px);
+  box-shadow: 0 0 10px rgba(201, 214, 162, 0.22), inset 0 0 8px rgba(129, 148, 84, 0.14);
+}
+
+.time-elapsed-notice:not(.quest-event-notice) .time-elapsed-clock-icon::before,
+.time-elapsed-notice:not(.quest-event-notice) .time-elapsed-clock-icon::after {
+  background: #eff6df;
+}
+
 .time-elapsed-notice.is-dismissing {
   animation: time-elapsed-notice-dismiss 1s ease-in both;
 }
@@ -1067,6 +1126,10 @@ button {
   .time-elapsed-notice {
     width: min(620px, 90%);
     min-height: 52px;
+  }
+
+  .time-elapsed-notice:not(.quest-event-notice) {
+    min-height: 58px;
   }
 
   .time-elapsed-notice-content {
@@ -11042,7 +11105,8 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   clip-path: var(--hud-ring);
   background: linear-gradient(135deg, var(--hud-light), transparent 27%, transparent 73%, var(--hud-light));
 }
-:is(.quest-hud, .survival-clock > span, .survival-mini-panel, .survival-panel, .survival-mobile-minimal-panel, .survival-frame-shell)::before {
+:is(.quest-hud, .survival-clock > span, .survival-mini-panel, .survival-panel, .survival-mobile-minimal-panel, .survival-frame-shell)::before,
+.time-notice-texture {
   content: "";
   position: absolute;
   inset: 1px;
@@ -11053,6 +11117,8 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   opacity: .13;
   mask-image: radial-gradient(ellipse 65% 120% at top left, #000, transparent 78%), radial-gradient(ellipse 65% 120% at bottom right, #000, transparent 78%);
 }
+.time-notice-surface::after { display: none; }
+.time-notice-surface .time-notice-texture { z-index: 0; }
 .quest-hud .quest-header { border-radius: 8px 8px 0 0; }
 .quest-hud .quest-collapse,
 .quest-hud .quest-collapse:is(:hover, :focus, :focus-visible, .is-selected) {

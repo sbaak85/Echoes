@@ -16760,6 +16760,7 @@ export function MovementLab() {
           role="status"
           aria-live="polite"
         >
+          <span className="hud-frame-art time-notice-surface" aria-hidden="true"><span className="time-notice-texture" /></span>
           <div className="time-elapsed-notice-content">
             <span
               className="time-elapsed-clock-icon"

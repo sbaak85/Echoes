@@ -1,0 +1,159 @@
+<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>虛擬游標｜現行與新版比較</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#071018;color:#dceefa;font:15px system-ui,sans-serif}main{max-width:1400px;margin:40px auto;padding:24px}h1{font-size:24px;font-weight:500}p{color:#9ab1bf;line-height:1.7}.controls{display:flex;gap:12px;flex-wrap:wrap;margin:24px 0}button{background:#122934;color:#c5edfa;border:1px solid #547784;padding:10px 18px;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);cursor:pointer;outline:none}button[aria-pressed=true],button:hover{background:#234854;color:#fff;box-shadow:inset 0 0 12px #86d8f244}button:focus-visible{color:#fff;filter:drop-shadow(0 0 4px #86d8f2)}.pair{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}section{min-width:0}h2{font-size:18px;font-weight:500;color:#c5edfa}canvas{width:100%;height:300px;display:block;background:radial-gradient(ellipse at top left,#86d8f219,transparent 50%),repeating-linear-gradient(135deg,transparent 0 25px,#86d8f209 26px 27px),#0a1922;border-top:1px solid #86d8f255;border-bottom:1px solid #86d8f255}small{color:#9ab1bf}.note{margin-top:24px}@media(max-width:900px){main{margin:0 auto;padding:18px}.pair{grid-template-columns:1fr}canvas{height:230px}}
+</style><main><small>ECHOES / CURSOR DESIGN REVIEW</small><h1>虛擬游標 · 現行 / 新版候選</h1><div class="controls"><button id="normal" aria-pressed="true">一般準星</button><button id="dialogue" aria-pressed="false">對話書本</button><button id="pause" aria-pressed="false">暫停呼吸動畫</button></div><div class="pair"><section><h2>01　現行版本</h2><canvas id="old" aria-label="現行游標原尺寸與三倍放大"></canvas><p>原始 Canvas 繪製碼，保留目前尺寸、顏色與呼吸。</p></section><section><h2>02　第一版 · 分段圓環</h2><canvas id="first" aria-label="第一版游標原尺寸與三倍放大"></canvas><p>原始冰藍分段圓環、獨立短線，線寬 1px。</p></section><section><h2>03　目前版 · 尖角相連</h2><canvas id="new" aria-label="新版游標原尺寸與三倍放大"></canvas><p>外圈、短線與內圈皆為 1px，2px 尖角相連。</p></section><section><h2>04　十字核心 · 懸浮外環</h2><canvas id="cross" aria-label="十字線與不接觸外環候選"></canvas><p>中心十字半長 10px；四段圓弧內縮至半徑 7px，十字線向外伸出，接近軸線處保留空隙。</p></section><section><h2>05　四向角框 · 菱形核心</h2><canvas id="brackets" aria-label="四向懸浮角框候選"></canvas><p>四角冰藍光框，搭配中空菱形定位點，中央保持清晰。</p></section></div><p class="note">每欄左側為 1× 實際尺寸，右側為 3× 細節。04／05 僅外觀候選；對話狀態暫沿用 02 書本。主專案目前使用 02，這次未更動。</p><p>現行一般：半徑 13px、線寬 2.2px、中心點半徑 2.6px、Glow 11px；呼吸 ±7%。對話：書本寬 36px、線寬 2px、Glow 9px、呼吸 ±3.5%。</p></main>
+<script>
+let dialogue=false,paused=false,frozen=0,lastTime=0;
+const cursorOwnership={owner:'mouse'},virtualCursorControlsEnabledRef={current:true},virtualCursorVisible=true,cursorPresentation={reconcile:()=>true},dialoguePlaybackRef={current:false},virtualCursor={x:0,y:0};
+let cursorContext;
+    const drawPointerCursor = (time) => {
+      if (
+        cursorOwnership.owner === "directional" || cursorOwnership.owner === "touch" ||
+        !virtualCursorControlsEnabledRef.current ||
+        !virtualCursorVisible
+      ) {
+        return;
+      }
+
+      // Rendering is a second safety boundary: repair lost DOM attributes or
+      // newly opened overlays before allowing a gamepad cursor onto the canvas.
+      if (cursorOwnership.owner === "gamepad" &&
+        !cursorPresentation.reconcile("gamepad", cursorOwnership.lastMouse)) return;
+
+      if (dialoguePlaybackRef.current) {
+        const pulse = 1 + Math.sin(time / 190) * 0.035;
+        cursorContext.save();
+        cursorContext.translate(virtualCursor.x, virtualCursor.y);
+        cursorContext.scale(pulse, pulse);
+        cursorContext.lineWidth = 2;
+        cursorContext.lineJoin = "round";
+        cursorContext.strokeStyle = "#e9f4ed";
+        cursorContext.fillStyle = "rgba(23, 32, 29, 0.92)";
+        cursorContext.shadowColor = "#61ead8";
+        cursorContext.shadowBlur = 9;
+
+        cursorContext.beginPath();
+        cursorContext.moveTo(0, -11);
+        cursorContext.quadraticCurveTo(-8, -16, -18, -13);
+        cursorContext.lineTo(-18, 8);
+        cursorContext.quadraticCurveTo(-8, 7, 0, 13);
+        cursorContext.closePath();
+        cursorContext.fill();
+        cursorContext.stroke();
+
+        cursorContext.beginPath();
+        cursorContext.moveTo(0, -11);
+        cursorContext.quadraticCurveTo(8, -16, 18, -13);
+        cursorContext.lineTo(18, 8);
+        cursorContext.quadraticCurveTo(8, 7, 0, 13);
+        cursorContext.closePath();
+        cursorContext.fill();
+        cursorContext.stroke();
+
+        cursorContext.shadowBlur = 0;
+        cursorContext.beginPath();
+        cursorContext.moveTo(0, -11);
+        cursorContext.lineTo(0, 13);
+        cursorContext.stroke();
+        cursorContext.fillStyle = "#61ead8";
+        for (const x of [25, 31, 37]) {
+          cursorContext.beginPath();
+          cursorContext.arc(x, 4, 1.7, 0, Math.PI * 2);
+          cursorContext.fill();
+        }
+        cursorContext.restore();
+        return;
+      }
+
+      const pulse = 1 + Math.sin(time / 150) * 0.07;
+      const radius = 13 * pulse;
+      cursorContext.save();
+      cursorContext.translate(virtualCursor.x, virtualCursor.y);
+      cursorContext.strokeStyle = "#80f5e7";
+      cursorContext.fillStyle = "rgba(9, 25, 30, 0.86)";
+      cursorContext.lineWidth = 2.2;
+      cursorContext.shadowColor = "#54dfd0";
+      cursorContext.shadowBlur = 11;
+
+      cursorContext.beginPath();
+      cursorContext.arc(0, 0, radius, 0, Math.PI * 2);
+      cursorContext.fill();
+      cursorContext.stroke();
+
+      cursorContext.shadowBlur = 0;
+      cursorContext.beginPath();
+      cursorContext.moveTo(-radius - 7, 0);
+      cursorContext.lineTo(-radius + 2, 0);
+      cursorContext.moveTo(radius - 2, 0);
+      cursorContext.lineTo(radius + 7, 0);
+      cursorContext.moveTo(0, -radius - 7);
+      cursorContext.lineTo(0, -radius + 2);
+      cursorContext.moveTo(0, radius - 2);
+      cursorContext.lineTo(0, radius + 7);
+      cursorContext.stroke();
+
+      cursorContext.fillStyle = "#d9fffa";
+      cursorContext.beginPath();
+      cursorContext.arc(0, 0, 2.6, 0, Math.PI * 2);
+      cursorContext.fill();
+      cursorContext.restore();
+    };
+
+
+
+function candidate(c,time,first=false){
+const pulse=1+Math.sin(time/150)*.035;
+c.save();c.scale(pulse,pulse);c.lineJoin='round';c.lineCap='round';c.strokeStyle='#86d8f2';c.lineWidth=1;c.shadowColor='#86d8f2';c.shadowBlur=5;
+if(dialogue){
+c.fillStyle='#05121be6';c.beginPath();c.moveTo(0,-10);c.lineTo(-13,-14);c.lineTo(-18,-10);c.lineTo(-18,9);c.lineTo(-4,9);c.lineTo(0,13);c.lineTo(4,9);c.lineTo(18,9);c.lineTo(18,-10);c.lineTo(13,-14);c.closePath();c.fill();c.stroke();
+c.strokeStyle='#dcfaff';c.beginPath();c.moveTo(-16,-10);c.lineTo(-12,-12);c.lineTo(0,-9);c.lineTo(12,-12);c.lineTo(16,-10);c.moveTo(0,-9);c.lineTo(0,10);c.stroke();
+c.shadowBlur=0;c.strokeStyle='#86d8f266';for(let y=-4;y<6;y+=5){c.beginPath();c.moveTo(-13,y);c.lineTo(-5,y+1);c.moveTo(5,y+1);c.lineTo(13,y);c.stroke();}
+c.fillStyle='#dcfaff';for(let x=25;x<=37;x+=6){c.beginPath();c.arc(x,4,1.3,0,Math.PI*2);c.fill();}
+}else{
+const g=c.createRadialGradient(-5,-6,0,0,0,13);g.addColorStop(0,'#234555a8');g.addColorStop(1,'#05121bcc');c.fillStyle=g;c.beginPath();c.arc(0,0,12,0,Math.PI*2);c.fill();
+if(first){
+for(let i=0;i<4;i++){const a=i*Math.PI/2;c.beginPath();c.arc(0,0,13,a+.17,a+Math.PI/2-.17);c.stroke();}
+c.shadowBlur=0;c.strokeStyle='#86d8f23d';c.beginPath();c.arc(0,0,9.5,0,Math.PI*2);c.stroke();
+c.strokeStyle='#dcfaff';c.shadowBlur=6;for(let i=0;i<4;i++){c.save();c.rotate(i*Math.PI/2);c.beginPath();c.moveTo(16,0);c.lineTo(20,0);c.stroke();c.restore();}
+}else{
+// Current approved preview geometry; do not change alongside baseline restoration.
+const joinX=Math.sqrt(13*13-2*2),joinAngle=Math.asin(2/13);
+c.lineJoin='miter';c.lineWidth=1;c.strokeStyle='#b9eaff';c.shadowBlur=6;c.beginPath();
+for(let i=0;i<4;i++){
+const angle=i*Math.PI/2,cs=Math.cos(angle),sn=Math.sin(angle);
+const point=(x,y)=>[x*cs-y*sn,x*sn+y*cs];
+if(i===0)c.moveTo(...point(joinX,-2));
+c.lineTo(...point(joinX+2,0));c.lineTo(...point(joinX,2));
+c.arc(0,0,13,angle+joinAngle,angle+Math.PI/2-joinAngle);
+}
+c.closePath();c.stroke();
+c.save();c.lineWidth=1;c.lineCap='butt';c.beginPath();
+for(let i=0;i<4;i++){const angle=i*Math.PI/2,cs=Math.cos(angle),sn=Math.sin(angle);c.moveTo((joinX+2)*cs,(joinX+2)*sn);c.lineTo(20*cs,20*sn);}
+c.stroke();c.restore();
+c.shadowBlur=0;c.lineWidth=1;c.strokeStyle='#86d8f23d';c.beginPath();c.arc(0,0,9.5,0,Math.PI*2);c.stroke();
+c.shadowColor='#86d8f2';c.shadowBlur=6;
+}
+c.fillStyle='#dcfaff';c.beginPath();c.arc(0,0,2,0,Math.PI*2);c.fill();
+}c.restore();}
+function extraCandidate(c,time,kind){
+if(dialogue){candidate(c,time,true);return;}
+const pulse=1+Math.sin(time/150)*.035;
+c.save();c.scale(pulse,pulse);c.lineWidth=1;c.lineCap='round';c.lineJoin='miter';c.shadowColor='#86d8f2';c.shadowBlur=5;
+if(kind==='cross'){
+c.strokeStyle='#86d8f2';c.beginPath();for(let i=0;i<4;i++){const a=i*Math.PI/2+.38;c.moveTo(7*Math.cos(a),7*Math.sin(a));c.arc(0,0,7,a,(i+1)*Math.PI/2-.38);}c.stroke();
+c.strokeStyle='#dcfaff';c.lineWidth=1.2;c.beginPath();c.moveTo(-10,0);c.lineTo(10,0);c.moveTo(0,-10);c.lineTo(0,10);c.stroke();
+}else{
+c.strokeStyle='#86d8f2';c.lineWidth=1.2;
+for(let i=0;i<4;i++){c.save();c.rotate(i*Math.PI/2);c.beginPath();c.moveTo(6,-15);c.lineTo(12,-15);c.lineTo(15,-12);c.lineTo(15,-6);c.stroke();c.restore();}
+c.strokeStyle='#dcfaff';c.lineWidth=1;c.beginPath();c.moveTo(0,-3);c.lineTo(3,0);c.lineTo(0,3);c.lineTo(-3,0);c.closePath();c.stroke();
+c.shadowBlur=0;c.fillStyle='#86d8f288';for(let i=0;i<4;i++){c.save();c.rotate(i*Math.PI/2);c.fillRect(-.5,-20,1,2);c.restore();}
+}c.restore();}
+function draw(time){lastTime=time;const t=paused?frozen:time;dialoguePlaybackRef.current=dialogue;
+for(const id of ['old','first','new','cross','brackets']){const el=document.getElementById(id),r=el.getBoundingClientRect(),d=devicePixelRatio||1;if(el.width!==Math.round(r.width*d)||el.height!==Math.round(r.height*d)){el.width=Math.round(r.width*d);el.height=Math.round(r.height*d);}const c=el.getContext('2d');c.setTransform(d,0,0,d,0,0);c.clearRect(0,0,r.width,r.height);
+for(const [x,scale] of [[r.width*.25,1],[r.width*.65,3]]){c.save();c.translate(x,r.height*.48);c.scale(scale,scale);if(id==='old'){cursorContext=c;drawPointerCursor(t)}else if(id==='cross'||id==='brackets')extraCandidate(c,t,id);else candidate(c,t,id==='first');c.restore();c.fillStyle='#9ab1bf';c.font='13px system-ui';c.textAlign='center';c.fillText(scale+'×',x,r.height-32);}}
+requestAnimationFrame(draw);}
+for(const id of ['normal','dialogue'])document.getElementById(id).onclick=()=>{dialogue=id==='dialogue';for(const k of ['normal','dialogue'])document.getElementById(k).setAttribute('aria-pressed',String(k===id));};
+document.getElementById('pause').onclick=()=>{paused=!paused;frozen=lastTime;document.getElementById('pause').setAttribute('aria-pressed',String(paused));document.getElementById('pause').textContent=paused?'播放呼吸動畫':'暫停呼吸動畫';};
+if(matchMedia('(prefers-reduced-motion:reduce)').matches)document.getElementById('pause').click();
+requestAnimationFrame(draw);
+</script></html>

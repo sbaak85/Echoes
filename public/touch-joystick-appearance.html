@@ -1,0 +1,101 @@
+<div id="echoes-joystick-preview">
+  <div class="joystick-stage">
+    <div class="joystick-label">觸控虛擬搖桿</div>
+    <button type="button" class="joystick" aria-label="拖曳測試虛擬搖桿，也可使用方向鍵；放開回中">
+      <span class="radar-grid" aria-hidden="true"></span>
+      <svg class="radar-ticks" viewBox="0 0 176 176" aria-hidden="true">
+        <g fill="none" stroke="#bfeaf2" stroke-opacity=".47" stroke-width=".75" stroke-linecap="butt">
+          <line x1="88" y1="6" x2="88" y2="11" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(22.5 88 88)" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(45 88 88)" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(67.5 88 88)" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(90 88 88)" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(112.5 88 88)" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(135 88 88)" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(157.5 88 88)" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(180 88 88)" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(202.5 88 88)" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(225 88 88)" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(247.5 88 88)" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(270 88 88)" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(292.5 88 88)" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(315 88 88)" />
+          <line x1="88" y1="6" x2="88" y2="11" transform="rotate(337.5 88 88)" />
+        </g>
+      </svg>
+      <span class="radar-cross" aria-hidden="true"></span>
+      <span class="travel-ring" aria-hidden="true"></span>
+      <span class="center-shadow" aria-hidden="true"></span>
+      <span class="knob" aria-hidden="true"><span></span></span>
+    </button>
+    <div class="joystick-status" aria-live="polite">自動繞圈示意 · 可拖曳接手</div>
+    <button type="button" class="demo-toggle" aria-pressed="true">暫停示意</button>
+  </div>
+</div>
+<style>
+#echoes-joystick-preview {font-family:"Segoe UI","Noto Sans TC",sans-serif;color:#c3e9f2;}
+#echoes-joystick-preview * {box-sizing:border-box;}
+#echoes-joystick-preview .joystick-stage {display:grid;justify-items:center;gap:26px;padding:30px 20px 32px;background:radial-gradient(ellipse at 12% 0,#203a41,transparent 65%),radial-gradient(ellipse at 90% 100%,#1c3032,transparent 65%),#0b141b;}
+#echoes-joystick-preview .joystick-label {font-size:12px;letter-spacing:.16em;color:#9cb7be;}
+#echoes-joystick-preview .joystick-status {font-size:12px;color:#93adb5;min-height:18px;}
+#echoes-joystick-preview .demo-toggle {border:1px solid #86d8f255;border-radius:4px;background:#05121b99;color:#c3e9f2;padding:7px 14px;cursor:pointer;font:inherit;font-size:12px;outline:none;}
+#echoes-joystick-preview .joystick {--jx:0px;--jy:0px;--angle:0deg;position:relative;display:block;width:176px;height:176px;padding:0;border:0;border-radius:50%;isolation:isolate;touch-action:none;user-select:none;cursor:grab;outline:none;-webkit-tap-highlight-color:transparent;color:inherit;background:radial-gradient(ellipse at top left,#86d8f225,transparent 48%),radial-gradient(ellipse at bottom right,#86d8f220,transparent 48%),#05121b99;backdrop-filter:blur(14px);box-shadow:0 10px 24px #0005,inset 0 0 28px #58cabe12;}
+#echoes-joystick-preview .joystick:focus,#echoes-joystick-preview .joystick:focus-visible {outline:none;}
+#echoes-joystick-preview .joystick::after,#echoes-joystick-preview .knob::after {content:"";position:absolute;inset:0;border-radius:50%;padding:1px;pointer-events:none;background:linear-gradient(135deg,#fff,#a8e6f5 13%,#274858 40%,#274858 62%,#a8e6f5 88%,#fff);mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask-composite:exclude;filter:drop-shadow(0 0 2px #86d8f266);}
+#echoes-joystick-preview .joystick > span {position:absolute;pointer-events:none;}
+#echoes-joystick-preview .radar-grid {inset:9px;border-radius:50%;background:repeating-linear-gradient(0deg,transparent 0 15px,#86d8f217 15px 15.65px,transparent 15.65px 16px),repeating-linear-gradient(90deg,transparent 0 15px,#86d8f217 15px 15.65px,transparent 15.65px 16px);mask-image:radial-gradient(circle,#000 30%,transparent 72%);}
+#echoes-joystick-preview .radar-ticks {position:absolute;inset:0;display:block;width:100%;height:100%;pointer-events:none;}
+#echoes-joystick-preview .radar-cross {inset:12px;border-radius:50%;background:linear-gradient(90deg,transparent calc(50% - .5px),#9bd6e230 50%,transparent calc(50% + .5px)),linear-gradient(0deg,transparent calc(50% - .5px),#9bd6e230 50%,transparent calc(50% + .5px));}
+#echoes-joystick-preview .travel-ring {inset:30px;border:1px solid #86d8f22b;border-radius:50%;}
+#echoes-joystick-preview .knob {left:50%;top:50%;width:50px;height:50px;border-radius:50%;background:radial-gradient(ellipse at 28% 18%,#a8e6f533,transparent 65%),#0b2839ed;box-shadow:0 3px 12px #0008,0 0 10px #86d8f228;transform:translate(calc(-50% + var(--jx)),calc(-50% + var(--jy)));transition:transform 160ms ease-out,box-shadow 160ms;}
+#echoes-joystick-preview .center-shadow {left:50%;top:50%;width:88px;height:88px;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle,#01070dcc 0%,#01070d88 25%,#01070d44 48%,transparent 74%);filter:blur(7px);}
+#echoes-joystick-preview .knob > span {position:absolute;inset:21px;border-radius:50%;background:#c9f4ff;box-shadow:0 0 7px #86d8f2aa;}
+#echoes-joystick-preview .is-active {cursor:grabbing;}
+#echoes-joystick-preview .is-active .knob {transition:none;box-shadow:0 4px 14px #0008,0 0 14px #86d8f255;}
+@media(prefers-reduced-motion:reduce){#echoes-joystick-preview .knob{transition:none;}}
+</style>
+<script>
+(() => {
+ const root=document.getElementById('echoes-joystick-preview');
+ const stick=root.querySelector('.joystick'),status=root.querySelector('.joystick-status');
+ let pointer=null,playing=true,phase=0,lastTime=0,animationFrame=0;
+ const toggle=root.querySelector('.demo-toggle');
+ const ticks=Array.from(root.querySelectorAll('.radar-ticks line'));
+ function move(x,y){
+  const distance=Math.hypot(x,y),scale=distance>52?52/distance:1;
+  x*=scale;y*=scale;
+  stick.style.setProperty('--jx',`${x}px`);stick.style.setProperty('--jy',`${y}px`);
+  stick.classList.toggle('is-active',distance>1);
+  const travel=Math.hypot(x,y)/52;
+  const onset=Math.max(0,(travel-.3)/.7);
+  const radial=onset*onset*(3-2*onset);
+  const angle=(Math.atan2(y,x)*180/Math.PI+90+360)%360;
+  ticks.forEach((tick,i)=>{
+   const difference=Math.abs(((angle-i*22.5+540)%360)-180);
+   // The facing tick is strongest; two ticks on either side taper smoothly.
+   const proximity=Math.max(0,1-difference/67.5);
+   const strength=radial*proximity*proximity*(3-2*proximity);
+   tick.setAttribute('y2',String(11+5*strength));
+   tick.setAttribute('stroke-width',String(.75+1.05*strength));
+   tick.setAttribute('stroke-opacity',String(.47+.53*strength));
+   tick.setAttribute('stroke',strength>0?'#dcfaff':'#bfeaf2');
+   tick.style.filter=strength>0?`drop-shadow(0 0 ${3*strength}px rgba(134,216,242,${.85*strength}))`:'none';
+  });
+ }
+ function reset(){pointer=null;move(0,0);status.textContent=playing?'自動繞圈示意 · 可拖曳接手':'已暫停 · 可拖曳試用';}
+ function position(e){const r=stick.getBoundingClientRect();move(e.clientX-r.left-r.width/2,e.clientY-r.top-r.height/2);}
+ stick.addEventListener('pointerdown',e=>{if(pointer!==null)return;pointer=e.pointerId;stick.setPointerCapture(pointer);stick.focus({preventScroll:true});position(e);status.textContent='移動中';});
+ stick.addEventListener('pointermove',e=>{if(e.pointerId===pointer)position(e);});
+ for(const event of ['pointerup','pointercancel','lostpointercapture'])stick.addEventListener(event,e=>{if(e.pointerId===pointer)reset();});
+ const keys=new Set();
+ stick.addEventListener('keydown',e=>{if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))return;e.preventDefault();keys.add(e.key);move((Number(keys.has('ArrowRight'))-Number(keys.has('ArrowLeft')))*52,(Number(keys.has('ArrowDown'))-Number(keys.has('ArrowUp')))*52);});
+ stick.addEventListener('keyup',e=>{keys.delete(e.key);move((Number(keys.has('ArrowRight'))-Number(keys.has('ArrowLeft')))*52,(Number(keys.has('ArrowDown'))-Number(keys.has('ArrowUp')))*52);});
+ stick.addEventListener('blur',()=>{keys.clear();reset();});window.addEventListener('blur',reset);
+ let padActive=false;
+ const padTimer=setInterval(()=>{if(document.activeElement!==stick||pointer!==null)return;const pad=Array.from(navigator.getGamepads?.()||[]).find(Boolean);if(!pad){if(padActive)reset();padActive=false;return;}const x=pad.axes[0]||0,y=pad.axes[1]||0;if(pad.buttons[0]?.pressed){reset();padActive=false;}else if(Math.hypot(x,y)>.15){move(x*52,y*52);padActive=true;}else if(padActive){reset();padActive=false;}},32);
+ toggle.addEventListener('click',()=>{playing=!playing;toggle.setAttribute('aria-pressed',String(playing));toggle.textContent=playing?'暫停示意':'播放示意';reset();});
+ function animate(time){const dt=lastTime?Math.min(time-lastTime,50):0;lastTime=time;if(playing&&pointer===null&&keys.size===0&&!padActive&&!document.hidden){phase+=dt*Math.PI*2/5000;move(Math.cos(phase)*52,Math.sin(phase)*52);}animationFrame=requestAnimationFrame(animate);}
+ animationFrame=requestAnimationFrame(animate);
+ window.addEventListener('pagehide',()=>{clearInterval(padTimer);cancelAnimationFrame(animationFrame);},{once:true});
+})();
+</script>
