@@ -139,7 +139,7 @@ export default function PhototropicPreview() {
       {success && <p role="status">{PLANT_SUCCESS_MESSAGE}</p>}
     </div>
     {side && introduction && <InteractionIllustrationOverlay view={{ imagePath, withDialogue: true, closing: false, backdropOpacity: .85 }} onClose={() => {}} onError={() => dialogueManager.cancelCurrent()} />}
-    {side && !introduction && <PhototropicPuzzleOverlay key={side} ref={controller} view={{ side, imagePath, initial: state }} gamepadMode={gamepadMode} onIntroduced={() => setState(previous => ({ ...previous, introduced: true }))} onSuccessDialogue={id => dialogueManager.playRegistered(id, {})} onFinish={finish} />}
+    {side && !introduction && <PhototropicPuzzleOverlay key={side} ref={controller} view={{ side, imagePath, initial: state }} gamepadMode={gamepadMode} onIntroduced={() => setState(previous => ({ ...previous, introduced: true }))} onInput={() => { void audio.current?.play("uiInput", { restart: true }).catch(() => {}); }} onVineMotion={motion => audio.current?.setPlantVineMotion(motion)} onSuccessDialogue={id => dialogueManager.playRegistered(id, {})} onFinish={finish} />}
     <DialoguePlayerView view={dialogueView} history={history} historyScrollable={historyScrollable} textSize={textSize} gamepadMode={gamepadMode}
       boxRef={dialogueBox} historyScrollRef={historyScroll} historyCloseRef={historyClose}
       onAdvance={player.advance} onOpenHistory={player.openHistory} onCloseHistory={player.closeHistory}

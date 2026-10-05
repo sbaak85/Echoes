@@ -104,6 +104,74 @@ function createOverlayRig(initial = { ...puzzle.initialPhototropicState(), intro
 const primaryCount = html => (html.match(/data-gamepad-glyph="A"/g) || []).length;
 const footer = html => html.match(/<button class="plant-confirm"[\s\S]*?<\/button>/)?.[0];
 
+test("controller navigation and activation sound once per accepted input, without held-frame or automatic-focus replay", () => {
+  try {
+    cursorOwnership.owner = "directional";
+    for (const side of ["L", "R"]) {
+      const rig = createOverlayRig(); rig.props.view.side = side;
+      let sounds = 0; rig.props.onInput = () => sounds++;
+      rig.render(); const pad = (...args) => rig.ref.current.pad(...args);
+      assert.equal(sounds, 0, "initial preselection is silent");
+      pad(1, 0, true, false, .05);
+      assert.equal(sounds, 0, "held opening input cannot bypass the neutral gate");
+      pad(0, 0, false, false, .05);
+      pad(1, 0, false, false, .05);
+      assert.equal(sounds, 1, "switching slots plays once");
+      for (let i = 0; i < 5; i++) pad(1, 0, false, false, .05);
+      assert.equal(sounds, 1, "intermediate held-stick frames remain silent");
+      for (let i = 0; i < 3; i++) pad(1, 0, false, false, .05);
+      assert.equal(sounds, 2, "a real repeat that changes slots plays once");
+      pad(0, 0, false, false, .05); pad(0, 1, false, false, .05);
+      assert.equal(sounds, 3, "switching to return plays once");
+      for (let i = 0; i < 20; i++) pad(0, 1, false, false, .05);
+      assert.equal(sounds, 3, "holding vertical navigation cannot replay the same focus");
+      pad(0, 0, false, false, .05); pad(0, -1, false, false, .05);
+      assert.equal(sounds, 4, "returning to the slot plays once");
+      pad(0, 0, true, false, .05);
+      assert.equal(sounds, 5, "A placement and its automatic confirmation focus play once together");
+      assert.match(rig.render(), /class="plant-confirm" type="button" data-selected="true"/);
+      for (let i = 0; i < 20; i++) pad(0, 0, false, false, .05, 1);
+      assert.equal(sounds, 5, "continuous angle adjustment is not repeated focus navigation");
+      pad(0, -1, false, false, .05);
+      assert.equal(sounds, 6);
+      pad(0, 0, true, false, .05);
+      assert.equal(sounds, 6, "A on the occupied slot has no advertised action or input sound");
+      pad(0, 0, false, false, .05); pad(0, 1, false, false, .05);
+      assert.equal(sounds, 7, "switching to confirmation plays once");
+      pad(0, 0, true, false, .05);
+      assert.equal(sounds, 8, "A confirms once");
+      pad(1, 1, true, true, .05);
+      assert.equal(sounds, 8, "closing rejects additional input sounds");
+      assert.equal(rig.finished.length, 1);
+    }
+  } finally { cursorOwnership.reset(); }
+});
+
+test("B takes priority with one input sound from slots or confirmation; keyboard uses the same navigation and activation feedback", () => {
+  try {
+    cursorOwnership.owner = "directional";
+    for (const confirmFocus of [false, true]) {
+      const rig = createOverlayRig(); let sounds = 0; rig.props.onInput = () => sounds++;
+      rig.render(); rig.ref.current.pad(0, 0, false, false, .05);
+      if (confirmFocus) rig.ref.current.pad(0, 1, false, false, .05);
+      const before = sounds;
+      rig.ref.current.pad(1, 1, true, true, .05, 1, 1);
+      assert.equal(sounds, before + 1);
+      assert.equal(rig.finished.length, 1);
+      assert.equal(rig.finished[0].L.slot, null, "simultaneous A cannot place before B returns");
+    }
+    const rig = createOverlayRig(); let sounds = 0; rig.props.onInput = () => sounds++;
+    rig.render(); rig.ref.current.key("arrowright", false);
+    assert.equal(sounds, 1);
+    rig.ref.current.key("enter", false);
+    assert.equal(sounds, 2);
+    rig.ref.current.key("enter", true);
+    assert.equal(sounds, 2, "held activation stays silent");
+    rig.ref.current.key("enter", false);
+    assert.equal(sounds, 3); assert.equal(rig.finished.length, 1);
+  } finally { cursorOwnership.reset(); }
+});
+
 test("a correct answer enters the success presentation instead of closing on return, and locks input", () => {
   try {
     cursorOwnership.owner = "directional";

@@ -58,6 +58,21 @@ export type LineSeDefinition = {
 export const AUDIO_EVENT_CONFIG = (
   /* AUDIO_EVENT_CONFIG_START */
   {
+    "plantVineMotion": {
+      "label": "趨光藤蔓：生長與位移音效池",
+      "trigger": "左右藤蔓實際生長、伸縮、位移或擺動時各選一段不同音檔循環；依每幀動畫速度調整 10%～80% 音量，停止或離開介面立即停音。",
+      "sourceAssetPaths": [
+        "I:/Codex/專案型/Age-of-Pirates/Assets/Audio/vine_1.mp3",
+        "I:/Codex/專案型/Age-of-Pirates/Assets/Audio/vine_2.mp3",
+        "I:/Codex/專案型/Age-of-Pirates/Assets/Audio/vine_3.mp3"
+      ],
+      "sources": ["./audio/vine_1.mp3", "./audio/vine_2.mp3", "./audio/vine_3.mp3"],
+      "volume": 0.8,
+      "delaySeconds": 0,
+      "loop": true,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
     "workbenchToolOpen": {
       "label": "工作臺頁面：開啟工具",
       "trigger": "確認製作工作臺卡片並進入道具合成頁面時播放一次",
@@ -1636,7 +1651,66 @@ export function getAudioFadeDurationMilliseconds(
   return durationSeconds * 1000 * clampPercent(fadePercent) / 100;
 }
 
+export type PlantVineMotion = { L: number; R: number };
+/** Speed is visible artwork movement per second, normalized to its 1000-unit width. */
+export const PLANT_VINE_MOTION_AUDIO_CONFIG = {
+  minimumVolume: .1,
+  stopSpeed: .0005,
+  fullVolumeSpeed: 1,
+  retryMilliseconds: 250,
+} as const;
+
+export function getPlantVineMotionVolume(speed: number) {
+  const config = PLANT_VINE_MOTION_AUDIO_CONFIG;
+  if (!Number.isFinite(speed) || speed <= config.stopSpeed) return 0;
+  const ratio = Math.min(1, (speed - config.stopSpeed) / (config.fullVolumeSpeed - config.stopSpeed));
+  return config.minimumVolume + (AUDIO_EVENT_CONFIG.plantVineMotion.volume - config.minimumVolume) * ratio;
+}
+
+type PlantVineVoice = { audio: HTMLAudioElement; sourceIndex: number; pending: Promise<void> | null; retryAt: number };
+
 export class AudioEventManager {
+  private readonly plantVineVoices = new Map<"L" | "R", PlantVineVoice>();
+
+  /** One continuous voice per moving side; selection and volume stay centralized here. */
+  setPlantVineMotion(motion: PlantVineMotion) {
+    if (this.disposed) return;
+    const sources = AUDIO_EVENT_CONFIG.plantVineMotion.sources;
+    for (const side of ["L", "R"] as const) {
+      const volume = getPlantVineMotionVolume(motion[side]);
+      let voice = this.plantVineVoices.get(side);
+      if (volume === 0) {
+        if (voice) { this.plantVineVoices.delete(side); this.stopPlantVineVoice(voice); }
+        continue;
+      }
+      if (!voice) {
+        const used = new Set([...this.plantVineVoices.values()].map(active => active.sourceIndex));
+        const choices = sources.map((_, index) => index).filter(index => !used.has(index));
+        const sourceIndex = choices[Math.floor(Math.random() * choices.length)];
+        const audio = new Audio(sources[sourceIndex]);
+        audio.preload = "auto"; audio.loop = true;
+        voice = { audio, sourceIndex, pending: null, retryAt: 0 };
+        this.plantVineVoices.set(side, voice);
+      }
+      voice.audio.volume = volume;
+      if (!voice.audio.paused || voice.pending || performance.now() < voice.retryAt) continue;
+      const current = voice;
+      current.pending = current.audio.play().then(() => {
+        if (this.disposed || this.plantVineVoices.get(side) !== current) this.stopPlantVineVoice(current);
+      }).catch(() => { current.retryAt = performance.now() + PLANT_VINE_MOTION_AUDIO_CONFIG.retryMilliseconds; })
+        .finally(() => { current.pending = null; });
+    }
+  }
+
+  stopPlantVines() {
+    this.plantVineVoices.forEach(voice => this.stopPlantVineVoice(voice));
+    this.plantVineVoices.clear();
+  }
+
+  private stopPlantVineVoice(voice: PlantVineVoice) {
+    voice.audio.volume = 0; voice.audio.pause(); voice.audio.currentTime = 0;
+  }
+
   private activeWorkbenchVoice: AudioEventRuntime | null = null;
   private readonly workbenchVoices = new Set<AudioEventRuntime>();
 
@@ -1903,6 +1977,7 @@ export class AudioEventManager {
 
   dispose() {
     if (this.disposed) return;
+    this.stopPlantVines();
     this.workbenchVoices.forEach(voice => {
       voice.endedHandler();
       voice.audio.pause();

@@ -16646,7 +16646,7 @@ export function MovementLab() {
       <span className="mobile-hud-space-probe" aria-hidden="true" />
       {interactionIllustration.view && <InteractionIllustrationOverlay view={interactionIllustration.view}
         onClose={() => { void illustrationController.close(); }} onError={() => illustrationController.cancel()} />}
-      {plantPuzzle.view && <PhototropicPuzzleOverlay key={plantPuzzle.view.id} ref={plantPuzzle.control} view={plantPuzzle.view} gamepadMode={questPromptInputMode === "gamepad"} onIntroduced={() => plantController.markIntroduced()} onSuccessDialogue={id => dialogueManager.playRegistered(id, { id, label: id, type: "dialogue" })} onFinish={(state, solved) => plantController.finish(state, solved)} />}
+      {plantPuzzle.view && <PhototropicPuzzleOverlay key={plantPuzzle.view.id} ref={plantPuzzle.control} view={plantPuzzle.view} gamepadMode={questPromptInputMode === "gamepad"} onIntroduced={() => plantController.markIntroduced()} onInput={() => playOneShotAudio("uiInput")} onVineMotion={motion => audioEventManagerRef.current?.setPlantVineMotion(motion)} onSuccessDialogue={id => dialogueManager.playRegistered(id, { id, label: id, type: "dialogue" })} onFinish={(state, solved) => plantController.finish(state, solved)} />}
       {plantSuccessVisible && <div className="plant-success-message" role="status"><span>{PLANT_SUCCESS_MESSAGE}</span></div>}
       <canvas
         ref={canvasRef}

@@ -54,7 +54,7 @@ export function createPlantVines(hostL,hostR){
     const size=(category<.3?.22+rng()*.13:category<.75?.43+rng()*.2:.78+rng()*.24)*(j>9?.82:1);
     const rotation=tangent+(flip?-18:52)+rng()*26;
     const twig=el('g',{transform:`translate(${p.x},${p.y}) rotate(${rotation})`},group);
-    rig.leaves.push({twig,p,next,fraction:distance/length,offset:rotation-tangent,phase:rng()*6.28,opacity:null});
+    rig.leaves.push({twig,p,next,fraction:distance/length,offset:rotation-tangent,phase:rng()*6.28,opacity:null,radius:122*size,motion:null});
     el('path',{d:`M 0 0 Q 12 ${flip?-7:7} 28 0`,fill:'none',stroke:'#667553','stroke-width':2.2},twig);
     const foliage=el('g',{class:'vine-foliage',style:`--duration:${4+rng()*4}s;--delay:${-rng()*9}s;--leaf-sway:${2+rng()*3}deg`,transform:`translate(24,0)`},twig);
     el('use',{href:'#'+prefix+'-shape',transform:`scale(${size},${flip?size:-size})`,fill:`url(#${prefix}-leaf${j%3})`},foliage);
@@ -75,12 +75,16 @@ export function createPlantVines(hostL,hostR){
 // Grow by exposing more of a fixed-length curved stem, never by compressing its geometry.
 function updateVines(left,right,seconds,dt,growth=1){
  const reduced=motionPreference.matches;
+ const motion={L:0,R:0};
  for(const rig of rigs){
   const displacement=rig.side==='L'?left:-right;
   rig.energy+=(Math.min(1,Math.abs(displacement-rig.previous)/Math.max(dt,.001)/24)-rig.energy)*(1-Math.exp(-dt*5));
   rig.previous=displacement;
   const energy=reduced?0:rig.energy;
   const reach=Math.max(0,Math.min(1.25,1+displacement*.012))*Math.max(0,Math.min(1,growth));
+  // Measure geometry and foliage movement, never camera size or lamp input.
+  if(dt>0&&rig.motionReach!==undefined)motion[rig.side]=Math.max(motion[rig.side],Math.abs(reach-rig.motionReach)/dt);
+  rig.motionReach=reach;
   if(rig.lastReach===reach&&energy<.0001)continue;
   rig.lastReach=energy<.0001?reach:null;
   const warp=p=>{
@@ -98,16 +102,24 @@ function updateVines(left,right,seconds,dt,growth=1){
    // Leaves retain their own size, emerging behind the growing tip.
    const emerge=smoothVineProgress((reach-leaf.fraction)/.055);
    if(leaf.opacity!==emerge){leaf.twig.style.opacity=emerge;leaf.opacity=emerge;}
-   if(emerge===0)continue;
+   if(emerge===0){leaf.motion=null;continue;}
    const orient=Math.atan2(next.y-p.y,next.x-p.x)*180/Math.PI+leaf.offset+(1-emerge)*35+energy*Math.sin(seconds*2+leaf.phase)*3;
+   if(dt>0&&leaf.motion){
+    const distance=Math.hypot(p.x-leaf.motion.x,p.y-leaf.motion.y)+Math.abs(orient-leaf.motion.orient)*Math.PI/180*leaf.radius;
+    motion[rig.side]=Math.max(motion[rig.side],distance/1000/dt);
+   }
+   leaf.motion={x:p.x,y:p.y,orient};
    leaf.twig.setAttribute('transform',`translate(${p.x},${p.y}) rotate(${orient})`);
   }
   const last=curves.at(-1),tip=last[3],tangent=visible.tangent;
+  if(dt>0&&rig.motionTip)motion[rig.side]=Math.max(motion[rig.side],Math.hypot(tip.x-rig.motionTip.x,tip.y-rig.motionTip.y)/1000/dt);
+  rig.motionTip=tip;
   const angle=reach>0?Math.atan2(tip.y-last[2].y,tip.x-last[2].x)*180/Math.PI:Math.atan2(tangent.y,tangent.x)*180/Math.PI;
   const curl=energy*Math.sin(seconds*3+rig.index)*5;
   rig.tip.setAttribute('transform',`translate(${tip.x},${tip.y}) rotate(${angle})`);
   rig.tip.setAttribute('d',`M -12 0 Q 12 ${-18-curl} 24 -6 Q 31 ${12+curl} 10 13`);
  }
+ return motion;
 }
 
 
