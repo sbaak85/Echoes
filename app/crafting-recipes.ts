@@ -6,7 +6,7 @@ const INITIAL_RECIPES: CraftingRecipe[] = [
   {id:'tracking-module',name:'訊號探測儀',en:'SIGNAL DETECTOR',type:'探索裝備',req:[['metal-parts',3],['crystal-shard',2],['battery',1]],desc:'用於標定近距離異常訊號來源。將散落的線索，轉化為前進的方向。',weight:'0.25 kg'},
   {id:'utility-rope',name:'繩索',en:'UTILITY ROPE',type:'基礎工具',req:[['fiber-bundle',3],['toughened-vine-bark',2]],desc:'以耐磨纖維與藤皮編製，適合固定設備及野外探索。',weight:'0.6 kg'},
   {id:'medkit',name:'醫療包',en:'FIELD MEDKIT',type:'生存補給',req:[['synthetic-cloth',2],['fiber-bundle',1],['alien-spore',1]],desc:'將清潔布料與應急用品整理成便攜醫療包，為下一段旅程做好準備。',weight:'1.1 kg'},
-  {id:'lantern',name:'螢光棒',en:'GLOW STICK',type:'探索裝備',req:[['empty-test-tube',1],['luminescent-sac',2]],desc:'將螢光包囊的發光內容物封入試管瓶，製成在昏暗環境中提供柔和光源的便攜照明道具。',weight:'0.9 kg'},
+  {id:'lantern',name:'螢光棒',en:'GLOW STICK',type:'探索裝備',req:[['empty-test-tube',1],['luminescent-sac',1]],desc:'將螢光包囊的發光內容物封入試管瓶，製成在昏暗環境中提供柔和光源的便攜照明道具。',weight:'0.9 kg'},
   {id:'digging-shovel',name:'挖掘鏟',en:'DIGGING SHOVEL',type:'採集工具',req:[['metal-scrap',4],['metal-parts',2],['fiber-bundle',1]],desc:'加固的鏟面與纖維握柄，適合探索地表下埋藏的資源。',weight:'1.2 kg'},
   {id:'repair-kit',name:'多功能工具箱',en:'REPAIR KIT',type:'維修工具',req:[['metal-parts',4],['synthetic-cloth',2]],desc:'收納維修與組裝所需的基本工具。',weight:'1.5 kg'},
   {id:'multifunction-folding-knife',name:'多功能折刀',en:'FOLDING KNIFE',type:'基礎工具',req:[['sharp-metal-fragment',2],['metal-parts',1],['heat-fused-ceramic-shard',1]],desc:'輕巧的折疊工具，可供野外切割與簡易加工。',weight:'0.3 kg'},

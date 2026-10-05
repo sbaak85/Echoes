@@ -40,10 +40,10 @@ test("shortage and unknown recipes reject atomically; exact stock cannot craft t
  assert.equal(craftInventoryRecipe({},"missing").ok,false);
 });
 
-test("glow stick consumes one empty test tube and two luminescent sacs",()=>{
+test("glow stick consumes one empty test tube and one luminescent sac",()=>{
  const recipe=CRAFTING_RECIPES.find(r=>ITEM_BY_ID.get(r.id).englishName==='lantern');
- assert.deepEqual(recipe.req,[['R0036',1],['R0020',2]]);
- const before={R0036:1,R0020:2,R0018:5};
+ assert.deepEqual(recipe.req,[['R0036',1],['R0020',1]]);
+ const before={R0036:1,R0020:1,R0018:5};
  const result=craftInventoryRecipe(before,recipe.id);
  assert.equal(result.ok,true);
  assert.equal(result.inventory.R0036??0,0);

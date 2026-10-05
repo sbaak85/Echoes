@@ -5108,6 +5108,116 @@
           }
         ]
       }
+    },
+    {
+      "id": "scene3-interaction-030",
+      "label": "\u96F6\u4EF6\u8CA8\u7BB1",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 705,
+          "y": 805
+        },
+        {
+          "x": 835,
+          "y": 710
+        },
+        {
+          "x": 885,
+          "y": 710
+        },
+        {
+          "x": 955,
+          "y": 755
+        },
+        {
+          "x": 955,
+          "y": 795
+        },
+        {
+          "x": 820,
+          "y": 900
+        },
+        {
+          "x": 775,
+          "y": 900
+        },
+        {
+          "x": 705,
+          "y": 850
+        }
+      ],
+      "type": "check",
+      "verb": "\u6AA2\u67E5",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionLimitMode": "once",
+      "itemRewards": [
+        {
+          "itemId": "R0036",
+          "quantity": 2,
+          "delivery": "world"
+        }
+      ],
+      "useRequirements": [
+        {
+          "dialogueId": "",
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH04_MAIN_001",
+          "stageId": "QUEST_CH04_MAIN_001_STAGE_03",
+          "stageMode": "CurrentStageOnly",
+          "objectiveId": "QUEST_CH04_MAIN_001_OBJ_19",
+          "objectiveState": "unlocked",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 831.806,
+        "y": 775.96857
+      },
+      "showOnMinimap": true,
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "..."
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
+      }
     }
   ],
   "movementGuides": [
@@ -5249,6 +5359,59 @@
           "questState": "completed",
           "stageId": "",
           "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ]
+    },
+    {
+      "id": "story-trigger-003",
+      "label": "\u5287\u60C5\u89F8\u767C\u5340 3",
+      "points": [
+        {
+          "x": 500,
+          "y": 1020
+        },
+        {
+          "x": 645,
+          "y": 915
+        },
+        {
+          "x": 385,
+          "y": 745
+        },
+        {
+          "x": 250,
+          "y": 845
+        }
+      ],
+      "once": true,
+      "dialogueId": "chapter04-section-7",
+      "triggerDelaySeconds": 0.5,
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionLimitMode": "once",
+      "useRequirements": [
+        {
+          "dialogueId": "",
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH04_MAIN_001",
+          "stageId": "QUEST_CH04_MAIN_001_STAGE_03",
+          "stageMode": "CurrentStageOnly",
+          "objectiveId": "QUEST_CH04_MAIN_001_OBJ_18",
+          "objectiveState": "unlocked",
           "disableQuestId": "",
           "disableStageId": "",
           "quantity": 1,
