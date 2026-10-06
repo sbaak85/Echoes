@@ -1,0 +1,18 @@
+.starship-tutorial-host{display:contents}
+.starship-crafting-tutorial-overlay{position:fixed;inset:0;z-index:110;pointer-events:none}
+.sct-mask-and-tip{position:absolute;inset:0;pointer-events:none;animation:sct-fade-in .25s linear both}
+.sct-mask{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.sct-shield{position:fixed;inset:0;background:transparent;pointer-events:auto;touch-action:none}
+.sct-tip{position:absolute;z-index:2;display:grid;grid-template-rows:minmax(56px,auto) minmax(36px,auto);border:1px solid rgba(178,143,226,.74);border-radius:7px;overflow:hidden;text-align:left;background:linear-gradient(180deg,rgba(36,34,49,.98),rgba(17,21,31,.98));box-shadow:0 12px 34px #0007,0 0 20px #8d5bdb3d,inset 0 0 0 1px #ebdeff0f;color:#ebeaf0;pointer-events:none;animation:sct-tip-breathe 1.8s ease-in-out .25s infinite alternate;font-family:var(--inventory-font-family)}
+.sct-tip-copy{padding:13px 17px 12px;white-space:pre-line;font-size:clamp(13px,1.1vw,16px);font-weight:400;line-height:1.42;letter-spacing:.02em;background:radial-gradient(circle at 14% 0%,#9c69e040,transparent 58%),linear-gradient(105deg,#65577c70,#262633d1 54%,#181b25f5);box-shadow:inset 0 -10px 22px #08090f29}
+.sct-tip-footer{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:9px;padding:8px 14px;border-top:1px solid #cbaff057;background:radial-gradient(circle at 22% 50%,#af69f63b,transparent 52%),linear-gradient(100deg,#4c3169bd,#2d233de0 50%,#181925f0);box-shadow:inset 0 8px 22px #bf74ff14,inset 0 1px 0 #f4e4ff0d;font-size:clamp(12px,1vw,15px);font-weight:400;letter-spacing:.025em;text-shadow:0 0 10px #d0adff29}
+.sct-tip-footer>span{white-space:nowrap}.sct-tip-footer b{font:inherit;color:#e5bd62;white-space:nowrap}.sct-tip-arrow{display:grid;place-items:center;width:16px;height:16px;color:#e5bd62;font-style:normal}
+.sct-tip-arrow>span{display:block;width:12px;height:10.3923px;background:currentColor;clip-path:polygon(50% 0,100% 100%,0 100%);transform:none}
+.sct-tip-arrow[data-direction=down]>span{clip-path:polygon(0 0,100% 0,50% 100%)}
+.sct-tip .gamepad-button-icon{transform:translateY(-2px)}
+.starship-tutorial-host[data-tutorial-active=true] button:focus,.starship-tutorial-host[data-tutorial-active=true] button:focus-visible{outline:none!important}
+.starship-tutorial-host[data-tutorial-active=true] [aria-disabled=true]{cursor:default}
+.starship-tutorial-host[data-tutorial-active=true] button[aria-disabled=true].is-selected,.starship-tutorial-host[data-tutorial-active=true] button[aria-disabled=true].nav-focus,.starship-tutorial-host[data-tutorial-active=true] button[aria-disabled=true].cursor-hover{box-shadow:none;outline:none}
+@keyframes sct-fade-in{from{opacity:0}to{opacity:1}}
+@keyframes sct-tip-breathe{from{filter:brightness(.98);box-shadow:0 12px 34px #0007,0 0 12px #8d5bdb2e}to{filter:brightness(1.06);box-shadow:0 12px 34px #0007,0 0 26px #a268ed61}}
+@media(max-width:600px){.sct-tip-copy{padding:11px 13px;font-size:13px}.sct-tip-footer{font-size:12px;padding:8px 11px}}

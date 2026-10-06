@@ -5066,6 +5066,19 @@
           "disableStageId": "",
           "quantity": 1,
           "chapter": 1
+        },
+        {
+          "dialogueId": "",
+          "kind": "item",
+          "scope": "interaction",
+          "itemId": "R0036",
+          "questId": "",
+          "stageId": "",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 2,
+          "chapter": 1
         }
       ],
       "interactionPoints": [
@@ -5104,7 +5117,7 @@
           {
             "lineId": "scene3-interaction-029-failure-line-001",
             "speaker": "Sbaak",
-            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+            "text": "\u5FC5\u9808\u6E96\u5099\u597D\u6240\u9700\u9053\u5177\u624D\u80FD\u958B\u59CB\u9032\u884C\u3002"
           }
         ]
       }
@@ -5163,7 +5176,12 @@
       "itemRewards": [
         {
           "itemId": "R0036",
-          "quantity": 2,
+          "quantity": 1,
+          "delivery": "world"
+        },
+        {
+          "itemId": "R0036",
+          "quantity": 1,
           "delivery": "world"
         }
       ],

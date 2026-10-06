@@ -28,6 +28,7 @@ import {
   type StarshipInteractionMenuController,
   type StarshipSleepOption,
 } from "./starship-interaction-menu";
+import { shouldStartStarshipCraftingTutorial, STARSHIP_CRAFTING_TUTORIAL_COMPLETED_FLAG } from "./starship-crafting-tutorial";
 
 import {
   useCallback,
@@ -3853,6 +3854,7 @@ export function MovementLab() {
   const [starCardsOpen, setStarCardsOpen] = useState(false);
   const [starshipInteractionMenuOpen, setStarshipInteractionMenuOpen] =
     useState(false);
+  const [starshipCraftingTutorialStart, setStarshipCraftingTutorialStart] = useState(false);
   const [starCardsInitialGamepadMode, setStarCardsInitialGamepadMode] = useState(false);
   const [weldingPuzzleVirtualCursorAvailable, setWeldingPuzzleVirtualCursorAvailable] =
     useState(false);
@@ -4270,11 +4272,15 @@ export function MovementLab() {
     starshipInteractionMenuInputRearmRef.current = true;
     starshipInteractionCursorRearmRequiredRef.current = false;
     setStarshipInteractionMenuOpen(false);
+    setStarshipCraftingTutorialStart(false);
     window.queueMicrotask(() => canvasRef.current?.focus({ preventScroll: true }));
   }, []);
 
   const openStarshipInteractionMenu = () => {
     if (starshipInteractionMenuOpenRef.current) return;
+    setStarshipCraftingTutorialStart(shouldStartStarshipCraftingTutorial(
+      questRuntimeManagerRef.current, storyProgressRef.current.storyFlags,
+    ));
     dismissTimeElapsedNotice();
     clearInventoryHoverHint();
     optionsOpenRef.current = false;
@@ -12236,6 +12242,9 @@ export function MovementLab() {
         bounds.left + virtualCursor.x,
         bounds.top + virtualCursor.y,
       );
+      if (starshipInteractionMenuOpenRef.current && starshipInteractionMenuControllerRef.current?.isTutorialActive?.()) {
+        return starshipInteractionMenuControllerRef.current.activatePointerTarget?.(element) ? "activated" : "blocked";
+      }
       if (plantController.isOpen && !dialoguePlaybackRef.current && element instanceof Element && element.closest(".plant-puzzle-overlay")) {
         if (element.closest(".plant-angle-dial")) {
           plantController.point(bounds.left + virtualCursor.x, bounds.top + virtualCursor.y);
@@ -17697,6 +17706,17 @@ export function MovementLab() {
       {starshipInteractionMenuOpen ? (
         <StarshipInteractionMenu
           ref={starshipInteractionMenuControllerRef}
+          tutorialStart={starshipCraftingTutorialStart}
+          onTutorialCompleted={() => {
+            // Use the existing portable story flags, never the preview session key.
+            try { setStoryFlag(STARSHIP_CRAFTING_TUTORIAL_COMPLETED_FLAG, true); }
+            catch {
+              // setStoryFlag updates memory before storage. Preserve that completion
+              // and still request the portable save if localStorage is unavailable.
+              requestPortableAutosaveRef.current("starship-crafting-tutorial-completed");
+            }
+            setStarshipCraftingTutorialStart(false);
+          }}
           inputMode={questPromptInputMode}
           onInputModeChange={activateQuestPromptInputMode}
           onControlModeChange={handleStarshipInteractionControlModeChange}

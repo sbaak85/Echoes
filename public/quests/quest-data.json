@@ -1351,7 +1351,7 @@
               "startPresentationDelaySeconds": 0,
               "completionDelaySeconds": 0,
               "completionPresentationDelaySeconds": 0,
-              "activationMode": "event",
+              "activationMode": "dialogueCompleted",
               "activationEventId": "chapter04-Light",
               "blocksStageCompletion": true,
               "type": "interactionSucceeded",
@@ -1369,7 +1369,7 @@
               "showProgress": false,
               "showHintIcon": false,
               "completionEventFlowId": "",
-              "unlockDialogueId": "chapter04-Light"
+              "unlockDialogueId": ""
             },
             {
               "id": "QUEST_CH04_MAIN_001_OBJ_15",
@@ -1474,7 +1474,7 @@
             },
             {
               "id": "QUEST_CH04_MAIN_001_OBJ_19",
-              "displayText": "\u5F9E\u5132\u85CF\u7BB1\u53D6\u5F97\u7A7A\u8A66\u7BA1",
+              "displayText": "\u5F9E\u96F6\u4EF6\u8CA8\u7BB1\u53D6\u5F97\u7A7A\u8A66\u7BA1",
               "startDelaySeconds": 0,
               "startPresentationDelaySeconds": 0,
               "completionDelaySeconds": 0,

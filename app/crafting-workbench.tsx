@@ -22,6 +22,8 @@ type Props = {
  onInput:()=>void; onBack:()=>void;
  onCraftAudio?:(event:CraftingAudioEvent)=>void;
  onCraft:(recipeId:string,quantity?:number)=>{ok:boolean;reason?:string};
+ tutorial?:{recipeId:string;ready:boolean};
+ onRecipeSelected?:(recipeId:string)=>void;
 };
 const aliases:Record<string,string>={"empty-test-tube":"空試管瓶","lantern":"螢光棒","toughened-vine-bark":"韌化藤皮","luminescent-sac":"螢光包囊","heat-fused-ceramic-shard":"熱熔陶片"};
 const image=(item:ItemDefinition,large=false)=>assetUrl(`ui/items/${aliases[item.englishName]||item.englishName}-${large?`inspect-${item.artworkInspectSize??640}`:"icon-280"}.png`);
@@ -73,6 +75,7 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
  },[completion?.id,completion?.quantity]);
  const cooking=props.mode==="cooking";
  const recipes=cooking?COOKING_RECIPES:WORKBENCH_RECIPES;
+ const tutorialKey=props.tutorial?`recipe-${recipes.findIndex(recipe=>recipe.id===props.tutorial!.recipeId)}`:null;
  const title=cooking?"料理製作系統":"道具合成系統";
  const station=cooking?"料理工作台":"製作工作台";
  const machineImage=assetUrl(cooking?"ui/power-devices/食物儲藏.png":"ui/power-devices/工作台.png");
@@ -185,7 +188,8 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
    setPointerMaterialTarget(null);
    if(next!=="directional")quantityHold.current={...idleCraftQuantityHold(),blocked:true};
    if(next==="directional"&&modeRef.current!=="directional"){
-     const saved=columnNav.current[columnRef.current];
+     if(props.tutorial){columnRef.current=2;setColumn(2);}
+     const saved=tutorialKey??columnNav.current[columnRef.current];
      const target=columnButtons(columnRef.current).find(b=>b.dataset.craftNav===saved)||columnButtons(columnRef.current)[0];
      if(target)focusKey(target.dataset.craftNav!);
    }
@@ -279,7 +283,8 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
  }),[]);
  useLayoutEffect(()=>{
    const list=choices();list.forEach((b,i)=>{b.dataset.starshipMenuIndex=String(i);});
-   let chosen=list.find(b=>b.dataset.craftNav===nav);
+   if(tutorialKey&&navRef.current!==tutorialKey){columnRef.current=2;setColumn(2);focusKey(tutorialKey);}
+   let chosen=list.find(b=>b.dataset.craftNav===(tutorialKey??nav));
    if(!chosen){chosen=columnButtons(columnRef.current)[0]||list.find(b=>b.dataset.craftNav==="prepare")||list[0];if(chosen)focusKey(chosen.dataset.craftNav!);}
    if(props.controlMode==="directional"&&chosen?.closest(".recipe-entry")){
      const parent=chosen.closest<HTMLElement>(".recipe-list")!,r=chosen.getBoundingClientRect(),box=parent.getBoundingClientRect();
@@ -296,6 +301,18 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
  useEffect(()=>{
    const key=(e:KeyboardEvent)=>{
      if(completionRef.current){e.preventDefault();e.stopImmediatePropagation();return;}
+     if(latest.current.tutorial){
+       e.preventDefault();e.stopImmediatePropagation();latest.current.onInputModeChange("keyboard-mouse");
+       if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Tab","Enter"," "].includes(e.key)){
+         api.current?.setControlMode("directional");
+         if(latest.current.tutorial.ready){
+           const target=root.current?.querySelector<HTMLButtonElement>(`[data-tutorial-item-id="${latest.current.tutorial.recipeId}"] .recipe-row`);
+           target?.focus({preventScroll:true});
+           if(!e.repeat&&(e.key==="Enter"||e.key===" "))target?.click();
+         }
+       }
+       return;
+     }
      const directions:Record<string,"left"|"right"|"up"|"down">={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down"};
      if(!directions[e.key]&&!["Tab","Enter"," ","Escape"].includes(e.key))return;
      e.preventDefault();e.stopImmediatePropagation();latest.current.onInputModeChange("keyboard-mouse");
@@ -334,7 +351,8 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
    const element=<button key={key} type="button" id={options.id?`craft-${options.id}`:undefined} data-craft-nav={key}
      className={`${options.className||""} ${props.controlMode==="directional"&&nav===key?"nav-focus":""} ${props.controlMode==="cursor"&&hover===key?"cursor-hover":""} ${props.controlMode==="pointer"&&pointerMaterialTarget===key?"material-target":""} ${key==="auto-fill"&&props.inputMode==="gamepad"&&props.controlMode==="directional"&&column===2&&phase==="select"?"shortcut-hover":""}`}
      disabled={!!completion||options.disabled} aria-label={options.aria} aria-pressed={options.pressed}
-     onClick={()=>{if(completionRef.current)return;columnRef.current=phase==="ready"&&["prepare","quantity-minus","quantity-plus"].includes(key)?2:columnOf(key);setColumn(columnRef.current);focusKey(phase==="ready"&&key.startsWith("quantity-")&&modeRef.current==="directional"?"prepare":key);props.onInput();action();}}>{(key==="prepare"||key==="reset")&&<><span className="hud-frame-art" aria-hidden="true"><span className="hud-frame-glow"/></span><span className="craft-action-texture" aria-hidden="true"/></>}{props.inputMode==="gamepad"&&((column===0&&key==="filter")||((column===1||column===2)&&key==="auto-fill"&&phase==="select"))&&<GamepadButtonIcon button="X"/>}{props.inputMode==="gamepad"&&column===0&&key==="prev-page"&&<GamepadButtonIcon button="LT"/>}{label}{props.inputMode==="gamepad"&&column===0&&key==="next-page"&&<GamepadButtonIcon button="RT"/>}</button>;
+     aria-disabled={props.tutorial&&(!props.tutorial.ready||key!==tutorialKey)?true:undefined}
+     onClick={()=>{if(completionRef.current||(props.tutorial&&(!props.tutorial.ready||key!==tutorialKey)))return;columnRef.current=phase==="ready"&&["prepare","quantity-minus","quantity-plus"].includes(key)?2:columnOf(key);setColumn(columnRef.current);focusKey(phase==="ready"&&key.startsWith("quantity-")&&modeRef.current==="directional"?"prepare":key);props.onInput();action();}}>{(key==="prepare"||key==="reset")&&<><span className="hud-frame-art" aria-hidden="true"><span className="hud-frame-glow"/></span><span className="craft-action-texture" aria-hidden="true"/></>}{props.inputMode==="gamepad"&&((column===0&&key==="filter")||((column===1||column===2)&&key==="auto-fill"&&phase==="select"))&&<GamepadButtonIcon button="X"/>}{props.inputMode==="gamepad"&&column===0&&key==="prev-page"&&<GamepadButtonIcon button="LT"/>}{label}{props.inputMode==="gamepad"&&column===0&&key==="next-page"&&<GamepadButtonIcon button="RT"/>}</button>;
    if(key==="quantity-minus"||key==="quantity-plus")return <span key={key} className={`quantity-control ${key==="quantity-minus"?"is-minus":"is-plus"} ${options.disabled?"is-disabled":""}`}>{key==="quantity-minus"&&props.inputMode==="gamepad"&&<GamepadButtonIcon button="LT"/>}{element}{key==="quantity-plus"&&props.inputMode==="gamepad"&&<GamepadButtonIcon button="RT"/>}</span>;
    if(key!=="prepare"&&key!=="reset")return element;
    return <span key={key} className="craft-action-wrap">{element}{props.controlMode==="directional"&&nav===key&&!completion&&!options.disabled&&<span className={`craft-action-ripple ${key==="prepare"?"is-gold":""}`} aria-hidden="true"><span className="craft-action-wave"/></span>}</span>;
@@ -378,8 +396,8 @@ export const CraftingWorkbench=forwardRef<StarshipInteractionMenuController,Prop
      <div className="assembly-status"><div><span id="craft-status-title">{phase==="crafted"?"製作完成":ready?"素材已備齊":progress===current.req.length?"素材數量不足":progress?"素材投入中":"等待投入素材"}</span><strong>{pct}%</strong></div><div className="meter"><i style={{width:`${pct}%`}}/></div><p>{phase==="crafted"?"成品已放入背包。":phase==="ready"?"確認製作將消耗投入素材，並將成品放入背包。":ready?"可以進入製作準備，查看結果物品。":"從左側點選對應素材投入；點中央素材可取回。"}</p></div>
     </section>
     <section className="panel output"><span className="craft-panel-texture" aria-hidden="true"/><div className="panel-head"><div><small>03 / {detailRecipe?"ITEM DETAILS":locked?"CRAFTING RESULT":"RECIPE LIBRARY"}</small><h2>{detailRecipe?"物品資訊":locked?"製作結果":"可製作物品"}</h2></div>{!detailRecipe&&<span className="count">{locked?`× ${quantity}`:recipes.length}</span>}</div>
-     {!locked?<div id="craft-recipe-view" hidden={detail!==null}><div className="list-caption">選擇目標，查看素材需求</div><div id="craft-recipes" className="recipe-list" onScroll={syncScroll}>{recipes.map((recipe,i)=><div key={recipe.id} className={`recipe-entry ${selected===i?"is-selected":""}`}>
-      {button(`recipe-${i}`,<><span className="recipe-icon-space" aria-hidden="true"/><div className="recipe-row-copy"><strong>{item(recipe.id).name}</strong><small>{recipe.type} · {recipe.req.length} 種素材</small></div>{selected!==i&&<span className="arrow" aria-hidden="true">+</span>}</>,()=>{if(i!==selected){setSelected(i);setQuantity(1);setAllocated(new Set());}setPhase("select");},{className:`recipe-row ${selected===i?"selected":""}`,pressed:selected===i})}
+     {!locked?<div id="craft-recipe-view" hidden={detail!==null}><div className="list-caption">選擇目標，查看素材需求</div><div id="craft-recipes" className="recipe-list" onScroll={syncScroll}>{recipes.map((recipe,i)=><div key={recipe.id} data-tutorial-item-id={recipe.id} className={`recipe-entry ${selected===i?"is-selected":""}`}>
+      {button(`recipe-${i}`,<><span className="recipe-icon-space" aria-hidden="true"/><div className="recipe-row-copy"><strong>{item(recipe.id).name}</strong><small>{recipe.type} · {recipe.req.length} 種素材</small></div>{selected!==i&&<span className="arrow" aria-hidden="true">+</span>}</>,()=>{if(i!==selected){setSelected(i);setQuantity(1);setAllocated(new Set());}setPhase("select");props.onRecipeSelected?.(recipe.id);},{className:`recipe-row ${selected===i?"selected":""}`,pressed:selected===i})}
       {button(`detail-${i}`,<ItemArt key={recipe.id} entry={item(recipe.id)}/>,()=>openDetail(i),{className:"recipe-detail-button",aria:`查看${item(recipe.id).name}的詳細資訊`})}
       {selected===i&&button("show-materials",<span className="recipe-materials-content">{showRecipeMaterialConfirm&&<GamepadButtonIcon button="A"/>}<span>需求素材</span><svg className="recipe-materials-arrow" viewBox="0 0 16 24" aria-hidden="true" focusable="false"><path d="M2 3H6L14 12L6 21H2L10 12Z"/></svg></span>,focusFirstRequiredMaterial,{className:`recipe-materials-button ${showRecipeMaterialConfirm&&props.controlMode==="directional"?"is-preselected":""}`,aria:`查看${item(recipe.id).name}的需求素材`})}
      </div>)}</div><div className="scroll-caption"><span>{range}</span><span>捲動瀏覽更多配方 ↓</span></div><p className="output-note">備齊素材並按下「製作準備」後，<br/>此欄將切換為製作結果預覽。</p></div>:
