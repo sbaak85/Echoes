@@ -431,3 +431,11 @@
 .crafting-workbench[data-owner=cursor] .recipe-materials-button.cursor-hover:not(:disabled) .recipe-materials-arrow{--materials-arrow-scale:1.2;animation:craft-materials-selected-breathe 1.8s ease-in-out infinite;transform:scale(1.2)}
 @keyframes craft-materials-selected-breathe{0%,100%{transform:scale(calc(var(--materials-arrow-scale)*.98));filter:brightness(1);opacity:.78}50%{transform:scale(var(--materials-arrow-scale));filter:brightness(1.25) drop-shadow(0 0 3px #ffe49c66);opacity:1}}
 @media(prefers-reduced-motion:reduce){.crafting-workbench .recipe-materials-content .recipe-materials-arrow{animation:none!important}}
+.crafting-workbench .tutorial-quantity-confirm{grid-column:1 / -1;justify-self:center;min-height:36px;padding:8px 20px}
+.crafting-workbench .tutorial-finish{align-self:center;min-height:40px;margin-top:12px;padding:8px 24px}
+.crafting-workbench :is(.tutorial-quantity-confirm,.tutorial-finish){color:#ffe6a0;border-color:#c9a65b;background:linear-gradient(135deg,#4a3d2299,#17242bd9)}
+/* STEP5 alone reuses the required-material tile's outside-in waves. */
+.crafting-workbench .craft-tutorial-auto-fill{position:relative;display:inline-grid;flex:none;margin-left:auto}
+.crafting-workbench .craft-tutorial-auto-fill>.batch{margin-left:0;border-color:#d9ffff;box-shadow:inset 0 0 8px #c5ffffb3,inset 0 0 28px #57cff173;color:#daf6fa;text-shadow:0 0 7px #8eeaff55}
+.crafting-workbench .craft-tutorial-auto-fill:has(>.batch:is(.nav-focus,.cursor-hover)) .material-ripple-wave,
+.crafting-workbench[data-owner=mouse] .craft-tutorial-auto-fill:has(>.batch:hover) .material-ripple-wave{stroke:#fff5d6;filter:drop-shadow(0 0 3px #ffda85) drop-shadow(0 0 5px #efb95180)}

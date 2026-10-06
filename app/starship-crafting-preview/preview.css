@@ -1,0 +1,10 @@
+.ship-tutorial-preview{min-height:100svh;display:grid;place-items:center;padding:24px;background-size:cover;background-position:center;color:#e6eadb;font-family:var(--inventory-font-family);overflow:hidden}
+.ship-tutorial-preview-entry{width:min(560px,100%);padding:36px;text-align:center;border:1px solid #6cacb766;background:repeating-linear-gradient(135deg,#6ea8b908 0 1px,transparent 1px 19px),#07151deb;box-shadow:0 20px 70px #0008;clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 14px,100% calc(100% - 14px),calc(100% - 14px) 100%,14px 100%,0 calc(100% - 14px),0 14px)}
+.ship-tutorial-preview-kicker{font:12px Consolas,monospace;letter-spacing:3px;color:#83aeb7}
+.ship-tutorial-preview-entry h1{margin:18px 0;color:#e5c480;font-size:30px}
+.ship-tutorial-preview-entry p{line-height:1.6;color:#becbc8}
+.ship-tutorial-preview-entry small{display:block;color:#92a6a8;margin-top:16px}
+.ship-tutorial-preview-interaction{display:inline-flex;justify-content:center;align-items:center;gap:8px;min-height:64px;width:100%;margin-top:16px;padding:14px;border:1px solid #95bac2;color:#e4eef0;background:repeating-linear-gradient(135deg,#9cc9dc0a 0 1px,transparent 1px 18px),linear-gradient(135deg,#23424d,#081822);font:700 21px var(--inventory-font-family);cursor:pointer}
+.ship-tutorial-preview-interaction:focus,.ship-tutorial-preview-interaction:focus-visible{outline:none}
+.ship-tutorial-preview[data-owner=mouse] .ship-tutorial-preview-interaction:hover,.ship-tutorial-preview[data-owner=directional] .ship-tutorial-preview-interaction{color:#fff2cb;border-color:#eac877;background:repeating-linear-gradient(135deg,#f1d4970d 0 1px,transparent 1px 18px),linear-gradient(135deg,#625b39,#17242a);box-shadow:inset 0 0 18px #d5b97235}
+.ship-tutorial-preview-entry .ship-tutorial-preview-note{margin:25px 0 0;font-size:13px;color:#7e9194}

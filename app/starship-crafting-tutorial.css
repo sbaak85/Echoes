@@ -9,6 +9,7 @@
 .sct-tip-footer>span{white-space:nowrap}.sct-tip-footer b{font:inherit;color:#e5bd62;white-space:nowrap}.sct-tip-arrow{display:grid;place-items:center;width:16px;height:16px;color:#e5bd62;font-style:normal}
 .sct-tip-arrow>span{display:block;width:12px;height:10.3923px;background:currentColor;clip-path:polygon(50% 0,100% 100%,0 100%);transform:none}
 .sct-tip-arrow[data-direction=down]>span{clip-path:polygon(0 0,100% 0,50% 100%)}
+.sct-tip-arrow[data-direction=right]>span{width:10.3923px;height:12px;clip-path:polygon(0 0,100% 50%,0 100%)}
 .sct-tip .gamepad-button-icon{transform:translateY(-2px)}
 .starship-tutorial-host[data-tutorial-active=true] button:focus,.starship-tutorial-host[data-tutorial-active=true] button:focus-visible{outline:none!important}
 .starship-tutorial-host[data-tutorial-active=true] [aria-disabled=true]{cursor:default}
@@ -16,3 +17,9 @@
 @keyframes sct-fade-in{from{opacity:0}to{opacity:1}}
 @keyframes sct-tip-breathe{from{filter:brightness(.98);box-shadow:0 12px 34px #0007,0 0 12px #8d5bdb2e}to{filter:brightness(1.06);box-shadow:0 12px 34px #0007,0 0 26px #a268ed61}}
 @media(max-width:600px){.sct-tip-copy{padding:11px 13px;font-size:13px}.sct-tip-footer{font-size:12px;padding:8px 11px}}
+/* Annotated STEP2–9 boxes: compact the contents with their responsive box. */
+.sct-tip[data-fitted=true]{box-sizing:border-box;grid-template-rows:minmax(0,1fr) auto}
+.sct-tip[data-fitted=true] .sct-tip-copy{display:flex;align-items:center;padding:calc(7 * var(--sct-tip-unit)) calc(12 * var(--sct-tip-unit));font-size:var(--sct-copy-size);line-height:1.25}
+.sct-tip[data-fitted=true] .sct-tip-footer{gap:calc(7 * var(--sct-tip-unit));padding:calc(6 * var(--sct-tip-unit)) calc(10 * var(--sct-tip-unit));font-size:var(--sct-footer-size);letter-spacing:0}
+.sct-tip-text{display:block;width:100%}
+.sct-quantity-symbol{display:inline-block;width:1.25em;height:1.25em;vertical-align:-.25em;box-sizing:border-box;fill:currentColor;color:#f4deab;border:1px solid #91b8c5;background:linear-gradient(135deg,#213a46,#07141c);border-radius:2px;pointer-events:none}

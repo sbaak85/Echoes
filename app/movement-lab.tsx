@@ -17735,6 +17735,17 @@ export function MovementLab() {
             setPlayerInventory(craftedInventory);
             try { savePlayerInventory(craftedInventory); } catch { /* Keep the in-memory transaction if storage is unavailable. */ }
             questRuntimeManagerRef.current?.syncCurrentInventory(craftedInventory);
+            // Fabrication is an acquisition too; inventory snapshots alone only
+            // update haveItem objectives, not accumulated collectItem objectives.
+            const craftQuestManager = questRuntimeManagerRef.current;
+            if (craftQuestManager) {
+              questGameEventSequenceRef.current += 1;
+              craftQuestManager.handleEvent({
+                type: "itemCollected", targetId: result.itemId, amount: result.quantity,
+                eventId: `itemCrafted:${result.itemId}:${questGameEventSequenceRef.current}`,
+              });
+              try { saveQuestSaveData(craftQuestManager.exportSave()); } catch { /* Retain the successful crafting transaction. */ }
+            }
             showPlayerItemGain(ITEM_BY_ID.get(result.itemId)!.name, result.quantity);
             return { ok: true };
           }}

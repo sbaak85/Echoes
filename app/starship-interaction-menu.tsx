@@ -14,7 +14,7 @@ import {
 import { GamepadButtonIcon } from "./gamepad-button-icon";
 import { CraftingWorkbench } from "./crafting-workbench";
 import type { PlayerInventory } from "./item-database";
-import { STARSHIP_CRAFTING_TUTORIAL_STEPS, STARSHIP_CRAFTING_TUTORIAL_RECIPE, advanceStarshipCraftingTutorial, type StarshipCraftingTutorialStep } from "./starship-crafting-tutorial";
+import { STARSHIP_CRAFTING_TUTORIAL_STEPS, STARSHIP_CRAFTING_TUTORIAL_RECIPE, advanceStarshipCraftingTutorial, starshipTutorialButtonSelectors, type StarshipCraftingTutorialStep } from "./starship-crafting-tutorial";
 import { StarshipCraftingTutorialOverlay } from "./starship-crafting-tutorial-overlay";
 import "./starship-interaction-menu.css";
 import { resolveRuntimePublicAssetUrl as assetUrl } from "./public-asset-url";
@@ -88,11 +88,17 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   const tutorialRoot = useRef<HTMLDivElement>(null);
   const [tutorialStep, setTutorialStep] = useState<StarshipCraftingTutorialStep | null>(() => tutorialStart ? STARSHIP_CRAFTING_TUTORIAL_STEPS[0] : null);
   const [tutorialReady, setTutorialReady] = useState(false);
+  const [tutorialAnimationPlaying, setTutorialAnimationPlaying] = useState(false);
   const tutorialRuntime = useRef({ step: tutorialStep, ready: false });
   const tutorialTarget = useCallback(() => tutorialRuntime.current.step
-    ? tutorialRoot.current?.querySelector<HTMLButtonElement>(tutorialRuntime.current.step.target) ?? null : null, []);
+    ? tutorialRoot.current?.querySelector<HTMLButtonElement>(tutorialRuntime.current.step.focusTarget ?? tutorialRuntime.current.step.target) ?? null : null, []);
   const tutorialAllows = useCallback((button: Element | null) => !tutorialRuntime.current.step ||
-    (tutorialRuntime.current.ready && button !== null && button === tutorialTarget()), [tutorialTarget]);
+    (tutorialRuntime.current.ready && button !== null && !!tutorialRoot.current?.contains(button) &&
+      starshipTutorialButtonSelectors(tutorialRuntime.current.step).some(selector => button.matches(selector))), []);
+  const interruptTutorial = () => {
+    tutorialRuntime.current.step = null; tutorialRuntime.current.ready = false;
+    setTutorialReady(false); setTutorialStep(null);
+  };
   const advanceTutorial = (action: string) => {
     const state = tutorialRuntime.current;
     if (!state.step || !state.ready || state.step.action !== action) return;
@@ -255,13 +261,18 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
       if (!button || !tutorialAllows(button)) return false;
       button.click(); return true;
     },
-    updateTriggers: (left, right, now) => tutorialRuntime.current.step ? true : workbenchRef.current?.updateTriggers?.(left, right, now) ?? false,
+    updateTriggers: (left, right, now) => {
+      // Poll blocked steps too, so a held trigger must rearm at neutral before STEP7.
+      const owned = workbenchRef.current?.updateTriggers?.(left, right, now) ?? false;
+      return tutorialRuntime.current.step ? true : owned;
+    },
     switchColumn: delta => { if (!tutorialRuntime.current.step) workbenchRef.current?.switchColumn?.(delta); },
     changePage: delta => { if (!tutorialRuntime.current.step) workbenchRef.current?.changePage?.(delta); },
-    secondary: () => { if (!tutorialRuntime.current.step) workbenchRef.current?.secondary?.(); },
+    secondary: () => { if (!tutorialRuntime.current.step) workbenchRef.current?.secondary?.(); else if (tutorialRuntime.current.step.id === "auto-fill" && tutorialRuntime.current.ready) tutorialTarget()?.click(); },
     inspect: () => { if (!tutorialRuntime.current.step) workbenchRef.current?.inspect?.(); },
     move: direction => {
       if (tutorialRuntime.current.step) {
+        if (tutorialRuntime.current.step.id === "quantity") { workbenchRef.current?.move(direction); return; }
         if (view === "workbench") workbenchRef.current?.setControlMode("directional"); else setControlMode("directional");
         if (tutorialRuntime.current.ready) tutorialTarget()?.focus({ preventScroll: true });
       } else if (view === "workbench" || view === "cooking") workbenchRef.current?.move(direction); else moveSpatially(direction);
@@ -274,7 +285,11 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
       if (view === "workbench" || view === "cooking") workbenchRef.current?.hover(index); else hoverFromVirtualCursor(index);
     },
     activate: () => {
-      if (tutorialRuntime.current.step) { if (tutorialRuntime.current.ready) tutorialTarget()?.click(); }
+      if (tutorialRuntime.current.step) {
+        if (tutorialRuntime.current.ready) {
+          if (view === "workbench") workbenchRef.current?.activate(); else tutorialTarget()?.click();
+        }
+      }
       else if (view === "workbench" || view === "cooking") workbenchRef.current?.activate(); else activateSelected();
     },
     back: () => { if (tutorialRuntime.current.step) return; if (view === "workbench" || view === "cooking") workbenchRef.current?.back(); else back(); },
@@ -403,8 +418,10 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
         : "飛船休息艙";
   const content = (view === "workbench" || view === "cooking") ? <CraftingWorkbench key={view} mode={view === "cooking" ? "cooking" : "craft"} ref={workbenchRef}
     inventory={inventory} inputMode={inputMode} controlMode={controlMode}
-    tutorial={tutorialStep ? { recipeId: STARSHIP_CRAFTING_TUTORIAL_RECIPE, ready: tutorialReady } : undefined}
+    tutorial={tutorialStep ? { recipeId: STARSHIP_CRAFTING_TUTORIAL_RECIPE, step: tutorialStep, ready: tutorialReady } : undefined}
     onRecipeSelected={id => advanceTutorial(`recipe:${id}`)}
+    onTutorialAction={advanceTutorial} onTutorialInterrupted={interruptTutorial}
+    onCraftingAnimationChange={setTutorialAnimationPlaying}
     onControlModeChange={setControlMode} onInputModeChange={onInputModeChange}
     onInput={onInput} onCraftAudio={onCraftAudio} onCraft={onCraft} onBack={() => changeView("craft")} /> : (
     <div
@@ -457,11 +474,11 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
           {view === "repair" ? <div className="im-craft-empty"><span>🔧</span><h2>飛船維修台</h2><p>受損系統與艙體的維修項目將在這裡顯示。</p><small>維修功能尚未接入</small></div> : null}
         </div>
         {view !== "main" ? <button type="button" aria-disabled={tutorialStep ? true : undefined} data-starship-menu-index={view === "sleep" ? 2 : view === "craft" ? 2 : 0} className={`im-back ${((controlMode === "directional" && selected === (view === "sleep" ? 2 : view === "craft" ? 2 : 0)) || (controlMode === "cursor" && cursorHover === (view === "sleep" ? 2 : view === "craft" ? 2 : 0))) ? "is-selected" : ""}`} onFocus={() => setSelected(view === "sleep" ? 2 : view === "craft" ? 2 : 0)} onClick={() => back()}><span>↶</span>返回功能選單</button> : null}
-        <footer>{inputMode === "gamepad"
+        <footer>{!tutorialStep && (inputMode === "gamepad"
           ? <><span><GamepadButtonIcon button="DPad" /><b className="im-glyph-slash">/</b><GamepadButtonIcon button="LS" />選擇</span><span><GamepadButtonIcon button="A" />確認</span><span><GamepadButtonIcon button="B" />返回</span></>
           : inputMode === "mobile"
             ? <><span>觸控選擇</span><span>點選確認</span><span>點選返回</span></>
-            : <><span><kbd>↑ ↓</kbd>選擇</span><span><kbd>ENTER</kbd>確認</span><span><kbd>ESC</kbd>返回</span></>}
+            : <><span><kbd>↑ ↓</kbd>選擇</span><span><kbd>ENTER</kbd>確認</span><span><kbd>ESC</kbd>返回</span></>)}
         </footer>
       </section>
     </div>
@@ -472,7 +489,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
     onPointerOverCapture={gateTutorialEvent} onPointerMoveCapture={gateTutorialEvent}
     onWheelCapture={blockTutorialEvent} onContextMenuCapture={blockTutorialEvent}>
     {content}
-    {tutorialStep ? <StarshipCraftingTutorialOverlay key={tutorialStep.id} step={tutorialStep} root={tutorialRoot} inputMode={inputMode}
+    {tutorialStep && !tutorialAnimationPlaying ? <StarshipCraftingTutorialOverlay key={tutorialStep.id} step={tutorialStep} root={tutorialRoot} inputMode={inputMode}
       onReady={id => {
         if (tutorialRuntime.current.step?.id !== id) return;
         tutorialRuntime.current.ready = true; setTutorialReady(true);
