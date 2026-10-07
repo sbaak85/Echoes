@@ -411,8 +411,23 @@ export function validateQuestDebugConfiguration(
         });
       }
     }
+    const objectiveStages = new Map<string, string>();
     for (const stage of quest.stages) {
       for (const objective of stage.objectives) {
+        const previousStage = objectiveStages.get(objective.id);
+        if (previousStage !== undefined) {
+          // Runtime state is keyed by OBJ ID across the whole quest. A duplicate
+          // corrupts any stage, so report a quest-wide error to the debug gate.
+          issues.push({
+            severity: "error",
+            code: "duplicate-objective-id",
+            questId: quest.id,
+            objectiveId: objective.id,
+            message: "任務 " + quest.id + " 的 OBJ ID " + objective.id + " 重複出現在 " + previousStage + " 與 " + stage.id,
+          });
+        } else {
+          objectiveStages.set(objective.id, stage.id);
+        }
         validateObjectiveTarget(issues, quest, stage.id, objective, context);
       }
     }

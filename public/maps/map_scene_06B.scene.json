@@ -2224,15 +2224,15 @@
           "y": 1100
         },
         {
-          "x": 975,
-          "y": 1135
+          "x": 970,
+          "y": 1130
         },
         {
-          "x": 975,
+          "x": 970,
           "y": 1190
         },
         {
-          "x": 925,
+          "x": 920,
           "y": 1235
         },
         {
@@ -3400,42 +3400,46 @@
       "shape": "polygon",
       "points": [
         {
-          "x": 690,
-          "y": 1145
+          "x": 725,
+          "y": 1170
         },
         {
-          "x": 730,
-          "y": 1105
+          "x": 775,
+          "y": 1120
         },
         {
-          "x": 925,
-          "y": 1105
+          "x": 890,
+          "y": 1120
         },
         {
-          "x": 975,
-          "y": 1140
+          "x": 950,
+          "y": 1165
         },
         {
-          "x": 975,
-          "y": 1190
+          "x": 950,
+          "y": 1220
         },
         {
-          "x": 925,
-          "y": 1235
+          "x": 920,
+          "y": 1245
         },
         {
-          "x": 720,
-          "y": 1235
+          "x": 760,
+          "y": 1245
         },
         {
-          "x": 690,
-          "y": 1210
+          "x": 725,
+          "y": 1215
         }
       ],
       "type": "enter",
       "verb": "\u9032\u5165",
       "survivalRequirements": {
-        "mode": "all"
+        "mode": "all",
+        "stamina": {
+          "comparison": "atLeast",
+          "value": 20
+        }
       },
       "survivalEffects": {
         "stamina": 0,
@@ -3452,7 +3456,7 @@
           "itemId": "",
           "questId": "QUEST_CH04_MAIN_001",
           "stageId": "QUEST_CH04_MAIN_001_STAGE_03",
-          "stageMode": "CurrentStageOnly",
+          "stageMode": "UnlockUntilCondition",
           "objectiveId": "QUEST_CH04_MAIN_001_OBJ_20",
           "objectiveState": "completed",
           "disableQuestId": "",
@@ -3462,8 +3466,8 @@
         }
       ],
       "interactionHintPoint": {
-        "x": 831.0052,
-        "y": 1156.8519
+        "x": 833.3933,
+        "y": 1167.2167
       },
       "activationDistance": 52,
       "dialogue": {

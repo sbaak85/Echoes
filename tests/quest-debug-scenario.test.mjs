@@ -222,9 +222,10 @@ test("Quest Stage Next crosses Chapter 3 into Chapter 4 and settles every Stage 
     (issue.questId === chapterFourStageTwo.targetQuestId &&
       (!issue.stageId || issue.stageId === chapterFourStageTwo.targetStageId))
   )), [], "the UI validation gate must allow the generated Stage 2 plan");
-  assert.ok(issues.some(issue =>
+  assert.equal(issues.some(issue =>
     issue.objectiveId === "QUEST_CH04_MAIN_001_OBJ_06" &&
-    issue.code === "missing-objective-target" && issue.severity === "warning"));
+    (issue.code === "missing-objective-target" || issue.severity === "error")), false,
+    "OBJ06 now uses the registered plant puzzle and must pass validation");
   for (const objectiveId of [
     "QUEST_CH04_MAIN_001_OBJ_01",
     "QUEST_CH04_MAIN_001_OBJ_02",
@@ -495,6 +496,8 @@ test("Chapter 4 Stage 2 Debug Next enters Stage 3 without the unrelated OBJ20 pu
   assert.equal(entry.objectives.QUEST_CH04_MAIN_001_OBJ_04.completed, true);
   assert.equal(entry.objectives.QUEST_CH04_MAIN_001_OBJ_05.completed, true);
   assert.equal(entry.objectives.QUEST_CH04_MAIN_001_OBJ_20.completed, false);
+  assert.equal(entry.objectives.QUEST_CH04_MAIN_001_OBJ_06.unlocked, true);
+  assert.equal(entry.objectives.QUEST_CH04_MAIN_001_OBJ_20.unlocked, false);
   const context = { itemIds: new Set(ITEM_DEFINITIONS.map(item => item.id)),
     interactionIds: new Set(sceneDocuments.flatMap(scene => (scene.interactables ?? []).map(item => item.id))),
     puzzleIds: new Set([PLANT_PUZZLE_ID]) };
@@ -507,6 +510,8 @@ test("Chapter 4 Stage 2 Debug Next enters Stage 3 without the unrelated OBJ20 pu
   manager.replaceSaveData(plan.questSave, false);
   assert.equal(manager.getCurrentStage(plan.targetQuestId), plan.targetStageId);
   assert.equal(manager.getObjectiveProgress(plan.targetQuestId, "QUEST_CH04_MAIN_001_OBJ_20").completed, false);
+  assert.equal(manager.isObjectiveInProgress(plan.targetQuestId, "QUEST_CH04_MAIN_001_OBJ_06"), true);
+  assert.equal(manager.isObjectiveInProgress(plan.targetQuestId, "QUEST_CH04_MAIN_001_OBJ_20"), false);
 });
 
 test("skipping the shared plant puzzle does not invent completed Interaction usage for its puzzle ID", () => {
@@ -514,4 +519,47 @@ test("skipping the shared plant puzzle does not invent completed Interaction usa
   assert.equal(plan.questSave.quests.QUEST_CH04_MAIN_001.objectives.QUEST_CH04_MAIN_001_OBJ_20.completed, true);
   assert.equal(plan.interactionUsage.completedOnceIds.includes(PLANT_PUZZLE_ID), false);
   assert.equal(plan.interactionUsage.counts[PLANT_PUZZLE_ID], undefined);
+});
+
+
+test("plant OBJ20 waits for section 8 completion and is independent of the later return-to-camp objective", () => {
+  const questId = "QUEST_CH04_MAIN_001";
+  const quest = questDocument.quests.find(quest => quest.id === questId);
+  const ids = quest.stages.flatMap(stage => stage.objectives.map(objective => objective.id));
+  assert.equal(new Set(ids).size, ids.length);
+  assert.equal(quest.stages.find(stage => stage.id.endsWith("_05")).objectives[0].id, questId + "_OBJ_21");
+  const plan = build({ kind: "goto", questRef: questId, stageRef: "3" });
+  const manager = new QuestRuntimeManager(questDocument, {}, plan.questSave);
+  assert.equal(manager.isObjectiveInProgress(questId, questId + "_OBJ_20"), false);
+  manager.activateObjective(questId + "_OBJ_18");
+  assert.equal(manager.isObjectiveInProgress(questId, questId + "_OBJ_20"), false);
+  manager.handleEvent({ type: "customQuestProgressAdded", targetId: "chapter04-glow-stick-crafted", amount: 2, eventId: "test-crafted-two" });
+  assert.equal(manager.getObjectiveProgress(questId, questId + "_OBJ_18").completed, true);
+  assert.equal(manager.isObjectiveInProgress(questId, questId + "_OBJ_20"), false);
+  manager.handleEvent({ type: "dialogueCompleted", targetId: "chapter04-section-8", eventId: "test-crafting-return-dialogue" });
+  assert.equal(manager.isObjectiveInProgress(questId, questId + "_OBJ_20"), true);
+});
+
+test("untouched OBJ20 from the duplicated-ID save is re-locked on restore", () => {
+  const questId = "QUEST_CH04_MAIN_001";
+  const plan = build({ kind: "goto", questRef: questId, stageRef: "3" });
+  Object.assign(plan.questSave.quests[questId].objectives[questId + "_OBJ_20"], {
+    unlocked: true, state: "active", activationDefinitionKey: "immediate",
+  });
+  const manager = new QuestRuntimeManager(questDocument, {}, plan.questSave);
+  assert.equal(manager.isObjectiveInProgress(questId, questId + "_OBJ_06"), true);
+  assert.equal(manager.isObjectiveInProgress(questId, questId + "_OBJ_20"), false);
+});
+
+test("duplicate IDs across quest stages produce a quest-wide blocking validation error", () => {
+  const document = structuredClone(questDocument), questId = "QUEST_CH04_MAIN_001";
+  const quest = document.quests.find(quest => quest.id === questId);
+  quest.stages.find(stage => stage.id.endsWith("_05")).objectives[0].id = questId + "_OBJ_20";
+  const issues = validateQuestDebugConfiguration(document, []);
+  const duplicate = issues.find(issue => issue.code === "duplicate-objective-id");
+  assert.equal(duplicate?.severity, "error");
+  assert.equal(duplicate?.questId, questId);
+  assert.equal(duplicate?.objectiveId, questId + "_OBJ_20");
+  assert.equal(duplicate?.stageId, undefined, "must block debug entry even when the duplicate is in a future stage");
+  assert.equal(validateQuestDebugConfiguration(questDocument, []).some(issue => issue.code === "duplicate-objective-id"), false);
 });

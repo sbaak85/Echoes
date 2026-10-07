@@ -29,28 +29,37 @@ function makeSticks(manager, quantity, transaction = "make-two") {
   publishSuccessfulCraftQuestProgress(manager, result, transaction);
 }
 
-test("OBJ20 uses the shared plant puzzle identity; OBJ18 completion activates it and OBJ19 stays the tube task", () => {
+function completeReturnDialogue(manager) {
+  manager.handleEvent({ type: "dialogueCompleted", targetId: "chapter04-section-8", eventId: "completed-return" });
+}
+
+test("OBJ20 uses the shared plant puzzle identity and waits for section 8 completion; OBJ19 stays the tube task", () => {
   assert.equal(obj20, "QUEST_CH04_MAIN_001_OBJ_20");
   const objective = stage.objectives.find(entry => entry.id === obj20);
-  assert.equal(objective.activationMode, "objectiveCompleted"); assert.equal(objective.activationEventId, obj18);
+  assert.equal(objective.activationMode, "dialogueCompleted"); assert.equal(objective.activationEventId, "chapter04-section-8");
   assert.equal(objective.type, "puzzleCompleted"); assert.equal(objective.targetId, puzzleId); assert.equal(objective.requiredAmount, 1);
   const tube = stage.objectives.find(entry => entry.id === obj19);
   assert.equal(tube.type, "collectItem"); assert.equal(tube.targetId, "R0036");
   assert.equal(tube.activationMode, "dialogueCompleted"); assert.equal(tube.activationEventId, "chapter04-section-7");
 });
 
-test("one fabricated stick leaves OBJ20 locked; the second transaction unlocks it without completing it", () => {
+test("two fabricated sticks still leave OBJ20 locked until section 8 has finished", () => {
   const manager = harness();
   assert.equal(manager.isObjectiveInProgress(questId, obj20), false);
   makeSticks(manager, 1, "first");
   assert.equal(progress(manager, obj18).completed, false); assert.equal(manager.isObjectiveInProgress(questId, obj20), false);
   makeSticks(manager, 1, "second");
-  assert.equal(progress(manager, obj18).completed, true); assert.equal(manager.isObjectiveInProgress(questId, obj20), true);
+  assert.equal(progress(manager, obj18).completed, true); assert.equal(manager.isObjectiveInProgress(questId, obj20), false);
+  assert.equal(finishPlant(manager, solution), false);
+  manager.handleEvent({ type: "dialogueStarted", targetId: "chapter04-section-8", eventId: "started-return" });
+  assert.equal(manager.isObjectiveInProgress(questId, obj20), false);
+  completeReturnDialogue(manager);
+  assert.equal(manager.isObjectiveInProgress(questId, obj20), true);
   assert.equal(progress(manager).completed, false);
 });
 
-test("batch two unlocks OBJ20 immediately; entering, placing, submitting or merely finishing an interaction does not complete it", () => {
-  const manager = harness(); makeSticks(manager, 2);
+test("after the crafting return dialogue, ordinary plant interaction still does not complete OBJ20", () => {
+  const manager = harness(); makeSticks(manager, 2); completeReturnDialogue(manager);
   for (const id of ["scene6-interaction-020", "scene6-interaction-021"]) for (const type of ["interactionStarted", "interactionSucceeded", "itemSubmitted", "puzzleCompleted"]) {
     manager.handleEvent({ type, targetId: id, itemId: "T0006", amount: 1 });
     assert.equal(progress(manager).completed, false);
@@ -60,7 +69,7 @@ test("batch two unlocks OBJ20 immediately; entering, placing, submitting or mere
 });
 
 test("empty, one-sided, unfinished and corrupt solved states do not complete OBJ20", () => {
-  const manager = harness(); makeSticks(manager, 2);
+  const manager = harness(); makeSticks(manager, 2); completeReturnDialogue(manager);
   for (const state of [initialPhototropicState(), { ...solution, R: { slot: null, angle: 40 } }, { ...solution, solved: false }, { ...solution, R: { slot: 2, angle: 120 } }]) {
     assert.equal(finishPlant(manager, state), false);
     assert.equal(progress(manager).completed, false);
@@ -68,7 +77,7 @@ test("empty, one-sided, unfinished and corrupt solved states do not complete OBJ
 });
 
 test("genuine successful completion ticks OBJ20 once, never the original tube objective", () => {
-  const manager = harness(); makeSticks(manager, 2);
+  const manager = harness(); makeSticks(manager, 2); completeReturnDialogue(manager);
   manager.activateObjective(obj19, "chapter04-section-7");
   assert.equal(finishPlant(manager, solution), true);
   assert.equal(progress(manager).completed, true); assert.equal(progress(manager).currentAmount, 1);
@@ -83,11 +92,13 @@ test("success cannot complete an inactive objective; validated persisted success
   assert.equal(finishPlant(null, solution), false); assert.equal(finishPlant(manager, solution), false);
   assert.equal(progress(manager).completed, false);
   makeSticks(manager, 2);
+  assert.equal(finishPlant(manager, normalizePhototropicState(solution)), false);
+  completeReturnDialogue(manager);
   assert.equal(finishPlant(manager, normalizePhototropicState(solution)), true);
 });
 
 test("portable reload preserves active OBJ20 and success evidence without manufacturing completion from lamp geometry", () => {
-  const manager = harness(); makeSticks(manager, 2);
+  const manager = harness(); makeSticks(manager, 2); completeReturnDialogue(manager);
   const save = state => normalizeEchoesSaveData(JSON.parse(JSON.stringify({
     format: SAVE_DATA_FORMAT, schemaVersion: 1, summary: {},
     progress: { sceneId: "Scene_6", quest: manager.exportSave(), phototropic: state },

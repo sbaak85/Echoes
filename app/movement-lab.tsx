@@ -31,7 +31,8 @@ import {
   type StarshipSleepOption,
 } from "./starship-interaction-menu";
 import { shouldStartStarshipCraftingTutorial, STARSHIP_CRAFTING_TUTORIAL_COMPLETED_FLAG } from "./starship-crafting-tutorial";
-import { STARSHIP_CRAFTING_TUTORIAL_INTERACTION, completeStarshipCraftingTutorialObjective, publishSuccessfulCraftQuestProgress } from "./starship-crafting-quest-flow";
+import { STARSHIP_CRAFTING_TUTORIAL_INTERACTION, completeStarshipCraftingTutorialObjective } from "./starship-crafting-quest-flow";
+import { STARSHIP_CRAFTING_RETURN_DIALOGUE, isStarshipCraftingReturnPending, publishStarshipCraftWithReturnDialogue, completeStarshipCraftingReturnDialogue, createStarshipCraftingReturnDialogueController } from "./starship-crafting-return-dialogue";
 
 import {
   useCallback,
@@ -3769,7 +3770,7 @@ export function MovementLab() {
   const questGameEventSequenceRef = useRef(0);
   const questHudEventTimerRef = useRef<number | null>(null);
   const questHudEventFinishedRef = useRef<(() => void) | null>(null);
-  const questObjectiveTweenTimerRef = useRef<number | null>(null);
+  const questObjectiveTweenTimerRefs = useRef(new Map<string, number>());
   const questObjectiveUnlockTweenTimerRefs = useRef(new Map<string, number>());
   const questStageTransitionTimerRef = useRef<number | null>(null);
   const questStageEnteringTimerRef = useRef<number | null>(null);
@@ -4029,11 +4030,9 @@ export function MovementLab() {
   const [activeQuestHud, setActiveQuestHud] = useState<QuestHudView | null>(null);
   const [completedQuestHistory, setCompletedQuestHistory] = useState<QuestHistoryView[]>([]);
   const [questHudEvent, setQuestHudEvent] = useState<QuestHudEvent | null>(null);
-  const [questObjectiveTween, setQuestObjectiveTween] = useState<{
-    questId: string;
-    objectiveId: string;
-    sequence: number;
-  } | null>(null);
+  const [questObjectiveTweens, setQuestObjectiveTweens] = useState<
+    Record<string, QuestObjectiveTween>
+  >({});
   const [questObjectiveUnlockTweens, setQuestObjectiveUnlockTweens] = useState<
     Record<string, QuestObjectiveTween>
   >({});
@@ -5005,10 +5004,9 @@ export function MovementLab() {
       return;
     }
     playOneShotAudio("questObjectiveCompleted");
-    if (questObjectiveTweenTimerRef.current !== null) {
-      window.clearTimeout(questObjectiveTweenTimerRef.current);
-    }
     const unlockTweenKey = getQuestObjectiveTweenKey(view.id, objectiveId);
+    const existingTimer = questObjectiveTweenTimerRefs.current.get(unlockTweenKey);
+    if (existingTimer !== undefined) window.clearTimeout(existingTimer);
     const unlockTweenTimer = questObjectiveUnlockTweenTimerRefs.current.get(unlockTweenKey);
     if (unlockTweenTimer !== undefined) {
       window.clearTimeout(unlockTweenTimer);
@@ -5023,15 +5021,24 @@ export function MovementLab() {
     questHudEventSequenceRef.current += 1;
     setActiveQuestHud(view);
     revealQuestHudForAutomaticPresentation();
-    setQuestObjectiveTween({
-      questId: view.id,
-      objectiveId,
-      sequence: questHudEventSequenceRef.current,
-    });
-    questObjectiveTweenTimerRef.current = window.setTimeout(() => {
-      questObjectiveTweenTimerRef.current = null;
-      setQuestObjectiveTween(null);
+    const sequence = questHudEventSequenceRef.current;
+    // Each OBJ retains its own animation and expiry even during a batched update.
+    setQuestObjectiveTweens((current) => ({
+      ...current,
+      [unlockTweenKey]: { questId: view.id, objectiveId, sequence },
+    }));
+    const timer = window.setTimeout(() => {
+      if (questObjectiveTweenTimerRefs.current.get(unlockTweenKey) === timer) {
+        questObjectiveTweenTimerRefs.current.delete(unlockTweenKey);
+      }
+      setQuestObjectiveTweens((current) => {
+        if (current[unlockTweenKey]?.sequence !== sequence) return current;
+        const next = { ...current };
+        delete next[unlockTweenKey];
+        return next;
+      });
     }, 1000);
+    questObjectiveTweenTimerRefs.current.set(unlockTweenKey, timer);
   };
 
   const triggerQuestObjectiveUnlockTween = (
@@ -5814,9 +5821,10 @@ export function MovementLab() {
       window.clearTimeout(questHudEventTimerRef.current);
     }
     questHudEventFinishedRef.current = null;
-    if (questObjectiveTweenTimerRef.current !== null) {
-      window.clearTimeout(questObjectiveTweenTimerRef.current);
+    for (const timer of questObjectiveTweenTimerRefs.current.values()) {
+      window.clearTimeout(timer);
     }
+    questObjectiveTweenTimerRefs.current.clear();
     for (const timer of questObjectiveUnlockTweenTimerRefs.current.values()) {
       window.clearTimeout(timer);
     }
@@ -7126,6 +7134,11 @@ export function MovementLab() {
     }
   };
   dialogueManager.setCompletionListener((request) => {
+    if (request.id === STARSHIP_CRAFTING_RETURN_DIALOGUE) {
+      storyProgressRef.current = completeStarshipCraftingReturnDialogue(storyProgressRef.current);
+      try { saveStoryProgress(storyProgressRef.current); } catch { /* Preserve session completion if local storage is unavailable. */ }
+      requestPortableAutosaveRef.current("crafting-return-dialogue-completed");
+    }
     const manager = questRuntimeManagerRef.current;
     if (manager) {
       questGameEventSequenceRef.current += 1;
@@ -9927,6 +9940,24 @@ export function MovementLab() {
       !starCardsOpenRef.current &&
       !starshipInteractionMenuOpenRef.current;
 
+    const craftingReturnDialogueController = createStarshipCraftingReturnDialogueController({
+      isPending: () => isStarshipCraftingReturnPending(storyProgressRef.current) &&
+        !questRuntimeManagerRef.current?.hasDialogueCompleted(STARSHIP_CRAFTING_RETURN_DIALOGUE),
+      isMenuOpen: () => starshipInteractionMenuOpenRef.current,
+      isSceneAvailable: () => portableSaveHydratedRef.current && !document.hidden &&
+        !isWorldInteractionBlockedByUi() && !storyFlowActiveRef.current &&
+        !sceneTransitioningRef.current && !pendingChapterStartRef.current &&
+        !saveDataBusyRef.current && blackScreenOpacityRef.current === 0 &&
+        !dialogueManagerRef.current?.isPlaying(),
+      playDialogue: () => dialogueManagerRef.current!.playRegistered(STARSHIP_CRAFTING_RETURN_DIALOGUE, {
+        id: "story:" + STARSHIP_CRAFTING_RETURN_DIALOGUE,
+        label: STARSHIP_CRAFTING_RETURN_DIALOGUE,
+        type: "dialogue",
+      }),
+      setTimer: (callback, delayMs) => window.setTimeout(callback, delayMs),
+      clearTimer: (timerId) => window.clearTimeout(timerId),
+    });
+
     const questSkipKeyController = createQuestSkipKeyController({
       canTrigger: canUseQuestSkipHotkey,
       onStageNext: () => debugItemSpawnHandlerRef.current("Quest Stage Next"),
@@ -10635,13 +10666,16 @@ export function MovementLab() {
           }
           questPresentationTimerRefs.current = [];
           questObjectiveActivationPresentationsRef.current.clear();
+          for (const timer of questObjectiveTweenTimerRefs.current.values()) {
+            window.clearTimeout(timer);
+          }
+          questObjectiveTweenTimerRefs.current.clear();
           for (const timer of questObjectiveUnlockTweenTimerRefs.current.values()) {
             window.clearTimeout(timer);
           }
           questObjectiveUnlockTweenTimerRefs.current.clear();
           for (const timerRef of [
             questHudEventTimerRef,
-            questObjectiveTweenTimerRef,
             questStageTransitionTimerRef,
             questStageEnteringTimerRef,
           ]) {
@@ -10649,7 +10683,7 @@ export function MovementLab() {
             timerRef.current = null;
           }
           setQuestHudEvent(null);
-          setQuestObjectiveTween(null);
+          setQuestObjectiveTweens({});
           setQuestObjectiveUnlockTweens({});
           setQuestStageEntering(false);
           setQuestStageEntryPending(false);
@@ -15987,6 +16021,9 @@ export function MovementLab() {
       const deltaTime = Math.min(survivalDeltaSeconds, 0.033);
       lastTime = time;
       update(deltaTime, survivalDeltaSeconds);
+      // Returning through an inner page does not close the outer menu. Start the
+      // delay only once all blocking UI is gone, and recheck it at timer expiry.
+      craftingReturnDialogueController.reconcile();
       // Clock boundaries are independent of the one-second survival settlement.
       // Publish only a changed minute; no survival calculation or per-frame render.
       const nextClockMinute = Math.floor(
@@ -16006,6 +16043,7 @@ export function MovementLab() {
     animationFrame = requestAnimationFrame(frame);
 
     return () => {
+      craftingReturnDialogueController.dispose();
       questSkipKeyController.cancel();
       startStarshipSleepRef.current = () => {};
       settleNaturalSurvival();
@@ -16607,9 +16645,6 @@ export function MovementLab() {
   const activeQuestHudEvent = questHudEvent?.questId === activeQuestHud?.id
     ? questHudEvent
     : null;
-  const activeQuestObjectiveTween = questObjectiveTween?.questId === activeQuestHud?.id
-    ? questObjectiveTween
-    : null;
   const activeNewPlayerTutorialStep = newPlayerTutorialStep
     ? getNewPlayerTutorialStep(newPlayerTutorialStep)
     : null;
@@ -17087,7 +17122,10 @@ export function MovementLab() {
           <div className="quest-objectives" key={activeQuestHud!.stageId}>
             {activeQuestHud!.objectives.map((objective) => {
               const progress = Math.min(1, objective.current / objective.required);
-              const isCompletionPop = activeQuestObjectiveTween?.objectiveId === objective.id;
+              const objectiveCompletionTween = questObjectiveTweens[
+                getQuestObjectiveTweenKey(activeQuestHud!.id, objective.id)
+              ];
+              const isCompletionPop = objectiveCompletionTween !== undefined;
               const objectiveUnlockTween = questObjectiveUnlockTweens[
                 getQuestObjectiveTweenKey(activeQuestHud!.id, objective.id)
               ];
@@ -17095,7 +17133,7 @@ export function MovementLab() {
               return (
                 <div
                   className={`quest-objective${isCompletionPop ? " is-completion-pop" : ""}${isUnlockEnter ? " is-unlock-enter" : ""}`}
-                  key={`${objective.id}-${isCompletionPop ? activeQuestObjectiveTween.sequence : 0}-${objectiveUnlockTween?.sequence ?? 0}`}
+                  key={`${objective.id}-${objectiveCompletionTween?.sequence ?? 0}-${objectiveUnlockTween?.sequence ?? 0}`}
                 >
                   <span
                     className={`quest-objective-check${objective.completed ? " is-complete" : ""}`}
@@ -17789,7 +17827,13 @@ export function MovementLab() {
             questRuntimeManagerRef.current?.syncCurrentInventory(craftedInventory);
             const craftQuestManager = questRuntimeManagerRef.current;
             if (craftQuestManager) {
-              publishSuccessfulCraftQuestProgress(craftQuestManager, result, `itemCrafted:${crypto.randomUUID()}`);
+              const nextStory = publishStarshipCraftWithReturnDialogue(
+                craftQuestManager, result, `itemCrafted:${crypto.randomUUID()}`, storyProgressRef.current,
+              );
+              if (nextStory !== storyProgressRef.current) {
+                storyProgressRef.current = nextStory;
+                try { saveStoryProgress(nextStory); } catch { /* Portable autosave below also retains the pending dialogue. */ }
+              }
               try { saveQuestSaveData(craftQuestManager.exportSave()); } catch { /* Retain the successful crafting transaction. */ }
             }
             requestPortableAutosaveRef.current("item-crafted");

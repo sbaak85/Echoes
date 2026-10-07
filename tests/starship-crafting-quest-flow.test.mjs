@@ -190,7 +190,7 @@ test("production wiring records the 029 source, persists both counters and uses 
   assert.match(movement, /starshipInteractionMenuEntryIdRef.current = interactionId/);
   assert.match(movement, /starshipInteractionMenuEntryIdRef.current = null/);
   assert.match(movement, /onTutorialCompleted=\{\(\) => \{[\s\S]*?completeStarshipCraftingTutorialObjective\(manager, starshipInteractionMenuEntryIdRef.current, true\)/);
-  assert.match(movement, /publishSuccessfulCraftQuestProgress\(craftQuestManager, result, `itemCrafted:\$\{crypto.randomUUID\(\)\}`\)/);
+  assert.match(movement, /publishStarshipCraftWithReturnDialogue\(\s*craftQuestManager, result, `itemCrafted:\$\{crypto.randomUUID\(\)\}`, storyProgressRef.current,/);
   assert.match(movement, /saveQuestSaveData\(craftQuestManager.exportSave\(\)\)/);
   assert.match(movement, /requestPortableAutosaveRef.current\("item-crafted"\)/);
 });
