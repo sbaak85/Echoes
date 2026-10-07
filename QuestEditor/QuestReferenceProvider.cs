@@ -41,6 +41,7 @@ internal static class QuestReferenceProvider
         LoadItems(projectRoot, catalog);
         LoadScenes(projectRoot, catalog);
         LoadStoryContent(projectRoot, catalog);
+        LoadPlantPuzzle(projectRoot, catalog);
         catalog.Add("HintIcon", "main", "主要任務");
         catalog.Add("HintIcon", "interaction", "互動");
         catalog.Add("HintIcon", "collect", "收集");
@@ -49,6 +50,16 @@ internal static class QuestReferenceProvider
             catalog.Add("Interface", entry.Id, entry.Label);
         catalog.Sort();
         return catalog;
+    }
+
+    private static void LoadPlantPuzzle(string root, QuestReferenceCatalog catalog)
+    {
+        // The shared L/R puzzle has one runtime identity, independent of its entrance Interaction.
+        var path = Path.Combine(root, "app", "phototropic-puzzle.ts");
+        if (!File.Exists(path)) return;
+        var match = Regex.Match(File.ReadAllText(path), "PLANT_PUZZLE_ID\\s*=\\s*\"(?<id>[^\"]+)\"",
+            RegexOptions.CultureInvariant);
+        if (match.Success) catalog.Add("Puzzle", match.Groups["id"].Value, "植物解謎系統");
     }
 
     private static void LoadItems(string root, QuestReferenceCatalog catalog)

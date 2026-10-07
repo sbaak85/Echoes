@@ -6,6 +6,7 @@ import { normalizeStoryProgress } from '../app/story-progress.ts';
 import { createNewGameProgress } from '../app/new-game-reset.ts';
 import { normalizeEchoesSaveData } from '../app/save-data.ts';
 import { craftInventoryRecipe, isWorkbenchMaterial } from '../app/crafting-recipes.ts';
+import { publishSuccessfulCraftQuestProgress } from '../app/starship-crafting-quest-flow.ts';
 import { ITEM_DEFINITIONS } from '../app/item-database.ts';
 import { findCraftMaterialTarget } from '../app/crafting-material-target.ts';
 import {
@@ -84,12 +85,12 @@ test('crafted acquisition progresses actual OBJ18 exactly once per transaction',
   const result=craftInventoryRecipe({R0020:2,R0036:2},'T0006',2);assert.equal(result.ok,true);
   manager.syncCurrentInventory(result.inventory);
   assert.equal(manager.getObjectiveProgress(questId,'QUEST_CH04_MAIN_001_OBJ_18').currentAmount,0);
-  const event={type:'itemCollected',targetId:result.itemId,amount:result.quantity,eventId:'itemCrafted:test:1'};
-  manager.handleEvent(event);manager.handleEvent(event);
+  publishSuccessfulCraftQuestProgress(manager,result,'itemCrafted:test:1');
+  publishSuccessfulCraftQuestProgress(manager,result,'itemCrafted:test:1');
   const progress=manager.getObjectiveProgress(questId,'QUEST_CH04_MAIN_001_OBJ_18');
   assert.equal(progress.currentAmount,2);assert.equal(progress.completed,true);
   const movement=await readFile(new URL('../app/movement-lab.tsx',import.meta.url),'utf8');
-  assert.match(movement,/type: "itemCollected", targetId: result.itemId, amount: result.quantity/);
+  assert.match(movement,/publishSuccessfulCraftQuestProgress\(craftQuestManager, result, `itemCrafted:\$\{crypto.randomUUID\(\)\}`\)/);
 });
 
 test('STEP5 spotlights requirements without granting material-return or navigation actions', () => {
@@ -173,8 +174,8 @@ test('all menu/controller input paths honor the gate without native disabled art
   const menu = await readFile(new URL('../app/starship-interaction-menu.tsx', import.meta.url), 'utf8');
   const workbench = await readFile(new URL('../app/crafting-workbench.tsx', import.meta.url), 'utf8');
   for (const path of ['switchColumn', 'changePage', 'secondary', 'inspect']) assert.match(menu, new RegExp(`${path}:.*!tutorialRuntime.current.step`));
-  assert.match(menu, /onClickCapture=\{gateTutorialEvent\}/);
-  assert.match(menu, /onPointerDownCapture=\{gateTutorialEvent\}/);
+  assert.match(menu, /onClickCapture=\{gateMenuEvent\}/);
+  assert.match(menu, /onPointerDownCapture=\{gateMenuEvent\}/);
   assert.match(menu, /onWheelCapture=\{blockTutorialEvent\}/);
   assert.match(menu, /if \(tutorialRuntime.current.step\) return;/);
   assert.doesNotMatch(menu, /(?:^|\s)disabled=\{tutorial|\.disabled\s*=/);

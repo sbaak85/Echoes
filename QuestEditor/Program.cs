@@ -237,6 +237,8 @@ internal static class Program
             !File.ReadAllText(path).Contains("\"compoundMatchMode\": \"anyN\""))
             throw new InvalidDataException("任選 N 種 JSON 儲存讀取失敗。");
         var references = QuestReferenceProvider.Load(projectRoot);
+        if (!references.Contains("Puzzle", "chapter04-phototropic-plant"))
+            throw new InvalidDataException("植物解謎系統必須從 runtime 登記到完成解謎選項。");
         if (QuestValidator.Validate(compoundRoundtrip, references).Any(issue => issue.Severity == ValidationSeverity.Error))
             throw new InvalidDataException("合法的任選 N 種設定被錯誤阻擋。");
         roundtripObjective.RequiredAmount = 4;

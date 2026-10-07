@@ -5,7 +5,9 @@ import { useInteractionIllustration, InteractionIllustrationOverlay, type Intera
 import { runInteractionIllustrationFlow } from "./interaction-illustration-flow";
 import { usePhototropicPuzzle, PhototropicPuzzleOverlay } from "./phototropic-puzzle-ui";
 import { runPhototropicInteractionFlow } from "./phototropic-interaction-flow";
-import { plantSideForInteraction, PLANT_OBJECTIVE_ID, PLANT_QUEST_ID, PLANT_SUCCESS_MESSAGE } from "./phototropic-puzzle";
+import { filterPhototropicUseRequirements, plantSideForInteraction, PLANT_GLOW_STICK_ITEM_ID, PLANT_OBJECTIVE_ID, PLANT_QUEST_ID, PLANT_PUZZLE_ID, PLANT_SUCCESS_MESSAGE } from "./phototropic-puzzle";
+import { completePhototropicQuestObjective } from "./phototropic-quest-flow";
+import { getStarshipMenuFeatureLocks } from "./starship-menu-availability";
 import { isQuestObjectiveVisible, isQuestObjectiveCheckmarkVisible } from "./quest-hud-timing";
 import { canShareMobileHudSpace, changeMobileHudMode, cycleMobileHudMode, type MobileHudPanelMode } from "./mobile-hud-layout";
 
@@ -29,6 +31,7 @@ import {
   type StarshipSleepOption,
 } from "./starship-interaction-menu";
 import { shouldStartStarshipCraftingTutorial, STARSHIP_CRAFTING_TUTORIAL_COMPLETED_FLAG } from "./starship-crafting-tutorial";
+import { STARSHIP_CRAFTING_TUTORIAL_INTERACTION, completeStarshipCraftingTutorialObjective, publishSuccessfulCraftQuestProgress } from "./starship-crafting-quest-flow";
 
 import {
   useCallback,
@@ -353,7 +356,10 @@ import {
 
 const QUEST_DOCUMENT = questDocumentSource as QuestDocument;
 const FIRST_MAIN_QUEST_ID = "QUEST_CH03_MAIN_001";
-const STARSHIP_INTERACTION_MENU_INTERACTION_ID = "scene3-interaction-029";
+const STARSHIP_INTERACTION_MENU_INTERACTION_IDS = new Set([
+  "scene3-interaction-029", // Initial crafting tutorial entrance.
+  "scene3-interaction-031", // Subsequent entrance; availability stays quest-controlled.
+]);
 const QUEST_DEBUG_ITEM_SURVIVAL_EFFECTS = Object.fromEntries(
   ITEM_DEFINITIONS.map((item) => [item.id, item.survivalEffects]),
 );
@@ -3511,10 +3517,27 @@ export function MovementLab() {
   const plantPuzzle = usePhototropicPuzzle(() => {
     setPlantSuccessVisible(true);
     const manager = questRuntimeManagerRef.current;
-    // Respect the intentionally inactive objective. Completion is replayed when it is activated later.
-    if (manager?.exportSave().quests[PLANT_QUEST_ID]?.state === "active" && manager.completeObjective(PLANT_QUEST_ID, PLANT_OBJECTIVE_ID)) saveQuestSaveData(manager.exportSave());
+    // Only a validated puzzle success completes OBJ20; ordinary interaction/exit does not.
+    if (completePhototropicQuestObjective(manager, plantController.state)) {
+      try { saveQuestSaveData(manager!.exportSave()); } catch { /* Retain session completion and request portable save below. */ }
+    }
     requestPortableAutosaveRef.current("phototropic-solved");
-  }, () => requestPortableAutosaveRef.current("phototropic-placement"));
+  }, (inserted) => {
+    // The controller has already committed placement, and the insertion
+    // callback has already debited inventory; save a coherent pair now.
+    if (inserted) {
+      try { savePlayerInventory(playerInventoryRef.current); } catch { /* Portable save remains available. */ }
+      try { questRuntimeManagerRef.current?.syncCurrentInventory(playerInventoryRef.current); } catch { /* Do not interrupt insertion. */ }
+    }
+    requestPortableAutosaveRef.current(inserted ? "phototropic-inserted" : "phototropic-placement");
+  }, () => {
+    const current = playerInventoryRef.current;
+    if ((current[PLANT_GLOW_STICK_ITEM_ID] ?? 0) < 1) return false;
+    const next = removeInventoryItem(current, PLANT_GLOW_STICK_ITEM_ID, 1);
+    playerInventoryRef.current = next;
+    setPlayerInventory(next);
+    return true;
+  });
   const plantController = plantPuzzle.controller;
   useEffect(() => {
     if (!plantSuccessVisible) return;
@@ -3622,6 +3645,7 @@ export function MovementLab() {
   const weldingPuzzleOpenRef = useRef(false);
   const starCardsOpenRef = useRef(false);
   const starshipInteractionMenuOpenRef = useRef(false);
+  const starshipInteractionMenuEntryIdRef = useRef<string | null>(null);
   const starshipInteractionMenuInputRearmRef = useRef(false);
   const startStarshipSleepRef = useRef<(option: StarshipSleepOption) => void>(() => {});
   const starshipInteractionMenuControllerRef =
@@ -4269,6 +4293,7 @@ export function MovementLab() {
 
   const closeStarshipInteractionMenu = useCallback(() => {
     starshipInteractionMenuOpenRef.current = false;
+    starshipInteractionMenuEntryIdRef.current = null;
     starshipInteractionMenuInputRearmRef.current = true;
     starshipInteractionCursorRearmRequiredRef.current = false;
     setStarshipInteractionMenuOpen(false);
@@ -4276,11 +4301,21 @@ export function MovementLab() {
     window.queueMicrotask(() => canvasRef.current?.focus({ preventScroll: true }));
   }, []);
 
-  const openStarshipInteractionMenu = () => {
+  const openStarshipInteractionMenu = (interactionId: string) => {
     if (starshipInteractionMenuOpenRef.current) return;
-    setStarshipCraftingTutorialStart(shouldStartStarshipCraftingTutorial(
-      questRuntimeManagerRef.current, storyProgressRef.current.storyFlags,
-    ));
+    starshipInteractionMenuEntryIdRef.current = interactionId;
+    if (interactionId === STARSHIP_CRAFTING_TUTORIAL_INTERACTION) {
+      // Existing v2 saves already completed fabrication but may predate OBJ17 wiring.
+      const manager = questRuntimeManagerRef.current;
+      if (completeStarshipCraftingTutorialObjective(manager, interactionId,
+        storyProgressRef.current.storyFlags[STARSHIP_CRAFTING_TUTORIAL_COMPLETED_FLAG] === true)) {
+        try { saveQuestSaveData(manager!.exportSave()); } catch { /* Keep the in-memory completion. */ }
+        requestPortableAutosaveRef.current("starship-crafting-tutorial-objective-restored");
+      }
+      setStarshipCraftingTutorialStart(shouldStartStarshipCraftingTutorial(
+        questRuntimeManagerRef.current, storyProgressRef.current.storyFlags,
+      ));
+    } else setStarshipCraftingTutorialStart(false);
     dismissTimeElapsedNotice();
     clearInventoryHoverHint();
     optionsOpenRef.current = false;
@@ -5442,7 +5477,10 @@ export function MovementLab() {
             if (questId === PLANT_QUEST_ID && objectiveId === PLANT_OBJECTIVE_ID && plantController.state.solved) {
               queueMicrotask(() => {
                 const manager = questRuntimeManagerRef.current;
-                if (manager?.completeObjective(questId, objectiveId)) saveQuestSaveData(manager.exportSave());
+                if (completePhototropicQuestObjective(manager, plantController.state)) {
+                  try { saveQuestSaveData(manager!.exportSave()); } catch { /* Retain validated success in memory. */ }
+                  requestPortableAutosaveRef.current("phototropic-objective-restored");
+                }
               });
             }
             const presentationKey = `${questId}:${_stageId}:${objectiveId}`;
@@ -5535,6 +5573,8 @@ export function MovementLab() {
         loadedQuestSave,
       );
       questRuntimeManagerRef.current.syncCurrentInventory(loadedInventory, false);
+      // A genuine saved success may predate OBJ20 wiring; geometry alone is never enough.
+      completePhototropicQuestObjective(questRuntimeManagerRef.current, plantController.state);
       const currentQuestSave = questRuntimeManagerRef.current.exportSave();
       saveQuestSaveData(currentQuestSave);
       bgmDirectorRef.current?.syncQuestSnapshot(currentQuestSave.quests);
@@ -7828,12 +7868,13 @@ export function MovementLab() {
     });
   };
 
-  requestPortableAutosaveRef.current = () => {
+  requestPortableAutosaveRef.current = (reason) => {
     if (debugSaveIsolationRef.current || !portableSaveHydratedRef.current) return;
     if (portableAutosaveTimerRef.current !== null) {
       window.clearTimeout(portableAutosaveTimerRef.current);
+      portableAutosaveTimerRef.current = null;
     }
-    portableAutosaveTimerRef.current = window.setTimeout(() => {
+    const write = () => {
       portableAutosaveTimerRef.current = null;
       void queuePortableSaveWrite("autosave", "auto")
         .then((backend) => {
@@ -7843,7 +7884,11 @@ export function MovementLab() {
           console.error("[Echoes SaveData] 自動存檔失敗：", error);
           setSaveDataStatus("自動存檔失敗；原存檔未被覆蓋。 ");
         });
-    }, 250);
+    };
+    // First insertion is irreversible: capture inventory + placement before
+    // a close/reload can cancel a debounced save. Dial updates stay debounced.
+    if (reason === "phototropic-inserted") write();
+    else portableAutosaveTimerRef.current = window.setTimeout(write, 250);
   };
 
   const getManualSaveBlockedReason = () => {
@@ -9079,7 +9124,7 @@ export function MovementLab() {
       interactable: SceneInteractable,
       purpose: "prompt" | "interaction" | "all" = "interaction",
     ) => getUnmetInteractionUseRequirements(
-      purpose === "all"
+      filterPhototropicUseRequirements(interactable.id, purpose === "all"
         ? normalizeInteractionUseRequirements(
             interactable.useRequirements,
             resolveItemId,
@@ -9090,7 +9135,7 @@ export function MovementLab() {
               resolveItemId,
             ),
             purpose,
-          ),
+          ), plantController.state),
       playerInventoryRef.current,
       currentStoryChapterRef.current,
       (questId) =>
@@ -10456,6 +10501,7 @@ export function MovementLab() {
             undefined,
             {
               itemIds: new Set(ITEM_DEFINITIONS.map((item) => item.id)),
+              puzzleIds: new Set([PLANT_PUZZLE_ID]),
               interactionIds: new Set(
                 [...SCENE_REGISTRY.values()].flatMap((scene) =>
                   (scene.interactables ?? []).map((interactable) => interactable.id),
@@ -11787,8 +11833,8 @@ export function MovementLab() {
       const completeTriggeredInteraction = () => completeInteraction(
         interactable,
         source,
-        interactable.id === STARSHIP_INTERACTION_MENU_INTERACTION_ID
-          ? openStarshipInteractionMenu
+        STARSHIP_INTERACTION_MENU_INTERACTION_IDS.has(interactable.id)
+          ? () => openStarshipInteractionMenu(interactable.id)
           : undefined,
       );
 
@@ -16655,7 +16701,7 @@ export function MovementLab() {
       <span className="mobile-hud-space-probe" aria-hidden="true" />
       {interactionIllustration.view && <InteractionIllustrationOverlay view={interactionIllustration.view}
         onClose={() => { void illustrationController.close(); }} onError={() => illustrationController.cancel()} />}
-      {plantPuzzle.view && <PhototropicPuzzleOverlay key={plantPuzzle.view.id} ref={plantPuzzle.control} view={plantPuzzle.view} gamepadMode={questPromptInputMode === "gamepad"} onIntroduced={() => plantController.markIntroduced()} onInput={() => playOneShotAudio("uiInput")} onVineMotion={motion => audioEventManagerRef.current?.setPlantVineMotion(motion)} onSuccessDialogue={id => dialogueManager.playRegistered(id, { id, label: id, type: "dialogue" })} onFinish={(state, solved) => plantController.finish(state, solved)} />}
+      {plantPuzzle.view && <PhototropicPuzzleOverlay key={plantPuzzle.view.id} ref={plantPuzzle.control} view={plantPuzzle.view} gamepadMode={questPromptInputMode === "gamepad"} onIntroduced={() => plantController.markIntroduced()} onInput={() => playOneShotAudio("uiInput")} onVineMotion={motion => audioEventManagerRef.current?.setPlantVineMotion(motion)} onSuccessDialogue={id => dialogueManager.playRegistered(id, { id, label: id, type: "dialogue" })} onChange={(slot, angle) => plantController.update(plantPuzzle.view!.id, slot, angle)} onFinish={(state, solved) => plantController.finish(state, solved, plantPuzzle.view!.id)} />}
       {plantSuccessVisible && <div className="plant-success-message" role="status"><span>{PLANT_SUCCESS_MESSAGE}</span></div>}
       <canvas
         ref={canvasRef}
@@ -17707,7 +17753,12 @@ export function MovementLab() {
         <StarshipInteractionMenu
           ref={starshipInteractionMenuControllerRef}
           tutorialStart={starshipCraftingTutorialStart}
+          featureLocks={getStarshipMenuFeatureLocks(questRuntimeManagerRef.current, storyProgressRef.current.storyFlags)}
           onTutorialCompleted={() => {
+            const manager = questRuntimeManagerRef.current;
+            if (completeStarshipCraftingTutorialObjective(manager, starshipInteractionMenuEntryIdRef.current, true)) {
+              try { saveQuestSaveData(manager!.exportSave()); } catch { /* Keep the in-memory completion. */ }
+            }
             // Use the existing portable story flags, never the preview session key.
             try { setStoryFlag(STARSHIP_CRAFTING_TUTORIAL_COMPLETED_FLAG, true); }
             catch {
@@ -17715,6 +17766,7 @@ export function MovementLab() {
               // and still request the portable save if localStorage is unavailable.
               requestPortableAutosaveRef.current("starship-crafting-tutorial-completed");
             }
+            requestPortableAutosaveRef.current("starship-crafting-tutorial-completed");
             setStarshipCraftingTutorialStart(false);
           }}
           inputMode={questPromptInputMode}
@@ -17735,17 +17787,12 @@ export function MovementLab() {
             setPlayerInventory(craftedInventory);
             try { savePlayerInventory(craftedInventory); } catch { /* Keep the in-memory transaction if storage is unavailable. */ }
             questRuntimeManagerRef.current?.syncCurrentInventory(craftedInventory);
-            // Fabrication is an acquisition too; inventory snapshots alone only
-            // update haveItem objectives, not accumulated collectItem objectives.
             const craftQuestManager = questRuntimeManagerRef.current;
             if (craftQuestManager) {
-              questGameEventSequenceRef.current += 1;
-              craftQuestManager.handleEvent({
-                type: "itemCollected", targetId: result.itemId, amount: result.quantity,
-                eventId: `itemCrafted:${result.itemId}:${questGameEventSequenceRef.current}`,
-              });
+              publishSuccessfulCraftQuestProgress(craftQuestManager, result, `itemCrafted:${crypto.randomUUID()}`);
               try { saveQuestSaveData(craftQuestManager.exportSave()); } catch { /* Retain the successful crafting transaction. */ }
             }
+            requestPortableAutosaveRef.current("item-crafted");
             showPlayerItemGain(ITEM_BY_ID.get(result.itemId)!.name, result.quantity);
             return { ok: true };
           }}

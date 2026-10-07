@@ -9,7 +9,7 @@ import { resolveRuntimePublicAssetUrl } from "./public-asset-url";
 import { createPlantVines } from "./phototropic-vines";
 import { smoothVineProgress } from "./phototropic-vine-geometry.js";
 import { PLANT_SUCCESS_BACKGROUND, PLANT_SUCCESS_DIALOGUE_ID, PLANT_SUCCESS_COVER_MS, PLANT_SUCCESS_REVEAL_MS, PLANT_SUCCESS_EXIT_MS, startPlantSuccessTransition, type PlantSuccessPhase } from "./phototropic-success-transition";
-import { initialPhototropicState, isPhototropicClear, loadPhototropicState, normalizePhototropicState, plantDialAngle, PLANT_DIAL, plantEquilibrium, plantPresentationStart, PLANT_GROW_MS, savePhototropicState, type PhototropicState, type PlantSide } from "./phototropic-puzzle";
+import { changePhototropicLamp, initialPhototropicState, isPhototropicClear, loadPhototropicState, normalizePhototropicState, plantDialAngle, PLANT_DIAL, plantEquilibrium, plantPresentationStart, PLANT_GROW_MS, savePhototropicState, type PhototropicState, type PlantSide } from "./phototropic-puzzle";
 
 type PlantView = { id?: number; side: PlantSide; imagePath: string; initial: PhototropicState };
 export type PlantUiController = {
@@ -17,19 +17,20 @@ export type PlantUiController = {
   pad: (x: number, y: number, confirm: boolean, back: boolean, dt: number, rightX?: number, fineX?: number) => boolean;
   point: (x: number, y: number) => void;
 };
-export function usePhototropicPuzzle(onSolved: () => void, onSaved: () => void) {
-  const callbacks = useRef({ onSolved, onSaved }); callbacks.current = { onSolved, onSaved };
+export function usePhototropicPuzzle(onSolved: () => void, onSaved: (inserted: boolean) => void, consumeGlowStick: () => boolean = () => false) {
+  const callbacks = useRef({ onSolved, onSaved, consumeGlowStick }); callbacks.current = { onSolved, onSaved, consumeGlowStick };
   const [view, setView] = useState<PlantView | null>(null);
   const state = useRef(initialPhototropicState());
   const pending = useRef<((completed: boolean) => void) | null>(null);
   const control = useRef<PlantUiController | null>(null);
   const viewId = useRef(0);
-  const persist = () => {
+  const activeSide = useRef<PlantSide | null>(null);
+  const persist = (inserted = false) => {
     // Storage can be denied or full. Keep the session state and still request
     // the portable autosave; neither failure may strand a blocking overlay.
     try { savePhototropicState(state.current); }
     catch (error) { console.warn("[PhototropicPuzzle] Local save failed; retaining session state.", error); }
-    try { callbacks.current.onSaved(); }
+    try { callbacks.current.onSaved(inserted); }
     catch (error) { console.warn("[PhototropicPuzzle] Autosave notification failed.", error); }
   };
   const api = useRef({
@@ -38,15 +39,32 @@ export function usePhototropicPuzzle(onSolved: () => void, onSaved: () => void) 
     hydrate(value?: PhototropicState) { state.current = value ? normalizePhototropicState(value) : loadPhototropicState(); },
     open(side: PlantSide, imagePath: string) {
       api.current.cancel();
+      activeSide.current = side;
       setView({ id: ++viewId.current, side, imagePath, initial: structuredClone(state.current) });
       return new Promise<boolean>(resolve => { pending.current = resolve; });
     },
-    finish(next: PhototropicState, solved: boolean) {
-      if (!pending.current) return;
+    update(expectedViewId: number | undefined, slot: number | null, angle: number): PhototropicState | null {
+      if (!pending.current || expectedViewId !== viewId.current || !activeSide.current) return null;
+      const side = activeSide.current, previous = state.current;
+      let next: PhototropicState | null;
+      try { next = changePhototropicLamp(previous, side, slot, angle, () => callbacks.current.consumeGlowStick()); }
+      catch (error) { console.warn("[PhototropicPuzzle] Insertion failed.", error); return null; }
+      if (!next || next === previous) return next;
+      // Inventory debit and canonical placement are synchronous, before either
+      // local storage or a portable snapshot can observe this transaction.
+      state.current = next;
+      persist(previous[side].slot === null);
+      return next;
+    },
+    finish(next: PhototropicState, solved: boolean, expectedViewId = viewId.current) {
+      if (!pending.current || expectedViewId !== viewId.current) return;
       const alreadySolved = state.current.solved;
-      // A completed puzzle is immutable, even if a stale UI submits edits.
-      if (!alreadySolved) state.current = normalizePhototropicState({ ...next, solved: next.solved || solved });
+      // Closing cannot insert free lamps, remove installed lamps, or replay a
+      // stale draft. Only accepted updates own the saved configuration.
+      const matches = (["L", "R"] as const).every(side => next[side].slot === state.current[side].slot && next[side].angle === state.current[side].angle);
+      if (!alreadySolved) state.current = normalizePhototropicState({ ...state.current, solved: solved && matches });
       const resolve = pending.current; pending.current = null; setView(null);
+      activeSide.current = null;
       control.current = null;
       try {
         persist();
@@ -60,7 +78,7 @@ export function usePhototropicPuzzle(onSolved: () => void, onSaved: () => void) 
       state.current = { ...state.current, introduced: true };
       persist();
     },
-    cancel() { const resolve = pending.current; pending.current = null; setView(null); resolve?.(false); },
+    cancel() { const resolve = pending.current; pending.current = null; activeSide.current = null; control.current = null; setView(null); resolve?.(false); },
     key(key: string, repeat: boolean) { control.current?.key(key, repeat); },
     pad(x: number, y: number, confirm: boolean, back: boolean, dt: number, rightX = 0, fineX = 0) { return control.current?.pad(x, y, confirm, back, dt, rightX, fineX) ?? false; },
     point(x: number, y: number) { control.current?.point(x, y); },
@@ -76,7 +94,7 @@ function Socket({ occupied, angle }: { occupied: boolean; angle: number }) {
   </span>;
 }
 
-export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: PlantView; onFinish: (state: PhototropicState, solved: boolean) => void; onSuccessDialogue: (id: string) => Promise<{ completed: boolean }>; onIntroduced?: () => void; onInput?: () => void; onVineMotion?: (motion: PlantVineMotion) => void; gamepadMode?: boolean }>(function PhototropicPuzzleOverlay({ view, onFinish, onSuccessDialogue, onIntroduced, onInput, onVineMotion, gamepadMode = false }, ref) {
+export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: PlantView; onFinish: (state: PhototropicState, solved: boolean) => void; onChange?: (slot: number | null, angle: number) => PhototropicState | null; onSuccessDialogue: (id: string) => Promise<{ completed: boolean }>; onIntroduced?: () => void; onInput?: () => void; onVineMotion?: (motion: PlantVineMotion) => void; gamepadMode?: boolean }>(function PhototropicPuzzleOverlay({ view, onFinish, onChange, onSuccessDialogue, onIntroduced, onInput, onVineMotion, gamepadMode = false }, ref) {
   const [draft, setDraft] = useState(() => normalizePhototropicState(view.initial));
   const draftRef = useRef(draft); draftRef.current = draft;
   const presentation = useRef(plantPresentationStart(view.initial)).current;
@@ -93,6 +111,7 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
   const overlay = useRef<HTMLDivElement>(null);
   const hoverTarget = useRef<Element | null>(null);
   const closing = useRef(false);
+  const [placementError, setPlacementError] = useState("");
   const updateMouseHover = (target: EventTarget | null) => {
     if (!readyRef.current || closing.current || cursorOwnership.owner !== "mouse") { hoverTarget.current = null; return; }
     const control = target instanceof Element ? target.closest(".plant-slots button:not(:disabled), .plant-angle-dial:not([aria-disabled=true]), .plant-confirm:not(:disabled)") : null;
@@ -118,11 +137,14 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
     return matrix ? new DOMPoint(x, y).matrixTransform(matrix.inverse()) : null;
   };
   const change = (slot: number | null, angle = draftRef.current[view.side].angle) => {
-    if (!readyRef.current || closing.current || draftRef.current.solved) return;
+    if (!readyRef.current || closing.current || draftRef.current.solved) return false;
     const clamped = Math.max(0, Math.min(120, Math.round(angle)));
-    if (draftRef.current[view.side].slot === slot && draftRef.current[view.side].angle === clamped) return;
-    const next = { ...draftRef.current, [view.side]: { slot, angle: clamped } };
+    if (draftRef.current[view.side].slot === slot && draftRef.current[view.side].angle === clamped) return true;
+    const next = onChange ? onChange(slot, clamped) : changePhototropicLamp(draftRef.current, view.side, slot, clamped, () => true);
+    if (!next) { setPlacementError("無法放置：需要 1 支螢光棒。"); return false; }
+    setPlacementError("");
     draftRef.current = next; setDraft(next);
+    return true;
   };
   const beginSuccess = () => {
     if (closing.current) return;
@@ -156,7 +178,7 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
     if (!readyRef.current || closing.current || draftRef.current.solved) return;
     onInput?.();
     if (plantPrimaryAction(index, draftRef.current[view.side].slot) !== "place") return;
-    change(index);
+    if (!change(index)) return;
     // Preserve the socket as the horizontal navigation anchor, then hand A to confirmation.
     select(index);
     if (advanceFocus) select(4);
@@ -298,7 +320,7 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
       <p className="plant-eyebrow">PHOTOTROPIC FIELD CONTROL</p>
       <h2>{view.side === "L" ? "左側光源" : "右側光源"}</h2>
       <p className="plant-description">{draft.solved ? "此謎題已完成，可查看光源設定或返回場景。" : "插入螢光棒，觀察兩叢藤蔓，再調整照射方向。"}</p>
-      <p className="plant-note">{!draft.solved && "本側調整會同時牽動兩叢植物 · "}<span className="plant-setting-status" data-pending={dirty || undefined} role="status">{draft.solved ? "解謎已完成 · 光源設定已鎖定" : dirty ? "設定已變更 · 返回時保存" : lamp.slot === null ? "尚未放置螢光棒" : "目前設定已保存"}</span></p>
+      <p className="plant-note">{!draft.solved && "本側調整會同時牽動兩叢植物 · "}<span className="plant-setting-status" data-pending={!onChange && dirty || undefined} role="status">{placementError || (draft.solved ? "解謎已完成 · 光源設定已鎖定" : dirty ? onChange ? "設定已即時保存 · 螢光棒不可取回" : "設定已變更 · 返回時保存" : lamp.slot === null ? "尚未放置螢光棒" : "目前設定已保存")}</span></p>
       </header>
       <div className="plant-slots">
         {showPadTips && !settingsLocked && <p className="plant-position-tip"><GamepadButtonIcon button="LS" /><span>左右選格 · 上下切換確認</span></p>}

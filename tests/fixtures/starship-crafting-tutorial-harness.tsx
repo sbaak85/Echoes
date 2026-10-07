@@ -4,6 +4,7 @@ import { StarshipInteractionMenu, type StarshipInteractionMenuController } from 
 import { STARSHIP_CRAFTING_TUTORIAL_COMPLETED_FLAG as flag, shouldStartStarshipCraftingTutorial } from "../../app/starship-crafting-tutorial";
 import { craftInventoryRecipe, isWorkbenchMaterial } from "../../app/crafting-recipes";
 import { ITEM_DEFINITIONS, type PlayerInventory } from "../../app/item-database";
+import { getStarshipMenuFeatureLocks, STARSHIP_MENU_RESTRICTED_STAGE } from "../../app/starship-menu-availability";
 
 // Isolated component QA, no player storage, world state, or production inventory writes.
 function Harness() {
@@ -11,6 +12,7 @@ function Harness() {
   const [input, setInput] = useState<"keyboard-mouse" | "gamepad" | "mobile">("keyboard-mouse");
   const [inventory, setInventory] = useState<PlayerInventory>({ R0020: 2, R0036: 2 });
   const [failCraft, setFailCraft] = useState(false);
+  const [restrictedStage, setRestrictedStage] = useState(true);
   const control = useRef<StarshipInteractionMenuController>(null);
   const simulate = (action: () => void) => { setInput("gamepad"); control.current?.setControlMode("directional"); action(); };
   const cursorClick = (selector: string) => {
@@ -23,6 +25,8 @@ function Harness() {
       <button onClick={() => setOpen(false)}>中斷測試</button>
       <button onClick={() => { setOpen(false); setCompleted(false); }}>重置教學測試</button>
       <button onClick={() => setActive(value => !value)}>切換 OBJ17</button>
+      <button onClick={() => setCompleted(value => !value)}>切換教學完成旗標</button>
+      <button onClick={() => setRestrictedStage(value => !value)}>切換 Stage03</button>
       <button onClick={() => simulate(() => control.current?.move("down"))}>模擬 LS 下</button>
       <button onClick={() => simulate(() => control.current?.activate())}>模擬 A</button>
       <button onClick={() => simulate(() => control.current?.back())}>模擬 B</button>
@@ -37,11 +41,12 @@ function Harness() {
       }}><option value="normal">兩份素材</option><option value="full">完整素材背包</option><option value="single">一份素材</option><option value="missing-sac">缺螢光包囊</option><option value="missing-tube">缺空試管瓶</option></select></label>
       <button onClick={() => cursorClick('[data-tutorial-action="repair"]')}>游標點鎖定卡</button>
       <button onClick={() => cursorClick('[data-tutorial-action="craft"], [data-tutorial-action="workbench"], [data-tutorial-item-id="T0006"] .recipe-row')}>游標點目標</button>
-      <output aria-label="Tutorial flags">OBJ17：{active ? "active" : "locked"}／完成：{String(completed)}／素材：{JSON.stringify(inventory)}</output>
+      <output aria-label="Tutorial flags">OBJ17：{active ? "active" : "locked"}／完成：{String(completed)}／Stage03：{String(restrictedStage)}／素材：{JSON.stringify(inventory)}</output>
     </aside>
     {open ? <StarshipInteractionMenu ref={control} inventory={inventory} inputMode={input} onInputModeChange={setInput}
       onControlModeChange={() => {}} onInput={() => {}} onSleep={() => {}} onClose={() => setOpen(false)}
       tutorialStart={shouldStartStarshipCraftingTutorial({ isObjectiveInProgress: () => active }, { [flag]: completed })}
+      featureLocks={getStarshipMenuFeatureLocks({ getCurrentStage: () => restrictedStage ? STARSHIP_MENU_RESTRICTED_STAGE : "QUEST_CH04_MAIN_001_STAGE_04" }, { [flag]: completed })}
       onTutorialCompleted={() => setCompleted(true)} onCraft={(id, quantity = 1) => {
         if(failCraft)return {ok:false,reason:"模擬製作失敗：未扣除素材"};
         const result = craftInventoryRecipe(inventory, id, quantity); if (result.ok) setInventory(result.inventory); return result;

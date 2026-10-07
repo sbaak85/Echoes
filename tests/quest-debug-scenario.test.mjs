@@ -12,6 +12,7 @@ import {
 } from "../app/quest-debug-scenario.ts";
 import { QuestRuntimeManager } from "../app/quest-runtime-manager.ts";
 import { QUEST_OBJECTIVE_COMPLETION_RULES } from "../app/chapter04-quest-flow.ts";
+import { PLANT_PUZZLE_ID } from "../app/phototropic-puzzle.ts";
 
 const questDocument = JSON.parse(
   readFileSync(new URL("../public/quests/quest-data.json", import.meta.url), "utf8"),
@@ -441,7 +442,7 @@ test("unfinished targets are warnings for every activation mode; unknown IDs rem
     for (const activationMode of ["immediate", "event", "objectiveCompleted"]) {
       const document = structuredClone(questDocument);
       const quest = document.quests.find(q => q.id === "QUEST_CH04_MAIN_001");
-      const objective = quest.stages[1].objectives.find(o => o.id === "QUEST_CH04_MAIN_001_OBJ_06");
+      const objective = quest.stages.flatMap(stage => stage.objectives).find(o => o.id === "QUEST_CH04_MAIN_001_OBJ_06");
       Object.assign(objective, { type, activationMode, activationEventId: "configured-trigger", targetId: "", targetIds: [] });
       const context = { interactionIds: new Set(), itemIds: new Set() };
       let issues = validateQuestDebugConfiguration(document, [], context)
@@ -453,4 +454,64 @@ test("unfinished targets are warnings for every activation mode; unknown IDs rem
       assert.ok(issues.some(issue => issue.severity === "error"));
     }
   }
+});
+
+test("registered plant puzzle passes Debug validation even though it is not an Interaction ID", () => {
+  const interactionIds = new Set(sceneDocuments.flatMap(scene => (scene.interactables ?? []).map(entry => entry.id)));
+  assert.equal(interactionIds.has(PLANT_PUZZLE_ID), false);
+  for (const context of [{ interactionIds }, { interactionIds, puzzleIds: new Set([PLANT_PUZZLE_ID]) }]) {
+    const issues = validateQuestDebugConfiguration(questDocument, undefined, { ...context, itemIds: new Set(ITEM_DEFINITIONS.map(item => item.id)) });
+    assert.equal(issues.some(issue => issue.objectiveId === "QUEST_CH04_MAIN_001_OBJ_20" && issue.severity === "error"), false);
+  }
+  assert.match(movementLabSource, /puzzleIds: new Set\(\[PLANT_PUZZLE_ID\]\)/);
+});
+
+test("puzzle validation retains legacy Interaction targets but rejects unknown puzzle IDs and warns on empty targets", () => {
+  const document = structuredClone(questDocument);
+  const objective = document.quests.find(quest => quest.id === "QUEST_CH04_MAIN_001").stages
+    .flatMap(stage => stage.objectives).find(entry => entry.id === "QUEST_CH04_MAIN_001_OBJ_20");
+  const context = { interactionIds: new Set(["legacy-puzzle-interaction"]), puzzleIds: new Set([PLANT_PUZZLE_ID]) };
+  for (const id of [PLANT_PUZZLE_ID, "legacy-puzzle-interaction"]) {
+    objective.targetId = id;
+    assert.equal(validateQuestDebugConfiguration(document, [], context).some(issue => issue.objectiveId === objective.id && issue.severity === "error"), false);
+  }
+  objective.targetId = "nonexistent-puzzle";
+  let issues = validateQuestDebugConfiguration(document, [], context).filter(issue => issue.objectiveId === objective.id);
+  assert.equal(issues.find(issue => issue.code === "unknown-objective-puzzle")?.severity, "error");
+  assert.equal(issues.some(issue => issue.code === "unknown-objective-interaction"), false);
+  objective.targetId = "";
+  issues = validateQuestDebugConfiguration(document, [], context).filter(issue => issue.objectiveId === objective.id);
+  assert.equal(issues.find(issue => issue.code === "missing-objective-target")?.severity, "warning");
+  objective.type = "interactionSucceeded"; objective.targetId = PLANT_PUZZLE_ID;
+  issues = validateQuestDebugConfiguration(document, [], context).filter(issue => issue.objectiveId === objective.id);
+  assert.equal(issues.find(issue => issue.code === "unknown-objective-interaction")?.severity, "error");
+});
+
+test("Chapter 4 Stage 2 Debug Next enters Stage 3 without the unrelated OBJ20 puzzle blocking its validation gate", () => {
+  const current = build({ kind: "goto", questRef: "QUEST_CH04_MAIN_001", stageRef: "2" });
+  const plan = build({ kind: "stage-next" }, { ...createState(), ...current });
+  assert.equal(plan.targetStageId, "QUEST_CH04_MAIN_001_STAGE_03");
+  const entry = plan.questSave.quests.QUEST_CH04_MAIN_001;
+  assert.equal(entry.objectives.QUEST_CH04_MAIN_001_OBJ_04.completed, true);
+  assert.equal(entry.objectives.QUEST_CH04_MAIN_001_OBJ_05.completed, true);
+  assert.equal(entry.objectives.QUEST_CH04_MAIN_001_OBJ_20.completed, false);
+  const context = { itemIds: new Set(ITEM_DEFINITIONS.map(item => item.id)),
+    interactionIds: new Set(sceneDocuments.flatMap(scene => (scene.interactables ?? []).map(item => item.id))),
+    puzzleIds: new Set([PLANT_PUZZLE_ID]) };
+  const completedQuestIds = new Set(plan.completedQuestIds);
+  const blockingIssues = validateQuestDebugConfiguration(questDocument, undefined, context).filter(issue =>
+    issue.severity === "error" && (completedQuestIds.has(issue.questId) ||
+      (issue.questId === plan.targetQuestId && (!issue.stageId || issue.stageId === plan.targetStageId))));
+  assert.deepEqual(blockingIssues, []);
+  const manager = new QuestRuntimeManager(questDocument, {});
+  manager.replaceSaveData(plan.questSave, false);
+  assert.equal(manager.getCurrentStage(plan.targetQuestId), plan.targetStageId);
+  assert.equal(manager.getObjectiveProgress(plan.targetQuestId, "QUEST_CH04_MAIN_001_OBJ_20").completed, false);
+});
+
+test("skipping the shared plant puzzle does not invent completed Interaction usage for its puzzle ID", () => {
+  const plan = build({ kind: "goto", questRef: "QUEST_CH04_MAIN_001", stageRef: "4" });
+  assert.equal(plan.questSave.quests.QUEST_CH04_MAIN_001.objectives.QUEST_CH04_MAIN_001_OBJ_20.completed, true);
+  assert.equal(plan.interactionUsage.completedOnceIds.includes(PLANT_PUZZLE_ID), false);
+  assert.equal(plan.interactionUsage.counts[PLANT_PUZZLE_ID], undefined);
 });

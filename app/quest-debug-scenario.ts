@@ -22,6 +22,10 @@ import {
   type SurvivalGameState,
 } from "./survival-manager.ts";
 import type { StoryProgress } from "./story-progress.ts";
+import { PLANT_PUZZLE_ID } from "./phototropic-puzzle.ts";
+
+// Shared puzzles have their own identity; legacy puzzles may use an Interaction ID.
+const REGISTERED_PUZZLE_IDS: ReadonlySet<string> = new Set([PLANT_PUZZLE_ID]);
 
 export type QuestDebugCommand =
   | { kind: "next" }
@@ -87,6 +91,7 @@ export type QuestDebugValidationIssue = {
 
 export type QuestDebugValidationContext = {
   interactionIds?: ReadonlySet<string>;
+  puzzleIds?: ReadonlySet<string>;
   itemIds?: ReadonlySet<string>;
   storyEventIds?: ReadonlySet<string>;
   teleportPointIds?: ReadonlySet<string>;
@@ -825,6 +830,7 @@ function applyCompletedObjectiveOutcome(
       ...distinctTargetIds,
     ]).slice(0, getQuestObjectiveRequiredAmount(objective));
     for (const targetId of targetIds) {
+      if (objective.type === "puzzleCompleted" && REGISTERED_PUZZLE_IDS.has(targetId)) continue;
       interactionUsage.completedOnceIds = unique([
         ...interactionUsage.completedOnceIds,
         targetId,
@@ -964,7 +970,6 @@ function validateObjectiveTarget(
     [
       "interactionStarted",
       "interactionSucceeded",
-      "puzzleCompleted",
       "submitItemAtInteraction",
     ].includes(objective.type)
   ) {
@@ -994,6 +999,17 @@ function validateObjectiveTarget(
         objectiveId: objective.id,
         message: `${objective.id} 引用了不存在的互動 ${interactionId}`,
       });
+    }
+  }
+  if (objective.type === "puzzleCompleted") {
+    // Runtime matches the singular puzzle targetId, not an interaction targetIds list.
+    if (!targetId) {
+      issues.push({ severity: "warning", code: "missing-objective-target", questId: quest.id,
+        stageId, objectiveId: objective.id, message: `${objective.id}（puzzleCompleted）缺少 targetId` });
+    } else if ((context.puzzleIds || context.interactionIds) &&
+        !(context.puzzleIds ?? REGISTERED_PUZZLE_IDS).has(targetId) && !context.interactionIds?.has(targetId)) {
+      issues.push({ severity: "error", code: "unknown-objective-puzzle", questId: quest.id,
+        stageId, objectiveId: objective.id, message: `${objective.id} 引用了不存在的解謎 ${targetId}` });
     }
   }
   for (const requirement of objective.itemRequirements ?? []) {

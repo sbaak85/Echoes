@@ -16,6 +16,7 @@ import { CraftingWorkbench } from "./crafting-workbench";
 import type { PlayerInventory } from "./item-database";
 import { STARSHIP_CRAFTING_TUTORIAL_STEPS, STARSHIP_CRAFTING_TUTORIAL_RECIPE, advanceStarshipCraftingTutorial, starshipTutorialButtonSelectors, type StarshipCraftingTutorialStep } from "./starship-crafting-tutorial";
 import { StarshipCraftingTutorialOverlay } from "./starship-crafting-tutorial-overlay";
+import { UNLOCKED_STARSHIP_MENU_FEATURES, type StarshipMenuFeatureLocks } from "./starship-menu-availability";
 import "./starship-interaction-menu.css";
 import { resolveRuntimePublicAssetUrl as assetUrl } from "./public-asset-url";
 
@@ -69,6 +70,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   onWorkbenchOpenAudio?: (event: "workbenchToolOpen" | "workbenchCookingOpen") => void;
   onCraft: (recipeId: string, quantity?: number) => { ok: boolean; reason?: string };
   tutorialStart?: boolean;
+  featureLocks?: StarshipMenuFeatureLocks;
   onTutorialCompleted?: () => void;
 }>(function StarshipInteractionMenu({
   inputMode,
@@ -83,9 +85,16 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   onWorkbenchHoverAudio,
   onWorkbenchOpenAudio,
   tutorialStart = false,
+  featureLocks = UNLOCKED_STARSHIP_MENU_FEATURES,
   onTutorialCompleted,
 }, forwardedRef) {
   const tutorialRoot = useRef<HTMLDivElement>(null);
+  const featureLocksRef = useRef(featureLocks); featureLocksRef.current = featureLocks;
+  const isFeatureLocked = useCallback((feature?: string) =>
+    (feature === "cooking" && featureLocksRef.current.cooking) ||
+    (feature === "repair" && featureLocksRef.current.repair), []);
+  const isButtonAvailable = useCallback((button: HTMLButtonElement | null) => !!button &&
+    !button.disabled && !isFeatureLocked(button.dataset.tutorialAction), [isFeatureLocked]);
   const [tutorialStep, setTutorialStep] = useState<StarshipCraftingTutorialStep | null>(() => tutorialStart ? STARSHIP_CRAFTING_TUTORIAL_STEPS[0] : null);
   const [tutorialReady, setTutorialReady] = useState(false);
   const [tutorialAnimationPlaying, setTutorialAnimationPlaying] = useState(false);
@@ -107,10 +116,11 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
     setTutorialReady(false); setTutorialStep(next);
     if (!next) onTutorialCompleted?.();
   };
-  const gateTutorialEvent = (event: SyntheticEvent) => {
-    if (!tutorialRuntime.current.step) return;
-    const button = event.target instanceof Element ? event.target.closest("button") : null;
-    if (!tutorialAllows(button)) { event.preventDefault(); event.stopPropagation(); }
+  const gateMenuEvent = (event: SyntheticEvent) => {
+    const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("button") : null;
+    if ((button && !isButtonAvailable(button)) || !tutorialAllows(button)) {
+      event.preventDefault(); event.stopPropagation();
+    }
   };
   const blockTutorialEvent = (event: SyntheticEvent) => {
     if (tutorialRuntime.current.step) { event.preventDefault(); event.stopPropagation(); }
@@ -140,30 +150,33 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
     : controlMode === "cursor" ? cursorHover
     : controlMode === "pointer" ? pointerHover : null;
   const hoverEvent = activeWorkbench === 0 ? "workbenchToolHover"
-    : activeWorkbench === 1 ? "workbenchCookingHover" : null;
+    : activeWorkbench === 1 && !featureLocks.cooking ? "workbenchCookingHover" : null;
   useEffect(() => {
     hoverAudioRef.current?.(hoverEvent);
   }, [hoverEvent]);
   useEffect(() => () => { hoverAudioRef.current?.(null); }, []);
   useEffect(() => {
-    const hovered = panelRef.current?.querySelector<HTMLElement>(".im-row:hover");
+    const hovered = panelRef.current?.querySelector<HTMLElement>(".im-row:not([data-feature-locked=true]):hover");
     setPointerHover(hovered ? Number(hovered.dataset.starshipMenuIndex) : null);
   }, [view]);
   const getButtons = useCallback(() => Array.from(
     panelRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [],
-  ), []);
+  ).filter(isButtonAvailable), [isButtonAvailable]);
   const changeView = useCallback((next: View) => {
+    if (isFeatureLocked(next)) return;
     if (next !== "main") {
       mainSelectionRef.current = next === "sleep" ? 0 : next === "craft" || next === "workbench" || next === "cooking" ? 1 : 2;
     }
     if (next === "workbench" || next === "cooking") craftSelectionRef.current = next === "cooking" ? 1 : 0;
-    const nextSelection = next === "main" ? mainSelectionRef.current : next === "craft" ? craftSelectionRef.current : 0;
+    const rememberedSelection = next === "main" ? mainSelectionRef.current : next === "craft" ? craftSelectionRef.current : 0;
+    const nextSelection = (next === "main" && rememberedSelection === 2 && isFeatureLocked("repair")) ||
+      (next === "craft" && rememberedSelection === 1 && isFeatureLocked("cooking")) ? 0 : rememberedSelection;
     entrySelectionRef.current = nextSelection;
     setCursorHover(null);
     setPointerHover(null);
     setSelected(nextSelection);
     setView(next);
-  }, []);
+  }, [isFeatureLocked]);
   const setControlMode = useCallback((mode: StarshipInteractionControlMode) => {
     setControlModeState(mode);
     onControlModeChange(mode);
@@ -186,10 +199,11 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
     const choices = getButtons();
     if (!choices.length) return;
     const focusedIndex = choices.indexOf(document.activeElement as HTMLButtonElement);
-    const previous = focusedIndex >= 0 ? focusedIndex : Math.min(selected, choices.length - 1);
+    const selectedIndex = choices.findIndex(button => Number(button.dataset.starshipMenuIndex) === selected);
+    const previous = focusedIndex >= 0 ? focusedIndex : Math.max(0, selectedIndex);
     const next = (previous + offset + choices.length) % choices.length;
     setControlMode("directional");
-    setSelected(next);
+    setSelected(Number(choices[next].dataset.starshipMenuIndex));
     choices[next]?.focus({ preventScroll: true });
     if (next !== previous) onInput();
   }, [getButtons, onInput, selected, setControlMode, tutorialTarget]);
@@ -199,7 +213,8 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
     const choices = getButtons();
     if (choices.length < 2) return;
     const focusedIndex = choices.indexOf(document.activeElement as HTMLButtonElement);
-    const currentIndex = focusedIndex >= 0 ? focusedIndex : Math.min(selected, choices.length - 1);
+    const selectedIndex = choices.findIndex(button => Number(button.dataset.starshipMenuIndex) === selected);
+    const currentIndex = focusedIndex >= 0 ? focusedIndex : Math.max(0, selectedIndex);
     const currentRect = choices[currentIndex].getBoundingClientRect();
     const origin = { x: currentRect.left + currentRect.width / 2, y: currentRect.top + currentRect.height / 2 };
     const positions = choices.map((choice, index) => {
@@ -232,7 +247,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
     }
     if (!target) return;
     setControlMode("directional");
-    setSelected(target.index);
+    setSelected(Number(target.choice.dataset.starshipMenuIndex));
     target.choice.focus({ preventScroll: true });
     onInput();
   }, [getButtons, onInput, selected, setControlMode, tutorialTarget]);
@@ -240,14 +255,19 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   const activateSelected = useCallback(() => {
     if (tutorialRuntime.current.step) { if (tutorialRuntime.current.ready) tutorialTarget()?.click(); return; }
     const choices = getButtons();
+    if (controlMode === "cursor") {
+      choices.find(button => Number(button.dataset.starshipMenuIndex) === cursorHover)?.click();
+      return;
+    }
     const target = choices.includes(document.activeElement as HTMLButtonElement)
       ? document.activeElement as HTMLButtonElement
-      : choices[Math.min(selected, choices.length - 1)];
+      : choices.find(button => Number(button.dataset.starshipMenuIndex) === selected) ?? choices[0];
     target?.click();
-  }, [getButtons, selected, tutorialTarget]);
+  }, [controlMode, cursorHover, getButtons, selected, tutorialTarget]);
 
   const hoverFromVirtualCursor = useCallback((index: number | null) => {
-    if (tutorialRuntime.current.step && !tutorialAllows(index === null ? null : getButtons()[index] ?? null)) { setCursorHover(null); return; }
+    const button = getButtons().find(button => Number(button.dataset.starshipMenuIndex) === index) ?? null;
+    if (!button || !tutorialAllows(button)) { setCursorHover(null); return; }
     setCursorHover(index);
     if (index === null || index === selected) return;
     setSelected(index);
@@ -258,7 +278,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
     isTutorialActive: () => !!tutorialRuntime.current.step,
     activatePointerTarget: element => {
       const button = element?.closest<HTMLButtonElement>("button:not(:disabled)") ?? null;
-      if (!button || !tutorialAllows(button)) return false;
+      if (!button || !isButtonAvailable(button) || !tutorialRoot.current?.contains(button) || !tutorialAllows(button)) return false;
       button.click(); return true;
     },
     updateTriggers: (left, right, now) => {
@@ -294,11 +314,25 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
     },
     back: () => { if (tutorialRuntime.current.step) return; if (view === "workbench" || view === "cooking") workbenchRef.current?.back(); else back(); },
     setControlMode: mode => (view === "workbench" || view === "cooking") ? workbenchRef.current?.setControlMode(mode) : setControlMode(mode),
-  }), [activateSelected, back, hoverFromVirtualCursor, moveSpatially, setControlMode, view, tutorialAllows, tutorialTarget]);
+  }), [activateSelected, back, hoverFromVirtualCursor, moveSpatially, setControlMode, view, tutorialAllows, tutorialTarget, isButtonAvailable]);
 
   useEffect(() => {
-    getButtons()[entrySelectionRef.current]?.focus({ preventScroll: true });
+    const buttons = getButtons();
+    (buttons.find(button => Number(button.dataset.starshipMenuIndex) === entrySelectionRef.current) ?? buttons[0])?.focus({ preventScroll: true });
   }, [getButtons, view]);
+
+  useEffect(() => {
+    // Reconcile a live quest change without retaining a newly locked view/target.
+    if (isFeatureLocked(view)) { changeView(view === "cooking" ? "craft" : "main"); return; }
+    const buttons = getButtons();
+    const hasIndex = (index: number | null) => index !== null && buttons.some(button => Number(button.dataset.starshipMenuIndex) === index);
+    setCursorHover(current => hasIndex(current) ? current : null);
+    setPointerHover(current => hasIndex(current) ? current : null);
+    if (!hasIndex(selected) && buttons[0]) {
+      setSelected(Number(buttons[0].dataset.starshipMenuIndex));
+      if (controlMode === "directional") buttons[0].focus({ preventScroll: true });
+    }
+  }, [featureLocks.cooking, featureLocks.repair, view, selected, controlMode, changeView, getButtons, isFeatureLocked]);
 
   useEffect(() => {
     if ((view === "workbench" || view === "cooking")) return;
@@ -346,15 +380,20 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
     action();
   };
 
-  const row = (index: number, imageUrl: string, title: string, detail: string, action: () => void, tutorialAction?: string) => (
+  const row = (index: number, imageUrl: string, title: string, detail: string, action: () => void, tutorialAction?: string) => {
+    const locked = isFeatureLocked(tutorialAction);
+    return (
     <button
       type="button"
       data-starship-menu-index={index}
       data-tutorial-action={tutorialAction}
-      aria-disabled={tutorialStep && (!tutorialReady || tutorialStep.action !== tutorialAction) ? true : undefined}
-      className={`im-row ${(controlMode === "directional" && selected === index) || (controlMode === "cursor" && cursorHover === index) ? "is-selected" : ""}`}
-      onFocus={() => setSelected(index)}
+      data-feature-locked={locked || undefined}
+      tabIndex={locked ? -1 : undefined}
+      aria-disabled={locked || (tutorialStep && (!tutorialReady || tutorialStep.action !== tutorialAction)) ? true : undefined}
+      className={`im-row${locked ? " is-feature-locked" : ""} ${!locked && ((controlMode === "directional" && selected === index) || (controlMode === "cursor" && cursorHover === index)) ? "is-selected" : ""}`}
+      onFocus={(event) => { if (isFeatureLocked(tutorialAction)) { event.currentTarget.blur(); return; } setSelected(index); }}
       onPointerEnter={(event) => {
+        if (isFeatureLocked(tutorialAction)) { setPointerHover(null); return; }
         if (event.pointerType === "mouse") {
           setPointerHover(index);
           onInputModeChange("keyboard-mouse");
@@ -365,7 +404,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
         event.currentTarget.focus({ preventScroll: true });
       }}
       onPointerLeave={() => setPointerHover(null)}
-      onClick={(event) => { if (!tutorialAllows(event.currentTarget)) return; activate(action); if (tutorialAction) advanceTutorial(tutorialAction); }}
+      onClick={(event) => { if (!isButtonAvailable(event.currentTarget) || !tutorialAllows(event.currentTarget)) return; activate(action); if (tutorialAction) advanceTutorial(tutorialAction); }}
     >
       {view === "craft" && <span className="im-workbench-hover-fx" aria-hidden="true">
         <span className="im-workbench-fx-disc">
@@ -391,7 +430,8 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
       <span className="im-copy"><strong>{title}</strong><small>{detail}</small></span>
       <span className="im-arrow" aria-hidden="true">›</span>
     </button>
-  );
+    );
+  };
   const heroImage = view === "sleep" ? IMAGES.sleep.scene
     : view === "craft" ? IMAGES.craft.scene
       : view === "repair" ? IMAGES.repair.scene
@@ -435,7 +475,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
       }}
       onPointerMove={(event) => {
         if (event.pointerType === "mouse") {
-          const row = (event.target as Element).closest<HTMLElement>(".im-row[data-starship-menu-index]");
+          const row = (event.target as Element).closest<HTMLElement>(".im-row[data-starship-menu-index]:not([data-feature-locked=true])");
           setPointerHover(row ? Number(row.dataset.starshipMenuIndex) : null);
           onInputModeChange("keyboard-mouse");
           setControlMode("pointer");
@@ -485,8 +525,8 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   );
   return <div ref={tutorialRoot} className="starship-tutorial-host" data-tutorial-active={!!tutorialStep}
     data-tutorial-step={tutorialStep?.order ?? "none"}
-    onClickCapture={gateTutorialEvent} onPointerDownCapture={gateTutorialEvent} onPointerUpCapture={gateTutorialEvent}
-    onPointerOverCapture={gateTutorialEvent} onPointerMoveCapture={gateTutorialEvent}
+    onClickCapture={gateMenuEvent} onPointerDownCapture={gateMenuEvent} onPointerUpCapture={gateMenuEvent}
+    onPointerOverCapture={gateMenuEvent} onPointerMoveCapture={gateMenuEvent}
     onWheelCapture={blockTutorialEvent} onContextMenuCapture={blockTutorialEvent}>
     {content}
     {tutorialStep && !tutorialAnimationPlaying ? <StarshipCraftingTutorialOverlay key={tutorialStep.id} step={tutorialStep} root={tutorialRoot} inputMode={inputMode}

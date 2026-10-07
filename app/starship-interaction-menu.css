@@ -316,7 +316,7 @@
   font-size: 25px;
 }
 
-.starship-interaction-menu[data-control-mode="pointer"] .im-row:hover,
+.starship-interaction-menu[data-control-mode="pointer"] .im-row:not(.is-feature-locked):hover,
 .im-row.is-selected,
 .im-row[data-gamepad-selected="true"] {
   border-color: rgba(116, 236, 226, .88);
@@ -729,7 +729,7 @@
 .starship-interaction-menu .im-hero { background: transparent; }
 .starship-interaction-menu .im-row .im-copy strong { color: #dac28d; }
 .starship-interaction-menu .im-row .im-copy small { color: #8faaaF; }
-.starship-interaction-menu[data-control-mode="pointer"] .im-row:hover:not(:disabled),
+.starship-interaction-menu[data-control-mode="pointer"] .im-row:not(.is-feature-locked):hover:not(:disabled),
 .starship-interaction-menu .im-row.is-selected,
 .starship-interaction-menu[data-control-mode="pointer"] .im-back:hover,
 .starship-interaction-menu .im-back.is-selected {
@@ -759,7 +759,7 @@
   --im-fx-opacity: 0;
   --im-image-breathe: none;
 }
-.starship-interaction-menu[data-control-mode="pointer"] .im-view-craft .im-row:hover,
+.starship-interaction-menu[data-control-mode="pointer"] .im-view-craft .im-row:not(.is-feature-locked):hover,
 .starship-interaction-menu:is([data-control-mode="cursor"], [data-control-mode="directional"]) .im-view-craft .im-row.is-selected {
   --im-fx-play: running;
   --im-fx-opacity: 1;
@@ -774,6 +774,20 @@
 @keyframes im-workbench-image-breathe {
   0%, 100% { background-size: 100% 100%; }
   50% { background-size: 102% 102%; }
+}
+
+/* Quest locks retain sharp artwork; native disabled rules intentionally do not apply. */
+.starship-interaction-menu .im-row.is-feature-locked {
+  filter: grayscale(1);
+  opacity: .75;
+  cursor: not-allowed;
+  --im-fx-play: paused;
+  --im-fx-opacity: 0;
+  --im-image-breathe: none;
+}
+.starship-interaction-menu .im-row.is-feature-locked .im-option-media::before,
+.starship-interaction-menu .im-row.is-feature-locked .im-option-media::after {
+  filter: none;
 }
 .starship-interaction-menu .im-view-craft .im-row::before {
   /* 16px 斜紋週期沿 X 軸為 16√2px；流速為 10px/s。 */

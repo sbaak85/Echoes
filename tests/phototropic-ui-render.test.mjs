@@ -10,6 +10,9 @@ import * as glyphs from "../app/gamepad-glyph.ts";
 import * as puzzle from "../app/phototropic-puzzle.ts";
 import * as plantGamepad from "../app/phototropic-gamepad.ts";
 import * as plantSuccess from "../app/phototropic-success-transition.ts";
+import { QuestRuntimeManager } from "../app/quest-runtime-manager.ts";
+import { completePhototropicQuestObjective } from "../app/phototropic-quest-flow.ts";
+import { removeInventoryItem, savePlayerInventory, loadPlayerInventory } from "../app/item-database.ts";
 
 // Exercise the actual JSX without running client-only drawing effects. Asset
 // resolution is mocked because its Vite import.meta environment is not present.
@@ -105,7 +108,7 @@ function createOverlayRig(initial = { ...puzzle.initialPhototropicState(), intro
 const primaryCount = html => (html.match(/data-gamepad-glyph="A"/g) || []).length;
 const footer = html => html.match(/<button class="plant-confirm"[\s\S]*?<\/button>/)?.[0];
 
-function createPuzzleRig(onSolved = () => {}, onSaved = () => {}) {
+function createPuzzleRig(onSolved = () => {}, onSaved = () => {}, consume = () => true) {
   const states = [], refs = [];
   let stateIndex = 0, refIndex = 0;
   const hooks = {
@@ -121,7 +124,7 @@ function createPuzzleRig(onSolved = () => {}, onSaved = () => {}) {
     "./public-asset-url": { resolveRuntimePublicAssetUrl: path => `/${path}` },
     "./phototropic-vines": {}, "./phototropic-vine-geometry.js": {}, "./phototropic-puzzle": puzzle,
   });
-  return () => { stateIndex = refIndex = 0; return module.usePhototropicPuzzle(onSolved, onSaved); };
+  return () => { stateIndex = refIndex = 0; return module.usePhototropicPuzzle(onSolved, onSaved, consume); };
 }
 
 async function withPlantStorage(run) {
@@ -137,6 +140,47 @@ async function withPlantStorage(run) {
   finally { console.warn = originalWarn; if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow; }
 }
 
+test("real puzzle controller completes OBJ20 only after valid successful finish, never on partial return or cancellation", async () => {
+  await withPlantStorage(async () => {
+    const data = JSON.parse(readFileSync(new URL("../public/quests/quest-data.json", import.meta.url), "utf8"));
+    const quest = data.quests.find(entry => entry.id === puzzle.PLANT_QUEST_ID);
+    const stage = quest.stages.find(entry => entry.objectives.some(objective => objective.id === puzzle.PLANT_OBJECTIVE_ID));
+    const objective = stage.objectives.find(entry => entry.id === puzzle.PLANT_OBJECTIVE_ID);
+    const manager = new QuestRuntimeManager({ ...data, chapters: [], quests: [{ ...quest, prerequisiteQuestIds: [], stages: [{ ...stage,
+      startEventFlowId: "", completionEventFlowId: "", nextStageId: "", objectives: [{ ...objective, activationMode: "immediate", activationEventId: "" }],
+    }] }] }, {});
+    manager.startQuest(quest.id);
+    const completed = () => manager.getObjectiveProgress(quest.id, objective.id).completed;
+    let controller, successes = 0;
+    const render = createPuzzleRig(() => { successes++; completePhototropicQuestObjective(manager, controller.state); });
+    controller = render().controller;
+    let pending = controller.open("L", "/plant.png");
+    const partial = { ...puzzle.initialPhototropicState(), introduced: true, L: { slot: 0, angle: 40 } };
+    controller.update(render().view.id, 0, 40);
+    controller.finish(partial, false); assert.equal(await pending, true);
+    assert.equal(completed(), false); assert.equal(successes, 0);
+    pending = controller.open("R", "/plant.png");
+    controller.cancel(); assert.equal(await pending, false);
+    assert.equal(completed(), false); assert.equal(successes, 0);
+    const solution = { ...partial, R: { slot: 0, angle: 40 } };
+    // A clear configuration whose success dialogue was cancelled is not a pass.
+    pending = controller.open("R", "/plant.png");
+    controller.update(render().view.id, 0, 40);
+    controller.finish(solution, false); assert.equal(await pending, true);
+    assert.equal(controller.state.solved, false); assert.equal(completed(), false);
+    // A true completion flag without valid geometry is also rejected.
+    pending = controller.open("R", "/plant.png");
+    controller.finish(partial, true); assert.equal(await pending, true);
+    assert.equal(completed(), false); assert.equal(successes, 0);
+    pending = controller.open("R", "/plant.png");
+    controller.finish(solution, true); assert.equal(await pending, true);
+    assert.equal(controller.state.solved, true); assert.equal(completed(), true); assert.equal(successes, 1);
+    pending = controller.open("L", "/plant.png");
+    controller.finish(partial, false); assert.equal(await pending, true);
+    assert.equal(controller.state.solved, true); assert.equal(completed(), true); assert.equal(successes, 1);
+  });
+});
+
 test("denied local storage still closes the overlay, resolves once, and retains state for a later save", async () => {
   await withPlantStorage(async ({ deny, storage, warnings }) => {
     let saved = 0, solved = 0;
@@ -146,6 +190,7 @@ test("denied local storage still closes the overlay, resolves once, and retains 
     assert.ok(render().view);
     control.current = { key() { assert.fail("closed controls must not receive keys"); } };
     const next = { ...puzzle.initialPhototropicState(), introduced: true, L: { slot: 1, angle: 75 } };
+    controller.update(render().view.id, 1, 75);
     deny(true);
     assert.doesNotThrow(() => controller.finish(next, false));
     assert.equal(await pending, true);
@@ -154,8 +199,8 @@ test("denied local storage still closes the overlay, resolves once, and retains 
     assert.equal(control.current, null);
     controller.key("enter", false);
     assert.deepEqual(controller.state, next);
-    assert.equal(saved, 1); assert.equal(solved, 0); assert.equal(warnings.length, 1);
-    controller.finish(next, false); assert.equal(saved, 1, "a duplicate close is ignored");
+    assert.equal(saved, 2); assert.equal(solved, 0); assert.equal(warnings.length, 1);
+    controller.finish(next, false); assert.equal(saved, 2, "a duplicate close is ignored");
     deny(false);
     const reopened = controller.open("R", "/plant.png");
     assert.deepEqual(render().view.initial, next, "reopening uses the retained session state");
@@ -184,8 +229,10 @@ test("autosave and completion callback failures still release a solved puzzle an
   await withPlantStorage(async ({ deny, warnings }) => {
     let saved = 0, solved = 0;
     const render = createPuzzleRig(() => { solved++; throw Error("quest save denied"); }, () => { saved++; throw Error("autosave unavailable"); });
-    const { controller } = render(), pending = controller.open("L", "/plant.png");
+    const { controller } = render();
     const solution = { introduced: true, solved: false, L: { slot: 0, angle: 40 }, R: { slot: 0, angle: 40 } };
+    controller.hydrate(solution);
+    const pending = controller.open("L", "/plant.png");
     deny(true);
     assert.doesNotThrow(() => controller.finish(solution, true));
     assert.equal(await pending, true); assert.equal(controller.isOpen, false); assert.equal(render().view, null);
@@ -208,6 +255,124 @@ test("controller rejects stale edits to a completed puzzle and never repeats its
       assert.deepEqual(JSON.parse(storage.get(puzzle.PHOTOTROPIC_STORAGE_KEY)), solution);
     }
     assert.equal(solved, 0);
+  });
+});
+
+test("first insertion on either side/any socket debits immediately; moving, cancellation, reload and success never debit again", async () => {
+  for (const firstSide of ["L", "R"]) for (const firstSlot of [0, 1, 2]) {
+    await withPlantStorage(async ({ storage }) => {
+      let inventory = { T0006: 2, R0020: 5 }, debits = 0, controller;
+      const snapshots = [];
+      const consume = () => {
+        if ((inventory.T0006 ?? 0) < 1) return false;
+        inventory = removeInventoryItem(inventory, "T0006", 1); debits++; return true;
+      };
+      const render = createPuzzleRig(() => {}, inserted => {
+        if (inserted) savePlayerInventory(inventory);
+        snapshots.push(structuredClone({ inventory, phototropic: controller.state, inserted }));
+      }, consume);
+      controller = render().controller;
+      const pending = controller.open(firstSide, "/plant.png"), id = render().view.id;
+      assert.ok(controller.update(id, firstSlot, 75));
+      assert.equal(inventory.T0006, 1); assert.equal(debits, 1);
+      assert.equal(JSON.parse(storage.get(puzzle.PHOTOTROPIC_STORAGE_KEY))[firstSide].slot, firstSlot);
+      assert.equal(snapshots[0].inventory.T0006, 1);
+      assert.equal(snapshots[0].phototropic[firstSide].slot, firstSlot, "autosave sees both halves of the same transaction");
+      controller.update(id, firstSlot, 75); // Rapid duplicate events.
+      controller.update(id, (firstSlot + 1) % 3, 98);
+      controller.update(id, (firstSlot + 1) % 3, 110);
+      assert.equal(controller.update(id, null, 110), null, "removal/refund is forbidden");
+      assert.equal(debits, 1); assert.equal(inventory.T0006, 1);
+      controller.cancel(); assert.equal(await pending, false);
+      assert.equal(controller.state[firstSide].angle, 110, "cancellation does not roll back accepted edits");
+      const saved = controller.state;
+      inventory = loadPlayerInventory();
+      const loadedRender = createPuzzleRig(() => {}, inserted => { if (inserted) savePlayerInventory(inventory); }, consume);
+      controller = loadedRender().controller; controller.hydrate();
+      assert.deepEqual(controller.state, saved, "quit/reload before normal dismissal retains slot and angle");
+      const otherSide = firstSide === "L" ? "R" : "L";
+      let reopened = controller.open(otherSide, "/plant.png");
+      const otherId = loadedRender().view.id;
+      controller.update(otherId, 0, 40);
+      assert.equal(inventory.T0006 ?? 0, 0); assert.equal(debits, 2);
+      controller.cancel(); assert.equal(await reopened, false);
+      reopened = controller.open(firstSide, "/plant.png");
+      const newId = loadedRender().view.id;
+      assert.equal(controller.update(otherId, 2, 120), null, "stale callbacks cannot update the new view");
+      assert.ok(controller.update(newId, 0, 40), "installed side can be adjusted with no inventory");
+      const solution = controller.state;
+      controller.finish(solution, true, newId); assert.equal(await reopened, true);
+      assert.equal(controller.state.solved, true); assert.equal(debits, 2);
+      assert.equal(inventory.R0020, 5, "other inventory is untouched");
+      reopened = controller.open(firstSide, "/plant.png");
+      assert.equal(controller.update(loadedRender().view.id, 2, 120), null);
+      controller.cancel(); await reopened;
+      assert.deepEqual(controller.state, { ...solution, solved: true });
+    });
+  }
+});
+
+test("empty-side shortage and closing with a forged draft cannot create a free lamp or a solved state", async () => {
+  await withPlantStorage(async () => {
+    let checks = 0;
+    const render = createPuzzleRig(() => assert.fail("no success"), () => {}, () => { checks++; return false; });
+    const controller = render().controller, pending = controller.open("R", "/plant.png"), id = render().view.id;
+    for (const slot of [0, 1, 2]) assert.equal(controller.update(id, slot, 40), null);
+    assert.equal(checks, 3); assert.deepEqual(controller.state, puzzle.initialPhototropicState());
+    for (const [slot, angle] of [[null, 40], [-1, 40], [3, 40], [1.5, 40], [1, NaN]]) assert.equal(controller.update(id, slot, angle), null);
+    assert.equal(checks, 3, "invalid edits never request a debit");
+    controller.finish({ introduced: true, solved: true, L: { slot: 0, angle: 40 }, R: { slot: 0, angle: 40 } }, true, id);
+    assert.equal(await pending, true); assert.deepEqual(controller.state, puzzle.initialPhototropicState());
+  });
+});
+
+test("local-storage failures after insertion preserve the debit and placement, without blocking or a second charge", async () => {
+  await withPlantStorage(async ({ deny, warnings }) => {
+    let count = 1, debits = 0, notifications = 0;
+    const render = createPuzzleRig(() => {}, () => notifications++, () => { if (!count) return false; count--; debits++; return true; });
+    const controller = render().controller, pending = controller.open("L", "/plant.png"), id = render().view.id;
+    deny(true);
+    assert.doesNotThrow(() => controller.update(id, 2, 98));
+    assert.equal(count, 0); assert.equal(controller.state.L.slot, 2); assert.equal(notifications, 1); assert.equal(warnings.length, 1);
+    controller.cancel(); assert.equal(await pending, false);
+    const reopened = controller.open("L", "/plant.png");
+    assert.ok(controller.update(render().view.id, 1, 73)); assert.equal(debits, 1);
+    controller.finish(controller.state, false); assert.equal(await reopened, true);
+  });
+});
+
+test("the actual overlay shares one insertion/save path across click, Enter, A and dial adjustment", async () => {
+  await withPlantStorage(async () => {
+    try {
+      for (const input of ["click", "Enter", "A"]) {
+        cursorOwnership.owner = input === "click" ? "mouse" : "directional";
+        let count = 1, debits = 0;
+        const render = createPuzzleRig(() => {}, () => {}, () => { if (!count) return false; count--; debits++; return true; });
+        const controller = render().controller;
+        controller.markIntroduced();
+        const pending = controller.open("L", "/plant.png");
+        const view = render().view, rig = createOverlayRig(view.initial);
+        rig.props.view = view;
+        rig.props.onChange = (slot, angle) => controller.update(view.id, slot, angle);
+        rig.render();
+        if (input === "click") findElement(rig.tree, node => node.props["aria-label"] === "L2").props.onClick();
+        else if (input === "Enter") rig.ref.current.key("enter", false);
+        else { rig.ref.current.pad(0, 0, false, false, .05); rig.ref.current.pad(0, 0, true, false, .05); }
+        assert.equal(debits, 1, input); assert.equal(controller.state.L.slot, 1);
+        assert.match(rig.render(), /設定已即時保存/);
+        findElement(rig.tree, node => node.props["aria-label"] === "L3").props.onClick();
+        rig.render();
+        rig.ref.current.pad(0, 0, false, false, .05);
+        rig.ref.current.pad(0, 0, false, false, .05, 1);
+        assert.equal(debits, 1); assert.equal(controller.state.L.slot, 2); assert.notEqual(controller.state.L.angle, 60);
+        controller.cancel(); await pending;
+      }
+      const rig = createOverlayRig(); rig.props.onChange = () => null; rig.render();
+      findElement(rig.tree, node => node.props["aria-label"] === "L2").props.onClick();
+      const html = rig.render();
+      assert.match(html, /無法放置：需要 1 支螢光棒/);
+      assert.doesNotMatch(html, /aria-pressed="true"/);
+    } finally { cursorOwnership.reset(); }
   });
 });
 

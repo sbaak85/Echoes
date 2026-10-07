@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { initialPhototropicState, normalizePhototropicState, plantInfluence, plantEquilibrium, plantPresentationStart, isPhototropicClear, plantAngleFromPoint, plantDialAngle, PLANT_DIAL, plantSideForInteraction } from "../app/phototropic-puzzle.ts";
+import { changePhototropicLamp, filterPhototropicUseRequirements, initialPhototropicState, normalizePhototropicState, plantInfluence, plantEquilibrium, plantPresentationStart, isPhototropicClear, plantAngleFromPoint, plantDialAngle, PLANT_DIAL, plantSideForInteraction, PLANT_OBJECTIVE_ID } from "../app/phototropic-puzzle.ts";
+import { removeInventoryItem, loadPlayerInventory } from "../app/item-database.ts";
+import { getUnmetInteractionUseRequirements } from "../app/interaction-flow.ts";
 import { normalizeEchoesSaveData, applySaveDataToRuntimeStorage, SAVE_DATA_FORMAT } from "../app/save-data.ts";
 import { runPhototropicInteractionFlow } from "../app/phototropic-interaction-flow.ts";
 import { QuestRuntimeManager } from "../app/quest-runtime-manager.ts";
@@ -12,6 +14,48 @@ test("interaction sides and empty initial sockets are explicit", () => {
 test("120 degree fan maps both boundaries and center", () => {
   assert.equal(plantAngleFromPoint(-86.6025, -50), 0); assert.equal(plantAngleFromPoint(0, -100), 60); assert.equal(plantAngleFromPoint(86.6025, -50), 120);
   assert.equal(plantAngleFromPoint(100, 100), 120); assert.equal(plantAngleFromPoint(-100, 100), 0);
+});
+test("only the installed side bypasses its glowstick gate; other Items, stages and interactions retain their requirements", () => {
+  const requirements = [
+    { kind: "item", itemId: "T0006", quantity: 1, scope: "both" },
+    { kind: "quest", questId: "QUEST_CH04_MAIN_001" },
+  ];
+  const state = { ...initialPhototropicState(), L: { slot: 2, angle: 95 } };
+  const unmet = (id, active = true) => getUnmetInteractionUseRequirements(filterPhototropicUseRequirements(id, requirements, state), {}, 4, () => active);
+  assert.equal(unmet("scene6-interaction-020").length, 0);
+  assert.equal(unmet("scene6-interaction-021")[0].itemId, "T0006");
+  assert.equal(unmet("scene6-interaction-019")[0].itemId, "T0006");
+  assert.equal(unmet("scene6-interaction-020", false)[0].kind, "quest");
+  const otherItem = { kind: "item", itemId: "R0036", quantity: 1 };
+  assert.deepEqual(filterPhototropicUseRequirements("scene6-interaction-020", [...requirements, otherItem], state), [requirements[1], otherItem]);
+  assert.equal(filterPhototropicUseRequirements("scene6-interaction-021", requirements, state), requirements);
+});
+test("partial portable saves restore the inventory debit and each installed slot together without charging on restoration", () => {
+  let inventory = { T0006: 2, R0020: 5 }, state = initialPhototropicState(), debits = 0;
+  const consume = () => { inventory = removeInventoryItem(inventory, "T0006", 1); debits++; return true; };
+  const storage = new Map(), previousWindow = globalThis.window;
+  globalThis.window = { localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) } };
+  try {
+    for (const [side, slot, angle] of [["R", 2, 101], ["L", 1, 82]]) {
+      state = changePhototropicLamp(state, side, slot, angle, consume);
+      const candidate = { format: SAVE_DATA_FORMAT, schemaVersion: 1, summary: {}, progress: { sceneId: "Scene_6", quest: { schemaVersion: 1, quests: {} }, phototropic: state, inventory } };
+      const save = normalizeEchoesSaveData(JSON.parse(JSON.stringify(candidate)));
+      applySaveDataToRuntimeStorage(save);
+      assert.deepEqual(save.progress.phototropic, state);
+      assert.deepEqual(loadPlayerInventory(), inventory);
+      assert.equal(save.progress.phototropic.solved, false, "partial save does not complete a puzzle");
+      const moved = changePhototropicLamp(save.progress.phototropic, side, 0, 39, () => assert.fail("loaded installation cannot charge again"));
+      assert.equal(moved[side].slot, 0);
+    }
+    assert.equal(debits, 2); assert.equal(inventory.T0006 ?? 0, 0);
+  } finally { if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow; }
+});
+test("production routes every placement to the inventory transaction and captures an immediate portable snapshot", () => {
+  const runtime = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(runtime, /onChange=\{\(slot, angle\) => plantController\.update\(plantPuzzle\.view!\.id, slot, angle\)\}/);
+  assert.match(runtime, /removeInventoryItem\(current, PLANT_GLOW_STICK_ITEM_ID, 1\)/);
+  assert.match(runtime, /filterPhototropicUseRequirements\(interactable\.id,[\s\S]*?plantController\.state\)/);
+  assert.match(runtime, /if \(reason === "phototropic-inserted"\) write\(\)/);
 });
 test("dial keeps its angle near the pivot and off-center grabs retain the full range", () => {
   assert.equal(plantDialAngle(PLANT_DIAL.x, PLANT_DIAL.y, 93), 93);
@@ -83,13 +127,13 @@ test("socket placement, 8px chamfers and B glyph follow the requested UI contrac
   assert.doesNotMatch(ui, /className="plant-base"|已插入|空槽/);
   assert.match(runtime, /gamepadMode=\{questPromptInputMode === "gamepad"\}/);
 });
-test("production integration blocks the world and leaves quest activation untouched", () => {
+test("production integration blocks the world and unlocks the plant objective only after OBJ18 completion", () => {
   const runtime = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
   assert.match(runtime, /const isWorldInteractionBlockedByUi = \(\) =>\s*plantController.isOpen/);
   assert.match(runtime, /plantController\.open\(side, imagePath\)/);
   const quests = JSON.parse(readFileSync(new URL("../public/quests/quest-data.json", import.meta.url), "utf8"));
-  const objective = quests.quests.flatMap(q => q.stages).flatMap(s => s.objectives).find(o => o.id === "QUEST_CH04_MAIN_001_OBJ_19");
-  assert.equal(objective.activationMode, "event"); assert.equal(objective.activationEventId, "");
+  const objective = quests.quests.flatMap(q => q.stages).flatMap(s => s.objectives).find(o => o.id === PLANT_OBJECTIVE_ID);
+  assert.equal(objective.activationMode, "objectiveCompleted"); assert.equal(objective.activationEventId, "QUEST_CH04_MAIN_001_OBJ_18");
 });
 test("dialogue completes before puzzle opens; cancelled dialogue never opens controls", async () => {
   for (const completed of [true, false]) {
@@ -111,8 +155,8 @@ test("flow exceptions always release both blocking overlays", async () => {
 test("plant objective completion respects its activation gate", () => {
   const quests = JSON.parse(readFileSync(new URL("../public/quests/quest-data.json", import.meta.url), "utf8"));
   const quest = quests.quests.find(q => q.id === "QUEST_CH04_MAIN_001");
-  const stage = quest.stages.find(s => s.objectives.some(o => o.id === "QUEST_CH04_MAIN_001_OBJ_19"));
-  const objective = stage.objectives.find(o => o.id === "QUEST_CH04_MAIN_001_OBJ_19");
+  const stage = quest.stages.find(s => s.objectives.some(o => o.id === PLANT_OBJECTIVE_ID));
+  const objective = stage.objectives.find(o => o.id === PLANT_OBJECTIVE_ID);
   const document = { ...quests, quests: [{ ...quest, stages: [{ ...stage, startEventFlowId: "", completionEventFlowId: "", nextStageId: "", objectives: [objective] }] }] };
   const manager = new QuestRuntimeManager(document, {});
   manager.startQuest(quest.id);

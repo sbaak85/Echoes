@@ -1,13 +1,32 @@
+import type { InteractionUseRequirement } from "./interaction-flow.ts";
+
 export type PlantSide = "L" | "R";
 export type PlantLamp = { slot: number | null; angle: number };
 export type PhototropicState = { L: PlantLamp; R: PlantLamp; solved: boolean; introduced: boolean };
 export const PHOTOTROPIC_STORAGE_KEY = "echoes:phototropic-puzzle:v1";
 export const PLANT_QUEST_ID = "QUEST_CH04_MAIN_001";
-export const PLANT_OBJECTIVE_ID = "QUEST_CH04_MAIN_001_OBJ_19";
+export const PLANT_OBJECTIVE_ID = "QUEST_CH04_MAIN_001_OBJ_20";
+export const PLANT_PUZZLE_ID = "chapter04-phototropic-plant";
+export const PLANT_GLOW_STICK_ITEM_ID = "T0006";
 export const PLANT_SUCCESS_MESSAGE = "調整光源方向正確，植物已受趨光影響";
 export const PLANT_GROW_MS = 1600;
 export function plantSideForInteraction(id: string): PlantSide | null {
   return id === "scene6-interaction-020" ? "L" : id === "scene6-interaction-021" ? "R" : null;
+}
+// An installed lamp belongs to the puzzle, not the player's backpack. Keep
+// every other requirement (including quest gates) when revisiting that side.
+export function filterPhototropicUseRequirements(id: string, requirements: InteractionUseRequirement[], state: PhototropicState) {
+  const side = plantSideForInteraction(id);
+  if (!side || state[side].slot === null) return requirements;
+  return requirements.filter(requirement => requirement.kind !== "item" || requirement.itemId !== PLANT_GLOW_STICK_ITEM_ID);
+}
+export function changePhototropicLamp(state: PhototropicState, side: PlantSide, slot: number | null, angle: number, consume: () => boolean): PhototropicState | null {
+  // There is no removal/refund action. Moving an installed lamp reuses it.
+  if (state.solved || !Number.isInteger(slot) || slot === null || slot < 0 || slot > 2 || !Number.isFinite(angle)) return null;
+  const lamp = { slot, angle: Math.round(Math.max(0, Math.min(120, angle))) };
+  if (state[side].slot === lamp.slot && state[side].angle === lamp.angle) return state;
+  if (state[side].slot === null && !consume()) return null;
+  return { ...state, introduced: true, [side]: lamp };
 }
 export function initialPhototropicState(): PhototropicState {
   return { L: { slot: null, angle: 60 }, R: { slot: null, angle: 60 }, solved: false, introduced: false };
