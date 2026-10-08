@@ -15,8 +15,10 @@
 .plant-vines{position:absolute;top:calc(20% + 105px);width:64%;height:65%;pointer-events:none;z-index:-1;animation:plant-vine-in 500ms ease-out both}
 .plant-vines-left{left:-8%}.plant-vines-right{right:-8%;transform:scaleX(-1)}
 .plant-puzzle-overlay[data-play-entrance=false] .plant-vines{animation:plant-vine-in 500ms ease-out both}
-.plant-vines .vine-art{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 5px 6px #00100c)}
-.plant-vines .leaf-surface{stroke:#b9c78580;stroke-width:.7}.plant-vines .leaf-spine{fill:none;stroke:#ccdaaa;stroke-width:1.2;opacity:.65}.plant-vines .leaf-vein{fill:none;stroke:#c4d19e;stroke-width:.65;opacity:.38}.plant-vines .vine-tendril{fill:none;stroke:#839769;stroke-width:1.8;stroke-linecap:round;opacity:.85}.plant-vines .vine-node-glow{fill:#cbe3a2;opacity:.65}
+/* The vines are a canvas per side (phototropic-vines.js). Size, position, shadows and
+   the idle sway are all drawn/set from JS; the sway always plays, ignoring the OS
+   reduced-motion setting by design. */
+.plant-vines .vine-art{position:absolute;pointer-events:none}
 .plant-growing-message{font-size:15px;letter-spacing:3px;color:#d4e4c3;background:#061d20b3;padding:16px 24px}
 .plant-panel{width:min(440px,calc(100% - 32px));max-height:calc(100% - 24px);overflow:auto;padding:22px;background:#071c21ed;border:1px solid #72a79a;border-radius:16px;box-shadow:0 16px 60px #0008;animation:plant-controls-in 350ms ease-out both;scrollbar-width:thin}
 .plant-panel.plant-controls-unframed{position:absolute;top:0;bottom:0;width:min(480px,calc(100% - 32px));max-height:none;box-sizing:border-box;padding:0;background:none;border:0;border-radius:0;box-shadow:none;overflow:visible;pointer-events:none;text-shadow:0 2px 5px #00100f,0 0 12px #00100f}
@@ -67,7 +69,6 @@
 .plant-success-message{position:absolute;inset:0;z-index:43;display:grid;place-items:center;pointer-events:none;background:#06141033}.plant-success-message span{padding:22px 35px;border-block:1px solid #b1d6a155;background:linear-gradient(90deg,transparent,#091f20ee 20%,#091f20ee 80%,transparent);color:#e5f2c9;font-size:clamp(16px,2vw,26px);letter-spacing:3px;animation:plant-controls-in .4s ease-out both;text-align:center}
 @keyframes plant-vine-in{from{opacity:0}to{opacity:1}}@keyframes plant-controls-in{from{opacity:0}to{opacity:1}}
 @media(max-height:650px){.plant-panel{padding:14px 20px}.plant-socket{height:120px}.plant-stick{width:80px;height:80px}.plant-angle-dial{width:200px}.plant-panel h2{font-size:20px;margin:6px 0}.plant-description{margin:6px 0}}
-@media(prefers-reduced-motion:reduce){.plant-stick,.plant-stick-beam,.plant-stick-halo{transition:none}}
 .plant-preview-choices button{border:1px solid #658c80;background:#133331;border-radius:8px;padding:10px 16px;color:#d5e7d6;cursor:pointer}.plant-preview-choices button:focus,.plant-preview-choices button:focus-visible{outline:none;box-shadow:none}.plant-preview-choices button:disabled{opacity:.4;pointer-events:none}.plant-preview-choices[data-owner=directional] button[data-selected=true]{border-color:#d6e6b0;background:#284e40}.plant-preview-choices[data-owner=mouse] button:hover{border-color:#d6e6b0}
 
 /* Inventory Item tile skin, with the requested 8px socket chamfers. */
