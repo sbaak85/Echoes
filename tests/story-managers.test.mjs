@@ -278,8 +278,8 @@ test("chapter04-Open 完整歸屬第四章頁籤", async () => {
   assert.deepEqual(event, {
     id: "chapter04-Open",
     name: "第四章開場",
-    text: "第四章\r\nChapter.4",
-    lines: [{ text: "第四章\r\nChapter.4", fontSizePx: 38 }],
+    text: "第四章\nChapter.4",
+    lines: [{ text: "第四章\nChapter.4", fontSizePx: 38 }],
     triggerType: "chapterStart",
     triggerValue: "",
     triggerCount: 1,
@@ -531,7 +531,7 @@ test("第三章開場腳本與流程符合第一版規格", () => {
   assert.equal(CHAPTER_3_START_DIALOGUE.lines.length, 9);
   assert.deepEqual(
     CHAPTER_3_START_DIALOGUE.lines.map((line) => line.speaker),
-    ["", "", "???", "飛船輔助系統", "飛船輔助系統", "Sbaak", "飛船輔助系統", "Sbaak", "Sbaak"],
+    ["", "", "???", "飛航電腦AI", "飛航電腦AI", "Sbaak", "飛航電腦AI", "Sbaak", "Sbaak"],
   );
   assert.ok(CHAPTER_3_START_DIALOGUE.lines.at(-1)?.text.trim());
   const lowerLeftStoryZoneDialogue =
