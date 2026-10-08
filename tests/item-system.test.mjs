@@ -110,11 +110,11 @@ test("Item All 會加入可存放的道具，10kg 基礎背包只留在裝備格
   });
 });
 
-test("中央道具資料庫固定保留 100 欄，現有 67 項道具都有分類流水號與英文名稱", () => {
+test("中央道具資料庫固定保留 100 欄，現有 68 項道具都有分類流水號與英文名稱", () => {
   assert.equal(validateItemDatabase(), true);
   assert.equal(ITEM_DATABASE.length, ITEM_DATABASE_CAPACITY);
   assert.equal(ITEM_DATABASE_CAPACITY, 100);
-  assert.equal(ITEM_DEFINITIONS.length, 67);
+  assert.equal(ITEM_DEFINITIONS.length, 68);
   ITEM_DEFINITIONS.forEach((item) => {
     assert.match(item.id, /^[RTQM]\d{4}$/);
     assert.ok(item.englishName.length > 0);

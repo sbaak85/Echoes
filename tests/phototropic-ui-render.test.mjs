@@ -10,6 +10,7 @@ import * as glyphs from "../app/gamepad-glyph.ts";
 import * as puzzle from "../app/phototropic-puzzle.ts";
 import * as plantGamepad from "../app/phototropic-gamepad.ts";
 import * as plantSuccess from "../app/phototropic-success-transition.ts";
+import { smoothVineProgress } from "../app/phototropic-vine-geometry.js";
 import { QuestRuntimeManager } from "../app/quest-runtime-manager.ts";
 import { completePhototropicQuestObjective } from "../app/phototropic-quest-flow.ts";
 import { removeInventoryItem, savePlayerInventory, loadPlayerInventory } from "../app/item-database.ts";
@@ -77,16 +78,18 @@ test("only gamepad entry preselects center and displays the approved position/pl
   } finally { cursorOwnership.reset(); }
 });
 
-function createOverlayRig(initial = { ...puzzle.initialPhototropicState(), introduced: true }, gamepadMode = true) {
+function createOverlayRig(initial = { ...puzzle.initialPhototropicState(), introduced: true }, gamepadMode = true, animate = false) {
   // A minimal hook host exercises the real imperative controller and JSX;
   // drawing effects are omitted, just as in server rendering above.
   const states = [], refs = [];
+  const layouts = [];
+  const successEffects = [];
   let stateIndex = 0, refIndex = 0;
   const hooks = {
     ...React,
     useState(initial) { const i = stateIndex++; if (!(i in states)) states[i] = typeof initial === "function" ? initial() : initial; return [states[i], value => { states[i] = typeof value === "function" ? value(states[i]) : value; }]; },
     useRef(initial) { const i = refIndex++; return refs[i] ??= { current: initial }; },
-    useEffect() {}, useLayoutEffect() {},
+    useEffect(effect, deps) { if (animate && deps?.length === 1 && typeof deps[0] === "boolean") successEffects.push(effect); }, useLayoutEffect(effect) { if (animate && !layouts.length) layouts.push(effect); },
     useImperativeHandle(ref, create) { ref.current = create(); },
   };
   const module = loadJsx("../app/phototropic-puzzle-ui.tsx", {
@@ -94,19 +97,83 @@ function createOverlayRig(initial = { ...puzzle.initialPhototropicState(), intro
     "./gamepad-button-icon": icons, "./phototropic-puzzle.css": {}, "./phototropic-gamepad": plantGamepad,
     "./phototropic-success-transition": plantSuccess,
     "./public-asset-url": { resolveRuntimePublicAssetUrl: path => `/${path}` },
-    "./phototropic-vines": {}, "./phototropic-vine-geometry.js": {}, "./phototropic-puzzle": puzzle,
+    "./phototropic-vines": { createPlantVines: () => ({ update: () => ({ L: 0, R: 0 }), dispose() {} }) }, "./phototropic-vine-geometry.js": { smoothVineProgress }, "./phototropic-puzzle": puzzle,
   });
   const ref = { current: null }, finished = [];
   const props = { view: { side: "L", imagePath: "/plant.png", initial }, gamepadMode, onFinish(state) { finished.push(state); } };
   let tree;
   function render() { stateIndex = refIndex = 0; tree = module.PhototropicPuzzleOverlay.render(props, ref); return renderToStaticMarkup(tree); }
-  return { ref, props, finished, render, get tree() { return tree; }, transitionTo(phase) {
+  return { ref, props, finished, render, startAnimation() { return layouts[0](); }, startSuccessTransition() { return successEffects.at(-1)(); }, get tree() { return tree; }, transitionTo(phase) {
     const index = states.findIndex(value => ["cover", "black", "reveal", "hold", "dialogue", "exit"].includes(value));
     assert.ok(index >= 0); states[index] = phase;
   } };
 }
 const primaryCount = html => (html.match(/data-gamepad-glyph="A"/g) || []).length;
 const footer = html => html.match(/<button class="plant-confirm"[\s\S]*?<\/button>/)?.[0];
+
+function plantAnimationHost(t) {
+  let now = 0, frameId = 0;
+  const frames = new Map();
+  const window = new EventTarget(), document = new EventTarget();
+  document.hidden = false; document.hasFocus = () => true;
+  const restore = [];
+  for (const [key, value] of Object.entries({ window, document,
+    requestAnimationFrame: fn => { frames.set(++frameId, fn); return frameId; },
+    cancelAnimationFrame: id => frames.delete(id),
+  })) {
+    const old = Object.getOwnPropertyDescriptor(globalThis, key);
+    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
+    restore.push(() => old ? Object.defineProperty(globalThis, key, old) : delete globalThis[key]);
+  }
+  t.mock.method(performance, "now", () => now);
+  t.after(() => { restore.forEach(fn => fn()); cursorOwnership.reset(); });
+  return { frames, tick(time) { now = time; const pending = [...frames.values()]; frames.clear(); pending.forEach(fn => fn(now)); } };
+}
+
+test("actual vine animation notifies audio only once at first default-position completion, not at mount", t => {
+  const host = plantAnimationHost(t), events = [];
+  const rig = createOverlayRig(puzzle.initialPhototropicState(), false, true);
+  rig.props.onIntroduced = () => events.push("introduced");
+  rig.props.onReady = () => events.push("ready");
+  rig.render(); const cleanup = rig.startAnimation();
+  assert.deepEqual(events, []);
+  host.tick(puzzle.PLANT_GROW_MS - 1); assert.deepEqual(events, []);
+  host.tick(puzzle.PLANT_GROW_MS); assert.deepEqual(events, ["introduced", "ready"]);
+  host.tick(puzzle.PLANT_GROW_MS + 1000); assert.deepEqual(events, ["introduced", "ready"]);
+  cleanup(); assert.equal(host.frames.size, 0);
+});
+
+test("restored vines start audio when ready; only completed section-99 requests music fade before UI finish", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const host = plantAnimationHost(t), events = [];
+  const initial = { ...puzzle.initialPhototropicState(), introduced: true, L: { slot: 1, angle: 73 }, R: { slot: 1, angle: 73 } };
+  assert.equal(puzzle.isPhototropicClear(initial), true);
+  const rig = createOverlayRig(initial, false, true);
+  rig.props.onReady = () => events.push("ready");
+  let completeDialogue;
+  const dialogue = new Promise(resolve => { completeDialogue = resolve; });
+  rig.props.onSuccessDialogueComplete = () => events.push("music-fade");
+  rig.props.onSuccessDialogue = id => { assert.equal(id, "chapter04-section-99"); events.push("dialogue"); return dialogue; };
+  rig.render(); const cleanup = rig.startAnimation();
+  host.tick(16);
+  assert.deepEqual(events, ["ready"]);
+  assert.equal(rig.finished.length, 0);
+  assert.match(rig.render(), /data-success-phase="cover"/);
+  const cancel = rig.startSuccessTransition();
+  host.tick(32); rig.ref.current.key("escape", false);
+  assert.deepEqual(events, ["ready"]);
+  t.mock.timers.tick(2750); assert.deepEqual(events, ["ready", "dialogue"]);
+  t.mock.timers.tick(60000); assert.deepEqual(events, ["ready", "dialogue"]);
+  completeDialogue({ completed: true }); await Promise.resolve();
+  assert.deepEqual(events, ["ready", "dialogue", "music-fade"]);
+  assert.equal(rig.finished.length, 0); assert.match(rig.render(), /data-success-phase="exit"/);
+  t.mock.timers.tick(500); assert.equal(rig.finished.length, 1);
+  cancel();
+  cleanup();
+  const solved = createOverlayRig({ ...initial, solved: true }, false, true);
+  solved.props.onReady = () => assert.fail("Solved view must not restart music");
+  solved.render(); const stop = solved.startAnimation(); host.tick(48); stop();
+});
 
 function createPuzzleRig(onSolved = () => {}, onSaved = () => {}, consume = () => true) {
   const states = [], refs = [];

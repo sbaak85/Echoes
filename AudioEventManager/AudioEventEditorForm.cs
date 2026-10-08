@@ -1337,7 +1337,7 @@ internal sealed class BgmControlRuleEditableDefinition
         "event",
     };
 
-    internal static readonly string[] Actions = { "volume", "mute", "switch", "fade" };
+    internal static readonly string[] Actions = { "volume", "mute", "switch", "fade", "pause" };
     internal static readonly string[] RestoreModes = { "resume", "restart", "default" };
 
     public string Id { get; set; } = "";

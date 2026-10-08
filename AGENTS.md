@@ -6,6 +6,10 @@ Before moving, copying, renaming, repointing, rebuilding, or repairing this proj
 
 The newest project root explicitly designated by the user is authoritative. Treat previous roots as historical unless the user explicitly brings them back into scope.
 
+## Temporary artifacts
+
+暫存產物只放在 `output/`，不要在專案內建立 `node_modules` 連結，也不要提交 `output/`。
+
 ## Project summary skill
 
 Before creating, locating, reading, updating, or scheduling any daily, temporary, caution, special-case, progress, handoff, or similarly named project-summary Markdown file, read and apply [`.codex/skills/echoes-project-summaries/SKILL.md`](.codex/skills/echoes-project-summaries/SKILL.md).

@@ -5,6 +5,7 @@ import { useInteractionIllustration, InteractionIllustrationOverlay, type Intera
 import { runInteractionIllustrationFlow } from "./interaction-illustration-flow";
 import { usePhototropicPuzzle, PhototropicPuzzleOverlay } from "./phototropic-puzzle-ui";
 import { runPhototropicInteractionFlow } from "./phototropic-interaction-flow";
+import { createPhototropicBgmFlow, PLANT_BGM_ID } from "./phototropic-bgm-flow";
 import { filterPhototropicUseRequirements, plantSideForInteraction, PLANT_GLOW_STICK_ITEM_ID, PLANT_OBJECTIVE_ID, PLANT_QUEST_ID, PLANT_PUZZLE_ID, PLANT_SUCCESS_MESSAGE } from "./phototropic-puzzle";
 import { completePhototropicQuestObjective } from "./phototropic-quest-flow";
 import { getStarshipMenuFeatureLocks } from "./starship-menu-availability";
@@ -3594,6 +3595,9 @@ export function MovementLab() {
   const deathWarningAudioReasonRef = useRef<string | null>(null);
   const gameOverAudioReasonRef = useRef<string | null>(null);
   const bgmDirectorRef = useRef<BgmDirector | null>(null);
+  const plantBgm = useRef(createPhototropicBgmFlow(phase => {
+    bgmDirectorRef.current?.setMinigameState(PLANT_BGM_ID, phase);
+  })).current;
   const pendingBgmSubtitleRef = useRef<string | null>(null);
   const setWeldingSparkAudioActive = useCallback((active: boolean) => {
     audioEventManagerRef.current?.setWeldingSparksActive(active);
@@ -7198,11 +7202,12 @@ export function MovementLab() {
     const side = plantSideForInteraction(interactable.id);
     if (side) {
       const imagePath = resolveRuntimePublicAssetUrl(config.imagePath.replace(/^\/+/, ""));
+      const releasePlantBgm = plantBgm.begin(plantController.state.solved);
       void runPhototropicInteractionFlow(play, {
         showBackground: () => { void illustrationController.open(imagePath, true, 0.5); },
         hideBackground: () => illustrationController.cancel(),
         openPuzzle: () => plantController.open(side, imagePath),
-        cancelPuzzle: () => plantController.cancel(),
+        cancelPuzzle: () => { plantController.cancel(); releasePlantBgm(); },
       }, complete).catch(error => console.error("[Phototropic interaction]", error));
       return true;
     }
@@ -8785,7 +8790,9 @@ export function MovementLab() {
       bgmDirector.triggerStorySubtitle(pendingBgmSubtitleRef.current);
       pendingBgmSubtitleRef.current = null;
     }
-    if (starCardsOpenRef.current) {
+    if (plantBgm.phase) {
+      bgmDirector.setMinigameState(PLANT_BGM_ID, plantBgm.phase);
+    } else if (starCardsOpenRef.current) {
       bgmDirector.setMinigameState("star-cards", "playing");
     } else if (weldingPuzzleOpenRef.current) {
       bgmDirector.setMinigameState("welding-route", "playing");
@@ -16736,7 +16743,7 @@ export function MovementLab() {
       <span className="mobile-hud-space-probe" aria-hidden="true" />
       {interactionIllustration.view && <InteractionIllustrationOverlay view={interactionIllustration.view}
         onClose={() => { void illustrationController.close(); }} onError={() => illustrationController.cancel()} />}
-      {plantPuzzle.view && <PhototropicPuzzleOverlay key={plantPuzzle.view.id} ref={plantPuzzle.control} view={plantPuzzle.view} gamepadMode={questPromptInputMode === "gamepad"} onIntroduced={() => plantController.markIntroduced()} onInput={() => playOneShotAudio("uiInput")} onVineMotion={motion => audioEventManagerRef.current?.setPlantVineMotion(motion)} onSuccessDialogue={id => dialogueManager.playRegistered(id, { id, label: id, type: "dialogue" })} onChange={(slot, angle) => plantController.update(plantPuzzle.view!.id, slot, angle)} onFinish={(state, solved) => plantController.finish(state, solved, plantPuzzle.view!.id)} />}
+      {plantPuzzle.view && <PhototropicPuzzleOverlay key={plantPuzzle.view.id} ref={plantPuzzle.control} view={plantPuzzle.view} gamepadMode={questPromptInputMode === "gamepad"} onIntroduced={() => plantController.markIntroduced()} onReady={() => plantBgm.vinesReady()} onSuccessDialogueComplete={() => plantBgm.dialogueCompleted()} onInput={() => playOneShotAudio("uiInput")} onVineMotion={motion => audioEventManagerRef.current?.setPlantVineMotion(motion)} onSuccessDialogue={id => dialogueManager.playRegistered(id, { id, label: id, type: "dialogue" })} onChange={(slot, angle) => plantController.update(plantPuzzle.view!.id, slot, angle)} onFinish={(state, solved) => plantController.finish(state, solved, plantPuzzle.view!.id)} />}
       {plantSuccessVisible && <div className="plant-success-message" role="status"><span>{PLANT_SUCCESS_MESSAGE}</span></div>}
       <canvas
         ref={canvasRef}

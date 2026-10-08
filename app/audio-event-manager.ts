@@ -1293,7 +1293,7 @@ export type BgmRuleTriggerType =
   | "dialogueLine"
   | "event";
 
-export type BgmRuleAction = "volume" | "mute" | "switch" | "fade";
+export type BgmRuleAction = "volume" | "mute" | "switch" | "fade" | "pause";
 export type BgmRestoreMode = "resume" | "restart" | "default";
 
 /** 玩家未修改 Options 前的全域 BGM 音量。 */
@@ -1306,12 +1306,12 @@ export type BgmControlRuleDefinition = {
   triggerType: BgmRuleTriggerType;
   /** Quest、Stage、OBJ、Game、Scene、Line ID 或特殊事件 ID；chapter 則填章節數字。 */
   targetId: string;
-  /** active、completed、playing、success 等；* 代表該 ID 的任何有效狀態。 */
+  /** active、completed、intro、playing、success 等；* 代表該 ID 的任何有效狀態。 */
   state: string;
   action: BgmRuleAction;
-  /** switch 時指定素材庫 Track ID；其他操作可留空。 */
+  /** switch／fade 時指定素材庫 Track ID；其他操作可留空。 */
   trackId?: string;
-  /** 0～1；與玩家音量及 Track 基礎音量相乘。mute 固定視為 0。 */
+  /** 0～1；與玩家音量及 Track 基礎音量相乘。mute／pause 固定視為 0。 */
   targetVolume: number;
   fadeOutSeconds: number;
   fadeInSeconds: number;
@@ -1382,6 +1382,14 @@ export const BGM_TRACK_CONFIG = (
         "./audio/star-cards.mp3"
       ],
       "volume": 1,
+      "loop": true,
+      "rememberPosition": false
+    },
+    "phototropic-plant": {
+      "label": "植物解謎 BGM：Sombra Forest",
+      "sourceAssetPaths": ["Assets/Audio/Sombra_Forest_BGM.mp3"],
+      "sources": ["./audio/Sombra_Forest_BGM.mp3"],
+      "volume": 0.7,
       "loop": true,
       "rememberPosition": false
     }
@@ -1498,6 +1506,37 @@ export const BGM_CONTROL_RULES = (
       "state": "playing",
       "action": "fade",
       "trackId": "star-cards",
+      "targetVolume": 1,
+      "fadeOutSeconds": 1.5,
+      "fadeInSeconds": 1.5,
+      "priority": 1000,
+      "durationSeconds": 0,
+      "restoreMode": "resume"
+    },
+    {
+      "id": "phototropic-plant-intro-pause",
+      "label": "植物入場：地圖曲淡出並暫停，等待藤蔓到位",
+      "enabled": true,
+      "triggerType": "minigame",
+      "targetId": "phototropic-plant",
+      "state": "intro",
+      "action": "pause",
+      "targetVolume": 0,
+      "fadeOutSeconds": 1.5,
+      "fadeInSeconds": 1.5,
+      "priority": 1000,
+      "durationSeconds": 0,
+      "restoreMode": "resume"
+    },
+    {
+      "id": "phototropic-plant-playing-bgm",
+      "label": "藤蔓到位：植物曲淡入；成功對話播完或退出時續播地圖曲",
+      "enabled": true,
+      "triggerType": "minigame",
+      "targetId": "phototropic-plant",
+      "state": "playing",
+      "action": "fade",
+      "trackId": "phototropic-plant",
       "targetVolume": 1,
       "fadeOutSeconds": 1.5,
       "fadeInSeconds": 1.5,

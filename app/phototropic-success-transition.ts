@@ -13,6 +13,7 @@ export function startPlantSuccessTransition(
   phase: (next: PlantSuccessPhase) => void,
   playDialogue: () => Promise<{ completed: boolean }>,
   finish: (completed: boolean) => void,
+  onDialogueCompleted: () => void = () => {},
 ) {
   let cancelled = false;
   const timers: ReturnType<typeof setTimeout>[] = [];
@@ -29,6 +30,11 @@ export function startPlantSuccessTransition(
     phase("dialogue");
     const exit = (completed: boolean) => {
       if (cancelled) return;
+      // BGM handoff belongs to a fully played script, before the UI exit fade.
+      if (completed) {
+        try { onDialogueCompleted(); }
+        catch (error) { console.warn("[Phototropic] Dialogue completion callback failed.", error); }
+      }
       phase("exit");
       schedule(PLANT_SUCCESS_EXIT_MS, () => finish(completed));
     };

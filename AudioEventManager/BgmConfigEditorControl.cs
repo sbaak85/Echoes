@@ -26,6 +26,7 @@ internal sealed class BgmConfigEditorControl : UserControl
         new("failed", "失敗"),
         new("abandoned", "已放棄"),
         new("playing", "遊玩中"),
+        new("intro", "入場動畫／等待啟播"),
         new("triggered", "已觸發"),
         new("success", "成功"),
         new("active|completed", "進行中或已完成"),

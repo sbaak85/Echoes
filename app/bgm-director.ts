@@ -17,6 +17,8 @@ export type BgmControlPlan = {
   trackId: string;
   trackTransition: "switch" | "fade";
   volumeMultiplier: number;
+  /** Fade to silence and park the media clock until the rule is released. */
+  pausePlayback: boolean;
   fadeOutSeconds: number;
   fadeInSeconds: number;
   restoreMode: BgmRestoreMode;
@@ -103,17 +105,19 @@ export function resolveBgmControlPlan(
       Boolean(rule.trackId),
   );
   const volumeRule = activeRules.find(
-    (rule) => rule.action === "mute" || rule.action === "volume",
-  ) ?? trackRule;
+    (rule) => rule === trackRule || rule.action === "mute" ||
+      rule.action === "volume" || rule.action === "pause",
+  );
   const transitionRule = activeRules[0];
 
   return {
     activeRuleIds: activeRules.map((rule) => rule.id),
     trackId: trackRule?.trackId || defaultTrackId,
     trackTransition: trackRule?.action === "fade" ? "fade" : "switch",
-    volumeMultiplier: volumeRule?.action === "mute"
+    volumeMultiplier: volumeRule?.action === "mute" || volumeRule?.action === "pause"
       ? 0
       : clampVolume(volumeRule?.targetVolume ?? 1),
+    pausePlayback: volumeRule?.action === "pause",
     fadeOutSeconds: clampSeconds(transitionRule?.fadeOutSeconds ?? 0),
     fadeInSeconds: clampSeconds(transitionRule?.fadeInSeconds ?? 0),
     restoreMode: transitionRule?.restoreMode ?? "resume",
@@ -221,10 +225,11 @@ export class BgmDirector {
   }
 
   play() {
-    if (this.disposed || !this.enabled) return Promise.resolve();
+    if (this.disposed || !this.enabled || this.activePlan.pausePlayback) return Promise.resolve();
     const currentDeck = this.decks[this.activeDeckIndex];
     if (currentDeck.trackId === this.activePlan.trackId) {
-      currentDeck.volume = this.getPlanVolume(this.activePlan);
+      // Input/focus retries must not skip an in-progress FadeIn.
+      if (this.transitionFrameId === null) currentDeck.volume = this.getPlanVolume(this.activePlan);
       return currentDeck.audio.play();
     }
 
@@ -565,6 +570,7 @@ export class BgmDirector {
   }
 
   private refreshPlan() {
+    const wasPausedByRule = this.activePlan.pausePlayback;
     const nextPlan = applyBgmRuleExitPolicy(
       this.activePlan,
       resolveBgmControlPlan(
@@ -579,6 +585,7 @@ export class BgmDirector {
       nextPlan.trackId === this.activePlan.trackId &&
       nextPlan.trackTransition === this.activePlan.trackTransition &&
       nextPlan.volumeMultiplier === this.activePlan.volumeMultiplier &&
+      nextPlan.pausePlayback === this.activePlan.pausePlayback &&
       nextPlan.activeRuleIds.join("|") === this.activePlan.activeRuleIds.join("|");
     this.activePlan = nextPlan;
     if (planUnchanged) {
@@ -595,27 +602,33 @@ export class BgmDirector {
           targetVolume < currentDeck.volume
             ? nextPlan.fadeOutSeconds
             : nextPlan.fadeInSeconds,
+          nextPlan.pausePlayback,
         );
       }
       return;
     }
-    this.applyPlan(nextPlan);
+    this.applyPlan(nextPlan, wasPausedByRule);
   }
 
-  private applyPlan(plan: BgmControlPlan) {
+  private applyPlan(plan: BgmControlPlan, wasPausedByRule = false) {
     const currentDeck = this.decks[this.activeDeckIndex];
     if (currentDeck.trackId === plan.trackId) {
       const targetVolume = this.getPlanVolume(plan);
+      if (wasPausedByRule && !plan.pausePlayback && currentDeck.audio.paused && this.enabled && !document.hidden) {
+        void currentDeck.audio.play().catch(() => {});
+      }
       this.fadeDecks(
         currentDeck,
         targetVolume,
         targetVolume < currentDeck.volume
           ? plan.fadeOutSeconds
           : plan.fadeInSeconds,
+        plan.pausePlayback,
       );
       return;
     }
 
+    this.cancelTransition();
     this.rememberDeck(currentDeck);
     const nextDeckIndex = this.activeDeckIndex === 0 ? 1 : 0;
     const nextDeck = this.decks[nextDeckIndex];
@@ -639,6 +652,11 @@ export class BgmDirector {
     if (!this.enabled || document.hidden) {
       currentDeck.audio.pause();
       this.activeDeckIndex = nextDeckIndex;
+      return;
+    }
+    if (plan.pausePlayback) {
+      // Prepare a changed map track without running its clock during an intro.
+      beginTransition();
       return;
     }
     void nextDeck.audio.play().then(beginTransition).catch(() => {
@@ -685,6 +703,7 @@ export class BgmDirector {
       this.decks[this.activeDeckIndex],
       this.getPlanVolume(this.activePlan),
       durationSeconds,
+      this.activePlan.pausePlayback,
     );
   }
 
@@ -692,8 +711,16 @@ export class BgmDirector {
     deck: BgmDeck,
     targetVolume: number,
     durationSeconds: number,
+    pauseAfterFade = false,
   ) {
     this.cancelTransition();
+    // A volume/intro rule can interrupt a crossfade. Never leave its old deck
+    // playing behind the newly authoritative track after cancelling the RAF.
+    this.decks.forEach(other => {
+      if (other === deck) return;
+      other.volume = 0;
+      other.audio.pause();
+    });
     const startVolume = deck.volume;
     const startedAt = performance.now();
     const durationMs = clampSeconds(durationSeconds) * 1000;
@@ -706,7 +733,13 @@ export class BgmDirector {
         startVolume + (targetVolume - startVolume) * eased,
       );
       if (progress < 1) this.transitionFrameId = requestAnimationFrame(update);
-      else this.transitionFrameId = null;
+      else {
+        this.transitionFrameId = null;
+        if (pauseAfterFade) {
+          deck.audio.pause();
+          this.rememberDeck(deck);
+        }
+      }
     };
     this.transitionFrameId = requestAnimationFrame(update);
   }

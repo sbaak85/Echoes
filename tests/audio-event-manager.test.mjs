@@ -328,7 +328,7 @@ test("BGM fade 操作會同步交叉淡化，switch 則先淡出再淡入", asyn
     ),
     readFile(new URL("../AudioEventManager/README.md", import.meta.url), "utf8"),
   ]);
-  assert.match(editorSource, /"volume", "mute", "switch", "fade"/);
+  assert.match(editorSource, /"volume", "mute", "switch", "fade", "pause"/);
   assert.match(editorSource, /rule\.Action == "fade"/);
   assert.match(readme, /fade.*Crossfade/s);
 });
@@ -361,8 +361,8 @@ test("三個小遊戲 Playing 時同步交叉淡化至專用 BGM，退出後續�
     assert.equal(rule.action, "fade");
     assert.equal(rule.trackId, id);
     assert.equal(rule.targetVolume, 1);
-    assert.equal(rule.fadeOutSeconds, 1);
-    assert.equal(rule.fadeInSeconds, 1);
+    assert.equal(rule.fadeOutSeconds, 1.5);
+    assert.equal(rule.fadeInSeconds, 1.5);
     assert.equal(rule.restoreMode, "resume");
 
     const playingPlan = resolveBgmControlPlan(
@@ -381,8 +381,8 @@ test("三個小遊戲 Playing 時同步交叉淡化至專用 BGM，退出後續�
     );
     assert.equal(restoredPlan.trackId, "default");
     assert.equal(restoredPlan.trackTransition, "fade");
-    assert.equal(restoredPlan.fadeOutSeconds, 1);
-    assert.equal(restoredPlan.fadeInSeconds, 1);
+    assert.equal(restoredPlan.fadeOutSeconds, 1.5);
+    assert.equal(restoredPlan.fadeInSeconds, 1.5);
     assert.equal(restoredPlan.restoreMode, "resume");
   }
 });

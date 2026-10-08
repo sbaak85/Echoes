@@ -94,7 +94,7 @@ function Socket({ occupied, angle }: { occupied: boolean; angle: number }) {
   </span>;
 }
 
-export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: PlantView; onFinish: (state: PhototropicState, solved: boolean) => void; onChange?: (slot: number | null, angle: number) => PhototropicState | null; onSuccessDialogue: (id: string) => Promise<{ completed: boolean }>; onIntroduced?: () => void; onInput?: () => void; onVineMotion?: (motion: PlantVineMotion) => void; gamepadMode?: boolean }>(function PhototropicPuzzleOverlay({ view, onFinish, onChange, onSuccessDialogue, onIntroduced, onInput, onVineMotion, gamepadMode = false }, ref) {
+export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: PlantView; onFinish: (state: PhototropicState, solved: boolean) => void; onChange?: (slot: number | null, angle: number) => PhototropicState | null; onSuccessDialogue: (id: string) => Promise<{ completed: boolean }>; onIntroduced?: () => void; onReady?: () => void; onSuccessDialogueComplete?: () => void; onInput?: () => void; onVineMotion?: (motion: PlantVineMotion) => void; gamepadMode?: boolean }>(function PhototropicPuzzleOverlay({ view, onFinish, onChange, onSuccessDialogue, onIntroduced, onReady, onSuccessDialogueComplete, onInput, onVineMotion, gamepadMode = false }, ref) {
   const [draft, setDraft] = useState(() => normalizePhototropicState(view.initial));
   const draftRef = useRef(draft); draftRef.current = draft;
   const presentation = useRef(plantPresentationStart(view.initial)).current;
@@ -125,6 +125,8 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
   const finishRef = useRef(onFinish); finishRef.current = onFinish;
   const dialogueRef = useRef(onSuccessDialogue); dialogueRef.current = onSuccessDialogue;
   const introducedRef = useRef(onIntroduced); introducedRef.current = onIntroduced;
+  const readyCallbackRef = useRef(onReady); readyCallbackRef.current = onReady;
+  const dialogueCompleteRef = useRef(onSuccessDialogueComplete); dialogueCompleteRef.current = onSuccessDialogueComplete;
   const vineMotionRef = useRef(onVineMotion); vineMotionRef.current = onVineMotion;
   const repeat = useRef({ ...createPlantPadState(), slot: entrySlot });
   const endDialDrag = () => {
@@ -242,7 +244,8 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
     if (!successActive) return;
     return startPlantSuccessTransition(setSuccessPhase,
       () => dialogueRef.current(PLANT_SUCCESS_DIALOGUE_ID),
-      completed => finishRef.current(draftRef.current, completed));
+      completed => finishRef.current(draftRef.current, completed),
+      () => dialogueCompleteRef.current?.());
   }, [successActive]);
   useLayoutEffect(() => {
     const vines = createPlantVines(leftHost.current!, rightHost.current!);
@@ -255,6 +258,7 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
     const position = { ...presentation.position };
     // Paint the saved equilibrium immediately; reopening must never grow from zero.
     vines.update(position.left, position.right, previous / 1000, 0, presentation.playEntrance ? 0 : 1);
+    let readyNotified = false;
     const frame = (now: number) => {
       const dt = Math.max(0, Math.min(.05, (now - previous) / 1000)); previous = now;
       const growth = presentation.playEntrance ? smoothVineProgress((now - started) / PLANT_GROW_MS) : 1;
@@ -262,6 +266,12 @@ export const PhototropicPuzzleOverlay = forwardRef<PlantUiController, { view: Pl
         draftRef.current = { ...draftRef.current, introduced: true };
         setDraft(draftRef.current); readyRef.current = true; setReady(true);
         introducedRef.current?.();
+      }
+      // The very first entrance waits for the actual vine growth completion.
+      // Reopening paints the saved equilibrium and can begin music immediately.
+      if (readyRef.current && !readyNotified) {
+        readyNotified = true;
+        if (!draftRef.current.solved) readyCallbackRef.current?.();
       }
       const target = readyRef.current ? plantEquilibrium(draftRef.current) : { left: 0, right: 0 };
       const k = 1 - Math.exp(-dt * 1.6);
