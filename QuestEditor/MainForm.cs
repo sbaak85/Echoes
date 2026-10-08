@@ -2,11 +2,13 @@ using System.ComponentModel;
 
 namespace Echoes.QuestEditor;
 
-internal sealed class MainForm : Form
+internal sealed partial class MainForm : Form
 {
-    private const double QuestTreeWidthRatio = 0.19;
-    private const double StageObjectiveWidthRatio = 0.66;
+    private const double QuestTreeWidthRatio = 0.22;
+    private const double StageObjectiveWidthRatio = 0.62;
+    private const double BottomPanelRatio = 0.74;
     private const float ObjectiveIdColumnFillWeight = 39F;
+    private const int ValidationDelayMs = 300;
 
     private readonly string _projectRoot;
     private string _dataPath;
@@ -21,13 +23,26 @@ internal sealed class MainForm : Form
     private readonly DataGridView _objectiveGrid = new();
     private readonly BindingSource _objectiveBinding = new();
     private readonly PropertyGrid _propertyGrid = new();
-    private readonly ComboBox _referenceCombo = new();
+    private readonly ReferencePicker _referencePicker = new();
     private readonly Label _referenceLabel = new();
-    private readonly ListBox _validationList = new();
+    private readonly ListView _validationList = new();
+    private readonly Label _validationHeader = new();
     private readonly ToolStripStatusLabel _statusText = new();
     private readonly SplitContainer _rootSplit = new();
     private readonly SplitContainer _leftSplit = new();
     private readonly SplitContainer _middleSplit = new();
+
+    // Live validation: re-run shortly after the last edit instead of clearing the results.
+    private readonly System.Windows.Forms.Timer _validationTimer = new() { Interval = ValidationDelayMs };
+    private IReadOnlyList<QuestValidationIssue> _issues = Array.Empty<QuestValidationIssue>();
+    private Dictionary<object, List<QuestValidationIssue>> _issuesByTarget = new(ReferenceEqualityComparer.Instance);
+
+    // Splitter positions the user chose, kept as ratios so window resizing preserves them.
+    private double _treeRatio = QuestTreeWidthRatio;
+    private double _stageRatio = StageObjectiveWidthRatio;
+    private double _bottomRatio = BottomPanelRatio;
+    private bool _applyingLayout;
+    private bool _userDraggingSplitter;
 
     private QuestDefinition? SelectedQuest => _questTree.SelectedNode?.Tag as QuestDefinition;
     private QuestStageDefinition? SelectedStage => _stageList.SelectedItem as QuestStageDefinition;
@@ -53,10 +68,17 @@ internal sealed class MainForm : Form
         _document = QuestDataStore.Load(dataPath);
         _references = QuestReferenceProvider.Load(projectRoot);
         PrerequisiteQuestIdsEditor.SetQuestProvider(() => _document.Quests);
+        SuspendLayout();
         InitializeWindow();
         BuildUi();
+        ResumeLayout(true);
         RebuildTree();
-        MarkValidationPending();
+        _validationTimer.Tick += (_, _) =>
+        {
+            _validationTimer.Stop();
+            ValidateDocument();
+        };
+        ValidateDocument();
         UpdateTitle();
     }
 
@@ -66,9 +88,10 @@ internal sealed class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(1180, 720);
         ClientSize = new Size(1500, 900);
-        Font = new Font("Microsoft JhengHei UI", 10F);
+        Font = Theme.BodyFont;
         BackColor = Theme.Background;
         ForeColor = Theme.Text;
+        Theme.UseDarkTitleBar(this);
         KeyPreview = true;
         FormClosing += OnFormClosing;
         Shown += (_, _) => LayoutSplitPanels();
@@ -108,6 +131,14 @@ internal sealed class MainForm : Form
         _rootSplit.Dock = DockStyle.Fill;
         _rootSplit.Orientation = Orientation.Horizontal;
         _rootSplit.BackColor = Theme.Border;
+        foreach (var split in new[] { _rootSplit, _leftSplit, _middleSplit })
+        {
+            split.SplitterWidth = 6;
+            // The container only receives mouse events on its splitter bar.
+            split.MouseDown += (_, _) => _userDraggingSplitter = true;
+            split.MouseUp += (_, _) => _userDraggingSplitter = false;
+            split.SplitterMoved += (_, _) => { if (_userDraggingSplitter) RememberSplitterRatios(); };
+        }
 
         var shell = new TableLayoutPanel
         {
@@ -141,14 +172,35 @@ internal sealed class MainForm : Form
 
     private void LayoutSplitPanels()
     {
-        if (_rootSplit.Height > 260)
-            _rootSplit.SplitterDistance = Math.Clamp((int)(_rootSplit.Height * 0.76), 360, _rootSplit.Height - 130);
-        if (_leftSplit.Width > 700)
-            _leftSplit.SplitterDistance = Math.Clamp(
-                (int)(_leftSplit.Width * QuestTreeWidthRatio), 270, _leftSplit.Width - 700);
-        if (_middleSplit.Width > 650)
-            _middleSplit.SplitterDistance = Math.Clamp(
-                (int)(_middleSplit.Width * StageObjectiveWidthRatio), 470, _middleSplit.Width - 350);
+        if (WindowState == FormWindowState.Minimized) return;
+        _applyingLayout = true;
+        try
+        {
+            SetSplitter(_rootSplit, _rootSplit.Height, _bottomRatio, 360, _rootSplit.Height - 130, 260);
+            SetSplitter(_leftSplit, _leftSplit.Width, _treeRatio, 270, _leftSplit.Width - 700, 700);
+            SetSplitter(_middleSplit, _middleSplit.Width, _stageRatio, 470, _middleSplit.Width - 350, 650);
+        }
+        finally
+        {
+            _applyingLayout = false;
+        }
+    }
+
+    // Only touch SplitterDistance when it actually changes: every assignment re-lays out
+    // the whole panel subtree.
+    private static void SetSplitter(SplitContainer split, int extent, double ratio, int min, int max, int minimumExtent)
+    {
+        if (extent <= minimumExtent) return;
+        var distance = Math.Clamp((int)(extent * ratio), min, Math.Max(min, max));
+        if (split.SplitterDistance != distance) split.SplitterDistance = distance;
+    }
+
+    private void RememberSplitterRatios()
+    {
+        if (_applyingLayout || !IsHandleCreated) return;
+        if (_rootSplit.Height > 260) _bottomRatio = (double)_rootSplit.SplitterDistance / _rootSplit.Height;
+        if (_leftSplit.Width > 700) _treeRatio = (double)_leftSplit.SplitterDistance / _leftSplit.Width;
+        if (_middleSplit.Width > 650) _stageRatio = (double)_middleSplit.SplitterDistance / _middleSplit.Width;
     }
 
     private Control BuildQuestTreePanel()
@@ -164,30 +216,44 @@ internal sealed class MainForm : Form
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 84));
         _questTree.Dock = DockStyle.Fill;
         _questTree.BackColor = Theme.Panel;
         _questTree.ForeColor = Theme.Text;
         _questTree.BorderStyle = BorderStyle.None;
         _questTree.HideSelection = false;
+        _questTree.ShowNodeToolTips = true;
+        _questTree.ItemHeight = 26;
         _questTree.AfterSelect += (_, _) => OnTreeSelectionChanged();
+        _questTree.HandleCreated += (_, _) => Theme.EnableTreeDoubleBuffering(_questTree);
+        Theme.UseDarkScrollBars(_questTree);
         panel.Controls.Add(Header("章節與任務"), 0, 0);
         panel.Controls.Add(_questTree, 0, 1);
 
-        var buttons = new FlowLayoutPanel
+        // 2×2 grid: the four buttons always fit, whatever the panel width.
+        var buttons = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             BackColor = Theme.Panel,
-            Padding = new Padding(5),
+            ColumnCount = 2,
+            RowCount = 2,
+            Padding = new Padding(2, 4, 2, 2),
         };
-        buttons.Controls.Add(Theme.Button("＋章節", 92));
-        buttons.Controls[^1].Click += (_, _) => AddChapter();
-        buttons.Controls.Add(Theme.Button("＋任務", 92));
-        buttons.Controls[^1].Click += (_, _) => AddQuest();
-        buttons.Controls.Add(Theme.Button("複製任務", 100));
-        buttons.Controls[^1].Click += (_, _) => DuplicateQuest();
-        buttons.Controls.Add(Theme.Button("刪除", 92));
-        buttons.Controls[^1].Click += (_, _) => DeleteTreeItem();
+        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        buttons.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        buttons.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        void AddTreeButton(string text, Action action)
+        {
+            var button = Theme.Button(text);
+            button.Dock = DockStyle.Fill;
+            button.Click += (_, _) => action();
+            buttons.Controls.Add(button);
+        }
+        AddTreeButton("＋章節", AddChapter);
+        AddTreeButton("＋任務", AddQuest);
+        AddTreeButton("複製任務", DuplicateQuest);
+        AddTreeButton("刪除", DeleteTreeItem);
         panel.Controls.Add(buttons, 0, 2);
         return panel;
     }
@@ -215,7 +281,12 @@ internal sealed class MainForm : Form
         _stageList.BackColor = Theme.Background;
         _stageList.ForeColor = Theme.Text;
         _stageList.BorderStyle = BorderStyle.FixedSingle;
+        _stageList.DrawMode = DrawMode.OwnerDrawFixed;
+        _stageList.ItemHeight = 26;
+        _stageList.IntegralHeight = false;
+        _stageList.DrawItem += DrawStageItem;
         _stageList.SelectedIndexChanged += (_, _) => OnStageSelectionChanged();
+        Theme.UseDarkScrollBars(_stageList);
         panel.Controls.Add(_stageList, 0, 1);
 
         var stageButtons = ButtonRow();
@@ -247,6 +318,8 @@ internal sealed class MainForm : Form
         _objectiveGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "RequiredAmount", HeaderText = "數量", FillWeight = 12 });
         _objectiveGrid.SelectionChanged += (_, _) => OnObjectiveSelectionChanged();
         _objectiveGrid.CellEnter += (_, _) => OnObjectiveSelectionChanged();
+        _objectiveGrid.ShowCellToolTips = true;
+        _objectiveGrid.CellFormatting += FormatObjectiveCell;
         _objectiveGrid.CellEndEdit += (_, _) => OnObjectiveGridEditCommitted();
         _objectiveGrid.DataSource = _objectiveBinding;
         panel.Controls.Add(_objectiveGrid, 0, 4);
@@ -287,11 +360,18 @@ internal sealed class MainForm : Form
         _propertyGrid.HelpBackColor = Theme.PanelAlt;
         _propertyGrid.HelpForeColor = Theme.Muted;
         _propertyGrid.CategoryForeColor = Theme.Gold;
-        _propertyGrid.LineColor = Theme.Border;
+        _propertyGrid.LineColor = Theme.PanelAlt;
+        // Keep group rows and the selected row dark instead of the system light grey.
+        _propertyGrid.CategorySplitterColor = Theme.PanelAlt;
+        _propertyGrid.SelectedItemWithFocusBackColor = Theme.Selection;
+        _propertyGrid.SelectedItemWithFocusForeColor = Color.White;
+        _propertyGrid.ViewBorderColor = Theme.Border;
+        _propertyGrid.HelpBorderColor = Theme.Border;
+        _propertyGrid.DisabledItemForeColor = Theme.Muted;
         _propertyGrid.ToolbarVisible = false;
         _propertyGrid.PropertySort = PropertySort.Categorized;
         _propertyGrid.PropertyValueChanged += (_, _) => OnPropertyChanged();
-        _propertyGrid.SelectedGridItemChanged += (_, _) => UpdateReferenceList();
+        _propertyGrid.SelectedGridItemChanged += OnSelectedGridItemChanged;
         panel.Controls.Add(_propertyGrid, 0, 1);
 
         var referencePanel = new TableLayoutPanel
@@ -299,34 +379,71 @@ internal sealed class MainForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 2,
-            Padding = new Padding(8),
+            Padding = new Padding(8, 6, 8, 8),
             BackColor = Theme.PanelAlt,
         };
+        referencePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        referencePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        referencePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         _referenceLabel.Text = "外部 Target ID 清單";
+        _referenceLabel.TextAlign = ContentAlignment.MiddleLeft;
         _referenceLabel.ForeColor = Theme.Cyan;
         _referenceLabel.Dock = DockStyle.Fill;
-        _referenceCombo.Dock = DockStyle.Fill;
-        _referenceCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-        _referenceCombo.BackColor = Theme.Background;
-        _referenceCombo.ForeColor = Theme.Text;
-        _referenceCombo.SelectedIndexChanged += (_, _) => ApplySelectedReference();
+        _referencePicker.Dock = DockStyle.Fill;
+        _referencePicker.Picked += ApplySelectedReference;
         referencePanel.Controls.Add(_referenceLabel, 0, 0);
-        referencePanel.Controls.Add(_referenceCombo, 0, 1);
+        referencePanel.Controls.Add(_referencePicker, 0, 1);
         panel.Controls.Add(referencePanel, 0, 2);
         return panel;
     }
 
     private Control BuildValidationPanel()
     {
-        var panel = SectionPanel("驗證結果（雙擊可跳到項目）");
+        var panel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Panel, Padding = new Padding(8) };
+        _validationHeader.Dock = DockStyle.Top;
+        _validationHeader.Height = 36;
+        _validationHeader.Padding = new Padding(4, 8, 4, 4);
+        _validationHeader.Font = Theme.HeaderFont;
+        _validationHeader.ForeColor = Theme.Gold;
+        _validationHeader.BackColor = Theme.Panel;
+
         _validationList.Dock = DockStyle.Fill;
+        _validationList.View = View.Details;
+        _validationList.FullRowSelect = true;
+        _validationList.MultiSelect = false;
+        _validationList.HideSelection = false;
+        _validationList.HeaderStyle = ColumnHeaderStyle.Nonclickable;
         _validationList.BackColor = Theme.Background;
         _validationList.ForeColor = Theme.Text;
         _validationList.BorderStyle = BorderStyle.None;
+        _validationList.OwnerDraw = true;
+        _validationList.DrawColumnHeader += DrawValidationHeader;
+        _validationList.DrawItem += (_, eventArgs) => eventArgs.DrawDefault = false;
+        _validationList.DrawSubItem += DrawValidationCell;
+        _validationList.Columns.Add("等級", 86);
+        _validationList.Columns.Add("位置", 330);
+        _validationList.Columns.Add("問題說明", 900);
+        _validationList.Resize += (_, _) => FitValidationColumns();
         _validationList.DoubleClick += (_, _) => NavigateToIssue();
+        _validationList.KeyDown += (_, eventArgs) =>
+        {
+            if (eventArgs.KeyCode != Keys.Enter) return;
+            NavigateToIssue();
+            eventArgs.SuppressKeyPress = true;
+        };
+        Theme.EnableDoubleBuffering(_validationList);
+        Theme.UseDarkScrollBars(_validationList);
+
         panel.Controls.Add(_validationList);
-        _validationList.BringToFront();
+        panel.Controls.Add(_validationHeader);
         return panel;
+    }
+
+    private void FitValidationColumns()
+    {
+        if (_validationList.Columns.Count < 3) return;
+        var rest = _validationList.ClientSize.Width - _validationList.Columns[0].Width - _validationList.Columns[1].Width;
+        _validationList.Columns[2].Width = Math.Max(240, rest);
     }
 
     private static ToolStripButton ActionButton(string text, EventHandler handler)
@@ -336,13 +453,6 @@ internal sealed class MainForm : Form
         return button;
     }
 
-    private static Panel SectionPanel(string title)
-    {
-        var panel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Panel, Padding = new Padding(8) };
-        panel.Controls.Add(Header(title));
-        return panel;
-    }
-
     private static Label Header(string text) => new()
     {
         Text = text,
@@ -350,7 +460,7 @@ internal sealed class MainForm : Form
         Height = 40,
         Padding = new Padding(4, 8, 4, 4),
         ForeColor = Theme.Gold,
-        Font = new Font("Microsoft JhengHei UI", 11F, FontStyle.Bold),
+        Font = Theme.HeaderFont,
         BackColor = Theme.Panel,
     };
 
@@ -383,6 +493,7 @@ internal sealed class MainForm : Form
             if (ReferenceEquals(select, chapter)) selection = chapterNode;
         }
         _questTree.EndUpdate();
+        ApplyIssueMarkers();
         _rebuilding = false;
         _questTree.SelectedNode = selection ?? _questTree.Nodes.Cast<TreeNode>().FirstOrDefault();
     }
@@ -412,7 +523,7 @@ internal sealed class MainForm : Form
             _rebuilding = false;
         }
 
-        _propertyGrid.SelectedObject = selected;
+        ShowInPropertyGrid(selected);
         UpdateReferenceList();
     }
 
@@ -436,7 +547,7 @@ internal sealed class MainForm : Form
             _rebuilding = false;
         }
 
-        _propertyGrid.SelectedObject = stage;
+        ShowInPropertyGrid(stage);
         UpdateReferenceList();
     }
 
@@ -444,8 +555,17 @@ internal sealed class MainForm : Form
     {
         if (_rebuilding) return;
         if (SelectedObjective is not { } objective) return;
-        _propertyGrid.SelectedObject = objective;
-        UpdateReferenceList();
+        // SelectionChanged and CellEnter both fire for one click; rebuilding the property
+        // grid is by far the most expensive UI operation, so do it once.
+        if (ShowInPropertyGrid(objective)) UpdateReferenceList();
+    }
+
+    /// <summary>Shows <paramref name="target"/> unless it is already shown. Returns true when it changed.</summary>
+    private bool ShowInPropertyGrid(object? target)
+    {
+        if (ReferenceEquals(_propertyGrid.SelectedObject, target)) return false;
+        _propertyGrid.SelectedObject = target;
+        return true;
     }
 
     private void OnPropertyChanged()
@@ -459,15 +579,16 @@ internal sealed class MainForm : Form
             _objectiveGrid.Refresh();
             UpdateReferenceList();
         }
-        MarkValidationPending();
+        ScheduleValidation();
     }
+
+    private void OnSelectedGridItemChanged(object? sender, SelectedGridItemChangedEventArgs eventArgs) => UpdateReferenceList();
 
     private void UpdateReferenceList()
     {
         _updatingReferenceList = true;
         try
         {
-            _referenceCombo.DataSource = null;
             var objective = _propertyGrid.SelectedObject as QuestObjectiveDefinition;
             var quest = _propertyGrid.SelectedObject as QuestDefinition;
             var property = _propertyGrid.SelectedGridItem?.PropertyDescriptor;
@@ -506,11 +627,15 @@ internal sealed class MainForm : Form
                 _propertyGrid.SelectedObject is { } selectedObject
                 ? property?.GetValue(selectedObject)?.ToString() ?? ""
                 : objective?.TargetId ?? quest?.CompletionTriggerId ?? "";
-            _referenceLabel.Text = kind is null
+            var label = kind is null
                 ? "目前選取項目不使用外部 ID 清單"
                 : $"外部{ReferenceKindDisplayName(kind)} ID 清單";
-            _referenceCombo.Enabled = kind is not null;
-            if (kind is null) return;
+            if (_referenceLabel.Text != label) _referenceLabel.Text = label;
+            if (kind is null)
+            {
+                _referencePicker.SetValues(Array.Empty<QuestReference>(), null, false);
+                return;
+            }
 
             var values = kind == "Objective"
                 ? _document.Quests
@@ -521,17 +646,13 @@ internal sealed class MainForm : Form
                     .OrderBy(candidate => candidate.Id, StringComparer.OrdinalIgnoreCase)
                     .ToList()
                 : _references.Get(kind).ToList();
-            if (!string.IsNullOrWhiteSpace(currentId) &&
-                values.All(value => !value.Id.Equals(currentId, StringComparison.OrdinalIgnoreCase)))
-            {
-                values.Insert(0, new QuestReference(currentId, "目前值（外部清單找不到）"));
-            }
+            var missingCurrent = !string.IsNullOrWhiteSpace(currentId) &&
+                values.All(value => !value.Id.Equals(currentId, StringComparison.OrdinalIgnoreCase));
+            if (missingCurrent) values.Insert(0, new QuestReference(currentId, "目前值（外部清單找不到）"));
 
-            _referenceCombo.DataSource = values;
-            var selected = values.FirstOrDefault(value =>
-                value.Id.Equals(currentId, StringComparison.OrdinalIgnoreCase));
-            _referenceCombo.SelectedItem = selected;
-            if (selected is null) _referenceCombo.SelectedIndex = -1;
+            // The picker only shows the current value; its searchable list is built on open.
+            var current = values.FirstOrDefault(value => value.Id.Equals(currentId, StringComparison.OrdinalIgnoreCase));
+            _referencePicker.SetValues(values, current, true);
         }
         finally
         {
@@ -558,10 +679,9 @@ internal sealed class MainForm : Form
         _ => kind,
     };
 
-    private void ApplySelectedReference()
+    private void ApplySelectedReference(QuestReference reference)
     {
-        if (_rebuilding || _updatingReferenceList ||
-            _referenceCombo.SelectedItem is not QuestReference reference) return;
+        if (_rebuilding || _updatingReferenceList) return;
         var property = _propertyGrid.SelectedGridItem?.PropertyDescriptor;
         if (property?.Name == nameof(QuestObjectiveDefinition.ActivationEventId))
         {
@@ -599,8 +719,9 @@ internal sealed class MainForm : Form
         else return;
         _propertyGrid.Refresh();
         _objectiveGrid.Refresh();
+        UpdateReferenceList();
         MarkDirty();
-        MarkValidationPending();
+        ScheduleValidation();
     }
 
     private void OnObjectiveGridEditCommitted()
@@ -609,7 +730,7 @@ internal sealed class MainForm : Form
         MarkDirty();
         _propertyGrid.Refresh();
         UpdateReferenceList();
-        MarkValidationPending();
+        ScheduleValidation();
     }
 
     private void CommitPendingObjectiveEdit()
@@ -682,7 +803,7 @@ internal sealed class MainForm : Form
         else return;
         MarkDirty();
         RebuildTree();
-        MarkValidationPending();
+        ScheduleValidation();
     }
 
     private void AddStage()
@@ -723,7 +844,7 @@ internal sealed class MainForm : Form
         _stageList.DataSource = quest.Stages;
         _stageList.SelectedItem = selection ?? quest.Stages.FirstOrDefault();
         MarkDirty();
-        MarkValidationPending();
+        ScheduleValidation();
     }
 
     private void AddObjective()
@@ -791,14 +912,14 @@ internal sealed class MainForm : Form
             UpdateReferenceList();
         }
         MarkDirty();
-        MarkValidationPending();
+        ScheduleValidation();
     }
 
     private void ReloadReferences()
     {
         _references = QuestReferenceProvider.Load(_projectRoot);
         UpdateReferenceList();
-        MarkValidationPending();
+        ScheduleValidation();
         _statusText.Text = "已重新讀取 Item、場景、對話與事件流程 ID。";
     }
 
@@ -818,35 +939,217 @@ internal sealed class MainForm : Form
         MessageBox.Show(tutorial, "任務編輯器使用教學", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
-    private void MarkValidationPending()
+    /// <summary>
+    /// Re-validates shortly after the last edit. Previous results stay visible until then,
+    /// instead of being cleared on every change.
+    /// </summary>
+    private void ScheduleValidation()
     {
-        _validationList.DataSource = null;
-        _validationList.Items.Clear();
-        _validationList.ForeColor = Theme.Muted;
-        _statusText.Text = "資料尚未驗證；可繼續編輯，儲存、按【驗證資料】或關閉前才會檢查。";
+        _validationTimer.Stop();
+        _validationTimer.Start();
     }
 
     private void ValidateDocument()
     {
-        var issues = QuestValidator.Validate(_document, _references);
-        DisplayValidationIssues(issues);
+        _validationTimer.Stop();
+        DisplayValidationIssues(QuestValidator.Validate(_document, _references));
     }
 
     private void DisplayValidationIssues(IReadOnlyCollection<QuestValidationIssue> issues)
     {
-        _validationList.DataSource = null;
-        _validationList.DataSource = issues.ToList();
-        _validationList.ForeColor = issues.Any(issue => issue.Severity == ValidationSeverity.Error)
-            ? Color.FromArgb(244, 153, 143)
-            : Theme.Text;
-        _statusText.Text = issues.Count == 0
-            ? "驗證完成：沒有發現問題。"
-            : $"驗證完成：{issues.Count(issue => issue.Severity == ValidationSeverity.Error)} 個錯誤，{issues.Count(issue => issue.Severity == ValidationSeverity.Warning)} 個警告。";
+        _issues = issues
+            .OrderBy(issue => issue.Severity == ValidationSeverity.Error ? 0 : 1)
+            .ThenBy(issue => DescribeLocation(issue.Target), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        _issuesByTarget = new Dictionary<object, List<QuestValidationIssue>>(ReferenceEqualityComparer.Instance);
+        foreach (var issue in _issues.Where(issue => issue.Target is not null))
+        {
+            if (!_issuesByTarget.TryGetValue(issue.Target!, out var list)) _issuesByTarget[issue.Target!] = list = new();
+            list.Add(issue);
+        }
+
+        // Keep the user's place in the list across live re-validation.
+        var selectedKey = _validationList.SelectedItems.Count > 0 && _validationList.SelectedItems[0].Tag is QuestValidationIssue selected
+            ? (selected.Message, selected.Target)
+            : default;
+        var topIndex = _validationList.TopItem?.Index ?? 0;
+        _validationList.BeginUpdate();
+        _validationList.Items.Clear();
+        foreach (var issue in _issues)
+        {
+            var item = new ListViewItem(issue.Severity == ValidationSeverity.Error ? "✖ 錯誤" : "▲ 警告") { Tag = issue };
+            item.SubItems.Add(DescribeLocation(issue.Target));
+            item.SubItems.Add(issue.Message);
+            _validationList.Items.Add(item);
+            if (selectedKey.Message == issue.Message && ReferenceEquals(selectedKey.Target, issue.Target)) item.Selected = true;
+        }
+        _validationList.EndUpdate();
+        if (_validationList.Items.Count > 0)
+            _validationList.TopItem = _validationList.Items[Math.Min(topIndex, _validationList.Items.Count - 1)];
+
+        var errors = _issues.Count(issue => issue.Severity == ValidationSeverity.Error);
+        var warnings = _issues.Count - errors;
+        _validationHeader.Text = _issues.Count == 0
+            ? "驗證結果　✔ 沒有發現問題"
+            : $"驗證結果　✖ {errors} 個錯誤　▲ {warnings} 個警告　（雙擊或按 Enter 跳到項目）";
+        _validationHeader.ForeColor = errors > 0 ? Theme.Error : warnings > 0 ? Theme.Warning : Theme.Success;
+        _statusText.Text = $"已自動驗證（{DateTime.Now:HH:mm:ss}）：{errors} 個錯誤，{warnings} 個警告。";
+        ApplyIssueMarkers();
     }
+
+    private ValidationSeverity? SeverityOf(object? target) =>
+        target is not null && _issuesByTarget.TryGetValue(target, out var list)
+            ? list.Any(issue => issue.Severity == ValidationSeverity.Error) ? ValidationSeverity.Error : ValidationSeverity.Warning
+            : null;
+
+    /// <summary>Worst severity of a quest including its stages and objectives.</summary>
+    private ValidationSeverity? SeverityOfQuest(QuestDefinition quest)
+    {
+        var all = new List<object> { quest };
+        all.AddRange(quest.Stages);
+        all.AddRange(quest.Stages.SelectMany(stage => stage.Objectives));
+        var severities = all.Select(SeverityOf).Where(severity => severity is not null).ToList();
+        return severities.Count == 0 ? null : severities.Contains(ValidationSeverity.Error) ? ValidationSeverity.Error : ValidationSeverity.Warning;
+    }
+
+    private ValidationSeverity? SeverityOfStage(QuestStageDefinition stage)
+    {
+        var severities = stage.Objectives.Select(SeverityOf).Append(SeverityOf(stage)).Where(severity => severity is not null).ToList();
+        return severities.Count == 0 ? null : severities.Contains(ValidationSeverity.Error) ? ValidationSeverity.Error : ValidationSeverity.Warning;
+    }
+
+    private static ValidationSeverity? Worst(ValidationSeverity? left, ValidationSeverity? right) =>
+        left == ValidationSeverity.Error || right == ValidationSeverity.Error ? ValidationSeverity.Error : left ?? right;
+
+    private static Color SeverityColor(ValidationSeverity? severity, Color normal) => severity switch
+    {
+        ValidationSeverity.Error => Theme.Error,
+        ValidationSeverity.Warning => Theme.Warning,
+        _ => normal,
+    };
+
+    /// <summary>Colours tree nodes, stages and objective rows that have validation issues.</summary>
+    private void ApplyIssueMarkers()
+    {
+        _questTree.BeginUpdate();
+        foreach (TreeNode chapterNode in _questTree.Nodes)
+        {
+            var chapterSeverity = SeverityOf(chapterNode.Tag);
+            foreach (TreeNode questNode in chapterNode.Nodes)
+            {
+                if (questNode.Tag is not QuestDefinition quest) continue;
+                var severity = SeverityOfQuest(quest);
+                questNode.ForeColor = SeverityColor(severity, Theme.Text);
+                questNode.ToolTipText = severity is null ? quest.ToString() : $"{quest}\n{IssueSummary(quest)}";
+                chapterSeverity = Worst(chapterSeverity, severity);
+            }
+            chapterNode.ForeColor = SeverityColor(chapterSeverity, Theme.Gold);
+        }
+        _questTree.EndUpdate();
+        _stageList.Invalidate();
+        _objectiveGrid.Invalidate();
+    }
+
+    private string IssueSummary(QuestDefinition quest)
+    {
+        var related = new List<object> { quest };
+        related.AddRange(quest.Stages);
+        related.AddRange(quest.Stages.SelectMany(stage => stage.Objectives));
+        var issues = related.SelectMany(target => _issuesByTarget.TryGetValue(target, out var list) ? list : Enumerable.Empty<QuestValidationIssue>()).ToList();
+        var errors = issues.Count(issue => issue.Severity == ValidationSeverity.Error);
+        return $"✖ {errors} 個錯誤　▲ {issues.Count - errors} 個警告";
+    }
+
+    private void DrawStageItem(object? sender, DrawItemEventArgs eventArgs)
+    {
+        if (eventArgs.Index < 0 || eventArgs.Index >= _stageList.Items.Count) return;
+        var stage = _stageList.Items[eventArgs.Index] as QuestStageDefinition;
+        var selected = (eventArgs.State & DrawItemState.Selected) != 0;
+        using var back = new SolidBrush(selected ? Theme.Selection : Theme.Background);
+        eventArgs.Graphics.FillRectangle(back, eventArgs.Bounds);
+        var severity = stage is null ? null : SeverityOfStage(stage);
+        var text = (severity is null ? "　 " : severity == ValidationSeverity.Error ? "✖ " : "▲ ") + (stage?.ToString() ?? "");
+        var bounds = new Rectangle(eventArgs.Bounds.X + 6, eventArgs.Bounds.Y, eventArgs.Bounds.Width - 6, eventArgs.Bounds.Height);
+        TextRenderer.DrawText(eventArgs.Graphics, text, _stageList.Font, bounds,
+            selected ? Color.White : SeverityColor(severity, Theme.Text),
+            TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+    }
+
+    private void FormatObjectiveCell(object? sender, DataGridViewCellFormattingEventArgs eventArgs)
+    {
+        var stage = SelectedStage;
+        if (stage is null || eventArgs.RowIndex < 0 || eventArgs.RowIndex >= stage.Objectives.Count || eventArgs.CellStyle is null) return;
+        var objective = stage.Objectives[eventArgs.RowIndex];
+        if (!_issuesByTarget.TryGetValue(objective, out var issues)) return;
+        var error = issues.Any(issue => issue.Severity == ValidationSeverity.Error);
+        eventArgs.CellStyle.ForeColor = error ? Theme.Error : Theme.Warning;
+        eventArgs.CellStyle.BackColor = error ? Theme.ErrorBack : Theme.WarningBack;
+        if (eventArgs.ColumnIndex == 0 && eventArgs.Value is string id) eventArgs.Value = (error ? "✖ " : "▲ ") + id;
+        _objectiveGrid.Rows[eventArgs.RowIndex].Cells[eventArgs.ColumnIndex].ToolTipText =
+            string.Join(Environment.NewLine, issues.Select(issue => issue.ToString()));
+    }
+
+    private void DrawValidationHeader(object? sender, DrawListViewColumnHeaderEventArgs eventArgs)
+    {
+        using var back = new SolidBrush(Theme.PanelAlt);
+        eventArgs.Graphics.FillRectangle(back, eventArgs.Bounds);
+        var bounds = new Rectangle(eventArgs.Bounds.X + 6, eventArgs.Bounds.Y, eventArgs.Bounds.Width - 6, eventArgs.Bounds.Height);
+        TextRenderer.DrawText(eventArgs.Graphics, eventArgs.Header?.Text, _validationList.Font, bounds, Theme.Gold,
+            TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPrefix);
+    }
+
+    private void DrawValidationCell(object? sender, DrawListViewSubItemEventArgs eventArgs)
+    {
+        if (eventArgs.Item?.Tag is not QuestValidationIssue issue || eventArgs.SubItem is null) return;
+        var error = issue.Severity == ValidationSeverity.Error;
+        var back = eventArgs.Item.Selected ? Theme.Selection : eventArgs.ItemIndex % 2 == 0 ? Theme.Background : Theme.Panel;
+        using var brush = new SolidBrush(back);
+        eventArgs.Graphics.FillRectangle(brush, eventArgs.Bounds);
+        var color = eventArgs.ColumnIndex switch
+        {
+            0 => error ? Theme.Error : Theme.Warning,
+            1 => Theme.Cyan,
+            _ => eventArgs.Item.Selected ? Color.White : Theme.Text,
+        };
+        var bounds = new Rectangle(eventArgs.Bounds.X + 6, eventArgs.Bounds.Y, eventArgs.Bounds.Width - 8, eventArgs.Bounds.Height);
+        TextRenderer.DrawText(eventArgs.Graphics, eventArgs.SubItem.Text, eventArgs.ColumnIndex == 0 ? Theme.BoldFont : _validationList.Font,
+            bounds, color, TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+    }
+
+    /// <summary>"QUEST_CH04_MAIN_001 › STAGE_03 › OBJ_20" style location for an issue target.</summary>
+    private string DescribeLocation(object? target)
+    {
+        switch (target)
+        {
+            case ChapterDefinition chapter:
+                return $"章節 {chapter.Id}";
+            case QuestDefinition quest:
+                return quest.Id;
+            case QuestStageDefinition stage:
+            {
+                var quest = _document.Quests.FirstOrDefault(candidate => candidate.Stages.Contains(stage));
+                return quest is null ? stage.Id : $"{quest.Id} › {ShortId(stage.Id, quest.Id)}";
+            }
+            case QuestObjectiveDefinition objective:
+            {
+                foreach (var quest in _document.Quests)
+                    foreach (var stage in quest.Stages)
+                        if (stage.Objectives.Contains(objective))
+                            return $"{quest.Id} › {ShortId(stage.Id, quest.Id)} › {ShortId(objective.Id, quest.Id)}";
+                return objective.Id;
+            }
+            default:
+                return "整份資料";
+        }
+    }
+
+    private static string ShortId(string id, string questId) =>
+        id.StartsWith(questId + "_", StringComparison.OrdinalIgnoreCase) ? id[(questId.Length + 1)..] : id;
 
     private void NavigateToIssue()
     {
-        if (_validationList.SelectedItem is not QuestValidationIssue issue || issue.Target is null) return;
+        if (_validationList.SelectedItems.Count == 0 ||
+            _validationList.SelectedItems[0].Tag is not QuestValidationIssue issue || issue.Target is null) return;
         var quest = issue.Target as QuestDefinition ??
                     _document.Quests.FirstOrDefault(candidate => candidate.Stages.Contains(issue.Target) || candidate.Stages.Any(stage => stage.Objectives.Contains(issue.Target)));
         if (issue.Target is ChapterDefinition chapter) RebuildTree(chapter);
@@ -869,15 +1172,29 @@ internal sealed class MainForm : Form
     {
         CommitPendingObjectiveEdit();
         _propertyGrid.Refresh();
-        var issues = QuestValidator.Validate(_document, _references);
-        DisplayValidationIssues(issues);
-        QuestDataStore.Save(_dataPath, _document);
+        ValidateDocument();
+        try
+        {
+            QuestDataStore.Save(_dataPath, _document);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Keep editing state intact; nothing was written over the original file.
+            _statusText.Text = "儲存失敗，資料仍保留在編輯器中。";
+            MessageBox.Show(
+                $"無法寫入：{_dataPath}\n\n" +
+                "可能原因：檔案正被其他程式（遊戲、Codex、文字編輯器或雲端同步）鎖定，或沒有寫入權限。\n" +
+                "請關閉佔用的程式後再按一次【儲存】；目前的修改都還在，沒有遺失。\n\n" +
+                $"詳細訊息：{exception.Message}",
+                "儲存失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
         _dirty = false;
         UpdateTitle();
-        var errorCount = issues.Count(issue => issue.Severity == ValidationSeverity.Error);
+        var errorCount = _issues.Count(issue => issue.Severity == ValidationSeverity.Error);
         _statusText.Text = errorCount == 0
-            ? $"已儲存：{_dataPath}"
-            : $"已儲存草稿：{_dataPath}（仍有 {errorCount} 個錯誤，關閉前會再提醒）";
+            ? $"已儲存（{DateTime.Now:HH:mm:ss}）：{_dataPath}"
+            : $"已儲存草稿（{DateTime.Now:HH:mm:ss}）：仍有 {errorCount} 個錯誤，可在下方驗證結果雙擊跳到該項目。";
     }
 
     private void OpenDocument()
@@ -890,16 +1207,28 @@ internal sealed class MainForm : Form
             FileName = Path.GetFileName(_dataPath),
         };
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
+        QuestDocument document;
+        try
+        {
+            document = QuestDataStore.Load(dialog.FileName);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            // The currently open document stays loaded.
+            MessageBox.Show(exception.Message, "無法開啟任務資料", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
         _dataPath = dialog.FileName;
-        _document = QuestDataStore.Load(_dataPath);
+        _document = document;
         _dirty = false;
         RebuildTree();
-        MarkValidationPending();
+        ScheduleValidation();
         UpdateTitle();
     }
 
     private void OnFormClosing(object? sender, FormClosingEventArgs eventArgs)
     {
+        if (_closeWithoutPrompts) return;
         CommitPendingObjectiveEdit();
         var issues = QuestValidator.Validate(_document, _references);
         DisplayValidationIssues(issues);
@@ -1087,7 +1416,31 @@ internal sealed class MainForm : Form
         if (_questTree.Nodes.Cast<TreeNode>().SelectMany(node => node.Nodes.Cast<TreeNode>()).Count() != _document.Quests.Count)
             throw new InvalidOperationException("任務樹重新整理失敗。");
         ValidateDocument();
-        if (_validationList.DataSource is null) throw new InvalidOperationException("驗證面板沒有初始化。");
+        if (string.IsNullOrEmpty(_validationHeader.Text) || _validationList.Items.Count != _issues.Count)
+            throw new InvalidOperationException("驗證面板沒有初始化。");
+
+        // Live validation: an edit schedules a re-check but keeps the current results visible.
+        var shownBefore = _validationList.Items.Count;
+        ScheduleValidation();
+        if (_validationList.Items.Count != shownBefore)
+            throw new InvalidOperationException("編輯後驗證結果不應被清空。");
+        incompleteObjective.ActivationMode = ObjectiveActivationMode.ObjectiveCompleted;
+        incompleteObjective.ActivationEventId = "";
+        ValidateDocument();
+        if (!_issues.Any(issue => ReferenceEquals(issue.Target, incompleteObjective) && issue.Severity == ValidationSeverity.Error) ||
+            !DescribeLocation(incompleteObjective).Contains(" › "))
+            throw new InvalidOperationException("驗證錯誤沒有標示到對應的 OBJ 位置。");
+        incompleteObjective.ActivationMode = ObjectiveActivationMode.Immediate;
+
+        // Property groups: related settings are listed together, in a fixed order.
+        var groups = TypeDescriptor.GetConverter(incompleteObjective)
+            .GetProperties(null, incompleteObjective, new Attribute[] { BrowsableAttribute.Yes })!
+            .Cast<PropertyDescriptor>().Select(property => property.Category).Distinct().ToArray();
+        if (!groups.SequenceEqual(new[] { PropertyGroup.Basic, PropertyGroup.Criteria, PropertyGroup.Activation, PropertyGroup.Completion, PropertyGroup.Display }))
+            throw new InvalidOperationException($"OBJ 屬性分組順序不正確：{string.Join("、", groups)}");
+        var stringList = TypeDescriptor.GetProperties(incompleteObjective)[nameof(QuestObjectiveDefinition.TargetIds)];
+        if (stringList?.GetEditor(typeof(System.Drawing.Design.UITypeEditor)) is not StringListEditor)
+            throw new InvalidOperationException("指定互動 ID 清單沒有使用可新增字串的編輯器。");
 
         var localizedObjectiveType = TypeDescriptor.GetConverter(typeof(ObjectiveType))
             .ConvertToString(ObjectiveType.InteractionSucceeded);

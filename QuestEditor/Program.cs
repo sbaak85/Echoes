@@ -25,9 +25,19 @@ internal static class Program
                 RunSelfTest(projectRoot);
                 return 0;
             }
+            if (args.Contains("--validate", StringComparer.OrdinalIgnoreCase))
+            {
+                // Prints every validation issue of quest-data.json; exit code 2 when errors exist.
+                var issues = QuestValidator.Validate(QuestDataStore.Load(dataPath), QuestReferenceProvider.Load(projectRoot));
+                foreach (var issue in issues)
+                    Console.WriteLine($"{(issue.Severity == ValidationSeverity.Error ? "ERROR" : "WARN ")} | {issue.Target?.ToString()?.Split("  ")[0]} | {issue.Message}");
+                Console.WriteLine($"{issues.Count(issue => issue.Severity == ValidationSeverity.Error)} errors, " +
+                                  $"{issues.Count(issue => issue.Severity == ValidationSeverity.Warning)} warnings");
+                return issues.Any(issue => issue.Severity == ValidationSeverity.Error) ? 2 : 0;
+            }
             if (args.Contains("--ui-smoke-test", StringComparer.OrdinalIgnoreCase))
             {
-                var smokeDataPath = Path.Combine(Path.GetTempPath(), "EchoesQuestEditor", "quest-data-ui-smoke.json");
+                var smokeDataPath = Path.Combine(projectRoot, "output", "quest-editor-tests", "quest-data-ui-smoke.json");
                 QuestDataStore.Save(smokeDataPath, QuestDataStore.Load(dataPath));
                 ApplicationConfiguration.Initialize();
                 using var form = new MainForm(projectRoot, smokeDataPath)
@@ -41,6 +51,21 @@ internal static class Program
                 Application.DoEvents();
                 form.RunSmokeTest();
                 Console.WriteLine("QuestEditor UI smoke test passed.");
+                return 0;
+            }
+            if (args.Contains("--layout-benchmark", StringComparer.OrdinalIgnoreCase))
+            {
+                ApplicationConfiguration.Initialize();
+                using var form = new MainForm(projectRoot, dataPath)
+                {
+                    ShowInTaskbar = false,
+                    StartPosition = FormStartPosition.Manual,
+                    Location = new Point(-10000, -10000),
+                };
+                form.Show();
+                Application.DoEvents();
+                Console.WriteLine(form.RunLayoutBenchmark());
+                form.CloseWithoutPrompts();
                 return 0;
             }
             if (args.Contains("--render-preview", StringComparer.OrdinalIgnoreCase))
@@ -59,18 +84,27 @@ internal static class Program
                 var previewPath = Path.Combine(projectRoot, "QuestEditor", "runtime", "quest-editor-preview.png");
                 Directory.CreateDirectory(Path.GetDirectoryName(previewPath)!);
                 bitmap.Save(previewPath, System.Drawing.Imaging.ImageFormat.Png);
-                form.Close();
+                // A hidden window must never wait on the close-time validation prompt.
+                form.CloseWithoutPrompts();
                 Console.WriteLine(previewPath);
                 return 0;
             }
             ApplicationConfiguration.Initialize();
+            // An unexpected error in one action should not take the editor (and unsaved work) down.
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += (_, eventArgs) => MessageBox.Show(
+                "這個操作發生未預期的錯誤，已中止，但編輯器仍可繼續使用；尚未儲存的修改沒有遺失。\n" +
+                "建議先按【儲存】，再回報下列訊息：\n\n" + eventArgs.Exception.Message,
+                "任務編輯器", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             Application.Run(new MainForm(projectRoot, dataPath));
             return 0;
         }
         catch (Exception exception)
         {
             if (args.Contains("--self-test", StringComparer.OrdinalIgnoreCase) ||
+                args.Contains("--validate", StringComparer.OrdinalIgnoreCase) ||
                 args.Contains("--ui-smoke-test", StringComparer.OrdinalIgnoreCase) ||
+                args.Contains("--layout-benchmark", StringComparer.OrdinalIgnoreCase) ||
                 args.Contains("--render-preview", StringComparer.OrdinalIgnoreCase))
             {
                 Console.Error.WriteLine(exception);
@@ -93,6 +127,73 @@ internal static class Program
                     return directory.FullName;
         }
         throw new DirectoryNotFoundException("找不到 Echoes 專案。請將 QuestEditor.exe 放在專案的 QuestEditor 資料夾內。");
+    }
+
+    private static void ValidatePuzzleReferences(string projectRoot, QuestReferenceCatalog references)
+    {
+        foreach (var id in new[] { "interaction-012", "scene3-interaction-024", "scene3-interaction-025", "chapter04-phototropic-plant" })
+            if (!references.Contains("Puzzle", id))
+                throw new InvalidDataException($"解謎參照清單漏掉正式解謎：{id}");
+        if (references.Contains("Puzzle", "scene3-interaction-023"))
+            throw new InvalidDataException("一般互動不可被當成解謎完成目標。");
+
+        var document = QuestDataStore.Load(Path.Combine(projectRoot, "public", "quests", "quest-data.json"));
+        var objectives = document.Quests.SelectMany(quest => quest.Stages).SelectMany(stage => stage.Objectives);
+        var welding = objectives.Single(objective => objective.Id == "QUEST_CH03_MAIN_006_OBJ_04");
+        var frequency = objectives.Single(objective => objective.Id == "QUEST_CH03_MAIN_006_OBJ_05");
+        if (welding.TargetId != "scene3-interaction-024" || frequency.TargetId != "scene3-interaction-025")
+            throw new InvalidDataException("焊接與調頻 OBJ 必須保留正式遊戲使用的解謎完成 ID。");
+        var issues = QuestValidator.Validate(document, references);
+        if (issues.Any(issue => (ReferenceEquals(issue.Target, welding) || ReferenceEquals(issue.Target, frequency)) &&
+                                issue.Severity == ValidationSeverity.Error && issue.Message.Contains("Puzzle")))
+            throw new InvalidDataException("地圖中存在的焊接或調頻解謎被誤判為找不到 Puzzle ID。");
+        foreach (var invalidId in new[] { "missing-puzzle", "scene3-interaction-023" })
+        {
+            welding.TargetId = invalidId;
+            if (!QuestValidator.Validate(document, references).Any(issue => ReferenceEquals(issue.Target, welding) &&
+                issue.Severity == ValidationSeverity.Error && issue.Message.Contains($"找不到 Puzzle ID：{invalidId}")))
+                throw new InvalidDataException($"無效解謎目標仍必須被驗證阻擋：{invalidId}");
+        }
+        Console.WriteLine("Puzzle references passed: power routing, welding, frequency, plant; invalid targets rejected.");
+    }
+
+    private static void ValidateScriptActivationAndSubmitTargets(string projectRoot, QuestReferenceCatalog references)
+    {
+        // OBJs that game code activates directly (chapter flows, welding hint).
+        foreach (var id in new[]
+                 {
+                     "QUEST_CH04_MAIN_001_OBJ_02", "QUEST_CH04_MAIN_001_OBJ_03",
+                     "QUEST_CH04_MAIN_001_OBJ_05", "QUEST_CH04_MAIN_001_OBJ_16", "QUEST_CH03_MAIN_006_OBJ_06",
+                 })
+            if (!references.Contains(QuestReferenceProvider.ScriptActivatedObjective, id))
+                throw new InvalidDataException($"程式流程啟用的 OBJ 沒有被辨識：{id}");
+        if (references.Contains(QuestReferenceProvider.ScriptActivatedObjective, "QUEST_CH04_MAIN_001_OBJ_04"))
+            throw new InvalidDataException("只出現在完成規則裡的 OBJ 不可被當成由程式啟用。");
+
+        var document = QuestDataStore.Load(Path.Combine(projectRoot, "public", "quests", "quest-data.json"));
+        var objectives = document.Quests.SelectMany(quest => quest.Stages).SelectMany(stage => stage.Objectives).ToList();
+        var flowActivated = objectives.Single(objective => objective.Id == "QUEST_CH04_MAIN_001_OBJ_02");
+        var submit = objectives.Single(objective => objective.Id == "QUEST_CH04_MAIN_001_OBJ_15");
+        var issues = QuestValidator.Validate(document, references);
+        if (issues.Any(issue => issue.Severity == ValidationSeverity.Error &&
+                                (ReferenceEquals(issue.Target, flowActivated) || ReferenceEquals(issue.Target, submit))))
+            throw new InvalidDataException("程式流程啟用的 OBJ 或多互動區投入道具 OBJ 被誤判為錯誤。");
+
+        // Still rejected: an event-mode OBJ nobody activates, and interaction lists on other types.
+        var collect = objectives.First(objective => objective.Type == ObjectiveType.CollectItem &&
+            !references.Contains(QuestReferenceProvider.ScriptActivatedObjective, objective.Id));
+        collect.ActivationMode = ObjectiveActivationMode.Event;
+        collect.ActivationEventId = "";
+        collect.UnlockDialogueId = "";
+        if (!QuestValidator.Validate(document, references).Any(issue => ReferenceEquals(issue.Target, collect) &&
+                issue.Message.Contains("尚未填入啟用事件")))
+            throw new InvalidDataException("沒有任何來源啟用的事件 OBJ 仍必須被驗證攔截。");
+        collect.ActivationMode = ObjectiveActivationMode.Immediate;
+        collect.TargetIds = new() { "scene6-interaction-018" };
+        if (!QuestValidator.Validate(document, references).Any(issue => ReferenceEquals(issue.Target, collect) &&
+                issue.Message.Contains("指定互動 ID 清單只適用於")))
+            throw new InvalidDataException("收集道具類型不可使用指定互動 ID 清單。");
+        Console.WriteLine("Script-activated OBJs and multi-interaction item submission passed.");
     }
 
     private static void RunSelfTest(string projectRoot)
@@ -163,7 +264,7 @@ internal static class Program
         });
         quest.Stages.Add(stage);
         source.Quests.Add(quest);
-        var path = Path.Combine(Path.GetTempPath(), "EchoesQuestEditor", "quest-data.json");
+        var path = Path.Combine(projectRoot, "output", "quest-editor-tests", "quest-data.json");
         QuestDataStore.Save(path, source);
         var loaded = QuestDataStore.Load(path);
         if (loaded.Quests.Count != 1 ||
@@ -237,6 +338,8 @@ internal static class Program
             !File.ReadAllText(path).Contains("\"compoundMatchMode\": \"anyN\""))
             throw new InvalidDataException("任選 N 種 JSON 儲存讀取失敗。");
         var references = QuestReferenceProvider.Load(projectRoot);
+        ValidatePuzzleReferences(projectRoot, references);
+        ValidateScriptActivationAndSubmitTargets(projectRoot, references);
         if (!references.Contains("Puzzle", "chapter04-phototropic-plant"))
             throw new InvalidDataException("植物解謎系統必須從 runtime 登記到完成解謎選項。");
         if (QuestValidator.Validate(compoundRoundtrip, references).Any(issue => issue.Severity == ValidationSeverity.Error))

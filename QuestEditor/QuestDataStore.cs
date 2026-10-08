@@ -18,7 +18,23 @@ internal static class QuestDataStore
     public static QuestDocument Load(string path)
     {
         if (!File.Exists(path)) return CreateDefault();
-        var document = JsonSerializer.Deserialize<QuestDocument>(File.ReadAllText(path, Encoding.UTF8), JsonOptions);
+        QuestDocument? document;
+        try
+        {
+            document = JsonSerializer.Deserialize<QuestDocument>(File.ReadAllText(path, Encoding.UTF8), JsonOptions);
+        }
+        catch (JsonException exception)
+        {
+            // Point at the broken spot instead of a raw serializer stack message.
+            var where = exception.LineNumber is { } line
+                ? $"第 {line + 1} 行、第 {(exception.BytePositionInLine ?? 0) + 1} 個字元附近"
+                : "未知位置";
+            throw new InvalidDataException(
+                $"無法讀取任務資料：{Path.GetFileName(path)} 的 JSON 格式有誤（{where}）。\n\n" +
+                $"可能是手動或其他工具修改時少了逗號、引號或括號，或欄位值的型別不符。\n" +
+                $"請修正該位置後再開啟；原始檔案沒有被變更。\n\n詳細訊息：{exception.Message}",
+                exception);
+        }
         var result = document ?? CreateDefault();
         NormalizeObjectiveActivation(result);
         return result;

@@ -1384,7 +1384,6 @@
               "type": "submitItemAtInteraction",
               "targetId": "",
               "targetIds": [
-                "",
                 "scene6-interaction-018",
                 "scene6-interaction-019"
               ],

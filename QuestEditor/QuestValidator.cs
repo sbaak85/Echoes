@@ -224,7 +224,11 @@ internal static class QuestValidator
         Required(objective.Id, "Objective ID 不可空白", objective, issues);
         ValidateCompletionInterfaceAction(objective, references, issues);
         var activationId = objective.ActivationEventId.Trim();
-        if (objective.ActivationMode != ObjectiveActivationMode.Immediate && activationId.Length == 0)
+        // Event-mode OBJs that game code or a trigger zone activates directly (e.g. chapter
+        // flows' "activateObjective") need no activation event ID in the data.
+        var activatedByScript = objective.ActivationMode == ObjectiveActivationMode.Event &&
+            references.Contains(QuestReferenceProvider.ScriptActivatedObjective, objective.Id);
+        if (objective.ActivationMode != ObjectiveActivationMode.Immediate && activationId.Length == 0 && !activatedByScript)
         {
             issues.Add(new(
                 ValidationSeverity.Error,
@@ -308,11 +312,13 @@ internal static class QuestValidator
         var objectiveTargetIds = objective.TargetIds ?? new List<string>();
         if (objectiveTargetIds.Count > 0)
         {
+            // The runtime matches these interaction lists for interaction and item-submission OBJs.
+            var submitsItem = objective.Type == ObjectiveType.SubmitItemAtInteraction;
             if (objective.Type != ObjectiveType.InteractionStarted &&
-                objective.Type != ObjectiveType.InteractionSucceeded)
+                objective.Type != ObjectiveType.InteractionSucceeded && !submitsItem)
             {
                 issues.Add(new(ValidationSeverity.Error,
-                    $"{objective.Id} 的指定互動 ID 清單只適用於互動開始或互動成功", objective));
+                    $"{objective.Id} 的指定互動 ID 清單只適用於互動開始、互動成功或向互動區投入道具", objective));
                 return;
             }
             var distinctTargets = objectiveTargetIds
@@ -326,7 +332,8 @@ internal static class QuestValidator
             foreach (var target in distinctTargets)
                 if (references.Get("Interaction").Count > 0 && !references.Contains("Interaction", target))
                     issues.Add(new(ValidationSeverity.Error, $"找不到 Interaction ID：{target}", objective));
-            if (objective.RequiredAmount > distinctTargets.Count)
+            // For item submission the required amount counts submitted items, not interactions.
+            if (!submitsItem && objective.RequiredAmount > distinctTargets.Count)
                 issues.Add(new(ValidationSeverity.Error,
                     $"{objective.Id} 的需求數量不可超過指定互動 ID 數量（{distinctTargets.Count}）", objective));
             return;
