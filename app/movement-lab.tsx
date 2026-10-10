@@ -73,7 +73,7 @@ import {
   type BlackScreenOverlayHandle,
 } from "./black-screen-overlay";
 import { BgmDirector } from "./bgm-director";
-import { drawWorldItemIcon } from "./world-item-icons.js";
+import { drawWorldItemIcon, getWorldItemIconBounds } from "./world-item-icons.js";
 import {
   getDayNightCssVariables,
   isDebugTimeCommand,
@@ -850,6 +850,38 @@ function preloadAdjacentSceneImages(scene: SceneFile) {
 
 function getSceneWorldLayout(scene: SceneFile) {
   return scene.worldLayout ?? { x: 0, y: 0, layer: 0 };
+}
+
+/** 同一層、與目前場景距離在此範圍內的場景圖保留（串流時鏡頭可能看到相鄰區域） */
+const SCENE_IMAGE_KEEP_MARGIN = 1400;
+
+/**
+ * 釋放遠離目前場景的場景背景圖。保留：目前場景、有連線的相鄰場景、
+ * 額外指定的場景（例如轉場中的來源場景），以及同一層且在 SCENE_IMAGE_KEEP_MARGIN 內的場景。
+ */
+function releaseDistantSceneImages(activeScene: SceneFile, keepSceneIds: readonly string[] = []) {
+  const keep = new Set([
+    activeScene.sceneId,
+    ...keepSceneIds,
+    ...(activeScene.connections ?? []).map((connection) => connection.targetSceneId),
+  ]);
+  const active = getSceneWorldLayout(activeScene);
+  for (const sceneId of [...SCENE_IMAGE_CACHE.keys()]) {
+    if (keep.has(sceneId)) continue;
+    const scene = SCENE_REGISTRY.get(sceneId);
+    if (scene) {
+      const layout = getSceneWorldLayout(scene);
+      const near = (layout.layer ?? 0) === (active.layer ?? 0) &&
+        layout.x < active.x + activeScene.world.width + SCENE_IMAGE_KEEP_MARGIN &&
+        layout.x + scene.world.width > active.x - SCENE_IMAGE_KEEP_MARGIN &&
+        layout.y < active.y + activeScene.world.height + SCENE_IMAGE_KEEP_MARGIN &&
+        layout.y + scene.world.height > active.y - SCENE_IMAGE_KEEP_MARGIN;
+      if (near) continue;
+    }
+    const image = SCENE_IMAGE_CACHE.get(sceneId);
+    SCENE_IMAGE_CACHE.delete(sceneId);
+    image?.removeAttribute("src");
+  }
 }
 
 function toStreamedWorldPoint(scene: SceneFile, point: Point): Point {
@@ -2054,6 +2086,14 @@ function getDefaultDialogueTextSize(): DialogueTextSize {
 
 const MOBILE_HUD_MEDIA_QUERY =
   "(max-width: 680px), (hover: none) and (pointer: coarse)";
+/** 手機版（直向與橫向）整體 UI 縮放比例；文字隨元件一起縮放 */
+const MOBILE_UI_SCALE = 0.6;
+/** 預覽用：網址加上 ?mobileUiScale=0.7 可暫時覆蓋手機 UI 比例（0.3～1） */
+function getMobileUiScale() {
+  if (typeof window === "undefined") return MOBILE_UI_SCALE;
+  const preview = Number(new URLSearchParams(window.location.search).get("mobileUiScale"));
+  return Number.isFinite(preview) && preview >= 0.3 && preview <= 1 ? preview : MOBILE_UI_SCALE;
+}
 
 function isMobileHudLayout() {
   return (
@@ -2489,6 +2529,19 @@ function getMovementGuideContact(point: Point, radius: number) {
   return nearest;
 }
 
+/** 游標是否落在地上道具 3D 箱體的畫面範圍內（箱體比舊的點擊圓高，頂面會超出圓形範圍） */
+function isPointOnWorldItemIcon(point: Point, interactable: SceneInteractable) {
+  if (!interactable.worldItemKind || !interactable.itemId || !interactable.position) return false;
+  const item = ITEM_BY_ID.get(interactable.itemId);
+  const bounds = item ? getWorldItemIconBounds(item) : null;
+  if (!bounds) return false;
+  const padding = 2;
+  const localX = (point.x - interactable.position.x) / WORLD_ITEM_ICON_SCALE;
+  const localY = (point.y - interactable.position.y - WORLD_ITEM_ICON_GROUND_OFFSET) / WORLD_ITEM_ICON_SCALE;
+  return localX >= bounds.left - padding && localX <= bounds.right + padding &&
+    localY >= bounds.top - padding && localY <= bounds.bottom + padding;
+}
+
 function findInteractableAt(
   point: Point,
   interactables: readonly SceneInteractable[],
@@ -2519,6 +2572,8 @@ function findInteractableAt(
     if (!interactable.position) return;
     const distance = Math.hypot(point.x - interactable.position.x, point.y - interactable.position.y);
     if (distance <= (interactable.pickRadius ?? 32)) {
+      candidates.push({ interactable, distance, sourceIndex });
+    } else if (isPointOnWorldItemIcon(point, interactable)) {
       candidates.push({ interactable, distance, sourceIndex });
     }
   });
@@ -3257,12 +3312,19 @@ function getCollisionSlidePosition(
 }
 
 function getSceneZoom(viewportWidth: number, viewportHeight: number) {
-  return clamp(
+  const baseZoom = clamp(
     Math.min(viewportWidth / 920, viewportHeight / 650),
     1.08,
     1.45,
   );
+  // 全螢幕等非 16:9 畫面可能比地圖還寬／高：放大到可視範圍不超過地圖，
+  // 避免露出地圖外的空白或相鄰場景（一般 16:9 舞台不受影響）
+  return Math.max(baseZoom, viewportWidth / WORLD.width, viewportHeight / WORLD.height);
 }
+
+/** 攝影機焦點：腳底往上多少比例的角色高度（0 = 腳底、0.5 = 身體中間）。手機畫面較矮，角色需更置中 */
+const CAMERA_FOCUS_HEIGHT_RATIO_DESKTOP = 0.25;
+const CAMERA_FOCUS_HEIGHT_RATIO_MOBILE = 0.45;
 
 function getCameraCoordinate(
   playerCoordinate: number,
@@ -3809,17 +3871,23 @@ export function MovementLab() {
     const probe = gameShellRef.current?.querySelector<HTMLElement>(".mobile-hud-space-probe");
     if (!probe || !isMobileHudLayout()) return false;
     const style = getComputedStyle(probe);
+    // 面板以 --ui-scale 縮放顯示，判斷能否並排時用縮放後的實際寬度（橫向通常放得下、直向才互斥）
+    const uiScale = getMobileUiScale();
+    // 直向時一般版／展開版與 mini 同寬（只往下延展）
+    const portrait = window.matchMedia("(orientation: portrait)").matches;
+    const miniWidth = parseFloat(style.getPropertyValue("--mobile-hud-mini-width"));
     return canShareMobileHudSpace(
       parseFloat(style.width),
-      parseFloat(style.getPropertyValue("--mobile-survival-width")),
-      parseFloat(style.getPropertyValue("--mobile-quest-width")),
+      (portrait ? miniWidth : parseFloat(style.getPropertyValue("--mobile-survival-width"))) * uiScale,
+      (portrait ? miniWidth : parseFloat(style.getPropertyValue("--mobile-quest-width"))) * uiScale,
       parseFloat(style.getPropertyValue("--mobile-hud-gap")),
     );
   }, []);
   // One atomic state: collapse the opposite HUD only when both panels cannot fit.
   const [{ survival: survivalMobileMode, quest: questMobileMode }, setMobileHudModes] =
     useState<{ survival: MobileHudPanelMode; quest: MobileHudPanelMode }>({
-      survival: "mini", quest: "mini",
+      // 手機版預設一般版（collapsed）
+      survival: "collapsed", quest: "collapsed",
     });
   const setSurvivalMobileMode = useCallback((mode: MobileHudPanelMode) => {
     if (mode !== "mini") mobileHudLastOpenedRef.current = "survival";
@@ -3957,6 +4025,13 @@ export function MovementLab() {
     newPlayerTutorialStepRef.current = null;
     setNewPlayerTutorialStep(null);
     setNewPlayerTutorialSpotlight(null);
+    // 手機版：教學結束後兩個面板回到預設的一般版
+    if (isMobileHudLayout()) {
+      setQuestCollapsed(true);
+      setQuestMobileMode("collapsed");
+      setSurvivalExpanded(false);
+      setSurvivalMobileMode("collapsed");
+    }
   };
   const advanceNewPlayerTutorial = () => {
     if (
@@ -3995,6 +4070,8 @@ export function MovementLab() {
       newPlayerTutorialStartTimerRef.current = null;
       if (!newPlayerTutorialOpenRef.current) return;
       newPlayerTutorialReadyRef.current = true;
+      // 手機版：教學期間任務與生存兩個面板都展開成大版
+      if (isMobileHudLayout()) revealNewPlayerTutorialTarget("survival");
       revealNewPlayerTutorialTarget("quest");
       newPlayerTutorialStepRef.current = "quest";
       setNewPlayerTutorialStep("quest");
@@ -4449,6 +4526,11 @@ export function MovementLab() {
     const host = dock?.parentElement;
     if (!dock || !host) return;
     const update = () => {
+      // 整體 UI 縮放：手機固定 MOBILE_UI_SCALE；桌機在舞台小於 1024×576 時依比例縮小（下限 0.6）
+      const uiScale = window.matchMedia(MOBILE_HUD_MEDIA_QUERY).matches
+        ? getMobileUiScale()
+        : clamp(Math.min(host.clientWidth / 1024, host.clientHeight / 576), 0.6, 1);
+      host.style.setProperty("--ui-scale", String(uiScale));
       const style = getComputedStyle(dock);
       const centered = style.getPropertyValue("--dock-centered").trim() === "1";
       // Resolve the safe-area length through a real CSS length property.
@@ -4457,26 +4539,128 @@ export function MovementLab() {
       const available = Math.max(0, centered
         ? host.clientWidth - 2 * safeSide
         : host.clientWidth - left - safeSide);
-      const scale = Math.min(1, available / Math.max(1, dock.offsetWidth));
+      // --dock-scale 只負責「放不下時再縮」；--ui-scale 由 CSS scale 屬性另外套用
+      const scale = Math.min(1, available / Math.max(1, dock.offsetWidth * uiScale));
+      const visualScale = scale * uiScale;
       dock.style.setProperty("--dock-scale", String(scale));
-      host.style.setProperty("--dock-scaled-stack", `${(dock.offsetHeight + 54 + 16) * scale}px`);
+      host.style.setProperty("--dock-scaled-stack", `${(dock.offsetHeight + 54 + 16) * visualScale}px`);
       // Settings is inside the scaled dock; fullscreen sits one gap above it.
       const settings = dock.querySelector<HTMLElement>(".options-trigger");
       if (settings) {
         const rect = settings.getBoundingClientRect();
         const hostRect = host.getBoundingClientRect();
-        host.style.setProperty("--mobile-controls-scale", String(scale));
+        host.style.setProperty("--mobile-controls-scale", String(visualScale));
         host.style.setProperty("--mobile-fullscreen-left", `${rect.left - hostRect.left}px`);
-        host.style.setProperty("--mobile-fullscreen-bottom", `${hostRect.bottom - rect.top + 8 * scale}px`);
+        host.style.setProperty("--mobile-fullscreen-bottom", `${hostRect.bottom - rect.top + 8 * visualScale}px`);
         host.style.setProperty("--mobile-hud-controls-bottom", `${hostRect.bottom - rect.bottom}px`);
+      }
+      // 快捷列右側放得下小地圖（含左右邊距）時，小地圖直接貼齊右下角；放不下才墊高到快捷列上方
+      const minimap = host.querySelector<HTMLElement>(".minimap-hud");
+      if (minimap) {
+        const edge = 14;
+        const dockRight = dock.getBoundingClientRect().right - host.getBoundingClientRect().left;
+        const minimapWidth = minimap.offsetWidth * uiScale;
+        const fitsBeside = dockRight + edge + minimapWidth + edge <= host.clientWidth;
+        host.dataset.minimapBesideDock = fitsBeside ? "true" : "false";
       }
     };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(host);
     observer.observe(dock);
+    const minimapElement = host.querySelector<HTMLElement>(".minimap-hud");
+    if (minimapElement) observer.observe(minimapElement);
     window.addEventListener("resize", update);
     return () => { observer.disconnect(); window.removeEventListener("resize", update); };
+  }, []);
+
+  // 手機時鐘：頂排優先，盡量靠近畫面中線並在兩塊面板之間左右挪移；放不下才換到面板下方。
+  // 方位條跟著時鐘中心、緊貼在時鐘下方。面板可能重新掛載，所以每次都取用目前的元素。
+  useLayoutEffect(() => {
+    const mediaQuery = window.matchMedia(MOBILE_HUD_MEDIA_QUERY);
+    let frameId = 0;
+    const observed = new Set<Element>();
+    const tweenTargets = new Set<HTMLElement>();
+    const observer = new ResizeObserver(() => schedule());
+    const getElements = () => {
+      const shell = gameShellRef.current;
+      return {
+        shell,
+        survival: survivalHudRef.current,
+        quest: questHudRef.current,
+        clock: shell?.querySelector<HTMLElement>(".survival-clock-mobile") ?? null,
+        compass: shell?.querySelector<HTMLElement>(".compass-strip") ?? null,
+      };
+    };
+    const watch = (elements: ReturnType<typeof getElements>) => {
+      [elements.shell, elements.survival, elements.quest, elements.clock].forEach((element) => {
+        if (element && !observed.has(element)) { observed.add(element); observer.observe(element); }
+      });
+      // 面板展開／收合的補間事件不會冒泡，直接掛在兩個面板上
+      [elements.survival, elements.quest].forEach((element) => {
+        if (element && !tweenTargets.has(element)) {
+          tweenTargets.add(element);
+          element.addEventListener(HUD_PANEL_TWEEN_FRAME_EVENT, schedule);
+        }
+      });
+    };
+    const place = () => {
+      frameId = 0;
+      const elements = getElements();
+      const { shell, survival, quest, clock, compass } = elements;
+      if (!shell || !survival || !quest || !clock) return;
+      watch(elements);
+      if (!mediaQuery.matches) {
+        clock.style.removeProperty("left");
+        clock.style.removeProperty("top");
+        clock.style.removeProperty("transform");
+        compass?.style.removeProperty("top");
+        compass?.style.removeProperty("left");
+        return;
+      }
+      const gap = 8;
+      const shellRect = shell.getBoundingClientRect();
+      const survivalRect = survival.getBoundingClientRect();
+      const questRect = quest.getBoundingClientRect();
+      const clockWidth = clock.getBoundingClientRect().width;
+      // 優先放在頂排：盡量靠近畫面中線，但在兩塊面板之間的空間內左右挪移；
+      // 頂排真的放不下才換到面板下方（置中）
+      const centerLeft = shellRect.left + shellRect.width / 2 - clockWidth / 2;
+      const sideGap = 2; // 與左右面板的最小水平間距
+      const minLeft = survivalRect.right + sideGap;
+      const maxLeft = questRect.left - sideGap - clockWidth;
+      const fitsTopRow = minLeft <= maxLeft + 0.5; // 容許次像素誤差
+      const left = fitsTopRow ? Math.min(Math.max(centerLeft, minLeft), maxLeft) : centerLeft;
+      clock.style.transform = "none";
+      clock.style.left = `${left - shellRect.left}px`;
+      clock.style.top = fitsTopRow
+        ? `${survivalRect.top - shellRect.top}px`
+        : `${Math.max(survivalRect.bottom, questRect.bottom) - shellRect.top + gap}px`;
+      if (compass) {
+        // 方位條跟著時鐘的中心，緊貼在時鐘下方
+        const clockRect = clock.getBoundingClientRect();
+        compass.style.left = `${clockRect.left + clockRect.width / 2 - shellRect.left}px`;
+        compass.style.top = `${clockRect.bottom - shellRect.top + 4}px`;
+      }
+    };
+    // 用短計時器而非 requestAnimationFrame：分頁在背景時 rAF 會暫停，計時器仍會執行
+    function schedule() { if (!frameId) frameId = window.setTimeout(place, 16); }
+    place();
+    window.addEventListener("resize", schedule);
+    // 面板的縮放、淡入等純視覺變化不會觸發 ResizeObserver：動畫結束時與載入後短時間內再校正幾次
+    const shell = gameShellRef.current;
+    shell?.addEventListener("transitionend", schedule);
+    shell?.addEventListener("animationend", schedule);
+    const settleTimers = [150, 600, 1500, 3000].map((delay) => window.setTimeout(schedule, delay));
+    return () => {
+      if (frameId) window.clearTimeout(frameId);
+      observer.disconnect();
+      window.removeEventListener("resize", schedule);
+      shell?.removeEventListener("transitionend", schedule);
+      shell?.removeEventListener("animationend", schedule);
+      settleTimers.forEach((timer) => window.clearTimeout(timer));
+      tweenTargets.forEach((element) => element.removeEventListener(HUD_PANEL_TWEEN_FRAME_EVENT, schedule));
+    };
   }, []);
 
   useLayoutEffect(() => {
@@ -4507,10 +4691,19 @@ export function MovementLab() {
   }, [quickAssign?.slotIndex, quickAssign?.itemId]);
 
   useLayoutEffect(() => {
+    // 與生存 UI 相同：外框補間期間先隱藏文字，外框展開／收合完成後再淡入，避免文字先跳到定位
+    const questHud = questHudRef.current;
+    if (!questHud) return;
+    const reveal = () => { questHud.dataset.contentFade = "visible"; };
+    questHud.dataset.contentFade = "hidden";
+    // 保險：補間的逐幀更新若被延遲（例如分頁在背景），時間到仍會顯示文字，不會一直隱藏
+    const revealTimer = window.setTimeout(reveal, HUD_PANEL_TWEEN_DURATION_MS + 80);
     previousQuestPanelHeightRef.current = playHudPanelHeightTween(
-      questHudRef.current,
+      questHud,
       previousQuestPanelHeightRef.current,
+      (progress) => { if (progress >= 1) reveal(); },
     );
+    return () => window.clearTimeout(revealTimer);
   }, [questPanelCollapsed, questMobileMode, activeQuestHud?.stageId, activeQuestHud?.objectives.length, completedQuestHistory.length]);
 
   useEffect(() => {
@@ -8590,6 +8783,10 @@ export function MovementLab() {
     >();
     const player = { ...playerPositionRef.current };
     const camera = { ...playerPositionRef.current };
+    // 攝影機對準角色身上（腳底往上一定比例的角色高，PC 與手機分開設定），而不是腳底
+    const getCameraFocusY = (footY: number) => footY - sizeRef.current * (
+      isMobileHudLayout() ? CAMERA_FOCUS_HEIGHT_RATIO_MOBILE : CAMERA_FOCUS_HEIGHT_RATIO_DESKTOP
+    );
     let activeSceneImage =
       SCENE_IMAGE_CACHE.get(currentSceneData.sceneId) ?? new Image();
     if (!activeSceneImage.src) {
@@ -8601,6 +8798,10 @@ export function MovementLab() {
     audioEventManagerRef.current = audioEvents;
     const bgmDirector = new BgmDirector();
     bgmDirectorRef.current = bgmDirector;
+    // 小遊戲啟動時才載入該小遊戲專用音效（開場不預載）
+    bgmDirector.onMinigameStateChange = (minigameId, state) => {
+      if (state) audioEvents.warmMinigameAudio(minigameId);
+    };
     bgmDirector.setUserVolume(bgmVolumeRef.current);
     bgmDirector.setEnabled(bgmEnabledRef.current);
     bgmDirector.setScene(SCENE_DATA.sceneId);
@@ -8752,6 +8953,7 @@ export function MovementLab() {
       preloadSceneImage(targetScene);
       preloadAdjacentSceneImages(targetScene);
       const sourceScene = SCENE_DATA;
+      releaseDistantSceneImages(targetScene, [sourceScene.sceneId]);
       const sourceLayout = getSceneWorldLayout(sourceScene);
       const targetLayout = getSceneWorldLayout(targetScene);
       const zoom = getSceneZoom(viewportWidth, viewportHeight);
@@ -8763,7 +8965,7 @@ export function MovementLab() {
           zoom,
         ),
         y: getCameraCoordinate(
-          targetEntry.y,
+          getCameraFocusY(targetEntry.y),
           viewportHeight,
           targetScene.world.height,
           zoom,
@@ -9445,7 +9647,7 @@ export function MovementLab() {
         zoom,
       );
       camera.y = getCameraCoordinate(
-        point.y,
+        getCameraFocusY(point.y),
         viewportHeight,
         WORLD.height,
         zoom,
@@ -15818,7 +16020,7 @@ export function MovementLab() {
         zoom,
       );
       const desiredCameraY = getCameraCoordinate(
-        player.y,
+        getCameraFocusY(player.y),
         viewportHeight,
         WORLD.height,
         zoom,
@@ -16657,7 +16859,8 @@ export function MovementLab() {
             return (
               <p
                 key={`${index}-${line}`}
-                style={fontSizePx ? { fontSize: `${fontSizePx}px` } : undefined}
+                // 劇情資料指定的字級在手機版隨 --story-text-scale（＝UI 比例）縮小，保留最小 13px（PC 為 1，不變）
+                style={fontSizePx ? { fontSize: `max(${Math.min(fontSizePx, 13)}px, calc(${fontSizePx}px * var(--story-text-scale, 1)))` } : undefined}
               >
                 {line}
               </p>
@@ -16897,6 +17100,21 @@ export function MovementLab() {
           <b aria-hidden="true">
             <em style={{ width: `${survivalState.values.stamina}%` }} />
           </b>
+          {/* 手機 mini：四項生存數值以圓環顯示（取代原本的單一體力條） */}
+          <span className="survival-mini-stats" aria-hidden="true">
+            {SURVIVAL_STATS.map((stat) => {
+              const value = survivalState.values[stat.id];
+              return (
+                <span
+                  className={`survival-mini-stats-item is-${stat.id}${value <= 30 ? " is-low" : ""}`}
+                  key={stat.id}
+                  style={{ "--value": value } as CSSProperties}
+                >
+                  <i>{stat.symbol}</i>
+                </span>
+              );
+            })}
+          </span>
         </div>
         <div className="survival-frame-shell" aria-hidden="true">
           <span className="hud-frame-art"><span className="hud-frame-glow" /></span>
@@ -16980,6 +17198,12 @@ export function MovementLab() {
           >
             {hasActiveQuest ? "◇" : null}
           </span>
+          {hasActiveQuest ? (
+            <span className="quest-mini-summary" aria-hidden="true">
+              <output>{questCompletedObjectiveCount}/{questObjectiveCount}</output>
+              <span>{activeQuestHud!.title}</span>
+            </span>
+          ) : null}
           <div className="quest-title">
             <small>{activeQuestHud?.categoryLabel ?? "MAIN OBJECTIVE"}</small>
             <strong>{activeQuestHud?.title ?? EMPTY_QUEST_TITLE}</strong>

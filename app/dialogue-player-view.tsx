@@ -1,5 +1,5 @@
 "use client";
-import type { RefObject, PointerEventHandler } from "react";
+import { useLayoutEffect, useRef, type RefObject, type PointerEventHandler } from "react";
 import { GamepadHint } from "./gamepad-button-icon";
 import { resolveRuntimePublicAssetUrl } from "./public-asset-url";
 import type { DialogueView } from "./dialogue-player";
@@ -15,9 +15,33 @@ type Props = {
 // This is the production dialogue/history markup; previews mount the same view.
 export function DialoguePlayerView({ view, history, historyScrollable, textSize, gamepadMode, boxRef, historyScrollRef, historyCloseRef, onAdvance, onOpenHistory, onCloseHistory, onPointerInput }: Props) {
   const mouseRight = resolveRuntimePublicAssetUrl("ui/input/mouse-right.svg");
+  const historyTriggerRef = useRef<HTMLButtonElement | null>(null);
+  // 「訊息回顧」貼在對話框左上角外側（PC 規格：與對話框左緣對齊、上方間距 16px）。
+  // 依對話框實際位置計算，UI 縮放或文字變多使對話框變高時都會跟著移動。
+  useLayoutEffect(() => {
+    const trigger = historyTriggerRef.current;
+    const box = boxRef.current;
+    const parent = trigger?.offsetParent as HTMLElement | null;
+    if (!trigger || !box || !parent) return;
+    const place = () => {
+      const parentRect = parent.getBoundingClientRect();
+      const boxRect = box.getBoundingClientRect();
+      const uiScale = parseFloat(getComputedStyle(parent).getPropertyValue("--ui-scale")) || 1;
+      trigger.style.left = `${boxRect.left - parentRect.left}px`;
+      trigger.style.bottom = `${parentRect.bottom - boxRect.top + 16 * uiScale}px`;
+    };
+    place();
+    // 對話框進場動畫（transform）不會觸發 ResizeObserver，動畫結束後再校正一次
+    const settleTimer = window.setTimeout(place, 350);
+    const observer = new ResizeObserver(place);
+    observer.observe(box);
+    observer.observe(parent);
+    window.addEventListener("resize", place);
+    return () => { window.clearTimeout(settleTimer); observer.disconnect(); window.removeEventListener("resize", place); };
+  }, [boxRef, view?.canReview, view?.lineId, textSize]);
   return <>
     {view && <>
-      {view.canReview && <button className="dialogue-history-trigger" type="button" aria-haspopup="dialog" aria-expanded={Boolean(history)} aria-hidden={Boolean(history)} disabled={Boolean(history)} onPointerDown={onPointerInput} onClick={event => { event.stopPropagation(); onOpenHistory(); }}>
+      {view.canReview && <button ref={historyTriggerRef} className="dialogue-history-trigger" type="button" aria-haspopup="dialog" aria-expanded={Boolean(history)} aria-hidden={Boolean(history)} disabled={Boolean(history)} onPointerDown={onPointerInput} onClick={event => { event.stopPropagation(); onOpenHistory(); }}>
         {gamepadMode ? <GamepadHint text="按 [LT] 回顧訊息" /> : <><span>按</span><img className="dialogue-mouse-button-icon" src={mouseRight} alt="滑鼠右鍵" draggable={false} /><span>回顧訊息</span></>}
       </button>}
       <button ref={boxRef} className={`dialogue-box dialogue-size-${textSize}${history ? " is-history-open" : ""}`} type="button" aria-label="對話；按下顯示下一頁" disabled={Boolean(history)} data-dialogue-id={view.dialogueId} data-line-id={view.lineId} onPointerDown={onPointerInput} onClick={onAdvance}>

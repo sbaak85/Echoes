@@ -30,11 +30,14 @@ type NewPlayerTutorialOverlayProps = {
 export function getNewPlayerTutorialHintPosition(
   spotlight: NewPlayerTutorialSpotlight,
   placement: NewPlayerTutorialStep["hintPlacement"],
+  uiScale = 1,
 ) {
   const edge = 18;
-  const gap = 34;
-  const cardWidth = Math.min(440, Math.max(280, spotlight.viewportWidth - edge * 2));
-  const cardHeight = 138;
+  const gap = 34 * uiScale;
+  // 卡片以 --ui-scale 縮放顯示：排版用縮放後的實際大小，style.width 傳縮放前的寬度
+  const layoutWidth = Math.min(440, Math.max(280, (spotlight.viewportWidth - edge * 2) / uiScale));
+  const cardWidth = layoutWidth * uiScale;
+  const cardHeight = 138 * uiScale;
   const clampPosition = (value: number, minimum: number, maximum: number) =>
     Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
 
@@ -60,7 +63,7 @@ export function getNewPlayerTutorialHintPosition(
   return {
     left: clampPosition(left, edge, spotlight.viewportWidth - cardWidth - edge),
     top: clampPosition(top, edge, spotlight.viewportHeight - cardHeight - edge),
-    width: cardWidth,
+    width: layoutWidth,
   };
 }
 
@@ -74,8 +77,12 @@ export function NewPlayerTutorialOverlay({
   const maskId = `tutorial-mask-${useId().replace(/:/g, "")}`;
   const blurId = `tutorial-blur-${useId().replace(/:/g, "")}`;
   const glowId = `tutorial-glow-${useId().replace(/:/g, "")}`;
+  // 與其他 HUD 共用舞台上的 --ui-scale（手機版縮小）
+  const uiScale = typeof document === "undefined"
+    ? 1
+    : parseFloat(getComputedStyle(document.querySelector(".game-shell") ?? document.documentElement).getPropertyValue("--ui-scale")) || 1;
   const hintPosition = spotlight
-    ? getNewPlayerTutorialHintPosition(spotlight, step.hintPlacement)
+    ? getNewPlayerTutorialHintPosition(spotlight, step.hintPlacement, uiScale)
     : null;
   const prompt = inputMode === "gamepad"
     ? "按 [A]"

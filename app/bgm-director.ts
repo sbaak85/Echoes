@@ -181,6 +181,8 @@ export class BgmDirector {
   private loopEnvelopeFrameId: number | null = null;
   private initialResidentStartedAt: number | null = null;
   private canReuseInitialResidentStart = true;
+  /** 小遊戲狀態改變時通知外部（例如預先載入該小遊戲專用音效）。 */
+  onMinigameStateChange: ((minigameId: string, state: string | null) => void) | null = null;
 
   constructor(
     tracks: Readonly<Record<string, BgmTrackDefinition>> = BGM_TRACK_CONFIG,
@@ -380,6 +382,7 @@ export class BgmDirector {
 
   setMinigameState(minigameId: string, state: string | null) {
     this.setState("minigame", minigameId, state);
+    this.onMinigameStateChange?.(minigameId, state);
   }
 
   setChapter(chapter: number) {
@@ -776,8 +779,24 @@ export class BgmDirector {
       }
       this.transitionFrameId = null;
       oldDeck.audio.pause();
+      this.releaseIdleDeck(oldDeck);
     };
     this.transitionFrameId = requestAnimationFrame(update);
+  }
+
+  /**
+   * 淡出完成、已不在播放的事件曲（小遊戲 BGM 等）釋放緩衝資料；
+   * 常駐曲保留，以便回到常駐曲時能立即接續。下次需要時由 loadTrack 重新載入。
+   */
+  private releaseIdleDeck(deck: BgmDeck) {
+    if (this.disposed || deck === this.decks[this.activeDeckIndex]) return;
+    if (!deck.trackId || deck.trackId === this.defaultTrackId) return;
+    this.rememberDeck(deck);
+    deck.audio.pause();
+    deck.audio.removeAttribute("src");
+    deck.audio.load();
+    deck.trackId = null;
+    deck.volume = 0;
   }
 
   private switchTracksSequentially(
@@ -835,6 +854,7 @@ export class BgmDirector {
       stopOldDeck();
       newDeck.volume = clampVolume(targetVolume);
       this.transitionFrameId = null;
+      this.releaseIdleDeck(oldDeck);
     };
     this.transitionFrameId = requestAnimationFrame(update);
   }

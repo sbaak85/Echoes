@@ -1708,6 +1708,26 @@ export function getPlantVineMotionVolume(speed: number) {
 
 type PlantVineVoice = { audio: HTMLAudioElement; sourceIndex: number; pending: Promise<void> | null; retryAt: number };
 
+/**
+ * 只在特定小遊戲使用的音效：開場不預載（preload="none"），
+ * 該小遊戲狀態啟動時才由 warmMinigameAudio 載入，避免開場同時發出大量音訊請求。
+ * 小遊戲 ID 與 BgmDirector.setMinigameState 使用的 ID 相同。
+ */
+const MINIGAME_AUDIO_PREFIXES: Readonly<Record<string, readonly string[]>> = {
+  "star-cards": ["starCards"],
+  "frequency-calibration": ["frequency"],
+  "welding-route": ["welding"],
+  "power-routing": ["generatorStartup", "generatorRunning"],
+  "phototropic-plant": ["plantVineMotion"],
+};
+
+export function getMinigameAudioGroup(eventName: string): string | null {
+  for (const [minigameId, prefixes] of Object.entries(MINIGAME_AUDIO_PREFIXES)) {
+    if (prefixes.some((prefix) => eventName.startsWith(prefix))) return minigameId;
+  }
+  return null;
+}
+
 export class AudioEventManager {
   private readonly plantVineVoices = new Map<"L" | "R", PlantVineVoice>();
 
@@ -1816,7 +1836,8 @@ export class AudioEventManager {
       >
     ).forEach(([eventName, definition]) => {
       const audio = new Audio(definition.sources[0]);
-      audio.preload = "auto";
+      // 小遊戲專用音效延後到該小遊戲啟動時才載入；未預載時直接 play() 仍會即時載入播放
+      audio.preload = getMinigameAudioGroup(eventName) ? "none" : "auto";
       audio.volume = clampVolume(definition.volume);
       audio.loop = Boolean(definition.loop && definition.sources.length === 1);
 
@@ -1877,6 +1898,21 @@ export class AudioEventManager {
 
   getAudio(eventName: AudioEventName) {
     return this.getRuntime(eventName).audio;
+  }
+
+  private readonly warmedMinigames = new Set<string>();
+
+  /** 小遊戲啟動時預先載入其專用音效（每個小遊戲只需一次）。 */
+  warmMinigameAudio(minigameId: string) {
+    if (this.disposed || this.warmedMinigames.has(minigameId)) return;
+    if (!MINIGAME_AUDIO_PREFIXES[minigameId]) return;
+    this.warmedMinigames.add(minigameId);
+    this.runtimes.forEach((runtime, eventName) => {
+      if (getMinigameAudioGroup(eventName) !== minigameId) return;
+      if (runtime.audio.preload === "auto") return;
+      runtime.audio.preload = "auto";
+      runtime.audio.load();
+    });
   }
 
   getDefinition(eventName: AudioEventName) {

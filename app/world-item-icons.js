@@ -386,6 +386,39 @@ function renderInto(canvas, draw) {
   ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, BOX_OX * RENDER_SCALE, BOX_OY * RENDER_SCALE);
   try { return draw(); } finally { ctx = previous; }
 }
+// 各形狀本體在畫面上的範圍（不含陰影、光暈、光束），給點擊判定使用
+function shapePoints(shape) {
+  if (shape === "cube") return [-11, 11].flatMap((x) => [-11, 11].flatMap((y) => [0, 18].map((z) => [x, y, z])));
+  if (shape === "facet") {
+    const R = 14.5, N = 8, rot = Math.PI / 8, mid = Math.acos(0.3);
+    return [0.62, mid, Math.PI - mid, 2.3, 2.62].flatMap((theta) => Array.from({ length: N }, (_, i) => {
+      const a = rot + i * TAU / N;
+      return [Math.cos(a) * R * Math.sin(theta), Math.sin(a) * R * Math.sin(theta), R + R * Math.cos(theta)];
+    }));
+  }
+  return MESHES[shape]().flatMap((f) => f.pts);
+}
+const SHAPE_BOUNDS = new Map();
+/**
+ * 道具箱體本體在 drawWorldItemIcon 座標（原點＝接地中心，未乘外部縮放）中的範圍。
+ * @param {{ category: string }} item
+ * @returns {{ left: number, top: number, right: number, bottom: number } | null}
+ */
+export function getWorldItemIconBounds(item) {
+  const cat = CATEGORIES[item.category];
+  if (!cat) return null;
+  let bounds = SHAPE_BOUNDS.get(cat.shape);
+  if (!bounds) {
+    const projected = shapePoints(cat.shape).map((p) => P(...p));
+    bounds = {
+      left: Math.min(...projected.map((p) => p[0])), right: Math.max(...projected.map((p) => p[0])),
+      top: Math.min(...projected.map((p) => p[1])), bottom: Math.max(...projected.map((p) => p[1])),
+    };
+    SHAPE_BOUNDS.set(cat.shape, bounds);
+  }
+  return bounds;
+}
+
 const SPRITES = new Map();
 function getItemSprites(item) {
   const cached = SPRITES.get(item.id);
