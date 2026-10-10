@@ -5056,7 +5056,7 @@
           "objectiveState": "unlocked",
           "disableQuestId": "QUEST_CH04_MAIN_001",
           "disableStageId": "QUEST_CH04_MAIN_001_STAGE_03",
-          "disableObjectiveId": "QUEST_CH04_MAIN_001_OBJ_20",
+          "disableObjectiveId": "QUEST_CH04_MAIN_001_OBJ_18",
           "disableObjectiveState": "completed",
           "quantity": 1,
           "chapter": 1
@@ -5102,7 +5102,7 @@
           {
             "lineId": "scene3-interaction-029-line-002",
             "speaker": "Sbaak",
-            "text": "\u9084\u597D\u8FEB\u964D\u6642\u5DE5\u4F5C\u53F0\u6C92\u6709\u640D\u58DE\uFF0C\n\u5B8C\u6210\u958B\u6A5F\u7A0B\u5E8F\u4E86\u2026\u2026\u73FE\u5728\u53EF\u4EE5\u958B\u59CB\u4F7F\u7528\u4E86\u3002"
+            "text": "\u9084\u597D\u8FEB\u964D\u6642\u5DE5\u4F5C\u53F0\u6C92\u6709\u640D\u58DE\uFF0C\n\u5B8C\u6210\u958B\u6A5F\u7A0B\u5E8F\u4E86\u2026\u2026\u73FE\u5728\u53EF\u4EE5\u4F7F\u7528\u4E86\u3002"
           }
         ]
       },

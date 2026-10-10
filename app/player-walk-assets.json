@@ -1,0 +1,3202 @@
+{
+  "N": {
+    "crop": {
+      "x": 149,
+      "y": 74,
+      "width": 227,
+      "height": 541
+    },
+    "frames": [
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_01.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.32713379266712045,
+            "yRatio": 0.9907578558225508,
+            "contact": 0.9876771410967344
+          },
+          {
+            "xRatio": 0.8188072452391445,
+            "yRatio": 0.9574861367837338,
+            "contact": 0.7658656808379544
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_02.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3346487084746795,
+            "yRatio": 0.9907578558225508,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.7836885111182272,
+            "yRatio": 0.944547134935305,
+            "contact": 0.6919285274183611
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_03.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.33185704156354273,
+            "yRatio": 0.9907578558225508,
+            "contact": 0.9876771410967344
+          },
+          {
+            "xRatio": 0.7500477538794454,
+            "yRatio": 0.9371534195933456,
+            "contact": 0.6303142329020333
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_04.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3192491582615703,
+            "yRatio": 0.9907578558225508,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.7274352996581046,
+            "yRatio": 0.9205175600739371,
+            "contact": 0.5317313616759087
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_05.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3025954840007258,
+            "yRatio": 0.988909426987061,
+            "contact": 0.9876771410967344
+          },
+          {
+            "xRatio": 0.7009568178285898,
+            "yRatio": 0.9149722735674677,
+            "contact": 0.49476278496611203
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_06.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.27070021213244433,
+            "yRatio": 0.988909426987061,
+            "contact": 0.9876771410967344
+          },
+          {
+            "xRatio": 0.6703038856780911,
+            "yRatio": 0.933456561922366,
+            "contact": 0.6179913739987677
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_07.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.23114611714603248,
+            "yRatio": 0.9907578558225508,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6475911439833976,
+            "yRatio": 0.9574861367837338,
+            "contact": 0.7781885397412199
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_08.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.20912532775470744,
+            "yRatio": 0.9907578558225508,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6248179293299487,
+            "yRatio": 0.9759704251386322,
+            "contact": 0.9014171287738755
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_09.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.21643963708553912,
+            "yRatio": 0.9870609981515711,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6140077146216384,
+            "yRatio": 0.9870609981515711,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_10.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.23552750346479062,
+            "yRatio": 0.9741219963031423,
+            "contact": 0.8890942698706099
+          },
+          {
+            "xRatio": 0.6065087479019041,
+            "yRatio": 0.988909426987061,
+            "contact": 0.9876771410967344
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_11.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2534764651844637,
+            "yRatio": 0.9574861367837338,
+            "contact": 0.7781885397412199
+          },
+          {
+            "xRatio": 0.6018575918783541,
+            "yRatio": 0.9907578558225508,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_12.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.27186219514650795,
+            "yRatio": 0.9408502772643254,
+            "contact": 0.66728280961183
+          },
+          {
+            "xRatio": 0.5999354485873587,
+            "yRatio": 0.9907578558225508,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_13.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.28028117346420456,
+            "yRatio": 0.9279112754158965,
+            "contact": 0.581022797288971
+          },
+          {
+            "xRatio": 0.5965781128801615,
+            "yRatio": 0.9907578558225508,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_14.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2892587259947675,
+            "yRatio": 0.9242144177449169,
+            "contact": 0.5563770794824399
+          },
+          {
+            "xRatio": 0.5970644744789648,
+            "yRatio": 0.988909426987061,
+            "contact": 0.9876771410967344
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_15.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2954893354655203,
+            "yRatio": 0.9149722735674677,
+            "contact": 0.49476278496611203
+          },
+          {
+            "xRatio": 0.5996708079135445,
+            "yRatio": 0.9907578558225508,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_16.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.30216206563111647,
+            "yRatio": 0.9020332717190388,
+            "contact": 0.4085027726432532
+          },
+          {
+            "xRatio": 0.6029998920016796,
+            "yRatio": 0.9907578558225508,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_17.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.30913445884553664,
+            "yRatio": 0.8835489833641405,
+            "contact": 0.28527418361059753
+          },
+          {
+            "xRatio": 0.6056964250670982,
+            "yRatio": 0.9907578558225508,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_18.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3232899242910866,
+            "yRatio": 0.8613678373382625,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.6084981068081408,
+            "yRatio": 0.9907578558225508,
+            "contact": 0.9876771410967344
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_19.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.33643691026766115,
+            "yRatio": 0.8558225508317929,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.6142686019868607,
+            "yRatio": 0.988909426987061,
+            "contact": 0.9876771410967344
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_20.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3588042276154076,
+            "yRatio": 0.8817005545286506,
+            "contact": 0.2729513247073321
+          },
+          {
+            "xRatio": 0.6311375614791924,
+            "yRatio": 0.988909426987061,
+            "contact": 0.9876771410967344
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_21.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3657017878419362,
+            "yRatio": 0.9186691312384473,
+            "contact": 0.5194085027726432
+          },
+          {
+            "xRatio": 0.6560791241855544,
+            "yRatio": 0.988909426987061,
+            "contact": 0.9876771410967344
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_22.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3660711459783765,
+            "yRatio": 0.9408502772643254,
+            "contact": 0.66728280961183
+          },
+          {
+            "xRatio": 0.6819418239443447,
+            "yRatio": 0.988909426987061,
+            "contact": 0.9876771410967344
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_23.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3695776392722452,
+            "yRatio": 0.9611829944547134,
+            "contact": 0.8028342575477511
+          },
+          {
+            "xRatio": 0.6829443300889302,
+            "yRatio": 0.988909426987061,
+            "contact": 0.9876771410967344
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_24.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.37246220164430577,
+            "yRatio": 0.9852125693160814,
+            "contact": 0.9630314232902033
+          },
+          {
+            "xRatio": 0.6830094149164956,
+            "yRatio": 0.988909426987061,
+            "contact": 0.9876771410967344
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_25.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3752218575390452,
+            "yRatio": 0.988909426987061,
+            "contact": 0.9876771410967344
+          },
+          {
+            "xRatio": 0.684569834377302,
+            "yRatio": 0.9685767097966729,
+            "contact": 0.8521256931608133
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/01_N_Back/Walking_2_Transparent_570x720/Walking_N_26.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.37358524061239884,
+            "yRatio": 0.9907578558225508,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6864433671733946,
+            "yRatio": 0.9426987060998152,
+            "contact": 0.6796056685150955
+          }
+        ]
+      }
+    ]
+  },
+  "NE": {
+    "crop": {
+      "x": 148,
+      "y": 83,
+      "width": 274,
+      "height": 534
+    },
+    "frames": [
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_01.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.4024864333208529,
+            "yRatio": 0.9606741573033708,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.5587579256033093,
+            "yRatio": 0.9419475655430711,
+            "contact": 0.8751560549313359
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_02.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.38252183994757316,
+            "yRatio": 0.9681647940074907,
+            "contact": 0.9875156054931336
+          },
+          {
+            "xRatio": 0.5232199066288674,
+            "yRatio": 0.951310861423221,
+            "contact": 0.8751560549313359
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_03.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.33576337853820704,
+            "yRatio": 0.9775280898876404,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.49902899833295206,
+            "yRatio": 0.9606741573033708,
+            "contact": 0.8876404494382022
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_04.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.30344771216093414,
+            "yRatio": 0.9906367041198502,
+            "contact": 0.9875156054931336
+          },
+          {
+            "xRatio": 0.6173371376867146,
+            "yRatio": 0.8052434456928839,
+            "contact": 0.18
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_05.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2663668098605925,
+            "yRatio": 0.9887640449438202,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.5983722334458726,
+            "yRatio": 0.8089887640449438,
+            "contact": 0.18
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_06.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.25687451528681354,
+            "yRatio": 0.9887640449438202,
+            "contact": 0.9875156054931336
+          },
+          {
+            "xRatio": 0.5714134648535694,
+            "yRatio": 0.8277153558052435,
+            "contact": 0.18
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_07.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2632471347832877,
+            "yRatio": 0.9831460674157303,
+            "contact": 0.9750312109862672
+          },
+          {
+            "xRatio": 0.550930694648068,
+            "yRatio": 0.8408239700374532,
+            "contact": 0.18
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_08.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.28275970870635414,
+            "yRatio": 0.9756554307116105,
+            "contact": 0.9500624219725343
+          },
+          {
+            "xRatio": 0.5281881275994065,
+            "yRatio": 0.8539325842696629,
+            "contact": 0.18
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_09.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3037278153707757,
+            "yRatio": 0.9700374531835206,
+            "contact": 0.9625468164794008
+          },
+          {
+            "xRatio": 0.5302079991969109,
+            "yRatio": 0.8576779026217228,
+            "contact": 0.2134831460674157
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_10.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.32942073670211125,
+            "yRatio": 0.9606741573033708,
+            "contact": 0.9750312109862672
+          },
+          {
+            "xRatio": 0.5420544398472198,
+            "yRatio": 0.8614232209737828,
+            "contact": 0.31335830212234705
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_11.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.4086830996985456,
+            "yRatio": 0.9438202247191011,
+            "contact": 0.9750312109862672
+          },
+          {
+            "xRatio": 0.589315710736772,
+            "yRatio": 0.8408239700374532,
+            "contact": 0.28838951310861416
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_12.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.38207397192015036,
+            "yRatio": 0.898876404494382,
+            "contact": 0.8002496878901373
+          },
+          {
+            "xRatio": 0.5596500602745498,
+            "yRatio": 0.9250936329588015,
+            "contact": 0.9750312109862672
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_13.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.34607758365936764,
+            "yRatio": 0.9101123595505618,
+            "contact": 0.9750312109862672
+          },
+          {
+            "xRatio": 0.6066534900275437,
+            "yRatio": 0.898876404494382,
+            "contact": 0.9001248439450686
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_14.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3043509732919021,
+            "yRatio": 0.9194756554307116,
+            "contact": 0.9875156054931336
+          },
+          {
+            "xRatio": 0.6928078569181131,
+            "yRatio": 0.8820224719101124,
+            "contact": 0.7378277153558053
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_15.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.27244071139680665,
+            "yRatio": 0.9288389513108615,
+            "contact": 0.9875156054931336
+          },
+          {
+            "xRatio": 0.735451442402677,
+            "yRatio": 0.8632958801498127,
+            "contact": 0.550561797752809
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_16.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2400380615328186,
+            "yRatio": 0.9382022471910112,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.7734982493115545,
+            "yRatio": 0.850187265917603,
+            "contact": 0.4132334581772784
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_17.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.20750621805254163,
+            "yRatio": 0.9400749063670412,
+            "contact": 0.9875156054931336
+          },
+          {
+            "xRatio": 0.7850917587252096,
+            "yRatio": 0.8389513108614233,
+            "contact": 0.31335830212234705
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_18.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.17982404819486003,
+            "yRatio": 0.9400749063670412,
+            "contact": 0.9875156054931336
+          },
+          {
+            "xRatio": 0.7805180379377511,
+            "yRatio": 0.850187265917603,
+            "contact": 0.3882646691635455
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_19.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.16305262191907924,
+            "yRatio": 0.9269662921348315,
+            "contact": 0.9750312109862672
+          },
+          {
+            "xRatio": 0.7618316916105162,
+            "yRatio": 0.8595505617977528,
+            "contact": 0.5255930087390761
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_20.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.15931224305995284,
+            "yRatio": 0.9269662921348315,
+            "contact": 0.9750312109862672
+          },
+          {
+            "xRatio": 0.7200875910118937,
+            "yRatio": 0.8782771535580525,
+            "contact": 0.6504369538077404
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_21.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.16529581599039905,
+            "yRatio": 0.9250936329588015,
+            "contact": 0.9625468164794008
+          },
+          {
+            "xRatio": 0.7047154223933474,
+            "yRatio": 0.8838951310861424,
+            "contact": 0.6878901373283395
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_22.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.16744238676745804,
+            "yRatio": 0.9250936329588015,
+            "contact": 0.9625468164794008
+          },
+          {
+            "xRatio": 0.6818559870393078,
+            "yRatio": 0.8895131086142322,
+            "contact": 0.7253433208489388
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_23.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.19156714011425055,
+            "yRatio": 0.9119850187265918,
+            "contact": 0.9375780274656679
+          },
+          {
+            "xRatio": 0.6213181602934301,
+            "yRatio": 0.9063670411985019,
+            "contact": 0.9001248439450686
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_24.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.23288875977991677,
+            "yRatio": 0.897003745318352,
+            "contact": 0.8252184769038702
+          },
+          {
+            "xRatio": 0.5825864233755965,
+            "yRatio": 0.9194756554307116,
+            "contact": 0.9750312109862672
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_25.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.33682124263696583,
+            "yRatio": 0.8764044943820225,
+            "contact": 0.5880149812734082
+          },
+          {
+            "xRatio": 0.5518455881123153,
+            "yRatio": 0.9363295880149812,
+            "contact": 0.9875156054931336
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/02_NE_BackRight/Walking_2_Transparent_570x720/Walking_NE_26.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.38695610533312436,
+            "yRatio": 0.949438202247191,
+            "contact": 0.9875156054931336
+          },
+          {
+            "xRatio": 0.5468824962826102,
+            "yRatio": 0.9325842696629213,
+            "contact": 0.8751560549313359
+          }
+        ]
+      }
+    ]
+  },
+  "E": {
+    "crop": {
+      "x": 117,
+      "y": 78,
+      "width": 302,
+      "height": 528
+    },
+    "frames": [
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_01.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.4401492486747715,
+            "yRatio": 0.990530303030303,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6460580476003162,
+            "yRatio": 0.9848484848484849,
+            "contact": 0.9621212121212122
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_02.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3394694716829777,
+            "yRatio": 0.990530303030303,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.7112106112235328,
+            "yRatio": 0.9393939393939394,
+            "contact": 0.6590909090909092
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_03.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.22160839155082654,
+            "yRatio": 0.990530303030303,
+            "contact": 0.9873737373737373
+          },
+          {
+            "xRatio": 0.7290816665178688,
+            "yRatio": 0.9412878787878788,
+            "contact": 0.6590909090909092
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_04.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.19498694677079592,
+            "yRatio": 0.9886363636363636,
+            "contact": 0.9873737373737373
+          },
+          {
+            "xRatio": 0.7723485009785713,
+            "yRatio": 0.9526515151515151,
+            "contact": 0.7474747474747474
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_05.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.20475204171461384,
+            "yRatio": 0.9886363636363636,
+            "contact": 0.9873737373737373
+          },
+          {
+            "xRatio": 0.8094573647553811,
+            "yRatio": 0.9583333333333334,
+            "contact": 0.7853535353535354
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_06.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2310539891284153,
+            "yRatio": 0.9829545454545454,
+            "contact": 0.9494949494949495
+          },
+          {
+            "xRatio": 0.7712215987238414,
+            "yRatio": 0.9640151515151515,
+            "contact": 0.8232323232323232
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_07.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2911070613025873,
+            "yRatio": 0.9659090909090909,
+            "contact": 0.9368686868686869
+          },
+          {
+            "xRatio": 0.7064297460157303,
+            "yRatio": 0.9715909090909091,
+            "contact": 0.9747474747474747
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_08.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.40070015967731,
+            "yRatio": 0.9810606060606061,
+            "contact": 0.9494949494949495
+          },
+          {
+            "xRatio": 0.6429481646108831,
+            "yRatio": 0.9829545454545454,
+            "contact": 0.9621212121212122
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_09.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.44136580515230067,
+            "yRatio": 0.9753787878787878,
+            "contact": 0.9242424242424242
+          },
+          {
+            "xRatio": 0.6245081545401244,
+            "yRatio": 0.9659090909090909,
+            "contact": 0.8611111111111112
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_10.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.46481127189570076,
+            "yRatio": 0.9640151515151515,
+            "contact": 0.8358585858585859
+          },
+          {
+            "xRatio": 0.6147133350371772,
+            "yRatio": 0.9867424242424242,
+            "contact": 0.9873737373737373
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_11.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.44313952444511623,
+            "yRatio": 0.9621212121212122,
+            "contact": 0.8232323232323232
+          },
+          {
+            "xRatio": 0.6597071462159434,
+            "yRatio": 0.9867424242424242,
+            "contact": 0.9873737373737373
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_12.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.39070822029334606,
+            "yRatio": 0.9602272727272727,
+            "contact": 0.8106060606060606
+          },
+          {
+            "xRatio": 0.6987314327011509,
+            "yRatio": 0.9886363636363636,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_13.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.29686933409852745,
+            "yRatio": 0.9621212121212122,
+            "contact": 0.8358585858585859
+          },
+          {
+            "xRatio": 0.7196504566439568,
+            "yRatio": 0.9848484848484849,
+            "contact": 0.9873737373737373
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_14.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.21923519294102403,
+            "yRatio": 0.9640151515151515,
+            "contact": 0.8232323232323232
+          },
+          {
+            "xRatio": 0.7315341092040162,
+            "yRatio": 0.9810606060606061,
+            "contact": 0.9368686868686869
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_15.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.1850984710081247,
+            "yRatio": 0.9621212121212122,
+            "contact": 0.8106060606060606
+          },
+          {
+            "xRatio": 0.7548812011566339,
+            "yRatio": 0.9753787878787878,
+            "contact": 0.898989898989899
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_16.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.17131177033462452,
+            "yRatio": 0.9602272727272727,
+            "contact": 0.7853535353535354
+          },
+          {
+            "xRatio": 0.7756529460546158,
+            "yRatio": 0.9791666666666666,
+            "contact": 0.9116161616161617
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_17.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.17358679815833178,
+            "yRatio": 0.9583333333333334,
+            "contact": 0.7727272727272727
+          },
+          {
+            "xRatio": 0.7963841657280978,
+            "yRatio": 0.990530303030303,
+            "contact": 0.9873737373737373
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_18.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.18629891474861313,
+            "yRatio": 0.9526515151515151,
+            "contact": 0.7601010101010102
+          },
+          {
+            "xRatio": 0.8114013711504863,
+            "yRatio": 0.9886363636363636,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_19.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.21214462082416613,
+            "yRatio": 0.9450757575757576,
+            "contact": 0.696969696969697
+          },
+          {
+            "xRatio": 0.8123712360891924,
+            "yRatio": 0.9886363636363636,
+            "contact": 0.9873737373737373
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_20.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2518219109877109,
+            "yRatio": 0.9242424242424242,
+            "contact": 0.5580808080808082
+          },
+          {
+            "xRatio": 0.7903530465363452,
+            "yRatio": 0.990530303030303,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_21.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2803829285605471,
+            "yRatio": 0.9128787878787878,
+            "contact": 0.4696969696969697
+          },
+          {
+            "xRatio": 0.7459950703409545,
+            "yRatio": 0.990530303030303,
+            "contact": 0.9873737373737373
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_22.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.30915074717818236,
+            "yRatio": 0.9053030303030303,
+            "contact": 0.4318181818181819
+          },
+          {
+            "xRatio": 0.7023370752455681,
+            "yRatio": 0.990530303030303,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_23.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3436297929569498,
+            "yRatio": 0.9053030303030303,
+            "contact": 0.4318181818181819
+          },
+          {
+            "xRatio": 0.6551438142155604,
+            "yRatio": 0.990530303030303,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_24.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.45474113286318607,
+            "yRatio": 0.9829545454545454,
+            "contact": 0.9494949494949495
+          },
+          {
+            "xRatio": 0.6564069110311326,
+            "yRatio": 0.990530303030303,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_25.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.45946594678365443,
+            "yRatio": 0.9829545454545454,
+            "contact": 0.9494949494949495
+          },
+          {
+            "xRatio": 0.6178479538872409,
+            "yRatio": 0.990530303030303,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/03_E_Right/Walking_2_Transparent_570x720/Walking_E_26.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.4432865524483027,
+            "yRatio": 0.9886363636363636,
+            "contact": 0.9873737373737373
+          },
+          {
+            "xRatio": 0.5971818105264148,
+            "yRatio": 0.990530303030303,
+            "contact": 1
+          }
+        ]
+      }
+    ]
+  },
+  "SE": {
+    "crop": {
+      "x": 195,
+      "y": 140,
+      "width": 219,
+      "height": 440
+    },
+    "frames": [
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_01.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.36070997998512694,
+            "yRatio": 0.9068181818181819,
+            "contact": 0.9696969696969697
+          },
+          {
+            "xRatio": 0.5278282672863253,
+            "yRatio": 0.9090909090909091,
+            "contact": 0.9848484848484849
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_02.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.36279854015084584,
+            "yRatio": 0.8977272727272727,
+            "contact": 0.9696969696969697
+          },
+          {
+            "xRatio": 0.5798503709534986,
+            "yRatio": 0.8704545454545455,
+            "contact": 0.7878787878787878
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_03.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3552477697732037,
+            "yRatio": 0.8886363636363637,
+            "contact": 0.9696969696969697
+          },
+          {
+            "xRatio": 0.6375418293143172,
+            "yRatio": 0.8886363636363637,
+            "contact": 0.9696969696969697
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_04.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.31500280875795733,
+            "yRatio": 0.8772727272727273,
+            "contact": 0.7878787878787878
+          },
+          {
+            "xRatio": 0.6865762552167659,
+            "yRatio": 0.9090909090909091,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_05.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2572141602057971,
+            "yRatio": 0.8568181818181818,
+            "contact": 0.5454545454545454
+          },
+          {
+            "xRatio": 0.7600963422467362,
+            "yRatio": 0.9227272727272727,
+            "contact": 0.9848484848484849
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_06.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2249682005712785,
+            "yRatio": 0.8454545454545455,
+            "contact": 0.43939393939393945
+          },
+          {
+            "xRatio": 0.7724179445343103,
+            "yRatio": 0.925,
+            "contact": 0.9696969696969697
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_07.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.1966800110068923,
+            "yRatio": 0.8340909090909091,
+            "contact": 0.2727272727272727
+          },
+          {
+            "xRatio": 0.7745027849042643,
+            "yRatio": 0.9386363636363636,
+            "contact": 0.9696969696969697
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_08.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.1734071133392223,
+            "yRatio": 0.8204545454545454,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.7653346124939461,
+            "yRatio": 0.95,
+            "contact": 0.9696969696969697
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_09.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.202110561664803,
+            "yRatio": 0.8045454545454546,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.7203392932474558,
+            "yRatio": 0.95,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_10.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2326334052762382,
+            "yRatio": 0.7909090909090909,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.6857903782504592,
+            "yRatio": 0.9386363636363636,
+            "contact": 0.9696969696969697
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_11.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.24000334280201568,
+            "yRatio": 0.7818181818181819,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.6437718149088147,
+            "yRatio": 0.9272727272727272,
+            "contact": 0.9848484848484849
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_12.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.26144315162483694,
+            "yRatio": 0.8204545454545454,
+            "contact": 0.4242424242424242
+          },
+          {
+            "xRatio": 0.5889740725666057,
+            "yRatio": 0.9045454545454545,
+            "contact": 0.9848484848484849
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_13.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.29573449329527857,
+            "yRatio": 0.85,
+            "contact": 0.7121212121212122
+          },
+          {
+            "xRatio": 0.5703664806792391,
+            "yRatio": 0.8931818181818182,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_14.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3383364901519256,
+            "yRatio": 0.8818181818181818,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.5512417955101825,
+            "yRatio": 0.8772727272727273,
+            "contact": 0.9696969696969697
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_15.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.36594134578429616,
+            "yRatio": 0.9090909090909091,
+            "contact": 0.9696969696969697
+          },
+          {
+            "xRatio": 0.507705159175477,
+            "yRatio": 0.9136363636363637,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_16.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.394063887175879,
+            "yRatio": 0.9090909090909091,
+            "contact": 0.6666666666666667
+          },
+          {
+            "xRatio": 0.5703669879307002,
+            "yRatio": 0.9590909090909091,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_17.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.39041048030401954,
+            "yRatio": 0.9204545454545454,
+            "contact": 0.6363636363636364
+          },
+          {
+            "xRatio": 0.6210102852590782,
+            "yRatio": 0.9727272727272728,
+            "contact": 0.9848484848484849
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_18.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3570826162549015,
+            "yRatio": 0.8204545454545454,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.6462589326897397,
+            "yRatio": 0.975,
+            "contact": 0.9696969696969697
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_19.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.34371979751325266,
+            "yRatio": 0.8090909090909091,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.6502721392761619,
+            "yRatio": 0.9795454545454545,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_20.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.36502347213726716,
+            "yRatio": 0.8136363636363636,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.6303009447794398,
+            "yRatio": 0.990909090909091,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_21.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3631973226129865,
+            "yRatio": 0.8136363636363636,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.6118371726842817,
+            "yRatio": 0.9818181818181818,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_22.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3628467301246108,
+            "yRatio": 0.9136363636363637,
+            "contact": 0.6212121212121212
+          },
+          {
+            "xRatio": 0.5861718373844053,
+            "yRatio": 0.9704545454545455,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_23.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.37583703036550276,
+            "yRatio": 0.9045454545454545,
+            "contact": 0.7272727272727273
+          },
+          {
+            "xRatio": 0.535519826862733,
+            "yRatio": 0.9431818181818182,
+            "contact": 0.9848484848484849
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_24.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.36025439488472444,
+            "yRatio": 0.9,
+            "contact": 0.803030303030303
+          },
+          {
+            "xRatio": 0.507061699716091,
+            "yRatio": 0.9295454545454546,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_25.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3649347369396501,
+            "yRatio": 0.9068181818181819,
+            "contact": 0.9242424242424242
+          },
+          {
+            "xRatio": 0.5064628525880694,
+            "yRatio": 0.9181818181818182,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/04_SE_FrontRight/Walking_2_Transparent_570x720/Walking_se_26.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.36314592609158475,
+            "yRatio": 0.9022727272727272,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.5409660706204175,
+            "yRatio": 0.8931818181818182,
+            "contact": 0.9393939393939394
+          }
+        ]
+      }
+    ]
+  },
+  "S": {
+    "crop": {
+      "x": 166,
+      "y": 89,
+      "width": 208,
+      "height": 503
+    },
+    "frames": [
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_01.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.29579308136711446,
+            "yRatio": 0.9900596421471173,
+            "contact": 0.9867461895294898
+          },
+          {
+            "xRatio": 0.8156916839462216,
+            "yRatio": 0.9900596421471173,
+            "contact": 0.9867461895294898
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_02.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3111932675540024,
+            "yRatio": 0.9761431411530815,
+            "contact": 0.8939695162359178
+          },
+          {
+            "xRatio": 0.7865536239915556,
+            "yRatio": 0.9920477137176938,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_03.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.31564098906640237,
+            "yRatio": 0.9562624254473161,
+            "contact": 0.7614314115308152
+          },
+          {
+            "xRatio": 0.7718062225293855,
+            "yRatio": 0.9900596421471173,
+            "contact": 0.9867461895294898
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_04.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3122272628976155,
+            "yRatio": 0.9542743538767395,
+            "contact": 0.7481776010603048
+          },
+          {
+            "xRatio": 0.7667850887261121,
+            "yRatio": 0.9900596421471173,
+            "contact": 0.9867461895294898
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_05.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.30310598345968753,
+            "yRatio": 0.94831013916501,
+            "contact": 0.7216699801192843
+          },
+          {
+            "xRatio": 0.751746259132397,
+            "yRatio": 0.9900596421471173,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_06.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.29018681497159216,
+            "yRatio": 0.9304174950298211,
+            "contact": 0.6023856858846919
+          },
+          {
+            "xRatio": 0.7317657290300219,
+            "yRatio": 0.9900596421471173,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_07.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.26470751348004545,
+            "yRatio": 0.9264413518886679,
+            "contact": 0.5758780649436713
+          },
+          {
+            "xRatio": 0.7036809994844979,
+            "yRatio": 0.9900596421471173,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_08.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.24486518915757438,
+            "yRatio": 0.9224652087475149,
+            "contact": 0.5361166335321406
+          },
+          {
+            "xRatio": 0.6743487792874479,
+            "yRatio": 0.9900596421471173,
+            "contact": 0.9867461895294898
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_09.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.25358707731991387,
+            "yRatio": 0.9105367793240556,
+            "contact": 0.4565937707090789
+          },
+          {
+            "xRatio": 0.666047540175687,
+            "yRatio": 0.9900596421471173,
+            "contact": 0.9867461895294898
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_10.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2616984667193213,
+            "yRatio": 0.9085487077534792,
+            "contact": 0.4433399602385686
+          },
+          {
+            "xRatio": 0.6586033953132836,
+            "yRatio": 0.9900596421471173,
+            "contact": 0.9867461895294898
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_11.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.27400369879619885,
+            "yRatio": 0.9184890656063618,
+            "contact": 0.5096090125911199
+          },
+          {
+            "xRatio": 0.652717291977139,
+            "yRatio": 0.9900596421471173,
+            "contact": 0.9867461895294898
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_12.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.27964026740130116,
+            "yRatio": 0.9383697813121272,
+            "contact": 0.6421471172962228
+          },
+          {
+            "xRatio": 0.6483435963583676,
+            "yRatio": 0.9900596421471173,
+            "contact": 0.9867461895294898
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_13.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.27827414223594027,
+            "yRatio": 0.9622266401590457,
+            "contact": 0.8011928429423459
+          },
+          {
+            "xRatio": 0.6418039518258768,
+            "yRatio": 0.9920477137176938,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_14.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2780995343444791,
+            "yRatio": 0.9900596421471173,
+            "contact": 0.9867461895294898
+          },
+          {
+            "xRatio": 0.6421794997983566,
+            "yRatio": 0.9900596421471173,
+            "contact": 0.9867461895294898
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_15.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.27841312865527656,
+            "yRatio": 0.9880715705765407,
+            "contact": 0.9867461895294898
+          },
+          {
+            "xRatio": 0.6407246721478284,
+            "yRatio": 0.9701789264413518,
+            "contact": 0.8674618952948973
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_16.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.26713318639827377,
+            "yRatio": 0.9900596421471173,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6349385752688044,
+            "yRatio": 0.9562624254473161,
+            "contact": 0.7746852220013254
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_17.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2595321401121857,
+            "yRatio": 0.9920477137176938,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6305077138517297,
+            "yRatio": 0.9542743538767395,
+            "contact": 0.7481776010603048
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_18.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.25968098206161117,
+            "yRatio": 0.9920477137176938,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6300915612810647,
+            "yRatio": 0.9542743538767395,
+            "contact": 0.7481776010603048
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_19.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.26612612657106005,
+            "yRatio": 0.9900596421471173,
+            "contact": 0.9867461895294898
+          },
+          {
+            "xRatio": 0.6327830323931749,
+            "yRatio": 0.9542743538767395,
+            "contact": 0.7481776010603048
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_20.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.28402679618767995,
+            "yRatio": 0.9900596421471173,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6434772878396999,
+            "yRatio": 0.9244532803180915,
+            "contact": 0.562624254473161
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_21.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.30361852322670546,
+            "yRatio": 0.9880715705765407,
+            "contact": 0.9867461895294898
+          },
+          {
+            "xRatio": 0.6649818063630727,
+            "yRatio": 0.904572564612326,
+            "contact": 0.43008614976805837
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_22.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.32389354193857905,
+            "yRatio": 0.9900596421471173,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6954441318811434,
+            "yRatio": 0.8906560636182903,
+            "contact": 0.3373094764744864
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_23.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.32783206833006007,
+            "yRatio": 0.9900596421471173,
+            "contact": 0.9867461895294898
+          },
+          {
+            "xRatio": 0.7003812137323778,
+            "yRatio": 0.8906560636182903,
+            "contact": 0.3240556660039762
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_24.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3290997904935495,
+            "yRatio": 0.9920477137176938,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.7046515985177231,
+            "yRatio": 0.904572564612326,
+            "contact": 0.41683233929754804
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_25.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.33240611143101406,
+            "yRatio": 0.9900596421471173,
+            "contact": 0.9867461895294898
+          },
+          {
+            "xRatio": 0.7073484116208378,
+            "yRatio": 0.9304174950298211,
+            "contact": 0.5891318754141817
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/05_S_Front/Walking_2_Transparent_570x720/Walking_S_26.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.32892070771355014,
+            "yRatio": 0.9920477137176938,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.7081519362982134,
+            "yRatio": 0.9602385685884692,
+            "contact": 0.7879390324718356
+          }
+        ]
+      }
+    ]
+  },
+  "SW": {
+    "crop": {
+      "x": 154,
+      "y": 114,
+      "width": 235,
+      "height": 482
+    },
+    "frames": [
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_01.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.36890599688062176,
+            "yRatio": 0.8858921161825726,
+            "contact": 0.5297372060857538
+          },
+          {
+            "xRatio": 0.6947270486686155,
+            "yRatio": 0.9543568464730291,
+            "contact": 0.9861687413554634
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_02.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.36663146392570106,
+            "yRatio": 0.8900414937759336,
+            "contact": 0.598893499308437
+          },
+          {
+            "xRatio": 0.7186127610508298,
+            "yRatio": 0.950207468879668,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_03.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2861459725981689,
+            "yRatio": 0.9066390041493776,
+            "contact": 0.7786998616874136
+          },
+          {
+            "xRatio": 0.7529288639882251,
+            "yRatio": 0.9356846473029046,
+            "contact": 0.9723374827109267
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_04.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.22874789113801014,
+            "yRatio": 0.9149377593360996,
+            "contact": 0.8893499308437067
+          },
+          {
+            "xRatio": 0.777416403225926,
+            "yRatio": 0.9294605809128631,
+            "contact": 0.9861687413554634
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_05.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.20289156568347075,
+            "yRatio": 0.9190871369294605,
+            "contact": 0.9723374827109267
+          },
+          {
+            "xRatio": 0.8008260186750836,
+            "yRatio": 0.921161825726141,
+            "contact": 0.9861687413554634
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_06.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.20882980049484035,
+            "yRatio": 0.9356846473029046,
+            "contact": 0.9861687413554634
+          },
+          {
+            "xRatio": 0.8170711052706823,
+            "yRatio": 0.9045643153526971,
+            "contact": 0.7786998616874136
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_07.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.24668641046292825,
+            "yRatio": 0.941908713692946,
+            "contact": 0.9861687413554634
+          },
+          {
+            "xRatio": 0.7943324403929248,
+            "yRatio": 0.8983402489626556,
+            "contact": 0.6957123098201936
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_08.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3098045694971387,
+            "yRatio": 0.9336099585062241,
+            "contact": 0.9861687413554634
+          },
+          {
+            "xRatio": 0.7484340177546117,
+            "yRatio": 0.8921161825726142,
+            "contact": 0.7095435684647302
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_09.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3413429405591683,
+            "yRatio": 0.9294605809128631,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.7104702345518823,
+            "yRatio": 0.8941908713692946,
+            "contact": 0.7648686030428768
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_10.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.36154850639338987,
+            "yRatio": 0.921161825726141,
+            "contact": 0.9861687413554634
+          },
+          {
+            "xRatio": 0.6289154003511296,
+            "yRatio": 0.9045643153526971,
+            "contact": 0.8755186721991701
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_11.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.36798471965484575,
+            "yRatio": 0.91701244813278,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6054062814764268,
+            "yRatio": 0.9107883817427386,
+            "contact": 0.9585062240663901
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_12.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3743594448010311,
+            "yRatio": 0.9128630705394191,
+            "contact": 0.9723374827109267
+          },
+          {
+            "xRatio": 0.5751387669558231,
+            "yRatio": 0.91701244813278,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_13.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.41950314512618664,
+            "yRatio": 0.9377593360995851,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.5601009058117193,
+            "yRatio": 0.9232365145228216,
+            "contact": 0.9031811894882434
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_14.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3795178444707545,
+            "yRatio": 0.9522821576763485,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.5673857296388879,
+            "yRatio": 0.9024896265560166,
+            "contact": 0.6680497925311204
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_15.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3218737491750418,
+            "yRatio": 0.9626556016597511,
+            "contact": 0.9861687413554634
+          },
+          {
+            "xRatio": 0.5652394033766543,
+            "yRatio": 0.8983402489626556,
+            "contact": 0.5573997233748271
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_16.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.29707272154235853,
+            "yRatio": 0.966804979253112,
+            "contact": 0.9861687413554634
+          },
+          {
+            "xRatio": 0.5823175380499935,
+            "yRatio": 0.8858921161825726,
+            "contact": 0.44674965421853385
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_17.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2891832034146216,
+            "yRatio": 0.966804979253112,
+            "contact": 0.9861687413554634
+          },
+          {
+            "xRatio": 0.5995928832395148,
+            "yRatio": 0.8817427385892116,
+            "contact": 0.41908713692946054
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_18.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2823733581588708,
+            "yRatio": 0.966804979253112,
+            "contact": 0.9861687413554634
+          },
+          {
+            "xRatio": 0.6131391466084968,
+            "yRatio": 0.8775933609958506,
+            "contact": 0.3914246196403872
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_19.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.28507116306406227,
+            "yRatio": 0.966804979253112,
+            "contact": 0.9861687413554634
+          },
+          {
+            "xRatio": 0.6341437106094538,
+            "yRatio": 0.8672199170124482,
+            "contact": 0.322268326417704
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_20.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3046306783361644,
+            "yRatio": 0.975103734439834,
+            "contact": 0.9861687413554634
+          },
+          {
+            "xRatio": 0.6603199803699479,
+            "yRatio": 0.8589211618257261,
+            "contact": 0.2116182572614107
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_21.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3260779406589307,
+            "yRatio": 0.983402489626556,
+            "contact": 0.9861687413554634
+          },
+          {
+            "xRatio": 0.6729505504324145,
+            "yRatio": 0.8526970954356846,
+            "contact": 0.18
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_22.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3667538616206089,
+            "yRatio": 0.9896265560165975,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6733727540884585,
+            "yRatio": 0.8464730290456431,
+            "contact": 0.18
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_23.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3772325846235308,
+            "yRatio": 0.9896265560165975,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6544458622543495,
+            "yRatio": 0.8423236514522822,
+            "contact": 0.18
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_24.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.4251635459986424,
+            "yRatio": 0.9813278008298755,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.613599382894982,
+            "yRatio": 0.9439834024896265,
+            "contact": 0.7510373443983402
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_25.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.47771609612344795,
+            "yRatio": 0.9647302904564315,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6189335478857616,
+            "yRatio": 0.9585062240663901,
+            "contact": 0.9585062240663901
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/06_SW_FrontLeft/Walking_2_Transparent_570x720/Walking_sw_26.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3757824142869393,
+            "yRatio": 0.8983402489626556,
+            "contact": 0.640387275242047
+          },
+          {
+            "xRatio": 0.6200770255743736,
+            "yRatio": 0.9522821576763485,
+            "contact": 1
+          }
+        ]
+      }
+    ]
+  },
+  "W": {
+    "crop": {
+      "x": 133,
+      "y": 48,
+      "width": 343,
+      "height": 590
+    },
+    "frames": [
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_01.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3255153745469409,
+            "yRatio": 0.9915254237288136,
+            "contact": 0.9887005649717514
+          },
+          {
+            "xRatio": 0.4739502102234802,
+            "yRatio": 0.9830508474576272,
+            "contact": 0.9322033898305084
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_02.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.33880803890020206,
+            "yRatio": 0.9915254237288136,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.5195890449739733,
+            "yRatio": 0.9542372881355933,
+            "contact": 0.751412429378531
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_03.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.331762420013134,
+            "yRatio": 0.9915254237288136,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.5963414967439733,
+            "yRatio": 0.9457627118644067,
+            "contact": 0.6949152542372881
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_04.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.27937425316456005,
+            "yRatio": 0.9728813559322034,
+            "contact": 0.9887005649717514
+          },
+          {
+            "xRatio": 0.6934326000146656,
+            "yRatio": 0.9525423728813559,
+            "contact": 0.8531073446327684
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_05.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2493969241034951,
+            "yRatio": 0.9745762711864406,
+            "contact": 0.9096045197740112
+          },
+          {
+            "xRatio": 0.769863702342552,
+            "yRatio": 0.9542372881355933,
+            "contact": 0.7740112994350282
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_06.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.24464866517141096,
+            "yRatio": 0.976271186440678,
+            "contact": 0.8983050847457628
+          },
+          {
+            "xRatio": 0.8010405553231194,
+            "yRatio": 0.9542372881355933,
+            "contact": 0.751412429378531
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_07.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2416951423850629,
+            "yRatio": 0.9864406779661017,
+            "contact": 0.9774011299435028
+          },
+          {
+            "xRatio": 0.801813706915625,
+            "yRatio": 0.9525423728813559,
+            "contact": 0.751412429378531
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_08.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.23147556507198236,
+            "yRatio": 0.9864406779661017,
+            "contact": 0.9661016949152542
+          },
+          {
+            "xRatio": 0.780344593954005,
+            "yRatio": 0.9474576271186441,
+            "contact": 0.7062146892655368
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_09.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.23209784095363448,
+            "yRatio": 0.9898305084745763,
+            "contact": 0.9774011299435028
+          },
+          {
+            "xRatio": 0.7491056776742586,
+            "yRatio": 0.9440677966101695,
+            "contact": 0.672316384180791
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_10.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.25603782847940115,
+            "yRatio": 0.9915254237288136,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.7100739217933906,
+            "yRatio": 0.9389830508474576,
+            "contact": 0.6497175141242938
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_11.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2991867914926002,
+            "yRatio": 0.9915254237288136,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6874425524153801,
+            "yRatio": 0.923728813559322,
+            "contact": 0.5480225988700564
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_12.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.34077251998216784,
+            "yRatio": 0.9915254237288136,
+            "contact": 0.9887005649717514
+          },
+          {
+            "xRatio": 0.6621586950571323,
+            "yRatio": 0.911864406779661,
+            "contact": 0.4576271186440678
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_13.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.32634289474367145,
+            "yRatio": 0.9932203389830508,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.5443303510498004,
+            "yRatio": 0.9813559322033898,
+            "contact": 0.9209039548022598
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_14.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.34363474213211864,
+            "yRatio": 0.9915254237288136,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.5163897968064451,
+            "yRatio": 0.9830508474576272,
+            "contact": 0.943502824858757
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_15.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.39975465819500905,
+            "yRatio": 0.9932203389830508,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.5463602380776678,
+            "yRatio": 0.9847457627118644,
+            "contact": 0.943502824858757
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_16.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.41531290680078226,
+            "yRatio": 0.9932203389830508,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.581713111146232,
+            "yRatio": 0.9898305084745763,
+            "contact": 0.9774011299435028
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_17.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3272899296593904,
+            "yRatio": 0.923728813559322,
+            "contact": 0.536723163841808
+          },
+          {
+            "xRatio": 0.5827349837760946,
+            "yRatio": 0.9915254237288136,
+            "contact": 0.9887005649717514
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_18.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.27978548473086684,
+            "yRatio": 0.923728813559322,
+            "contact": 0.5480225988700564
+          },
+          {
+            "xRatio": 0.6763582192183546,
+            "yRatio": 0.9915254237288136,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_19.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2483212776384265,
+            "yRatio": 0.9305084745762712,
+            "contact": 0.5932203389830508
+          },
+          {
+            "xRatio": 0.7496404972804102,
+            "yRatio": 0.9915254237288136,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_20.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.20882520662259674,
+            "yRatio": 0.9322033898305084,
+            "contact": 0.6045197740112994
+          },
+          {
+            "xRatio": 0.8156531781013184,
+            "yRatio": 0.9915254237288136,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_21.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2060551530617887,
+            "yRatio": 0.9440677966101695,
+            "contact": 0.672316384180791
+          },
+          {
+            "xRatio": 0.8193722766013238,
+            "yRatio": 0.9915254237288136,
+            "contact": 0.9887005649717514
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_22.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.19298675093336776,
+            "yRatio": 0.9542372881355933,
+            "contact": 0.751412429378531
+          },
+          {
+            "xRatio": 0.8096184957125214,
+            "yRatio": 0.9915254237288136,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_23.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.19136076758999213,
+            "yRatio": 0.9576271186440678,
+            "contact": 0.7627118644067796
+          },
+          {
+            "xRatio": 0.766331739502738,
+            "yRatio": 0.9898305084745763,
+            "contact": 0.9774011299435028
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_24.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.26315290088076454,
+            "yRatio": 0.964406779661017,
+            "contact": 0.8418079096045198
+          },
+          {
+            "xRatio": 0.7186317708382505,
+            "yRatio": 0.9677966101694915,
+            "contact": 0.864406779661017
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_25.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.33375217299466475,
+            "yRatio": 0.9711864406779661,
+            "contact": 0.9774011299435028
+          },
+          {
+            "xRatio": 0.6520220521080469,
+            "yRatio": 0.9627118644067797,
+            "contact": 0.9209039548022598
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/07_W_Left/Walking_2_Transparent_570x720/Walking_W_26.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.33413122098750075,
+            "yRatio": 0.9661016949152542,
+            "contact": 0.9661016949152542
+          },
+          {
+            "xRatio": 0.5113683141911132,
+            "yRatio": 0.9661016949152542,
+            "contact": 0.9661016949152542
+          }
+        ]
+      }
+    ]
+  },
+  "NW": {
+    "crop": {
+      "x": 116,
+      "y": 76,
+      "width": 316,
+      "height": 574
+    },
+    "frames": [
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_01.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.361385703987953,
+            "yRatio": 0.9059233449477352,
+            "contact": 0.9883855981416957
+          },
+          {
+            "xRatio": 0.6699123064751515,
+            "yRatio": 0.8745644599303136,
+            "contact": 0.7793263646922184
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_02.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.32403908085400795,
+            "yRatio": 0.8850174216027874,
+            "contact": 0.9767711962833914
+          },
+          {
+            "xRatio": 0.7085222405599169,
+            "yRatio": 0.8850174216027874,
+            "contact": 0.9767711962833914
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_03.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2659633147681399,
+            "yRatio": 0.8832752613240418,
+            "contact": 0.9303135888501742
+          },
+          {
+            "xRatio": 0.7338290963711849,
+            "yRatio": 0.89198606271777,
+            "contact": 0.9883855981416957
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_04.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.19723308539801934,
+            "yRatio": 0.8588850174216028,
+            "contact": 0.6864111498257839
+          },
+          {
+            "xRatio": 0.7920586689061091,
+            "yRatio": 0.9024390243902439,
+            "contact": 0.9767711962833914
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_05.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.2093465829334525,
+            "yRatio": 0.8745644599303136,
+            "contact": 0.8141695702671312
+          },
+          {
+            "xRatio": 0.8293901291649702,
+            "yRatio": 0.9006968641114983,
+            "contact": 0.9883855981416957
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_06.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.22599717124070764,
+            "yRatio": 0.8815331010452961,
+            "contact": 0.8373983739837398
+          },
+          {
+            "xRatio": 0.8408062083035927,
+            "yRatio": 0.9006968641114983,
+            "contact": 0.9651567944250871
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_07.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.29561733929104894,
+            "yRatio": 0.8989547038327527,
+            "contact": 0.9767711962833914
+          },
+          {
+            "xRatio": 0.8363416238228627,
+            "yRatio": 0.8937282229965157,
+            "contact": 0.9419279907084785
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_08.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3396329810998088,
+            "yRatio": 0.9076655052264808,
+            "contact": 0.9767711962833914
+          },
+          {
+            "xRatio": 0.8100574764995886,
+            "yRatio": 0.8832752613240418,
+            "contact": 0.8141695702671312
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_09.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3755855773544301,
+            "yRatio": 0.9163763066202091,
+            "contact": 0.9767711962833914
+          },
+          {
+            "xRatio": 0.7782865108012896,
+            "yRatio": 0.8745644599303136,
+            "contact": 0.6980255516840883
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_10.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.4097290158568216,
+            "yRatio": 0.9250871080139372,
+            "contact": 0.9767711962833914
+          },
+          {
+            "xRatio": 0.7405728748346938,
+            "yRatio": 0.867595818815331,
+            "contact": 0.5934959349593496
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_11.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.4269926731536902,
+            "yRatio": 0.9372822299651568,
+            "contact": 1
+          },
+          {
+            "xRatio": 0.6364010389737733,
+            "yRatio": 0.8536585365853658,
+            "contact": 0.44250871080139365
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_12.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.4290080348578084,
+            "yRatio": 0.9337979094076655,
+            "contact": 0.9070847851335656
+          },
+          {
+            "xRatio": 0.5863553146046661,
+            "yRatio": 0.945993031358885,
+            "contact": 0.9883855981416957
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_13.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.4549434172053152,
+            "yRatio": 0.9407665505226481,
+            "contact": 0.8954703832752613
+          },
+          {
+            "xRatio": 0.5928595736155096,
+            "yRatio": 0.9564459930313589,
+            "contact": 1
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_14.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.4530375452832576,
+            "yRatio": 0.9494773519163763,
+            "contact": 0.9070847851335656
+          },
+          {
+            "xRatio": 0.6224030624905011,
+            "yRatio": 0.9616724738675958,
+            "contact": 0.9883855981416957
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_15.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.4140039815114583,
+            "yRatio": 0.9407665505226481,
+            "contact": 0.8025551684088269
+          },
+          {
+            "xRatio": 0.6363998951888962,
+            "yRatio": 0.9686411149825784,
+            "contact": 0.9883855981416957
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_16.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3008949689728464,
+            "yRatio": 0.7996515679442509,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.6714292732509158,
+            "yRatio": 0.9773519163763066,
+            "contact": 0.9883855981416957
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_17.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.30324566494323224,
+            "yRatio": 0.8013937282229965,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.6833305807066943,
+            "yRatio": 0.9790940766550522,
+            "contact": 0.9883855981416957
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_18.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.30210472677749145,
+            "yRatio": 0.8048780487804879,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.6975436226019017,
+            "yRatio": 0.980836236933798,
+            "contact": 0.9883855981416957
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_19.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3169477143696296,
+            "yRatio": 0.8118466898954704,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.7169379431955851,
+            "yRatio": 0.9860627177700348,
+            "contact": 0.9767711962833914
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_20.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3554099744361312,
+            "yRatio": 0.8205574912891986,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.7317075849903141,
+            "yRatio": 0.9878048780487805,
+            "contact": 0.9767711962833914
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_21.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.4104892102276417,
+            "yRatio": 0.8449477351916377,
+            "contact": 0.18
+          },
+          {
+            "xRatio": 0.7210145089641345,
+            "yRatio": 0.9773519163763066,
+            "contact": 0.9535423925667829
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_22.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.44135159653744593,
+            "yRatio": 0.8554006968641115,
+            "contact": 0.23344947735191635
+          },
+          {
+            "xRatio": 0.6874456206330926,
+            "yRatio": 0.9651567944250871,
+            "contact": 0.9651567944250871
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_23.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.4321007972086992,
+            "yRatio": 0.8588850174216028,
+            "contact": 0.2915214866434378
+          },
+          {
+            "xRatio": 0.6600041252537039,
+            "yRatio": 0.9599303135888502,
+            "contact": 0.9651567944250871
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_24.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.4201632453978088,
+            "yRatio": 0.8554006968641115,
+            "contact": 0.3031358885017421
+          },
+          {
+            "xRatio": 0.6352919166968407,
+            "yRatio": 0.9547038327526133,
+            "contact": 0.9651567944250871
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_25.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.38433894444684635,
+            "yRatio": 0.8397212543554007,
+            "contact": 0.3031358885017421
+          },
+          {
+            "xRatio": 0.5729176672669916,
+            "yRatio": 0.9407665505226481,
+            "contact": 0.9767711962833914
+          }
+        ]
+      },
+      {
+        "source": "./characters/walk/08_NW_BackLeft/Walking_2_Transparent_570x720/Walking_NW_26.png",
+        "bootAnchors": [
+          {
+            "xRatio": 0.3701060933713367,
+            "yRatio": 0.9146341463414634,
+            "contact": 0.9883855981416957
+          },
+          {
+            "xRatio": 0.6336913510469668,
+            "yRatio": 0.8954703832752613,
+            "contact": 0.8606271777003485
+          }
+        ]
+      }
+    ]
+  }
+}

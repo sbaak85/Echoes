@@ -1,4 +1,6 @@
 "use client";
+import { getIdleSpriteSources, makeTransparentIdleSprite } from "./player-idle-sprites";
+import { getWalkFrameSources, makeTransparentWalkSprites, drawTransparentCharacterSprite, type TransparentCharacterSprite, type TransparentWalkSprite } from "./player-walk-sprites";
 import { useResponsiveConfirmation } from "./responsive-confirmation";
 import { createTouchJoystickView } from "./touch-joystick-view";
 import { useInteractionIllustration, InteractionIllustrationOverlay, type InteractionIllustration } from "./interaction-illustration";
@@ -71,6 +73,7 @@ import {
   type BlackScreenOverlayHandle,
 } from "./black-screen-overlay";
 import { BgmDirector } from "./bgm-director";
+import { drawWorldItemIcon } from "./world-item-icons.js";
 import {
   getDayNightCssVariables,
   isDebugTimeCommand,
@@ -287,8 +290,6 @@ import {
   type PlayerVisualProjectConfig,
 } from "./player-visual-config";
 import {
-  trackBootShadowAnchors,
-  type BootOpaqueColumn,
   type BootShadowAnchor,
 } from "./boot-shadow-tracking";
 import {
@@ -1436,64 +1437,23 @@ function buildSceneInteractables(
   ];
 }
 
-const SPRITE_SOURCES: Record<Direction, string> = {
-  N: "./characters/01_N_Back.png",
-  NE: "./characters/02_NE_BackRight.png",
-  E: "./characters/03_E_Right.png",
-  SE: "./characters/04_SE_FrontRight.png",
-  S: "./characters/05_S_Front.png",
-  SW: "./characters/06_SW_FrontLeft.png",
-  W: "./characters/07_W_Left.png",
-  NW: "./characters/08_NW_BackLeft.png",
-};
+const SPRITE_SOURCES: Record<Direction, string> = getIdleSpriteSources();
 
-const N_WALK_FRAME_SOURCES = Array.from(
-  { length: 26 },
-  (_, index) =>
-    `./characters/walk/01_N_Back/Walking_2/Walking_N_${String(index + 1).padStart(2, "0")}.png`,
-);
+const N_WALK_FRAME_SOURCES = getWalkFrameSources("N");
 const N_WALK_REFERENCE_FPS = 26;
-const NE_WALK_FRAME_SOURCES = Array.from(
-  { length: 26 },
-  (_, index) =>
-    `./characters/walk/02_NE_BackRight/Walking_2/Walking_NE_${String(index + 1).padStart(2, "0")}.png`,
-);
+const NE_WALK_FRAME_SOURCES = getWalkFrameSources("NE");
 const NE_WALK_REFERENCE_FPS = 26;
-const NW_WALK_FRAME_SOURCES = Array.from(
-  { length: 26 },
-  (_, index) =>
-    `./characters/walk/08_NW_BackLeft/Walking_2/Walking_NW_${String(index + 1).padStart(2, "0")}.png`,
-);
+const NW_WALK_FRAME_SOURCES = getWalkFrameSources("NW");
 const NW_WALK_REFERENCE_FPS = 26;
-const E_WALK_FRAME_SOURCES = Array.from(
-  { length: 26 },
-  (_, index) =>
-    `./characters/walk/03_E_Right/Walking_2/Walking_E_${String(index + 1).padStart(2, "0")}.png`,
-);
+const E_WALK_FRAME_SOURCES = getWalkFrameSources("E");
 const E_WALK_REFERENCE_FPS = 26;
-const S_WALK_FRAME_SOURCES = Array.from(
-  { length: 26 },
-  (_, index) =>
-    `./characters/walk/05_S_Front/Walking_2/Walking_S_${String(index + 1).padStart(2, "0")}.png`,
-);
+const S_WALK_FRAME_SOURCES = getWalkFrameSources("S");
 const S_WALK_REFERENCE_FPS = 26;
-const SE_WALK_FRAME_SOURCES = Array.from(
-  { length: 26 },
-  (_, index) =>
-    `./characters/walk/04_SE_FrontRight/Walking_2/Walking_se_${String(index + 1).padStart(2, "0")}.png`,
-);
+const SE_WALK_FRAME_SOURCES = getWalkFrameSources("SE");
 const SE_WALK_REFERENCE_FPS = 26;
-const SW_WALK_FRAME_SOURCES = Array.from(
-  { length: 26 },
-  (_, index) =>
-    `./characters/walk/06_SW_FrontLeft/Walking_2/Walking_sw_${String(index + 1).padStart(2, "0")}.png`,
-);
+const SW_WALK_FRAME_SOURCES = getWalkFrameSources("SW");
 const SW_WALK_REFERENCE_FPS = 26;
-const W_WALK_FRAME_SOURCES = Array.from(
-  { length: 26 },
-  (_, index) =>
-    `./characters/walk/07_W_Left/Walking_2/Walking_W_${String(index + 1).padStart(2, "0")}.png`,
-);
+const W_WALK_FRAME_SOURCES = getWalkFrameSources("W");
 const W_WALK_REFERENCE_FPS = 26;
 const WALK_ANIMATION_SPEED_MULTIPLIER = 1.2;
 const ACCELERATED_WALK_SPEED_MULTIPLIER = 1.4;
@@ -2025,6 +1985,19 @@ function getInventoryItemArtworkPreview(itemId: string) {
 }
 
 // Existing related artwork for legacy/test items that do not yet have dedicated art.
+/** 世界掉落道具箱體 Icon 的接地點相對道具座標的下移量（世界像素） */
+const WORLD_ITEM_ICON_GROUND_OFFSET = 8;
+/** 世界掉落道具箱體 Icon 的放大倍率（1 = 預覽頁的 1× 尺寸） */
+const WORLD_ITEM_ICON_SCALE = 1.3;
+/** 依世界道具 ID 錯開箱體 Icon 的明滅相位，避免同畫面的道具同步閃爍 */
+function getWorldItemIconPhase(id: string) {
+  let hash = 0;
+  for (let index = 0; index < id.length; index += 1) {
+    hash = (hash * 31 + id.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash) % 6000;
+}
+
 function getHotbarItemIcon(itemId: string) {
   const fallback: Record<string, string> = {
     T0002: "calibration-component", R0008: "battery",
@@ -3305,157 +3278,6 @@ function getCameraCoordinate(
     visibleWorldSize / 2,
     worldSize - visibleWorldSize / 2,
   );
-}
-
-type PreparedChromaKeySprite = {
-  canvas: HTMLCanvasElement;
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-};
-
-function prepareChromaKeySprite(
-  image: HTMLImageElement,
-): PreparedChromaKeySprite {
-  const scale = Math.min(1, 720 / image.naturalHeight);
-  const width = Math.max(1, Math.round(image.naturalWidth * scale));
-  const height = Math.max(1, Math.round(image.naturalHeight * scale));
-  const working = document.createElement("canvas");
-  working.width = width;
-  working.height = height;
-  const context = working.getContext("2d", { willReadFrequently: true });
-
-  if (!context) {
-    return {
-      canvas: working,
-      minX: 0,
-      minY: 0,
-      maxX: width - 1,
-      maxY: height - 1,
-    };
-  }
-
-  context.drawImage(image, 0, 0, width, height);
-  const pixels = context.getImageData(0, 0, width, height);
-  const data = pixels.data;
-  let minX = width;
-  let minY = height;
-  let maxX = 0;
-  let maxY = 0;
-
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const index = (y * width + x) * 4;
-      const red = data[index];
-      const green = data[index + 1];
-      const blue = data[index + 2];
-      const greenDominance = green - Math.max(red, blue);
-
-      if (green > 95 && greenDominance > 42) {
-        const softness = clamp((greenDominance - 42) / 52, 0, 1);
-        data[index + 3] = Math.round(255 * (1 - softness));
-        data[index + 1] = Math.min(green, Math.max(red, blue) + 18);
-      }
-
-      if (data[index + 3] > 26) {
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        maxX = Math.max(maxX, x);
-        maxY = Math.max(maxY, y);
-      }
-    }
-  }
-
-  context.putImageData(pixels, 0, 0);
-
-  return { canvas: working, minX, minY, maxX, maxY };
-}
-
-function cropPreparedChromaKeySprites(
-  preparedFrames: PreparedChromaKeySprite[],
-) {
-  const visibleFrames = preparedFrames.filter(
-    ({ minX, minY, maxX, maxY }) => minX <= maxX && minY <= maxY,
-  );
-
-  if (visibleFrames.length === 0) {
-    return preparedFrames.map(({ canvas }) => canvas);
-  }
-
-  const padding = 4;
-  const minX = Math.max(
-    0,
-    Math.min(...visibleFrames.map((frame) => frame.minX)) - padding,
-  );
-  const minY = Math.max(
-    0,
-    Math.min(...visibleFrames.map((frame) => frame.minY)) - padding,
-  );
-  const maxCanvasWidth = Math.max(
-    ...preparedFrames.map(({ canvas }) => canvas.width),
-  );
-  const maxCanvasHeight = Math.max(
-    ...preparedFrames.map(({ canvas }) => canvas.height),
-  );
-  const maxX = Math.min(
-    maxCanvasWidth - 1,
-    Math.max(...visibleFrames.map((frame) => frame.maxX)) + padding,
-  );
-  const maxY = Math.min(
-    maxCanvasHeight - 1,
-    Math.max(...visibleFrames.map((frame) => frame.maxY)) + padding,
-  );
-  const croppedWidth = maxX - minX + 1;
-  const croppedHeight = maxY - minY + 1;
-
-  return preparedFrames.map(({ canvas }) => {
-    const cropped = document.createElement("canvas");
-    cropped.width = croppedWidth;
-    cropped.height = croppedHeight;
-    cropped
-      .getContext("2d")
-      ?.drawImage(
-        canvas,
-        minX,
-        minY,
-        croppedWidth,
-        croppedHeight,
-        0,
-        0,
-        croppedWidth,
-        croppedHeight,
-      );
-    return cropped;
-  });
-}
-
-function makeChromaKeySprite(image: HTMLImageElement) {
-  return cropPreparedChromaKeySprites([prepareChromaKeySprite(image)])[0];
-}
-
-function makeChromaKeySpriteSequence(images: HTMLImageElement[]) {
-  return cropPreparedChromaKeySprites(images.map(prepareChromaKeySprite));
-}
-
-function detectBootShadowAnchors(
-  sprite: HTMLCanvasElement,
-): [BootShadowAnchor, BootShadowAnchor] | null {
-  const context = sprite.getContext("2d", { willReadFrequently: true });
-  if (!context || sprite.width <= 0 || sprite.height <= 0) return null;
-  const pixels = context.getImageData(0, 0, sprite.width, sprite.height).data;
-  const startY = Math.floor(sprite.height * 0.48);
-  const columns: BootOpaqueColumn[] = [];
-
-  for (let x = 0; x < sprite.width; x += 1) {
-    let bottomY = -1;
-    for (let y = startY; y < sprite.height; y += 1) {
-      if (pixels[(y * sprite.width + x) * 4 + 3] >= 48) bottomY = y;
-    }
-    if (bottomY >= 0) columns.push({ x, bottomY });
-  }
-
-  return trackBootShadowAnchors(columns, sprite.width, sprite.height);
 }
 
 function tracePolygon(
@@ -6559,13 +6381,13 @@ export function MovementLab() {
       pending.timerId = null;
     }
     setInventoryContextMenu(null);
-    const pointer = getGameShellPointerPosition(x, y);
+    // 拖曳預覽為 position: fixed，直接使用視窗座標
     setInventoryDrag({
       itemId: pending.itemId,
       pointerId: pending.pointerId,
       pointerType: pending.pointerType,
-      x: pointer.x,
-      y: pointer.y,
+      x,
+      y,
     });
     navigator.vibrate?.(12);
   };
@@ -6605,9 +6427,8 @@ export function MovementLab() {
     }
     if (!pending.active) return;
     event.preventDefault();
-    const pointer = getGameShellPointerPosition(event.clientX, event.clientY);
     setInventoryDrag((current) => current
-      ? { ...current, x: pointer.x, y: pointer.y }
+      ? { ...current, x: event.clientX, y: event.clientY }
       : current);
     const backpack = Boolean(ITEM_BY_ID.get(pending.itemId)?.backpackCapacityKg);
     setBackpackDropTarget(backpack && isBackpackEquipmentAtPoint(event.clientX, event.clientY));
@@ -8751,15 +8572,15 @@ export function MovementLab() {
     );
 
     const pressedKeys = new Set<string>();
-    const sprites = new Map<Direction, HTMLCanvasElement>();
-    let nWalkSprites: HTMLCanvasElement[] = [];
-    let neWalkSprites: HTMLCanvasElement[] = [];
-    let nwWalkSprites: HTMLCanvasElement[] = [];
-    let eWalkSprites: HTMLCanvasElement[] = [];
-    let sWalkSprites: HTMLCanvasElement[] = [];
-    let seWalkSprites: HTMLCanvasElement[] = [];
-    let swWalkSprites: HTMLCanvasElement[] = [];
-    let wWalkSprites: HTMLCanvasElement[] = [];
+    const sprites = new Map<Direction, TransparentCharacterSprite>();
+    let nWalkSprites: TransparentWalkSprite[] = [];
+    let neWalkSprites: TransparentWalkSprite[] = [];
+    let nwWalkSprites: TransparentWalkSprite[] = [];
+    let eWalkSprites: TransparentWalkSprite[] = [];
+    let sWalkSprites: TransparentWalkSprite[] = [];
+    let seWalkSprites: TransparentWalkSprite[] = [];
+    let swWalkSprites: TransparentWalkSprite[] = [];
+    let wWalkSprites: TransparentWalkSprite[] = [];
     const walkBootShadowFrames: Partial<
       Record<Direction, Array<[BootShadowAnchor, BootShadowAnchor] | null>>
     > = {};
@@ -9053,6 +8874,8 @@ export function MovementLab() {
     let activeInputMode: QuestPromptInputMode = "keyboard-mouse";
     let activePromptOwner: "player" | "cursor" | null = null;
     let activePromptTargetId: string | null = null;
+    const worldItemHighlights = new Map<string, number>();
+    let worldItemHighlightLastTime = 0;
     let previousPlayerPromptTargetId: string | null = null;
     let previousCursorPromptTargetId: string | null = null;
     let mobileInteractionTargetId: string | null = null;
@@ -9708,10 +9531,10 @@ export function MovementLab() {
       const image = new Image();
       image.decoding = "async";
       image.onload = () => {
-        const sprite = makeChromaKeySprite(image);
         const facing = direction as Direction;
+        const sprite = makeTransparentIdleSprite(facing, image);
         sprites.set(facing, sprite);
-        idleBootShadowFrames.set(facing, detectBootShadowAnchors(sprite));
+        idleBootShadowFrames.set(facing, sprite.bootAnchors);
       };
       image.src = source;
     });
@@ -9727,8 +9550,8 @@ export function MovementLab() {
         nWalkImages[index] = image;
         loadedNWalkFrameCount += 1;
         if (loadedNWalkFrameCount === N_WALK_FRAME_SOURCES.length) {
-          nWalkSprites = makeChromaKeySpriteSequence(nWalkImages);
-          walkBootShadowFrames.N = nWalkSprites.map(detectBootShadowAnchors);
+          nWalkSprites = makeTransparentWalkSprites("N", nWalkImages);
+          walkBootShadowFrames.N = nWalkSprites.map(sprite => sprite.bootAnchors);
         }
       };
       image.src = source;
@@ -9745,8 +9568,8 @@ export function MovementLab() {
         neWalkImages[index] = image;
         loadedNeWalkFrameCount += 1;
         if (loadedNeWalkFrameCount === NE_WALK_FRAME_SOURCES.length) {
-          neWalkSprites = makeChromaKeySpriteSequence(neWalkImages);
-          walkBootShadowFrames.NE = neWalkSprites.map(detectBootShadowAnchors);
+          neWalkSprites = makeTransparentWalkSprites("NE", neWalkImages);
+          walkBootShadowFrames.NE = neWalkSprites.map(sprite => sprite.bootAnchors);
         }
       };
       image.src = source;
@@ -9763,8 +9586,8 @@ export function MovementLab() {
         nwWalkImages[index] = image;
         loadedNwWalkFrameCount += 1;
         if (loadedNwWalkFrameCount === NW_WALK_FRAME_SOURCES.length) {
-          nwWalkSprites = makeChromaKeySpriteSequence(nwWalkImages);
-          walkBootShadowFrames.NW = nwWalkSprites.map(detectBootShadowAnchors);
+          nwWalkSprites = makeTransparentWalkSprites("NW", nwWalkImages);
+          walkBootShadowFrames.NW = nwWalkSprites.map(sprite => sprite.bootAnchors);
         }
       };
       image.src = source;
@@ -9781,8 +9604,8 @@ export function MovementLab() {
         eWalkImages[index] = image;
         loadedEWalkFrameCount += 1;
         if (loadedEWalkFrameCount === E_WALK_FRAME_SOURCES.length) {
-          eWalkSprites = makeChromaKeySpriteSequence(eWalkImages);
-          walkBootShadowFrames.E = eWalkSprites.map(detectBootShadowAnchors);
+          eWalkSprites = makeTransparentWalkSprites("E", eWalkImages);
+          walkBootShadowFrames.E = eWalkSprites.map(sprite => sprite.bootAnchors);
         }
       };
       image.src = source;
@@ -9799,8 +9622,8 @@ export function MovementLab() {
         sWalkImages[index] = image;
         loadedSWalkFrameCount += 1;
         if (loadedSWalkFrameCount === S_WALK_FRAME_SOURCES.length) {
-          sWalkSprites = makeChromaKeySpriteSequence(sWalkImages);
-          walkBootShadowFrames.S = sWalkSprites.map(detectBootShadowAnchors);
+          sWalkSprites = makeTransparentWalkSprites("S", sWalkImages);
+          walkBootShadowFrames.S = sWalkSprites.map(sprite => sprite.bootAnchors);
         }
       };
       image.src = source;
@@ -9817,8 +9640,8 @@ export function MovementLab() {
         seWalkImages[index] = image;
         loadedSeWalkFrameCount += 1;
         if (loadedSeWalkFrameCount === SE_WALK_FRAME_SOURCES.length) {
-          seWalkSprites = makeChromaKeySpriteSequence(seWalkImages);
-          walkBootShadowFrames.SE = seWalkSprites.map(detectBootShadowAnchors);
+          seWalkSprites = makeTransparentWalkSprites("SE", seWalkImages);
+          walkBootShadowFrames.SE = seWalkSprites.map(sprite => sprite.bootAnchors);
         }
       };
       image.src = source;
@@ -9835,8 +9658,8 @@ export function MovementLab() {
         swWalkImages[index] = image;
         loadedSwWalkFrameCount += 1;
         if (loadedSwWalkFrameCount === SW_WALK_FRAME_SOURCES.length) {
-          swWalkSprites = makeChromaKeySpriteSequence(swWalkImages);
-          walkBootShadowFrames.SW = swWalkSprites.map(detectBootShadowAnchors);
+          swWalkSprites = makeTransparentWalkSprites("SW", swWalkImages);
+          walkBootShadowFrames.SW = swWalkSprites.map(sprite => sprite.bootAnchors);
         }
       };
       image.src = source;
@@ -9853,8 +9676,8 @@ export function MovementLab() {
         wWalkImages[index] = image;
         loadedWWalkFrameCount += 1;
         if (loadedWWalkFrameCount === W_WALK_FRAME_SOURCES.length) {
-          wWalkSprites = makeChromaKeySpriteSequence(wWalkImages);
-          walkBootShadowFrames.W = wWalkSprites.map(detectBootShadowAnchors);
+          wWalkSprites = makeTransparentWalkSprites("W", wWalkImages);
+          walkBootShadowFrames.W = wWalkSprites.map(sprite => sprite.bootAnchors);
         }
       };
       image.src = source;
@@ -12763,6 +12586,17 @@ export function MovementLab() {
     };
 
     const drawWorldItemPickups = (time: number) => {
+      // 外光暈與光束動態只在游標指向或角色進入互動距離（即目前的互動提示目標）時出現，約 0.12 秒淡入淡出
+      const highlightElapsed = Math.max(0, Math.min(100, time - worldItemHighlightLastTime));
+      worldItemHighlightLastTime = time;
+      const pickups: {
+        interactable: SceneInteractable;
+        item: ItemDefinition;
+        drawPosition: { x: number; y: number };
+        drawRotation: number;
+        drawScaleX: number;
+        drawScaleY: number;
+      }[] = [];
       sceneInteractablesRef.current.forEach((interactable) => {
         if (
           !interactable.position ||
@@ -12812,6 +12646,51 @@ export function MovementLab() {
             }
           }
         }
+        pickups.push({
+          interactable,
+          item,
+          drawPosition,
+          drawRotation,
+          drawScaleX,
+          drawScaleY,
+        });
+      });
+
+      // 依透視排序：畫面上越下方（越靠前）的道具越晚畫，圖層在上
+      pickups.sort((a, b) => a.drawPosition.y - b.drawPosition.y);
+      pickups.forEach(({
+        interactable,
+        item,
+        drawPosition,
+        drawRotation,
+        drawScaleX,
+        drawScaleY,
+      }) => {
+        // 3D 箱體 Icon（烤漆金屬）：原點為箱體接地中心，略低於道具座標，讓箱體視覺中心落在道具座標上
+        context.save();
+        context.translate(drawPosition.x, drawPosition.y + WORLD_ITEM_ICON_GROUND_OFFSET);
+        context.rotate(drawRotation);
+        context.scale(
+          drawScaleX * WORLD_ITEM_ICON_SCALE,
+          drawScaleY * WORLD_ITEM_ICON_SCALE,
+        );
+        const highlightTarget = activePromptTargetId === interactable.id ? 1 : 0;
+        const previousHighlight = worldItemHighlights.get(interactable.id) ?? 0;
+        const highlight = previousHighlight < highlightTarget
+          ? Math.min(highlightTarget, previousHighlight + highlightElapsed / 120)
+          : Math.max(highlightTarget, previousHighlight - highlightElapsed / 120);
+        if (highlight > 0) worldItemHighlights.set(interactable.id, highlight);
+        else worldItemHighlights.delete(interactable.id);
+        const drewIcon = drawWorldItemIcon(
+          context,
+          item,
+          time,
+          getWorldItemIconPhase(interactable.worldItemId ?? interactable.id),
+          highlight,
+        );
+        context.restore();
+        if (drewIcon) return;
+
         const pulse = 0.82 + Math.sin(time / 420) * 0.12;
         const floatOffset = Math.sin(time / 620) * 2.2;
         context.save();
@@ -13378,13 +13257,8 @@ export function MovementLab() {
       bootAnchors.forEach(drawBootContactShadow);
 
       if (sprite) {
-        context.drawImage(
-          sprite,
-          player.x - renderedWidth / 2,
-          player.y - renderedHeight,
-          renderedWidth,
-          renderedHeight,
-        );
+        drawTransparentCharacterSprite(context, sprite,
+          player.x - renderedWidth / 2, player.y - renderedHeight, renderedWidth, renderedHeight);
       } else {
         context.fillStyle = "#7be0d4";
         context.beginPath();
@@ -16190,16 +16064,17 @@ export function MovementLab() {
     const menuOffsetY = 12;
     const menuEdgeGap = 8;
     selectInventoryItem(databaseIndex);
+    // 位置先以舞台座標限制在舞台內，再加回舞台在視窗中的位移（選單為 position: fixed，以視窗為基準）
     setInventoryContextMenu({
       kind: "inventory",
-      x: Math.max(
+      x: (shellRect?.left ?? 0) + Math.max(
         menuEdgeGap,
         Math.min(
           pointer.x + menuOffsetX,
           (shellRect?.width ?? window.innerWidth) - menuWidth - menuEdgeGap,
         ),
       ),
-      y: Math.max(
+      y: (shellRect?.top ?? 0) + Math.max(
         menuEdgeGap,
         Math.min(
           pointer.y + menuOffsetY,
@@ -16253,23 +16128,23 @@ export function MovementLab() {
     const slotRect = event.currentTarget.getBoundingClientRect();
     const shellRect = gameShellRef.current?.getBoundingClientRect();
     const shellLeft = shellRect?.left ?? 0;
-    const shellTop = shellRect?.top ?? 0;
     const shellWidth = shellRect?.width ?? window.innerWidth;
     const menuHalfWidth = 75;
     const menuEdgeGap = 8;
     const slotCenterX = slotRect.left - shellLeft + slotRect.width / 2;
     activeHotbarSlotRef.current = slotIndex;
     setActiveHotbarSlot(slotIndex);
+    // 位置先以舞台座標限制在舞台內，再加回舞台在視窗中的位移（選單為 position: fixed，以視窗為基準）
     setInventoryContextMenu({
       kind: "hotbar",
-      x: Math.max(
+      x: shellLeft + Math.max(
         menuHalfWidth + menuEdgeGap,
         Math.min(
           slotCenterX,
           shellWidth - menuHalfWidth - menuEdgeGap,
         ),
       ),
-      y: slotRect.top - shellTop - menuEdgeGap,
+      y: slotRect.top - menuEdgeGap,
       slotIndex,
     });
   };

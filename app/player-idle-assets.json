@@ -1,0 +1,170 @@
+{
+  "N": {
+    "source": "./characters/idle/Transparent_570x720/01_N_Back.png",
+    "crop": {
+      "x": 179,
+      "y": 80,
+      "width": 206,
+      "height": 531
+    },
+    "bootAnchors": [
+      {
+        "xRatio": 0.22098535593948673,
+        "yRatio": 0.9905838041431262,
+        "contact": 0.9874450721908349
+      },
+      {
+        "xRatio": 0.7586147418742853,
+        "yRatio": 0.9905838041431262,
+        "contact": 0.9874450721908349
+      }
+    ]
+  },
+  "NE": {
+    "source": "./characters/idle/Transparent_570x720/02_NE_BackRight.png",
+    "crop": {
+      "x": 187,
+      "y": 85,
+      "width": 171,
+      "height": 506
+    },
+    "bootAnchors": [
+      {
+        "xRatio": 0.36976983678497527,
+        "yRatio": 0.9209486166007905,
+        "contact": 0.525691699604743
+      },
+      {
+        "xRatio": 0.7451739511575752,
+        "yRatio": 0.9901185770750988,
+        "contact": 0.9868247694334651
+      }
+    ]
+  },
+  "E": {
+    "source": "./characters/idle/Transparent_570x720/03_E_Right.png",
+    "crop": {
+      "x": 179,
+      "y": 71,
+      "width": 165,
+      "height": 539
+    },
+    "bootAnchors": [
+      {
+        "xRatio": 0.5096533612475688,
+        "yRatio": 0.9833024118738405,
+        "contact": 0.9505256648113791
+      },
+      {
+        "xRatio": 0.7692974129022766,
+        "yRatio": 0.9907235621521335,
+        "contact": 1
+      }
+    ]
+  },
+  "SE": {
+    "source": "./characters/idle/Transparent_570x720/04_SE_FrontRight.png",
+    "crop": {
+      "x": 205,
+      "y": 78,
+      "width": 172,
+      "height": 523
+    },
+    "bootAnchors": [
+      {
+        "xRatio": 0.3120649196388176,
+        "yRatio": 0.9904397705544933,
+        "contact": 0.9872530274059911
+      },
+      {
+        "xRatio": 0.7651881095910238,
+        "yRatio": 0.9158699808795411,
+        "contact": 0.49012109623964306
+      }
+    ]
+  },
+  "S": {
+    "source": "./characters/idle/Transparent_570x720/05_S_Front.png",
+    "crop": {
+      "x": 188,
+      "y": 89,
+      "width": 194,
+      "height": 505
+    },
+    "bootAnchors": [
+      {
+        "xRatio": 0.20944705837070748,
+        "yRatio": 0.9900990099009901,
+        "contact": 0.9867986798679867
+      },
+      {
+        "xRatio": 0.7845524753109367,
+        "yRatio": 0.9900990099009901,
+        "contact": 0.9867986798679867
+      }
+    ]
+  },
+  "SW": {
+    "source": "./characters/idle/Transparent_570x720/06_SW_FrontLeft.png",
+    "crop": {
+      "x": 188,
+      "y": 86,
+      "width": 191,
+      "height": 525
+    },
+    "bootAnchors": [
+      {
+        "xRatio": 0.21799181901366838,
+        "yRatio": 0.9085714285714286,
+        "contact": 0.44126984126984126
+      },
+      {
+        "xRatio": 0.6452653523710628,
+        "yRatio": 0.9904761904761905,
+        "contact": 0.9873015873015873
+      }
+    ]
+  },
+  "W": {
+    "source": "./characters/idle/Transparent_570x720/07_W_Left.png",
+    "crop": {
+      "x": 207,
+      "y": 52,
+      "width": 181,
+      "height": 586
+    },
+    "bootAnchors": [
+      {
+        "xRatio": 0.20878702572851693,
+        "yRatio": 0.9914675767918089,
+        "contact": 0.9886234357224118
+      },
+      {
+        "xRatio": 0.4922294243130009,
+        "yRatio": 0.984641638225256,
+        "contact": 0.9431171786120591
+      }
+    ]
+  },
+  "NW": {
+    "source": "./characters/idle/Transparent_570x720/08_NW_BackLeft.png",
+    "crop": {
+      "x": 179,
+      "y": 78,
+      "width": 198,
+      "height": 536
+    },
+    "bootAnchors": [
+      {
+        "xRatio": 0.2577784512504534,
+        "yRatio": 0.9906716417910447,
+        "contact": 0.9875621890547264
+      },
+      {
+        "xRatio": 0.7073745643045185,
+        "yRatio": 0.9235074626865671,
+        "contact": 0.5398009950248756
+      }
+    ]
+  }
+}

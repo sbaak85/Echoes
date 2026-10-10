@@ -239,6 +239,52 @@ internal static class Program
         }
         dialogueForm.RunLineIdUiSelfTest();
 
+        // 共用發話者、旁白選項、自動列高與字數欄。
+        var documentSpeakers = mainForm.CollectDocumentSpeakers();
+        if (!documentSpeakers.Contains("Sbaak") ||
+            documentSpeakers.Count != documentSpeakers.Distinct(StringComparer.OrdinalIgnoreCase).Count())
+        {
+            throw new InvalidDataException("全章節發話者清單不完整或含重複名稱。");
+        }
+        const string sharedSpeaker = "共用測試發話者";
+        using var speakerForm = new DialogueEditorForm(
+            sectionNine.Dialogue,
+            sectionNine.Name,
+            "Speaker UX smoke test",
+            sectionNine.Id,
+            documentSpeakers.Append(sharedSpeaker));
+        speakerForm.CreateControl();
+        speakerForm.PerformLayout();
+        speakerForm.RunSpeakerUxSelfTest(sharedSpeaker);
+
+        // 主畫面：對話 ID 複製欄位與不會被裁切的橫向工具列。
+        var sectionGrid = Descendants(mainForm)
+            .OfType<DataGridView>()
+            .FirstOrDefault(grid => grid.Columns.Contains("copyId"))
+            ?? throw new InvalidDataException("對話段落表格缺少複製 ID 欄位。");
+        if (sectionGrid.Columns["copyId"] is not DataGridViewButtonColumn ||
+            sectionGrid.ClipboardCopyMode != DataGridViewClipboardCopyMode.Disable)
+        {
+            throw new InvalidDataException("複製 ID 欄位設定不正確。");
+        }
+        var toolbars = Descendants(mainForm)
+            .OfType<FlowLayoutPanel>()
+            .Where(panel => panel.Name == "sectionToolbar")
+            .ToList();
+        if (toolbars.Count == 0 || toolbars.Any(panel => panel.Dock != DockStyle.Top || !panel.WrapContents))
+        {
+            throw new InvalidDataException("段落操作按鈕應改為可換行的橫向工具列。");
+        }
+        var workingArea = Screen.FromControl(mainForm).WorkingArea;
+        if (mainForm.Width > workingArea.Width || mainForm.Height > workingArea.Height)
+        {
+            throw new InvalidDataException("主視窗初始尺寸超出螢幕工作區。");
+        }
+        if (mainForm.HasUnsavedChanges || mainForm.Text.StartsWith("＊", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("剛開啟時不應標示為未儲存。");
+        }
+
         Console.WriteLine("ChapterScriptEditor UI smoke test passed.");
     }
 
@@ -370,6 +416,56 @@ internal static class Program
         {
             throw new InvalidDataException("章節起始時間未通過儲存與重新讀取測試。");
         }
+
+        // 建議 ID：任何章數都轉成 chapterNN，且不含中文。
+        foreach (var (name, expected) in new[]
+        {
+            ("第三章_Section 5", "chapter03-section-5"),
+            ("第四章_Section 5", "chapter04-section-5"),
+            ("第十二章_Start", "chapter12-start"),
+            ("第二十章 Final", "chapter20-final"),
+            ("第4章_Section 1", "chapter04-section-1"),
+            ("第四章_想辦法打通南方通道", "chapter04"),
+            ("序章_Opening", "prologue-opening"),
+        })
+        {
+            var actual = MainForm.Slugify(name);
+            if (actual != expected)
+            {
+                throw new InvalidDataException($"Slugify(\"{name}\") 應為 {expected}，實際為 {actual}。");
+            }
+        }
+        if (SectionPrompt.ValidateId("chapter04-start", _ => false) is not null ||
+            SectionPrompt.ValidateId("第四章-start", _ => false) is null ||
+            SectionPrompt.ValidateId("chapter04-start", _ => true) is null ||
+            SectionPrompt.ValidateId("", _ => false) is null)
+        {
+            throw new InvalidDataException("對話 ID 檢查規則不正確。");
+        }
+
+        // 日期備份只保留最近 N 份，且只刪除最舊的。
+        var backupTestDirectory = Path.Combine(temporaryDirectory, "backup-retention");
+        if (Directory.Exists(backupTestDirectory)) Directory.Delete(backupTestDirectory, true);
+        Directory.CreateDirectory(backupTestDirectory);
+        for (var index = 0; index < 5; index++)
+        {
+            File.WriteAllText(
+                Path.Combine(backupTestDirectory, $"story-content_2026010{index + 1}_000000_000.ts.backup"),
+                "x");
+        }
+        File.WriteAllText(Path.Combine(backupTestDirectory, "unrelated.txt"), "keep");
+        StoryContentCodec.PruneBackups(backupTestDirectory, 3);
+        var remainingBackups = Directory.GetFiles(backupTestDirectory, "*.backup")
+            .Select(Path.GetFileName)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToList();
+        if (remainingBackups.Count != 3 ||
+            remainingBackups[0] != "story-content_20260103_000000_000.ts.backup" ||
+            !File.Exists(Path.Combine(backupTestDirectory, "unrelated.txt")))
+        {
+            throw new InvalidDataException("備份保留規則沒有只刪除最舊的備份。");
+        }
+        Directory.Delete(backupTestDirectory, true);
 
         Console.WriteLine("ChapterScriptEditor self-test passed.");
     }

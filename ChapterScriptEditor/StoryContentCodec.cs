@@ -69,12 +69,43 @@ public static class StoryContentCodec
                 backupDirectory,
                 $"story-content_{DateTime.Now:yyyyMMdd_HHmmss_fff}.ts.backup");
             File.Copy(storyContentPath, backupPath, false);
+            PruneBackups(backupDirectory, BackupRetentionCount);
         }
 
         var temporaryPath = storyContentPath + ".tmp";
         File.WriteAllText(temporaryPath, generatedSource, new UTF8Encoding(false));
         File.Move(temporaryPath, storyContentPath, true);
         return storyContentPath;
+    }
+
+    /// <summary>日期備份只保留最近幾份，避免每次存檔都讓備份資料夾無限成長。</summary>
+    internal const int BackupRetentionCount = 30;
+
+    internal static int PruneBackups(string backupDirectory, int keep)
+    {
+        if (!Directory.Exists(backupDirectory)) return 0;
+        // 檔名內含 yyyyMMdd_HHmmss_fff 時間戳，依名稱排序即為時間順序。
+        var stale = new DirectoryInfo(backupDirectory)
+            .GetFiles("story-content_*.ts.backup")
+            .OrderByDescending(file => file.Name, StringComparer.Ordinal)
+            .Skip(Math.Max(1, keep))
+            .ToList();
+        var removed = 0;
+        foreach (var file in stale)
+        {
+            try
+            {
+                file.Delete();
+                removed++;
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+        return removed;
     }
 
     public static string GenerateSource(

@@ -35,7 +35,7 @@ function loadMenu(react) {
   return module.exports.StarshipInteractionMenu;
 }
 
-test("only completed v2 tutorial in current Stage03 locks cooking and repair, including restored saves", () => {
+test("cooking and repair remain locked before and after tutorial completion and stage progression, including restored saves", () => {
   const data = JSON.parse(readFileSync(new URL("../public/quests/quest-data.json", import.meta.url), "utf8"));
   const base = new QuestRuntimeManager(data).exportSave();
   for (const stage of [availability.STARSHIP_MENU_RESTRICTED_STAGE, "QUEST_CH04_MAIN_001_STAGE_02", "QUEST_CH04_MAIN_001_STAGE_04"]) {
@@ -48,12 +48,12 @@ test("only completed v2 tutorial in current Stage03 locks cooking and repair, in
       })));
       const manager = new QuestRuntimeManager(data, {}, portable.progress.quest);
       assert.deepEqual(availability.getStarshipMenuFeatureLocks(manager, portable.progress.story.storyFlags),
-        stage === availability.STARSHIP_MENU_RESTRICTED_STAGE && completed ? locked : unlocked);
+        locked);
     }
   }
-  assert.deepEqual(availability.getStarshipMenuFeatureLocks(null, { [tutorial.STARSHIP_CRAFTING_TUTORIAL_COMPLETED_FLAG]: true }), unlocked);
+  assert.deepEqual(availability.getStarshipMenuFeatureLocks(null, { [tutorial.STARSHIP_CRAFTING_TUTORIAL_COMPLETED_FLAG]: true }), locked);
   assert.deepEqual(availability.getStarshipMenuFeatureLocks({ getCurrentStage: () => availability.STARSHIP_MENU_RESTRICTED_STAGE },
-    { "tutorial:starship-crafting:completed:v1": true }), unlocked);
+    { "tutorial:starship-crafting:completed:v1": true }), locked);
 });
 
 test("real menu renders a sharp grey repair card with aria-disabled and removes it from tab order", () => {
@@ -158,7 +158,7 @@ test("directional navigation skips locked cards and cursor confirmation on a loc
   assert.ok(rig.button("workbench")); document.activeElement = oldElement;
 });
 
-test("lock changes use current props rather than stale callbacks and future stages restore card activation", t => {
+test("lock changes use current props rather than stale callbacks and only an explicit feature policy change restores card activation", t => {
   const rig = createRig(t);
   rig.props.featureLocks = unlocked; rig.render();
   const repair = rig.button("repair"); assert.equal(repair.props["aria-disabled"], undefined);
@@ -172,4 +172,17 @@ test("production uses the current quest snapshot and persistent completion flag,
   const movement = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
   assert.match(movement, /featureLocks=\{getStarshipMenuFeatureLocks\(questRuntimeManagerRef.current, storyProgressRef.current.storyFlags\)\}/);
   assert.doesNotMatch(readFileSync(new URL("../app/starship-menu-availability.ts", import.meta.url), "utf8"), /OBJ_20|interaction-029|interaction-031/);
+});
+
+test("omitting featureLocks keeps repair and cooking locked in the shared menu", t => {
+  const rig = createRig(t);
+  delete rig.props.featureLocks;
+  rig.render();
+  assert.equal(rig.button("repair").props["aria-disabled"], true);
+  rig.button("repair").click(); rig.render();
+  assert.ok(rig.button("craft"));
+  rig.button("craft").click(); rig.render();
+  assert.equal(rig.button("cooking").props["aria-disabled"], true);
+  rig.button("cooking").click(); rig.render();
+  assert.ok(rig.button("workbench"));
 });

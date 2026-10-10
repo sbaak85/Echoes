@@ -16,7 +16,7 @@ import { CraftingWorkbench } from "./crafting-workbench";
 import type { PlayerInventory } from "./item-database";
 import { STARSHIP_CRAFTING_TUTORIAL_STEPS, STARSHIP_CRAFTING_TUTORIAL_RECIPE, advanceStarshipCraftingTutorial, starshipTutorialButtonSelectors, type StarshipCraftingTutorialStep } from "./starship-crafting-tutorial";
 import { StarshipCraftingTutorialOverlay } from "./starship-crafting-tutorial-overlay";
-import { UNLOCKED_STARSHIP_MENU_FEATURES, type StarshipMenuFeatureLocks } from "./starship-menu-availability";
+import { LOCKED_STARSHIP_MENU_FEATURES, type StarshipMenuFeatureLocks } from "./starship-menu-availability";
 import "./starship-interaction-menu.css";
 import { resolveRuntimePublicAssetUrl as assetUrl } from "./public-asset-url";
 
@@ -85,7 +85,7 @@ export const StarshipInteractionMenu = forwardRef<StarshipInteractionMenuControl
   onWorkbenchHoverAudio,
   onWorkbenchOpenAudio,
   tutorialStart = false,
-  featureLocks = UNLOCKED_STARSHIP_MENU_FEATURES,
+  featureLocks = LOCKED_STARSHIP_MENU_FEATURES,
   onTutorialCompleted,
 }, forwardedRef) {
   const tutorialRoot = useRef<HTMLDivElement>(null);

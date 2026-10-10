@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Echoes.MapEditor;
 
 namespace Echoes.ChapterScriptEditor;
@@ -8,8 +9,14 @@ public sealed class MainForm : Form
     private readonly string _storyContentPath;
     private readonly TabControl _chapterTabs = new();
     private readonly Label _status = new();
+    private const string WindowTitle = "Echoes · 章節腳本編輯器";
+    private static readonly Regex ChapterNamePattern =
+        new(@"第\s*([0-9０-９]+|[零〇一二兩三四五六七八九十百]+)\s*章", RegexOptions.CultureInvariant);
     private ChapterScriptDocument _document;
     private bool _rebuildingTabs;
+    private bool _hasUnsavedChanges;
+
+    internal bool HasUnsavedChanges => _hasUnsavedChanges;
 
     public MainForm(string projectRoot, string storyContentPath)
     {
@@ -17,10 +24,15 @@ public sealed class MainForm : Form
         _storyContentPath = storyContentPath;
         _document = StoryContentCodec.Load(_storyContentPath);
 
-        Text = "Echoes · 章節腳本編輯器";
+        Text = WindowTitle;
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(1100, 760);
         ClientSize = new Size(1420, 1000);
+        // 小螢幕上預設尺寸會超出可視範圍，導致右側按鈕被裁切；一律限制在工作區內。
+        var workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
+        MinimumSize = new Size(Math.Min(MinimumSize.Width, workingArea.Width), Math.Min(MinimumSize.Height, workingArea.Height));
+        Size = new Size(Math.Min(Width, workingArea.Width), Math.Min(Height, workingArea.Height));
+        KeyPreview = true;
         BackColor = Theme.Background;
         ForeColor = Theme.Text;
         Font = new Font("Microsoft JhengHei UI", 10F);
@@ -83,8 +95,17 @@ public sealed class MainForm : Form
     private Control CreateFooter()
     {
         var footer = new Panel { Dock = DockStyle.Bottom, Height = 66, BackColor = Theme.Panel, Padding = new Padding(14, 12, 14, 10) };
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Right, Width = 455, FlowDirection = FlowDirection.RightToLeft };
-        var save = Theme.Button("儲存並更新遊戲腳本", 190);
+        var buttons = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Right,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            WrapContents = false,
+            FlowDirection = FlowDirection.RightToLeft,
+        };
+        var save = Theme.Button("儲存並更新遊戲腳本 (Ctrl+S)", 230);
+        save.AutoSize = true;
+        save.AutoSizeMode = AutoSizeMode.GrowOnly;
         var reload = Theme.Button("重新讀取", 110);
         var openFolder = Theme.Button("開啟所在資料夾", 130);
         save.Click += (_, _) => SaveDocument();
@@ -162,11 +183,13 @@ public sealed class MainForm : Form
         var sectionHeightsInitialized = false;
         page.Layout += (_, _) =>
         {
-            if (sectionHeightsInitialized || content.Height < 500) return;
+            // 小螢幕上內容區常低於 500px；門檻太高會讓三區比例永遠不初始化。
+            if (sectionHeightsInitialized || content.Height < 240) return;
             sectionHeightsInitialized = true;
-            content.SplitterDistance = (content.Height - content.SplitterWidth) / 3;
+            // 字幕事件通常只有一兩筆；把較多高度留給句數最多的「對話段落小節」。
+            content.SplitterDistance = (int)((content.Height - content.SplitterWidth) * 0.28);
             lowerContent.SplitterDistance =
-                (lowerContent.Height - lowerContent.SplitterWidth) / 2;
+                (int)((lowerContent.Height - lowerContent.SplitterWidth) * 0.58);
         };
         page.Controls.Add(content);
         page.Controls.Add(identity);
@@ -243,7 +266,7 @@ public sealed class MainForm : Form
         grid.Columns[2].FillWeight = 18;
         grid.Columns[3].FillWeight = 40;
 
-        var buttons = CreateSideButtons(
+        var buttons = CreateToolbar(
             ("新增字幕", () => AddSubtitle(chapter, grid)),
             ("編輯", () => EditSubtitle(chapter, grid)),
             ("刪除", () => DeleteSubtitle(chapter, grid)),
@@ -286,14 +309,34 @@ public sealed class MainForm : Form
         grid.RowTemplate.Height = 32;
         grid.Columns.Add("name", "段落名稱");
         grid.Columns.Add("id", "對話 ID");
+        grid.Columns.Add(new DataGridViewButtonColumn
+        {
+            Name = "copyId",
+            HeaderText = "",
+            Text = "複製",
+            UseColumnTextForButtonValue = true,
+            FlatStyle = FlatStyle.Flat,
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+            Width = 62,
+            ToolTipText = "複製對話 ID（選取列後按 Ctrl+C 也可以）",
+            DefaultCellStyle = new DataGridViewCellStyle
+            {
+                BackColor = Theme.PanelAlt,
+                ForeColor = Theme.Cyan,
+                SelectionBackColor = Theme.PanelAlt,
+                SelectionForeColor = Theme.Cyan,
+                Alignment = DataGridViewContentAlignment.MiddleCenter,
+            },
+        });
         grid.Columns.Add("count", "句數");
         grid.Columns.Add("speakers", "發話者");
-        grid.Columns[0].FillWeight = 27;
-        grid.Columns[1].FillWeight = 28;
-        grid.Columns[2].FillWeight = 10;
-        grid.Columns[3].FillWeight = 35;
+        grid.Columns["name"].FillWeight = 27;
+        grid.Columns["id"].FillWeight = 28;
+        grid.Columns["count"].FillWeight = 10;
+        grid.Columns["speakers"].FillWeight = 35;
+        grid.ClipboardCopyMode = DataGridViewClipboardCopyMode.Disable;
 
-        var buttons = CreateSideButtons(
+        var buttons = CreateToolbar(
             (addButtonText, () => AddDialogueSection(chapter, sections, grid, title)),
             ("編輯腳本", () => EditDialogueSection(sections, grid)),
             ("名稱 / ID", () => RenameDialogueSection(sections, grid)),
@@ -303,7 +346,27 @@ public sealed class MainForm : Form
             ("下移", () => MoveDialogueSection(sections, grid, 1)));
         grid.CellDoubleClick += (_, args) =>
         {
-            if (args.RowIndex >= 0) EditDialogueSection(sections, grid);
+            if (args.RowIndex >= 0 && grid.Columns[args.ColumnIndex].Name != "copyId")
+            {
+                EditDialogueSection(sections, grid);
+            }
+        };
+        grid.CellContentClick += (_, args) =>
+        {
+            if (args.RowIndex >= 0 && args.RowIndex < sections.Count &&
+                grid.Columns[args.ColumnIndex].Name == "copyId")
+            {
+                CopyDialogueId(sections[args.RowIndex].Id);
+            }
+        };
+        grid.KeyDown += (_, args) =>
+        {
+            if (args.KeyData != (Keys.Control | Keys.C)) return;
+            var index = SelectedIndex(grid, sections.Count);
+            if (index < 0) return;
+            CopyDialogueId(sections[index].Id);
+            args.Handled = true;
+            args.SuppressKeyPress = true;
         };
 
         body.Controls.Add(grid);
@@ -331,24 +394,54 @@ public sealed class MainForm : Form
         return group;
     }
 
-    private static FlowLayoutPanel CreateSideButtons(params (string Text, Action Action)[] definitions)
+    /// <summary>
+    /// 表格上方的橫向工具列：寬度不足時自動換行，不會像右側直排按鈕一樣在矮區塊中被裁切。
+    /// </summary>
+    internal static FlowLayoutPanel CreateToolbar(params (string Text, Action Action)[] definitions)
     {
         var panel = new FlowLayoutPanel
         {
-            Dock = DockStyle.Right,
-            Width = 128,
-            FlowDirection = FlowDirection.TopDown,
-            Padding = new Padding(8, 0, 0, 0),
-            AutoScroll = true,
-            WrapContents = false,
+            Name = "sectionToolbar",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true,
+            Padding = new Padding(0, 0, 0, 4),
         };
         foreach (var definition in definitions)
         {
-            var button = Theme.Button(definition.Text, 112);
+            var button = Theme.Button(definition.Text, 80);
+            button.AutoSize = true;
+            button.AutoSizeMode = AutoSizeMode.GrowOnly;
+            button.MinimumSize = new Size(72, 32);
+            button.Height = 32;
+            button.Margin = new Padding(0, 0, 6, 2);
             button.Click += (_, _) => definition.Action();
             panel.Controls.Add(button);
         }
         return panel;
+    }
+
+    private void CopyDialogueId(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return;
+        try
+        {
+            Clipboard.SetText(id);
+            ShowStatus($"已複製對話 ID：{id}");
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            ShowStatus("剪貼簿暫時被其他程式占用，請再試一次。");
+        }
+    }
+
+    /// <summary>顯示一般提示；有未儲存修改時保留「尚未儲存」前綴，避免誤以為已存檔。</summary>
+    private void ShowStatus(string message)
+    {
+        _status.Text = _hasUnsavedChanges ? $"尚未儲存 · {message}" : message;
+        _status.ForeColor = _hasUnsavedChanges ? Color.FromArgb(245, 192, 93) : Theme.Cyan;
     }
 
     private void ChapterTabSelected(object? sender, EventArgs e)
@@ -469,17 +562,15 @@ public sealed class MainForm : Form
         DataGridView grid,
         string areaTitle)
     {
-        var name = Prompt.Show(
+        var result = SectionPrompt.Show(
+            this,
             areaTitle,
-            "台詞區塊名稱",
-            $"{chapter.TabName}_Section {sections.Count + 1}");
-        if (name is null) return;
-        var suggestedId = UniqueId(Slugify(name));
-        var id = Prompt.Show(
-            areaTitle,
-            "對話 ID（MapEditor 的劇情對話 ID 填寫此值）",
-            suggestedId);
-        if (id is null) return;
+            $"{chapter.TabName}_Section {sections.Count + 1}",
+            initialId: null,
+            suggestId: name => UniqueId(Slugify(name)),
+            isIdTaken: id => IsIdTaken(id, exceptSection: null));
+        if (result is null) return;
+        var (name, id) = result.Value;
         var section = new DialogueSectionDefinition
         {
             Name = name,
@@ -512,8 +603,26 @@ public sealed class MainForm : Form
         section.Dialogue,
         section.Name,
         "本視窗只編輯這個章節段落。每列是一句完整發話；Line ID 為穩定唯讀識別，可供 BGM 等事件精確觸發。",
-        section.Id
+        section.Id,
+        CollectDocumentSpeakers()
     );
+
+    /// <summary>全部章節用過的發話者，讓每個段落的下拉選單都能直接選到同一個名字。</summary>
+    internal IReadOnlyList<string> CollectDocumentSpeakers() =>
+        DialogueEditorForm.CollectSpeakers(_document.Chapters
+            .SelectMany(chapter => chapter.DialogueSections.Concat(chapter.StoryTriggerDialogues))
+            .Select(section => (DialogueScript?)section.Dialogue));
+
+    private bool IsIdTaken(string id, DialogueSectionDefinition? exceptSection)
+    {
+        var ids = _document.Chapters.Select(chapter => chapter.Id)
+            .Concat(_document.Chapters.SelectMany(chapter => chapter.SubtitleEvents.Select(item => item.Id)))
+            .Concat(_document.Chapters
+                .SelectMany(chapter => chapter.DialogueSections.Concat(chapter.StoryTriggerDialogues))
+                .Where(section => !ReferenceEquals(section, exceptSection))
+                .Select(section => section.Id));
+        return ids.Contains(id, StringComparer.OrdinalIgnoreCase);
+    }
 
     private void RenameDialogueSection(
         List<DialogueSectionDefinition> sections,
@@ -522,13 +631,15 @@ public sealed class MainForm : Form
         var index = SelectedIndex(grid, sections.Count);
         if (index < 0) return;
         var section = sections[index];
-        var name = Prompt.Show("重新命名對話段落", "段落名稱", section.Name);
-        if (name is null) return;
-        var id = Prompt.Show(
-            "修改對話 ID",
-            "對話 ID（MapEditor 的劇情對話 ID 填寫此值）",
-            section.Id);
-        if (id is null) return;
+        var result = SectionPrompt.Show(
+            this,
+            "段落名稱與對話 ID",
+            section.Name,
+            initialId: section.Id,
+            suggestId: name => UniqueId(Slugify(name)),
+            isIdTaken: id => IsIdTaken(id, exceptSection: section));
+        if (result is null) return;
+        var (name, id) = result.Value;
         section.Name = name;
         section.Id = id;
         RefreshDialogueGrid(sections, grid, index);
@@ -609,7 +720,7 @@ public sealed class MainForm : Form
             var speakers = section.Dialogue.Lines.Select(line => line.Speaker)
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Distinct(StringComparer.OrdinalIgnoreCase);
-            grid.Rows.Add(section.Name, section.Id, section.Dialogue.Lines.Count, string.Join("、", speakers));
+            grid.Rows.Add(section.Name, section.Id, null, section.Dialogue.Lines.Count, string.Join("、", speakers));
         }
         SelectRow(grid, selected);
     }
@@ -619,6 +730,7 @@ public sealed class MainForm : Form
         try
         {
             StoryContentCodec.Save(_storyContentPath, _document);
+            SetUnsavedChanges(false);
             _status.Text = $"已儲存：{DateTime.Now:HH:mm:ss} · 已更新 app\\story-content.ts，並建立本機備份";
             _status.ForeColor = Theme.Cyan;
         }
@@ -634,6 +746,7 @@ public sealed class MainForm : Form
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         _document = StoryContentCodec.Load(_storyContentPath);
         RebuildTabs(FindLatestPopulatedChapterIndex(_document));
+        SetUnsavedChanges(false);
         _status.Text = "已重新讀取 story-content.ts";
         _status.ForeColor = Theme.Cyan;
     }
@@ -650,21 +763,40 @@ public sealed class MainForm : Form
 
     private void ConfirmUnsavedClose(object? sender, FormClosingEventArgs e)
     {
-        if (!_status.Text.StartsWith("尚未儲存", StringComparison.Ordinal)) return;
+        if (!_hasUnsavedChanges) return;
         var result = MessageBox.Show("畫面上還有尚未儲存的修改。\n\n是：儲存後關閉\n否：不儲存直接關閉\n取消：返回編輯器",
             Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
         if (result == DialogResult.Cancel) e.Cancel = true;
         else if (result == DialogResult.Yes)
         {
             SaveDocument();
-            if (_status.Text.StartsWith("尚未儲存", StringComparison.Ordinal)) e.Cancel = true;
+            if (_hasUnsavedChanges) e.Cancel = true;
         }
     }
 
     private void MarkChanged(string message = "尚未儲存的修改")
     {
+        SetUnsavedChanges(true);
         _status.Text = message.StartsWith("尚未儲存", StringComparison.Ordinal) ? message : $"尚未儲存 · {message}";
         _status.ForeColor = Color.FromArgb(245, 192, 93);
+    }
+
+    /// <summary>未儲存狀態改用旗標記錄，並在標題列加上「＊」提示。</summary>
+    private void SetUnsavedChanges(bool value)
+    {
+        _hasUnsavedChanges = value;
+        Text = value ? "＊ " + WindowTitle : WindowTitle;
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == (Keys.Control | Keys.S))
+        {
+            Validate(); // 先提交正在編輯的文字方塊
+            SaveDocument();
+            return true;
+        }
+        return base.ProcessCmdKey(ref msg, keyData);
     }
 
     private string UniqueId(string preferred)
@@ -682,15 +814,64 @@ public sealed class MainForm : Form
         return candidate;
     }
 
-    private static string Slugify(string value)
+    /// <summary>
+    /// 由段落名稱產生建議 ID：「第N章」（阿拉伯或中文數字）轉成 chapterNN，
+    /// 其餘只保留英數字與連字號，避免產生含中文的對話 ID。
+    /// </summary>
+    internal static string Slugify(string value)
     {
-        var normalized = value.Trim()
-            .Replace("第三章", "chapter03", StringComparison.Ordinal)
-            .Replace("第二章", "chapter02", StringComparison.Ordinal)
+        var normalized = ChapterNamePattern.Replace(
+                value.Trim(),
+                match => ParseChapterNumber(match.Groups[1].Value) is int number
+                    ? $"chapter{number:00}"
+                    : match.Value)
             .Replace("序章", "prologue", StringComparison.Ordinal)
             .Replace(" ", "-", StringComparison.Ordinal)
-            .Replace("_", "-", StringComparison.Ordinal);
-        return new string(normalized.Where(character => char.IsLetterOrDigit(character) || character == '-').ToArray()).ToLowerInvariant();
+            .Replace("_", "-", StringComparison.Ordinal)
+            .ToLowerInvariant();
+        var ascii = new string(normalized
+            .Where(character => character is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '-')
+            .ToArray());
+        return Regex.Replace(ascii, "-{2,}", "-").Trim('-');
+    }
+
+    internal static int? ParseChapterNumber(string value)
+    {
+        value = value.Trim();
+        if (value.Length == 0) return null;
+        var digits = new string(value
+            .Select(character => character is >= '０' and <= '９' ? (char)('0' + (character - '０')) : character)
+            .ToArray());
+        if (int.TryParse(digits, out var parsed)) return parsed;
+
+        var total = 0;
+        var current = 0;
+        foreach (var character in value)
+        {
+            switch (character)
+            {
+                case '百':
+                    total += (current == 0 ? 1 : current) * 100;
+                    current = 0;
+                    break;
+                case '十':
+                    total += (current == 0 ? 1 : current) * 10;
+                    current = 0;
+                    break;
+                case '零' or '〇':
+                    current = 0;
+                    break;
+                case '兩':
+                    current = 2;
+                    break;
+                default:
+                    var digit = "一二三四五六七八九".IndexOf(character);
+                    if (digit < 0) return null;
+                    current = digit + 1;
+                    break;
+            }
+        }
+        return total + current;
     }
 
     private static int SelectedIndex(DataGridView grid, int count) =>
@@ -735,36 +916,105 @@ public sealed class MainForm : Form
     };
 }
 
-internal static class Prompt
+/// <summary>
+/// 段落名稱與對話 ID 合併在同一個視窗：新增時 ID 會跟著名稱自動建議，
+/// 手動改過 ID 後就不再覆蓋；即時檢查空白、重複與不合法字元。
+/// </summary>
+internal static class SectionPrompt
 {
-    public static string? Show(string title, string label, string initialValue)
+    private static readonly Regex ValidIdPattern = new("^[A-Za-z0-9_-]+$", RegexOptions.CultureInvariant);
+
+    internal static string? ValidateId(string id, Func<string, bool> isIdTaken)
+    {
+        if (id.Length == 0) return "對話 ID 不可空白。";
+        if (!ValidIdPattern.IsMatch(id)) return "對話 ID 只能使用英文字母、數字、- 與 _。";
+        if (isIdTaken(id)) return "這個 ID 已被其他章節、字幕或段落使用。";
+        return null;
+    }
+
+    public static (string Name, string Id)? Show(
+        IWin32Window owner,
+        string title,
+        string initialName,
+        string? initialId,
+        Func<string, string> suggestId,
+        Func<string, bool> isIdTaken)
     {
         using var form = new Form
         {
             Text = title,
             StartPosition = FormStartPosition.CenterParent,
-            ClientSize = new Size(500, 160),
+            ClientSize = new Size(540, 248),
             FormBorderStyle = FormBorderStyle.FixedDialog,
             MaximizeBox = false,
             MinimizeBox = false,
+            ShowInTaskbar = false,
             BackColor = Theme.Background,
             ForeColor = Theme.Text,
             Font = new Font("Microsoft JhengHei UI", 10F),
         };
-        var caption = new Label { Text = label, AutoSize = true, ForeColor = Theme.Gold, Location = new Point(18, 22) };
-        var input = new TextBox { Text = initialValue, Location = new Point(18, 50), Width = 462 };
-        Theme.StyleInput(input);
+        var nameCaption = new Label { Text = "段落名稱", AutoSize = true, ForeColor = Theme.Gold, Location = new Point(18, 18) };
+        var nameInput = new TextBox { Text = initialName, Location = new Point(18, 44), Width = 502 };
+        var idCaption = new Label
+        {
+            Text = "對話 ID（MapEditor 的劇情對話 ID 填寫此值）",
+            AutoSize = true,
+            ForeColor = Theme.Gold,
+            Location = new Point(18, 84),
+        };
+        var idInput = new TextBox { Location = new Point(18, 110), Width = 502 };
+        var feedback = new Label { AutoSize = false, Location = new Point(18, 142), Size = new Size(502, 40) };
+        Theme.StyleInput(nameInput);
+        Theme.StyleInput(idInput);
         var ok = Theme.Button("確定", 90);
         var cancel = Theme.Button("取消", 90);
-        ok.Location = new Point(290, 104);
-        cancel.Location = new Point(390, 104);
-        ok.DialogResult = DialogResult.OK;
+        ok.Location = new Point(330, 196);
+        cancel.Location = new Point(430, 196);
         cancel.DialogResult = DialogResult.Cancel;
         form.AcceptButton = ok;
         form.CancelButton = cancel;
-        form.Controls.AddRange(new Control[] { caption, input, ok, cancel });
-        if (form.ShowDialog() != DialogResult.OK) return null;
-        var value = input.Text.Trim();
-        return value.Length == 0 ? null : value;
+
+        // 新增時 ID 跟著名稱自動建議；使用者一旦手動修改 ID 就停止覆蓋。
+        var followName = initialId is null;
+        var syncing = false;
+        void SetId(string value)
+        {
+            syncing = true;
+            idInput.Text = value;
+            syncing = false;
+        }
+        void Refresh()
+        {
+            var error = ValidateId(idInput.Text.Trim(), isIdTaken);
+            if (nameInput.Text.Trim().Length == 0) error = "段落名稱不可空白。";
+            ok.Enabled = error is null;
+            feedback.ForeColor = error is null ? Theme.Muted : Color.FromArgb(240, 128, 112);
+            feedback.Text = error ?? (followName ? "ID 會依名稱自動建議；直接修改 ID 即可自訂。" : "可以使用這個 ID。");
+        }
+        SetId(initialId ?? suggestId(initialName));
+        nameInput.TextChanged += (_, _) =>
+        {
+            if (followName) SetId(suggestId(nameInput.Text));
+            Refresh();
+        };
+        idInput.TextChanged += (_, _) =>
+        {
+            if (!syncing) followName = false;
+            Refresh();
+        };
+        ok.Click += (_, _) =>
+        {
+            Refresh();
+            if (ok.Enabled) form.DialogResult = DialogResult.OK;
+        };
+        form.Controls.AddRange(new Control[] { nameCaption, nameInput, idCaption, idInput, feedback, ok, cancel });
+        form.Shown += (_, _) =>
+        {
+            nameInput.Focus();
+            nameInput.SelectAll();
+        };
+        Refresh();
+        if (form.ShowDialog(owner) != DialogResult.OK) return null;
+        return (nameInput.Text.Trim(), idInput.Text.Trim());
     }
 }

@@ -9554,12 +9554,14 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   background: #02030a;
   pointer-events: auto;
   user-select: none;
+  container-type: size;
 }
 
 .star-cards-dialog {
   position: relative;
-  width: min(100vw, 177.7778vh);
-  height: min(100vh, 56.25vw);
+  /* 以舞台（overlay 容器）為基準，不用瀏覽器視窗；超過 1800px 舞台上限時才不會被裁切 */
+  width: min(100cqw, 177.7778cqh);
+  height: min(100cqh, 56.25cqw);
   overflow: hidden;
   isolation: isolate;
   background: #060818;
@@ -9927,31 +9929,31 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 .star-cards-lane[data-lane="C"] { left: 63.2%; }
 .star-cards-lane.is-ai-lane {
   --card-idle-x: 0px;
-  --opponent-card-idle-y: 3.13vh;
+  --opponent-card-idle-y: 3.13cqh;
   top: 5.9%;
   height: 38.3%;
 }
-.star-cards-lane.is-ai-lane[data-lane="A"] { --card-idle-x: -0.3vw; }
-.star-cards-lane.is-ai-lane[data-lane="B"] { --card-idle-x: -0.5vw; }
-.star-cards-lane.is-ai-lane[data-lane="C"] { --card-idle-x: -0.3vw; }
+.star-cards-lane.is-ai-lane[data-lane="A"] { --card-idle-x: -0.3cqw; }
+.star-cards-lane.is-ai-lane[data-lane="B"] { --card-idle-x: -0.5cqw; }
+.star-cards-lane.is-ai-lane[data-lane="C"] { --card-idle-x: -0.3cqw; }
 .star-cards-lane.is-player-lane {
   --card-idle-x: 0px;
-  --player-card-idle-y: 1.3vh;
+  --player-card-idle-y: 1.3cqh;
   top: 52.4%;
   height: 41%;
   cursor: default;
 }
 .star-cards-lane.is-player-lane[data-lane="A"] {
-  --card-idle-x: -3.7vw;
-  --zone-title-offset-x: 1.787vw;
+  --card-idle-x: -3.7cqw;
+  --zone-title-offset-x: 1.787cqw;
 }
 .star-cards-lane.is-player-lane[data-lane="B"] {
-  --card-idle-x: -0.5vw;
-  --zone-title-offset-x: -0.211vw;
+  --card-idle-x: -0.5cqw;
+  --zone-title-offset-x: -0.211cqw;
 }
 .star-cards-lane.is-player-lane[data-lane="C"] {
-  --card-idle-x: 2.4vw;
-  --zone-title-offset-x: -1.535vw;
+  --card-idle-x: 2.4cqw;
+  --zone-title-offset-x: -1.535cqw;
 }
 .star-cards-lane.is-drag-source { z-index: 255; }
 
@@ -10064,7 +10066,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 }
 
 .star-card-shell {
-  width: min(15.2vw, 27vh);
+  width: min(15.2cqw, 27cqh);
   aspect-ratio: 380 / 475;
   border: 0;
   outline: 0;
@@ -10077,7 +10079,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 .star-card-shell.is-placed {
   position: absolute;
   z-index: calc(20 + var(--stack-index));
-  top: calc(var(--stack-index) * min(5.2vh, 3vw));
+  top: calc(var(--stack-index) * min(5.2cqh, 3cqw));
   left: 50%;
   transform:
     translateX(calc(-50% + var(--card-idle-x, 0px)))
@@ -10091,14 +10093,14 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 
 .star-cards-lane.is-player-lane .star-card-shell.is-placed {
   top: calc(
-    var(--stack-index) * min(5.2vh, 3vw) + var(--player-card-idle-y)
+    var(--stack-index) * min(5.2cqh, 3cqw) + var(--player-card-idle-y)
   );
 }
 
 .star-cards-lane.is-ai-lane .star-card-shell.is-placed {
-  width: min(13.528vw, 24.03vh);
+  width: min(13.528cqw, 24.03cqh);
   top: calc(
-    var(--stack-index) * min(4.6vh, 2.6vw) + var(--opponent-card-idle-y)
+    var(--stack-index) * min(4.6cqh, 2.6cqw) + var(--opponent-card-idle-y)
   );
 }
 
@@ -10117,7 +10119,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   z-index: 72;
   top: 12.5%;
   left: 50%;
-  width: min(14.5vw, 25.8vh);
+  width: min(14.5cqw, 25.8cqh);
   transform: translateX(-50%);
   pointer-events: none;
 }
@@ -10135,7 +10137,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   top: 0;
   left: 0;
   bottom: auto;
-  width: min(16.1vw, 28.6vh);
+  width: min(16.1cqw, 28.6cqh);
   transform:
     translate3d(var(--drag-x, 0), var(--drag-y, 0), 0)
     translate(-50%, -50%)
@@ -10394,11 +10396,11 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 }
 
 .star-cards-battle-effect {
-  --battle-ai-x: -0.5vw;
-  --battle-player-x: -0.5vw;
-  --battle-mid-x: -0.5vw;
-  --battle-player-to-ai-x: 0vw;
-  --battle-ai-to-player-x: 0vw;
+  --battle-ai-x: -0.5cqw;
+  --battle-player-x: -0.5cqw;
+  --battle-mid-x: -0.5cqw;
+  --battle-player-to-ai-x: 0cqw;
+  --battle-ai-to-player-x: 0cqw;
   --battle-angle: 0deg;
   position: absolute;
   top: 31%;
@@ -10410,21 +10412,21 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 }
 
 .star-cards-battle-effect[data-lane="A"] {
-  --battle-ai-x: -0.3vw;
-  --battle-player-x: -3.7vw;
-  --battle-mid-x: -2vw;
-  --battle-player-to-ai-x: 3.4vw;
-  --battle-ai-to-player-x: -3.4vw;
+  --battle-ai-x: -0.3cqw;
+  --battle-player-x: -3.7cqw;
+  --battle-mid-x: -2cqw;
+  --battle-player-to-ai-x: 3.4cqw;
+  --battle-ai-to-player-x: -3.4cqw;
   --battle-angle: 10deg;
   left: 28%;
 }
 .star-cards-battle-effect[data-lane="B"] { left: 50.4%; }
 .star-cards-battle-effect[data-lane="C"] {
-  --battle-ai-x: -0.3vw;
-  --battle-player-x: 2.4vw;
-  --battle-mid-x: 1.05vw;
-  --battle-player-to-ai-x: -2.7vw;
-  --battle-ai-to-player-x: 2.7vw;
+  --battle-ai-x: -0.3cqw;
+  --battle-player-x: 2.4cqw;
+  --battle-mid-x: 1.05cqw;
+  --battle-player-to-ai-x: -2.7cqw;
+  --battle-ai-to-player-x: 2.7cqw;
   --battle-angle: -8deg;
   left: 72.8%;
 }
@@ -10584,7 +10586,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 }
 
 .star-cards-battle-effect.is-missile .star-cards-attack-trail {
-  --battle-spark-offset: 0vw;
+  --battle-spark-offset: 0cqw;
   --battle-missile-depth-offset: 0cqh;
   width: 12px;
   height: 24px;
@@ -10873,7 +10875,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 @keyframes star-card-deal-player {
   0% {
     opacity: 0;
-    transform: translate(calc(-50% + var(--deal-x)), 35vh) scale(0.25) rotate(calc(var(--hand-idle-angle, 0deg) + 5deg));
+    transform: translate(calc(-50% + var(--deal-x)), 35cqh) scale(0.25) rotate(calc(var(--hand-idle-angle, 0deg) + 5deg));
   }
   68% { opacity: 1; }
   100% { opacity: 1; transform: translateX(-50%) scale(1) rotate(var(--hand-idle-angle, 0deg)); }
@@ -10996,7 +10998,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 @keyframes star-card-deal-ai {
   0% {
     opacity: 0;
-    transform: translate(calc(-50% + var(--deal-x)), 76vh) scale(0.22) rotateY(18deg);
+    transform: translate(calc(-50% + var(--deal-x)), 76cqh) scale(0.22) rotateY(18deg);
   }
   62% { opacity: 1; }
   100% {
@@ -11008,7 +11010,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 @keyframes star-card-draw-ai {
   0% {
     opacity: 0;
-    transform: translate(-50%, 74vh) scale(0.22) rotateY(28deg);
+    transform: translate(-50%, 74cqh) scale(0.22) rotateY(28deg);
   }
   65% { opacity: 1; }
   100% { opacity: 1; transform: translateX(-50%) scale(1) rotateY(0); }

@@ -1550,7 +1550,7 @@ export function StarCardsGame({
             "--hand-x": `${handX}%`,
             "--hand-bottom": `${handBottom}%`,
             "--hand-idle-angle": `${handRotation}deg`,
-            "--deal-x": `${dealX}vw`,
+            "--deal-x": `${dealX}cqw`,
             "--deal-delay": `${hand.dealIndex * 90}ms`,
           }
         : options.aiPending
@@ -1561,8 +1561,8 @@ export function StarCardsGame({
             "--stack-index": options.stackIndex ?? 0,
             "--stack-depth": stackDepth,
             "--stack-scale": Math.max(0.94, 1 - stackDepth * 0.02),
-            "--stack-inward-x": `${stackInwardDirection * stackDepth * 0.36}vw`,
-            "--deal-x": `${aiDealX}vw`,
+            "--stack-inward-x": `${stackInwardDirection * stackDepth * 0.36}cqw`,
+            "--deal-x": `${aiDealX}cqw`,
             "--deal-delay": `${options.dealIndex * 110}ms`,
           };
 
@@ -1960,7 +1960,7 @@ export function StarCardsGame({
                   style={effect.missileTrailLayout
                     ? {
                         "--battle-spark-offset":
-                          `${effect.missileTrailLayout[index].lateralOffsetVw}vw`,
+                          `${effect.missileTrailLayout[index].lateralOffsetVw}cqw`,
                         "--battle-missile-depth-offset":
                           `${effect.missileTrailLayout[index].depthOffsetCqh}cqh`,
                         animationDelay:

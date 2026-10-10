@@ -3,12 +3,28 @@ namespace Echoes.MapEditor;
 public sealed class DialogueEditorForm : Form
 {
     private const string AddSpeakerOption = "＋ 新增發話者…";
+    // 下拉選單中的明確「旁白」選項；選取後實際儲存為空白發話者。
+    internal const string NarrationOption = "（旁白／無發話者）";
+    private const string NarrationPlaceholder = "— 旁白 —";
     private const string DefaultNewLineSpeaker = "Sbaak";
+    // 遊戲對話框每頁約 96 字（app/dialogue-player.ts splitDialoguePages）。
+    internal const int DialoguePageCharacters = 96;
     private const int LineIdColumnIndex = 0;
     private const int SpeakerColumnIndex = 1;
     private const int TextColumnIndex = 2;
     private const int GroupColumnIndex = 3;
     private const int WeightColumnIndex = 4;
+    private const int CharCountColumnIndex = 5;
+    // 本次執行期間記住使用者調整過的視窗寬度。
+    private static int? s_rememberedWidth;
+    private readonly List<string> _knownSpeakers;
+    private readonly Label _copyFeedback = new()
+    {
+        AutoSize = true,
+        ForeColor = Color.FromArgb(145, 235, 221),
+        Margin = new Padding(12, 8, 4, 0),
+    };
+    private readonly System.Windows.Forms.Timer _copyFeedbackTimer = new() { Interval = 2200 };
     private readonly TabControl _tabs = new();
     private readonly DataGridView _successGrid = new();
     private readonly DataGridView _failureGrid = new();
@@ -54,12 +70,18 @@ public sealed class DialogueEditorForm : Form
         DialogueScript? survivalFailureDialogue,
         DialogueScript? completionDialogue,
         bool skipSuccessDialogue = false,
-        string? lineIdPrefix = null)
+        string? lineIdPrefix = null,
+        IEnumerable<string>? knownSpeakers = null)
     {
         Text = "對話腳本編輯器";
         StartPosition = FormStartPosition.CenterParent;
         MinimumSize = new Size(820, 460);
-        ClientSize = new Size(980, 590);
+        ClientSize = new Size(1040, 590);
+        if (s_rememberedWidth is int rememberedWidth) Width = rememberedWidth;
+        var workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
+        Width = Math.Min(Width, workingArea.Width);
+        Height = Math.Min(Height, workingArea.Height);
+        KeyPreview = true;
         BackColor = Color.FromArgb(25, 28, 34);
         ForeColor = Color.FromArgb(226, 230, 234);
 
@@ -92,6 +114,11 @@ public sealed class DialogueEditorForm : Form
         {
             _speakers.Insert(Math.Min(1, _speakers.Count), "Echo");
         }
+        // 其他段落／場景用過的發話者只放進下拉選單，避免手打出名稱變體；
+        // 實際使用時才會寫入這段對話的 Speakers 清單。
+        _knownSpeakers = CollectSpeakerNames(knownSpeakers ?? Array.Empty<string>())
+            .Where(speaker => !_speakers.Contains(speaker, StringComparer.OrdinalIgnoreCase))
+            .ToList();
 
         EnsureDialogueHasLine(SuccessDialogue, "...");
         EnsureDialogueHasLine(FailureDialogue, "目前無法使用。");
@@ -176,25 +203,39 @@ public sealed class DialogueEditorForm : Form
         buttons.Controls.Add(CreateButton("刪除", (_, _) => DeleteLine()));
         buttons.Controls.Add(CreateButton("上移", (_, _) => MoveLine(-1)));
         buttons.Controls.Add(CreateButton("下移", (_, _) => MoveLine(1)));
+        buttons.Controls.Add(CreateButton("複製 Line ID", (_, _) => CopyCurrentLineId()));
 
         var cancel = CreateButton("取消", (_, _) => DialogResult = DialogResult.Cancel);
-        var save = CreateButton("儲存腳本", (_, _) => SaveDialogues());
+        var save = CreateButton("儲存腳本 (Ctrl+S)", (_, _) => SaveDialogues());
         cancel.Margin = new Padding(26, 0, 4, 0);
         buttons.Controls.Add(cancel);
         buttons.Controls.Add(save);
+        buttons.Controls.Add(_copyFeedback);
+        _copyFeedbackTimer.Tick += (_, _) =>
+        {
+            _copyFeedbackTimer.Stop();
+            _copyFeedback.Text = "";
+        };
 
         Controls.Add(_tabs);
         Controls.Add(buttons);
         AcceptButton = save;
         CancelButton = cancel;
+        Shown += (_, _) => FitHeightToContent(growOnly: false);
+        FormClosed += (_, _) =>
+        {
+            if (WindowState == FormWindowState.Normal) s_rememberedWidth = Width;
+            _copyFeedbackTimer.Dispose();
+        };
     }
 
     public DialogueEditorForm(
         DialogueScript dialogue,
         string sectionName,
         string hintText,
-        string? sectionId = null)
-        : this(dialogue, DialogueScript.CreateFailureDefault(), null, null, false, sectionId)
+        string? sectionId = null,
+        IEnumerable<string>? knownSpeakers = null)
+        : this(dialogue, DialogueScript.CreateFailureDefault(), null, null, false, sectionId, knownSpeakers)
     {
         Text = $"章節對話腳本編輯器 · {sectionName}";
         _skipSuccessDialogue.Visible = false;
@@ -244,7 +285,10 @@ public sealed class DialogueEditorForm : Form
         grid.Dock = DockStyle.Fill;
         grid.AllowUserToAddRows = false;
         grid.AllowUserToDeleteRows = false;
-        grid.AllowUserToResizeRows = true;
+        // 列高依文案自動調整，避免超過三行的台詞被截掉而看不到。
+        grid.AllowUserToResizeRows = false;
+        grid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
+        grid.ClipboardCopyMode = DataGridViewClipboardCopyMode.Disable;
         grid.AutoGenerateColumns = false;
         grid.BackgroundColor = Color.FromArgb(18, 21, 27);
         grid.BorderStyle = BorderStyle.None;
@@ -261,19 +305,21 @@ public sealed class DialogueEditorForm : Form
         grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(37, 41, 49);
         grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.WhiteSmoke;
         grid.EnableHeadersVisualStyles = false;
-        grid.RowTemplate.Height = 58;
+        grid.RowTemplate.Height = 40;
+        grid.RowTemplate.MinimumHeight = 36;
 
         grid.Columns.Add(new DataGridViewTextBoxColumn
         {
             Name = "lineId",
             HeaderText = "Line ID（唯讀）",
-            Width = 230,
+            Width = 210,
             ReadOnly = true,
             SortMode = DataGridViewColumnSortMode.NotSortable,
         });
         speakerColumn.Name = "speaker";
-        speakerColumn.HeaderText = "發話者（空白＝不顯示發話者）";
-        speakerColumn.Width = 215;
+        speakerColumn.HeaderText = "發話者（空白＝旁白）";
+        speakerColumn.ToolTipText = "選「" + NarrationOption + "」或清空即為旁白；可直接輸入新名字。";
+        speakerColumn.Width = 190;
         speakerColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
         speakerColumn.FlatStyle = FlatStyle.Flat;
         speakerColumn.DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox;
@@ -299,6 +345,15 @@ public sealed class DialogueEditorForm : Form
             HeaderText = "權重",
             Width = 68,
             SortMode = DataGridViewColumnSortMode.NotSortable,
+        });
+        grid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "charCount",
+            HeaderText = "字數",
+            Width = 76,
+            ReadOnly = true,
+            SortMode = DataGridViewColumnSortMode.NotSortable,
+            ToolTipText = $"遊戲對話框每頁約 {DialoguePageCharacters} 字，超過會自動分頁。",
         });
 
         foreach (var line in editableLines)
@@ -328,6 +383,8 @@ public sealed class DialogueEditorForm : Form
         grid.CellValidating += GridOnCellValidating;
         grid.CellEndEdit += GridOnCellEndEdit;
         grid.CellDoubleClick += GridOnCellDoubleClick;
+        grid.CellPainting += GridOnCellPainting;
+        grid.ContextMenuStrip = CreateGridContextMenu(grid);
         grid.EditingControlShowing += GridOnEditingControlShowing;
         grid.DataError += (_, eventArgs) => eventArgs.ThrowException = false;
         RefreshGroupPresentation(grid);
@@ -483,16 +540,48 @@ public sealed class DialogueEditorForm : Form
     private void AddLine()
     {
         var grid = ActiveGrid;
+        grid.EndEdit();
         var index = grid.Rows.Add(
             CreateNextLineId(grid),
-            DefaultNewLineSpeaker,
+            GetSpeakerForNewLine(grid),
             "...",
             null,
             null);
         grid.Rows[index].Tag = null;
+        UpdateCharCount(grid.Rows[index]);
         ApplyGridSelection(grid, new[] { index });
         grid.CurrentCell = grid.Rows[index].Cells[TextColumnIndex];
+        FitHeightToContent(growOnly: true);
         grid.BeginEdit(true);
+    }
+
+    /// <summary>新句子沿用目前（或最後一句）的發話者；連續同一角色發言時不必每句重選。</summary>
+    private static string GetSpeakerForNewLine(DataGridView grid)
+    {
+        var source = grid.CurrentRow ?? (grid.Rows.Count > 0 ? grid.Rows[^1] : null);
+        if (source is null) return DefaultNewLineSpeaker;
+        return Convert.ToString(source.Cells[SpeakerColumnIndex].Value)?.Trim() ?? "";
+    }
+
+    /// <summary>依目前頁籤的句數與列高調整視窗高度：最少為螢幕可用高度的 50%，最多 90%。</summary>
+    private void FitHeightToContent(bool growOnly)
+    {
+        var grid = ActiveGrid;
+        if (!IsHandleCreated || !grid.IsHandleCreated || WindowState != FormWindowState.Normal) return;
+        var needed = grid.ColumnHeadersHeight +
+                     grid.Rows.Cast<DataGridViewRow>().Sum(row => row.Height) +
+                     SystemInformation.HorizontalScrollBarHeight + 4;
+        var delta = needed - grid.ClientSize.Height;
+        if (growOnly && delta <= 0) return;
+        var area = Screen.FromControl(this).WorkingArea;
+        // 句數很少時也至少保持螢幕高度的 50%，避免視窗縮得太扁不易閱讀。
+        var minHeight = Math.Max(MinimumSize.Height, (int)(area.Height * 0.5));
+        var maxHeight = Math.Max(minHeight, (int)(area.Height * 0.9));
+        var target = Math.Clamp(Height + delta, minHeight, maxHeight);
+        if (target == Height) return;
+        Height = target;
+        if (Bottom > area.Bottom) Top = Math.Max(area.Top, area.Bottom - Height);
+        if (Top < area.Top) Top = area.Top;
     }
 
     private void DeleteLine()
@@ -726,6 +815,7 @@ public sealed class DialogueEditorForm : Form
 
         foreach (DataGridViewRow row in grid.Rows)
         {
+            UpdateCharCount(row);
             var groupId = row.Tag as string;
             var grouped = !string.IsNullOrWhiteSpace(groupId) &&
                           validGroups.Contains(groupId);
@@ -965,6 +1055,54 @@ public sealed class DialogueEditorForm : Form
         }
     }
 
+    /// <summary>驗證旁白選項、共用發話者清單、沿用發話者與字數欄位。</summary>
+    internal void RunSpeakerUxSelfTest(string knownSpeaker)
+    {
+        var grid = _successGrid;
+        if (grid.Rows.Count == 0) throw new InvalidOperationException("Speaker UX test requires lines.");
+        if (!_successSpeakerColumn.Items.Contains(NarrationOption) ||
+            !_successSpeakerColumn.Items.Contains(knownSpeaker))
+        {
+            throw new InvalidOperationException("Speaker dropdown lacks the narration option or shared speakers.");
+        }
+        if (grid.AutoSizeRowsMode != DataGridViewAutoSizeRowsMode.AllCells ||
+            !grid.Columns.Contains("charCount"))
+        {
+            throw new InvalidOperationException("Dialogue rows must auto-size and show a character count.");
+        }
+
+        grid.Rows[0].Cells[SpeakerColumnIndex].Value = NarrationOption;
+        if (!string.IsNullOrEmpty(Convert.ToString(grid.Rows[0].Cells[SpeakerColumnIndex].Value)))
+        {
+            throw new InvalidOperationException("Choosing the narration option must store a blank speaker.");
+        }
+
+        var canonical = RegisterSpeakerOption(knownSpeaker.ToLowerInvariant());
+        if (!string.Equals(canonical, knownSpeaker, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("A shared speaker typed in another case must reuse the existing spelling.");
+        }
+
+        grid.Rows[0].Cells[SpeakerColumnIndex].Value = knownSpeaker;
+        grid.CurrentCell = grid.Rows[0].Cells[TextColumnIndex];
+        if (GetSpeakerForNewLine(grid) != knownSpeaker)
+        {
+            throw new InvalidOperationException("A new line must inherit the current line's speaker.");
+        }
+
+        grid.Rows[0].Cells[TextColumnIndex].Value = new string('字', DialoguePageCharacters + 4);
+        if (!Convert.ToString(grid.Rows[0].Cells[CharCountColumnIndex].Value)!.Contains("頁", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Over-long lines must be flagged in the character count column.");
+        }
+        var savedLines = ReadLines(grid)
+            ?? throw new InvalidOperationException("Speaker UX dialogue could not be read.");
+        if (savedLines[0].Speaker != knownSpeaker)
+        {
+            throw new InvalidOperationException("The shared speaker was not preserved by the save path.");
+        }
+    }
+
     private void SaveDialogues()
     {
         var successLines = ReadLines(_successGrid);
@@ -974,7 +1112,15 @@ public sealed class DialogueEditorForm : Form
         var survivalFailureLines = ReadLines(_survivalFailureGrid, allowEmpty: true)!;
         var completionLines = ReadLines(_completionGrid, allowEmpty: true)!;
 
-        var speakers = _speakers.ToList();
+        // 從共用清單選到、但原本不屬於這段對話的發話者，也要寫回 Speakers。
+        var speakers = _speakers
+            .Concat(successLines.Concat(failureLines)
+                .Concat(survivalFailureLines)
+                .Concat(completionLines)
+                .Select(line => line.Speaker))
+            .Where(speaker => !string.IsNullOrWhiteSpace(speaker))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         SuccessDialogue = new DialogueScript
         {
             CharacterDelaySeconds = (float)_successDelayInput.Value,
@@ -1017,6 +1163,7 @@ public sealed class DialogueEditorForm : Form
         foreach (DataGridViewRow row in grid.Rows)
         {
             var speaker = Convert.ToString(row.Cells[SpeakerColumnIndex].Value)?.Trim() ?? "";
+            if (speaker == NarrationOption || speaker == AddSpeakerOption) speaker = "";
             var text = Convert.ToString(row.Cells[TextColumnIndex].Value)?.Trim() ?? "";
             if (text.Length == 0) continue;
             var groupId = string.IsNullOrWhiteSpace(row.Tag as string)
@@ -1058,10 +1205,28 @@ public sealed class DialogueEditorForm : Form
             column.Items.Clear();
             // 空白是合法值，而且每一句都明確代表不顯示發話者。
             column.Items.Add("");
+            column.Items.Add(NarrationOption);
             foreach (var speaker in _speakers) column.Items.Add(speaker);
+            foreach (var speaker in _knownSpeakers) column.Items.Add(speaker);
             column.Items.Add(AddSpeakerOption);
         }
     }
+
+    /// <summary>
+    /// 從多段對話收集「實際有台詞使用」的發話者（去除空白與大小寫重複），供下拉選單共用。
+    /// 只看台詞而不看 Speakers 宣告清單，避免已改名或不再使用的舊名稱繼續出現在選單裡。
+    /// </summary>
+    public static IReadOnlyList<string> CollectSpeakers(IEnumerable<DialogueScript?> scripts) =>
+        CollectSpeakerNames(scripts
+            .Where(script => script is not null)
+            .SelectMany(script => script!.Lines.Select(line => line.Speaker)));
+
+    private static List<string> CollectSpeakerNames(IEnumerable<string?> names) => names
+        .Where(name => !string.IsNullOrWhiteSpace(name))
+        .Select(name => name!.Trim())
+        .Where(name => name != NarrationOption && name != AddSpeakerOption)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
 
     private string RegisterSpeakerOption(
         string speaker,
@@ -1071,6 +1236,15 @@ public sealed class DialogueEditorForm : Form
         var existing = _speakers.FirstOrDefault(item =>
             item.Equals(normalized, StringComparison.OrdinalIgnoreCase));
         if (existing is not null) return existing;
+        // 其他段落已有的名字（含大小寫不同的輸入）一律採用既有寫法，避免名稱分歧。
+        var known = _knownSpeakers.FirstOrDefault(item =>
+            item.Equals(normalized, StringComparison.OrdinalIgnoreCase));
+        if (known is not null)
+        {
+            _knownSpeakers.Remove(known);
+            _speakers.Add(known);
+            return known;
+        }
 
         _speakers.Add(normalized);
         foreach (var column in new[]
@@ -1181,7 +1355,7 @@ public sealed class DialogueEditorForm : Form
             var cell = (DataGridViewComboBoxCell)speakerGrid
                 .Rows[eventArgs.RowIndex]
                 .Cells[SpeakerColumnIndex];
-            if (speaker.Length == 0)
+            if (speaker.Length == 0 || speaker == NarrationOption)
             {
                 cell.Value = "";
                 if (speakerGrid.EditingControl is DataGridViewComboBoxEditingControl blankEditor)
@@ -1241,10 +1415,39 @@ public sealed class DialogueEditorForm : Form
         }
 
         editor.DropDownStyle = ComboBoxStyle.DropDown;
+        // 深色主題下下拉清單原本是黑底黑字，只有選取項看得到；改為自行繪製清單項目。
+        editor.DrawMode = DrawMode.OwnerDrawFixed;
+        editor.DrawItem -= SpeakerEditorOnDrawItem;
+        editor.DrawItem += SpeakerEditorOnDrawItem;
+        editor.MaxDropDownItems = 14;
+        editor.IntegralHeight = false;
+        editor.DropDownHeight = Math.Max(editor.ItemHeight, 18) * Math.Min(Math.Max(editor.Items.Count, 1), 14) + 4;
         editor.AutoCompleteMode = AutoCompleteMode.None;
         editor.AutoCompleteSource = AutoCompleteSource.None;
         editor.KeyDown -= SpeakerEditorOnKeyDown;
         editor.KeyDown += SpeakerEditorOnKeyDown;
+    }
+
+    private static void SpeakerEditorOnDrawItem(object? sender, DrawItemEventArgs eventArgs)
+    {
+        if (sender is not ComboBox editor || eventArgs.Index < 0) return;
+        var selected = (eventArgs.State & DrawItemState.Selected) == DrawItemState.Selected;
+        using (var background = new SolidBrush(selected ? Color.FromArgb(43, 94, 91) : Color.FromArgb(27, 30, 37)))
+        {
+            eventArgs.Graphics.FillRectangle(background, eventArgs.Bounds);
+        }
+        var value = Convert.ToString(editor.Items[eventArgs.Index]) ?? "";
+        var isHint = value.Length == 0 || value == NarrationOption || value == AddSpeakerOption;
+        var text = value.Length == 0 ? "（空白）" : value;
+        var color = isHint && !selected ? Color.FromArgb(150, 162, 172) : Color.WhiteSmoke;
+        if (value == AddSpeakerOption && !selected) color = Color.FromArgb(205, 180, 112);
+        TextRenderer.DrawText(
+            eventArgs.Graphics,
+            text,
+            eventArgs.Font ?? editor.Font,
+            Rectangle.Inflate(eventArgs.Bounds, -4, 0),
+            color,
+            TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
     }
 
     private static void SpeakerEditorOnKeyDown(object? sender, KeyEventArgs eventArgs)
@@ -1314,14 +1517,22 @@ public sealed class DialogueEditorForm : Form
     {
         if (_handlingSpeakerChoice) return;
         if (sender is not DataGridView grid) return;
-        if (eventArgs.RowIndex < 0 || eventArgs.ColumnIndex != SpeakerColumnIndex) return;
+        if (eventArgs.RowIndex < 0) return;
+        if (eventArgs.ColumnIndex == TextColumnIndex)
+        {
+            UpdateCharCount(grid.Rows[eventArgs.RowIndex]);
+            return;
+        }
+        if (eventArgs.ColumnIndex != SpeakerColumnIndex) return;
         var cell = grid.Rows[eventArgs.RowIndex].Cells[eventArgs.ColumnIndex];
-        if (!string.Equals(Convert.ToString(cell.Value), AddSpeakerOption, StringComparison.Ordinal)) return;
+        var value = Convert.ToString(cell.Value);
+        var isNarration = string.Equals(value, NarrationOption, StringComparison.Ordinal);
+        if (!isNarration && !string.Equals(value, AddSpeakerOption, StringComparison.Ordinal)) return;
 
         _handlingSpeakerChoice = true;
         try
         {
-            var newSpeaker = PromptForSpeakerName();
+            var newSpeaker = isNarration ? "" : PromptForSpeakerName();
             ApplySpeakerChoice(grid, eventArgs.RowIndex, newSpeaker);
         }
         finally
@@ -1352,6 +1563,122 @@ public sealed class DialogueEditorForm : Form
             editor.Text = value;
         }
         cell.Value = value;
+    }
+
+    /// <summary>字數欄：超過遊戲單頁字數時以橘色標示並提示約略頁數。</summary>
+    private static void UpdateCharCount(DataGridViewRow row)
+    {
+        if (row.Cells.Count <= CharCountColumnIndex) return;
+        var text = (Convert.ToString(row.Cells[TextColumnIndex].Value) ?? "")
+            .Replace("\r", "", StringComparison.Ordinal);
+        var length = text.Trim().Length;
+        var cell = row.Cells[CharCountColumnIndex];
+        if (length > DialoguePageCharacters)
+        {
+            var pages = (int)Math.Ceiling(length / (double)DialoguePageCharacters);
+            cell.Value = $"{length}（約{pages}頁）";
+            cell.Style.ForeColor = Color.FromArgb(245, 170, 80);
+            cell.ToolTipText = $"超過 {DialoguePageCharacters} 字，遊戲中會自動分頁（約 {pages} 頁）。";
+        }
+        else
+        {
+            cell.Value = length;
+            cell.Style.ForeColor = Color.FromArgb(155, 166, 176);
+            cell.ToolTipText = "";
+        }
+    }
+
+    /// <summary>空白發話者顯示灰色「旁白」提示，與「忘了填」區分；實際儲存值仍為空白。</summary>
+    private static void GridOnCellPainting(object? sender, DataGridViewCellPaintingEventArgs eventArgs)
+    {
+        if (
+            sender is not DataGridView grid ||
+            eventArgs.RowIndex < 0 ||
+            eventArgs.ColumnIndex != SpeakerColumnIndex ||
+            !string.IsNullOrWhiteSpace(Convert.ToString(eventArgs.Value)) ||
+            (grid.IsCurrentCellInEditMode &&
+             grid.CurrentCell?.RowIndex == eventArgs.RowIndex &&
+             grid.CurrentCell?.ColumnIndex == eventArgs.ColumnIndex) ||
+            eventArgs.Graphics is null
+        )
+        {
+            return;
+        }
+
+        eventArgs.Paint(eventArgs.ClipBounds, DataGridViewPaintParts.All);
+        using var font = new Font(eventArgs.CellStyle?.Font ?? grid.Font, FontStyle.Italic);
+        var bounds = Rectangle.Inflate(eventArgs.CellBounds, -6, 0);
+        bounds.Width = Math.Max(0, bounds.Width - 18); // 保留下拉箭頭位置
+        TextRenderer.DrawText(
+            eventArgs.Graphics,
+            NarrationPlaceholder,
+            font,
+            bounds,
+            Color.FromArgb(128, 138, 148),
+            TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+        eventArgs.Handled = true;
+    }
+
+    private ContextMenuStrip CreateGridContextMenu(DataGridView grid)
+    {
+        var menu = new ContextMenuStrip();
+        menu.Items.Add("複製 Line ID", null, (_, _) => CopyCurrentLineId());
+        menu.Items.Add("複製文案", null, (_, _) =>
+        {
+            if (grid.CurrentRow is { } row)
+                CopyToClipboard(Convert.ToString(row.Cells[TextColumnIndex].Value) ?? "", "文案");
+        });
+        menu.Items.Add("設為旁白（無發話者）", null, (_, _) =>
+        {
+            grid.EndEdit();
+            foreach (var index in GetSelectedRowIndexes(grid).DefaultIfEmpty(grid.CurrentRow?.Index ?? -1))
+            {
+                if (index >= 0) ApplySpeakerChoice(grid, index, "");
+            }
+        });
+        grid.CellMouseDown += (_, eventArgs) =>
+        {
+            // 右鍵先選中該列，選單動作才會作用在滑鼠所指的句子上。
+            if (eventArgs.Button != MouseButtons.Right || eventArgs.RowIndex < 0) return;
+            if (!grid.Rows[eventArgs.RowIndex].Selected)
+            {
+                ApplyGridSelection(grid, new[] { eventArgs.RowIndex });
+            }
+        };
+        return menu;
+    }
+
+    private void CopyCurrentLineId()
+    {
+        var grid = ActiveGrid;
+        if (grid.CurrentRow is not { } row) return;
+        CopyToClipboard(Convert.ToString(row.Cells[LineIdColumnIndex].Value) ?? "", "Line ID");
+    }
+
+    private void CopyToClipboard(string value, string label)
+    {
+        if (string.IsNullOrEmpty(value)) return;
+        try
+        {
+            Clipboard.SetText(value);
+            _copyFeedback.Text = $"已複製{label}：{(value.Length > 40 ? value[..40] + "…" : value)}";
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            _copyFeedback.Text = "剪貼簿暫時被其他程式占用，請再試一次。";
+        }
+        _copyFeedbackTimer.Stop();
+        _copyFeedbackTimer.Start();
+    }
+
+    protected override bool ProcessCmdKey(ref Message message, Keys keyData)
+    {
+        if (keyData == (Keys.Control | Keys.S))
+        {
+            SaveDialogues();
+            return true;
+        }
+        return base.ProcessCmdKey(ref message, keyData);
     }
 
     private string? PromptForSpeakerName()

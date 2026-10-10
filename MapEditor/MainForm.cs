@@ -2198,12 +2198,29 @@ public sealed class MainForm : Form
         using var editor = new DialogueEditorForm(
             connection.Dialogue, connection.FailureDialogue,
             connection.SurvivalFailureDialogue, connection.CompletionDialogue,
-            connection.SkipSuccessDialogue, connection.Id);
+            connection.SkipSuccessDialogue, connection.Id, CollectSceneSpeakers());
         if (editor.ShowDialog(this) != DialogResult.OK) return;
         _canvas.UpdateSelectedConnectionDialogues(editor.SuccessDialogue,
             editor.FailureDialogue, editor.SurvivalFailureDialogue,
             editor.CompletionDialogue, editor.SkipSuccessDialogue);
         RefreshSelectionUi();
+    }
+
+    /// <summary>目前場景所有互動與出入口對話用過的發話者，供對話編輯器下拉選單共用。</summary>
+    private IReadOnlyList<string> CollectSceneSpeakers()
+    {
+        var document = _canvas.Document;
+        return DialogueEditorForm.CollectSpeakers(
+            document.Interactables.SelectMany(item => new[]
+                {
+                    item.Dialogue, item.FailureDialogue,
+                    item.SurvivalFailureDialogue, item.CompletionDialogue,
+                })
+                .Concat(document.Connections.SelectMany(connection => new[]
+                {
+                    connection.Dialogue, connection.FailureDialogue,
+                    connection.SurvivalFailureDialogue, connection.CompletionDialogue,
+                })));
     }
 
     private void OpenDialogueEditor()
@@ -2216,7 +2233,8 @@ public sealed class MainForm : Form
             interactable.SurvivalFailureDialogue,
             interactable.CompletionDialogue,
             interactable.SkipSuccessDialogue,
-            interactable.Id);
+            interactable.Id,
+            CollectSceneSpeakers());
         if (editor.ShowDialog(this) != DialogResult.OK) return;
         _canvas.UpdateSelectedDialogues(
             editor.SuccessDialogue,

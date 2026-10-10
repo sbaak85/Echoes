@@ -303,9 +303,9 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
     styles,
     /\.star-cards-zone-title {[\s\S]*top: 18\.913%;[\s\S]*left: calc\(50% \+ var\(--card-idle-x, 0px\) \+ var\(--zone-title-offset-x, 0px\)\)[\s\S]*width: 55\.44%;[\s\S]*pointer-events: none/,
   );
-  assert.match(styles, /data-lane="A"[^}]*--zone-title-offset-x: 1\.787vw/);
-  assert.match(styles, /data-lane="B"[^}]*--zone-title-offset-x: -0\.211vw/);
-  assert.match(styles, /data-lane="C"[^}]*--zone-title-offset-x: -1\.535vw/);
+  assert.match(styles, /data-lane="A"[^}]*--zone-title-offset-x: 1\.787cqw/);
+  assert.match(styles, /data-lane="B"[^}]*--zone-title-offset-x: -0\.211cqw/);
+  assert.match(styles, /data-lane="C"[^}]*--zone-title-offset-x: -1\.535cqw/);
   assert.match(
     styles,
     /\.star-cards-zone-title\.is-placement-active \.is-echo \{[\s\S]*animation: star-cards-zone-title-teleport 2s ease-out infinite/,
@@ -545,11 +545,11 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(styles, /@keyframes star-cards-button-glow-sweep[\s\S]*background-position: -75% 0/);
   assert.match(
     styles,
-    /\.star-cards-battle-effect\[data-lane="A"\] \{[^}]*--battle-ai-x: -0\.3vw;[^}]*--battle-player-x: -3\.7vw;[^}]*--battle-mid-x: -2vw;[^}]*--battle-player-to-ai-x: 3\.4vw;[^}]*--battle-ai-to-player-x: -3\.4vw;[^}]*--battle-angle: 10deg;/,
+    /\.star-cards-battle-effect\[data-lane="A"\] \{[^}]*--battle-ai-x: -0\.3cqw;[^}]*--battle-player-x: -3\.7cqw;[^}]*--battle-mid-x: -2cqw;[^}]*--battle-player-to-ai-x: 3\.4cqw;[^}]*--battle-ai-to-player-x: -3\.4cqw;[^}]*--battle-angle: 10deg;/,
   );
   assert.match(
     styles,
-    /\.star-cards-battle-effect\[data-lane="C"\] \{[^}]*--battle-ai-x: -0\.3vw;[^}]*--battle-player-x: 2\.4vw;[^}]*--battle-mid-x: 1\.05vw;[^}]*--battle-player-to-ai-x: -2\.7vw;[^}]*--battle-ai-to-player-x: 2\.7vw;[^}]*--battle-angle: -8deg;/,
+    /\.star-cards-battle-effect\[data-lane="C"\] \{[^}]*--battle-ai-x: -0\.3cqw;[^}]*--battle-player-x: 2\.4cqw;[^}]*--battle-mid-x: 1\.05cqw;[^}]*--battle-player-to-ai-x: -2\.7cqw;[^}]*--battle-ai-to-player-x: 2\.7cqw;[^}]*--battle-angle: -8deg;/,
   );
   assert.match(
     styles,
@@ -641,15 +641,15 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   );
   assert.match(styles, /@keyframes star-cards-shield-surge/);
   assert.match(styles, /@keyframes star-cards-log-line-in/);
-  assert.match(styles, /--opponent-card-idle-y: 3\.13vh/);
-  assert.match(styles, /is-ai-lane\[data-lane="A"\] \{ --card-idle-x: -0\.3vw; \}/);
-  assert.match(styles, /is-ai-lane\[data-lane="B"\] \{ --card-idle-x: -0\.5vw; \}/);
-  assert.match(styles, /is-ai-lane\[data-lane="C"\] \{ --card-idle-x: -0\.3vw; \}/);
-  assert.match(styles, /--player-card-idle-y: 1\.3vh/);
-  assert.match(styles, /is-player-lane\[data-lane="A"\] \{[^}]*--card-idle-x: -3\.7vw/);
-  assert.match(styles, /is-player-lane\[data-lane="B"\] \{[^}]*--card-idle-x: -0\.5vw/);
-  assert.match(styles, /is-player-lane\[data-lane="C"\] \{[^}]*--card-idle-x: 2\.4vw/);
-  assert.match(styles, /width: min\(13\.528vw, 24\.03vh\)/);
+  assert.match(styles, /--opponent-card-idle-y: 3\.13cqh/);
+  assert.match(styles, /is-ai-lane\[data-lane="A"\] \{ --card-idle-x: -0\.3cqw; \}/);
+  assert.match(styles, /is-ai-lane\[data-lane="B"\] \{ --card-idle-x: -0\.5cqw; \}/);
+  assert.match(styles, /is-ai-lane\[data-lane="C"\] \{ --card-idle-x: -0\.3cqw; \}/);
+  assert.match(styles, /--player-card-idle-y: 1\.3cqh/);
+  assert.match(styles, /is-player-lane\[data-lane="A"\] \{[^}]*--card-idle-x: -3\.7cqw/);
+  assert.match(styles, /is-player-lane\[data-lane="B"\] \{[^}]*--card-idle-x: -0\.5cqw/);
+  assert.match(styles, /is-player-lane\[data-lane="C"\] \{[^}]*--card-idle-x: 2\.4cqw/);
+  assert.match(styles, /width: min\(13\.528cqw, 24\.03cqh\)/);
   assert.match(styles, /translateX\(calc\(-50% \+ var\(--card-idle-x, 0px\)\)\)/);
   assert.match(source, /stackDepth: laneCards\.length - stackIndex - 1/);
   assert.match(source, /Math\.max\(0\.94, 1 - stackDepth \* 0\.02\)/);
