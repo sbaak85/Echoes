@@ -3476,6 +3476,10 @@ export function MovementLab() {
   const virtualCursorControlsEnabledRef = useRef(true);
   const questPromptInputModeRef = useRef<QuestPromptInputMode>("keyboard-mouse");
   const audioEventManagerRef = useRef<AudioEventManager | null>(null);
+  // 遊戲開頭黑畫面中的對話視窗右上角提示「按 [□] 全螢幕」（僅手機版、尚未全螢幕時）；
+  // 場景點亮後左下角的全螢幕鈕會出現，提示就不再顯示
+  const [openingFullscreenPromptDismissed, setOpeningFullscreenPromptDismissed] = useState(false);
+  const [blackScreenVisible, setBlackScreenVisible] = useState(true);
   const deathWarningAudioReasonRef = useRef<string | null>(null);
   const gameOverAudioReasonRef = useRef<string | null>(null);
   const bgmDirectorRef = useRef<BgmDirector | null>(null);
@@ -3783,6 +3787,8 @@ export function MovementLab() {
   const [questItemSubmissionCompleting, setQuestItemSubmissionCompleting] =
     useState(false);
   const [stageFullscreen, setStageFullscreen] = useState(false);
+  /** 不支援全螢幕 API 時（例如 iPhone Safari）改以撐滿視窗代替，記錄此狀態 */
+  const stageFullscreenFallbackRef = useRef(false);
   const [optionsTab, setOptionsTab] = useState<OptionsTab>("save");
   const [optionsMenuSelection, setOptionsMenuSelection] =
     useState<OptionsMenuItem>(OPTIONS_MENU_ITEMS[0]);
@@ -4839,6 +4845,7 @@ export function MovementLab() {
     const next = clamp(Math.round(opacity255), 0, 255);
     blackScreenOpacityRef.current = next;
     blackScreenOverlayRef.current?.setOpacity(next);
+    setBlackScreenVisible(next > 0);
   };
 
   const fadeBlackScreen = (
@@ -5766,10 +5773,13 @@ export function MovementLab() {
           window.innerHeight >= window.screen.height - 20 ||
           window.innerHeight >= window.screen.availHeight - 20
         );
+      // 手機版只認瀏覽器真正的全螢幕或撐滿視窗的替代模式（iPhone）；
+      // 「畫面等於螢幕大小」的判斷只用來偵測 PC 的 F11，手機套用會誤判（例如加到主畫面時）
       setStageFullscreen(Boolean(
         document.fullscreenElement ||
         fullscreenDocument.webkitFullscreenElement ||
-        viewportMatchesScreen
+        stageFullscreenFallbackRef.current ||
+        (!isMobileHudLayout() && viewportMatchesScreen)
       ));
     };
 
@@ -5807,15 +5817,23 @@ export function MovementLab() {
       const target = gameShellRef.current as (HTMLElement & {
         webkitRequestFullscreen?: () => void | Promise<void>;
       }) | null;
+      // 替代模式（不支援全螢幕 API，例如 iPhone）已開啟時，再按一次就回復
+      if (stageFullscreenFallbackRef.current) {
+        stageFullscreenFallbackRef.current = false;
+        setStageFullscreen(false);
+        return;
+      }
       if (target?.requestFullscreen) {
         await target.requestFullscreen();
       } else if (target?.webkitRequestFullscreen) {
         await target.webkitRequestFullscreen();
       } else {
-        setStageFullscreen((current) => !current);
+        stageFullscreenFallbackRef.current = true;
+        setStageFullscreen(true);
       }
     } catch {
-      setStageFullscreen((current) => !current);
+      stageFullscreenFallbackRef.current = !stageFullscreenFallbackRef.current;
+      setStageFullscreen(stageFullscreenFallbackRef.current);
     }
   };
 
@@ -12385,7 +12403,7 @@ export function MovementLab() {
       }
 
       return element.closest(
-        ".quick-assign-shield, .quick-assign-panel, .new-player-tutorial-overlay, .inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .star-cards-overlay, .star-cards-dialog, .starship-interaction-menu, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .survival-game-over, .dialogue-box, .dialogue-history-trigger, .dialogue-history-overlay, .quest-hud",
+        ".quick-assign-shield, .quick-assign-panel, .new-player-tutorial-overlay, .inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .star-cards-overlay, .star-cards-dialog, .starship-interaction-menu, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .survival-game-over, .dialogue-box, .dialogue-history-trigger, .dialogue-fullscreen-trigger, .dialogue-history-overlay, .quest-hud",
       )
         ? "blocked"
         : "none";
@@ -12559,7 +12577,7 @@ export function MovementLab() {
       if (
         event.target instanceof Element &&
         event.target.closest(
-          ".dialogue-box, .dialogue-history-trigger, .dialogue-history-overlay",
+          ".dialogue-box, .dialogue-history-trigger, .dialogue-fullscreen-trigger, .dialogue-history-overlay",
         )
       ) {
         return;
@@ -12626,7 +12644,7 @@ export function MovementLab() {
         const overDialogue =
           event.target instanceof Element &&
           event.target.closest(
-            ".dialogue-box, .dialogue-history-trigger, .dialogue-history-overlay",
+            ".dialogue-box, .dialogue-history-trigger, .dialogue-fullscreen-trigger, .dialogue-history-overlay",
           ) !== null;
         if (overDialogue) {
           virtualCursorVisible = false;
@@ -17021,7 +17039,11 @@ export function MovementLab() {
       <DialoguePlayerView view={dialogueView} history={dialogueHistoryView} historyScrollable={dialogueHistoryScrollable}
         textSize={dialogueTextSize} gamepadMode={questPromptInputMode === "gamepad"}
         boxRef={dialogueBoxRef} historyScrollRef={dialogueHistoryScrollRef} historyCloseRef={dialogueHistoryCloseRef}
-        onAdvance={advanceDialogue} onOpenHistory={openDialogueHistory} onCloseHistory={closeDialogueHistory} />
+        onAdvance={advanceDialogue} onOpenHistory={openDialogueHistory} onCloseHistory={closeDialogueHistory}
+        onFullscreen={!openingFullscreenPromptDismissed && blackScreenVisible && mobileHudLayout && !stageFullscreen ? () => {
+          setOpeningFullscreenPromptDismissed(true);
+          void toggleStageFullscreen();
+        } : undefined} />
 
       {timeElapsedNotice ? (
         <section

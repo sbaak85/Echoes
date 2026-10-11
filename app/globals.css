@@ -12249,8 +12249,9 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   transform-origin: bottom center;
 }
 .game-shell .world-operation-hint,
-.game-shell .mobile-interaction-trigger,
-.game-shell .touch-joystick-view { scale: var(--ui-scale, 1); }
+.game-shell .mobile-interaction-trigger { scale: var(--ui-scale, 1); }
+/* 搖桿以 translate(-50%, -50%) 讓中心對準觸碰點：縮放併入同一個 transform，scale 屬性會讓置中偏向右下 */
+.game-shell .touch-joystick-view { transform: translate(-50%, -50%) scale(var(--ui-scale, 1)); }
 
 /* ---------- 四個角落 UI 統一貼齊 14px ---------- */
 .game-shell .survival-hud:not(.is-inventory-open) { left: var(--mobile-hud-left, 14px); }
@@ -12410,4 +12411,36 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 @media (orientation: landscape) and (max-width: 680px), (orientation: landscape) and (hover: none) and (pointer: coarse) {
   .game-shell .options-header { padding-block: 12px 8px; }
   .game-shell .options-header p { display: none; }
+}
+
+/* 開頭黑畫面對話：對話框右上角的「按 [□] 全螢幕」提示（樣式與左上的回顧訊息對稱；位置由 dialogue-player-view 計算） */
+.dialogue-fullscreen-trigger {
+  position: absolute;
+  z-index: 9;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  margin-right: 8px;
+  padding: 4px 10px;
+  border: 0;
+  background: transparent;
+  color: rgba(235, 245, 235, 0.88);
+  font-size: clamp(12px, 1.1vw, 15px);
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.9);
+  cursor: pointer;
+}
+.dialogue-fullscreen-trigger:focus,
+.dialogue-fullscreen-trigger:focus-visible { outline: none; box-shadow: none; }
+.game-shell.is-story-flow .dialogue-fullscreen-trigger { z-index: 94; }
+.dialogue-fullscreen-icon {
+  width: 22px;
+  height: 22px;
+  fill: rgba(13, 20, 12, 0.7);
+  stroke: #c9d6a2;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 3px rgba(129, 148, 84, 0.45));
 }

@@ -11,24 +11,37 @@ type Props = {
   boxRef: RefObject<HTMLButtonElement | null>; historyScrollRef: RefObject<HTMLDivElement | null>; historyCloseRef: RefObject<HTMLButtonElement | null>;
   onAdvance: () => unknown; onOpenHistory: () => unknown; onCloseHistory: () => unknown;
   onPointerInput?: PointerEventHandler<HTMLButtonElement>;
+  /** 有值時在對話框右上角顯示「按 [□] 全螢幕」（與左上的回顧訊息對稱） */
+  onFullscreen?: () => unknown;
 };
 // This is the production dialogue/history markup; previews mount the same view.
-export function DialoguePlayerView({ view, history, historyScrollable, textSize, gamepadMode, boxRef, historyScrollRef, historyCloseRef, onAdvance, onOpenHistory, onCloseHistory, onPointerInput }: Props) {
+export function DialoguePlayerView({ view, history, historyScrollable, textSize, gamepadMode, boxRef, historyScrollRef, historyCloseRef, onAdvance, onOpenHistory, onCloseHistory, onPointerInput, onFullscreen }: Props) {
   const mouseRight = resolveRuntimePublicAssetUrl("ui/input/mouse-right.svg");
   const historyTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const fullscreenTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const hasFullscreenPrompt = Boolean(onFullscreen);
   // 「訊息回顧」貼在對話框左上角外側（PC 規格：與對話框左緣對齊、上方間距 16px）。
   // 依對話框實際位置計算，UI 縮放或文字變多使對話框變高時都會跟著移動。
   useLayoutEffect(() => {
     const trigger = historyTriggerRef.current;
+    const fullscreenTrigger = fullscreenTriggerRef.current;
     const box = boxRef.current;
-    const parent = trigger?.offsetParent as HTMLElement | null;
-    if (!trigger || !box || !parent) return;
+    const parent = (trigger ?? fullscreenTrigger)?.offsetParent as HTMLElement | null;
+    if ((!trigger && !fullscreenTrigger) || !box || !parent) return;
     const place = () => {
       const parentRect = parent.getBoundingClientRect();
       const boxRect = box.getBoundingClientRect();
       const uiScale = parseFloat(getComputedStyle(parent).getPropertyValue("--ui-scale")) || 1;
-      trigger.style.left = `${boxRect.left - parentRect.left}px`;
-      trigger.style.bottom = `${parentRect.bottom - boxRect.top + 16 * uiScale}px`;
+      const bottom = `${parentRect.bottom - boxRect.top + 16 * uiScale}px`;
+      if (trigger) {
+        trigger.style.left = `${boxRect.left - parentRect.left}px`;
+        trigger.style.bottom = bottom;
+      }
+      // 全螢幕提示與回顧訊息對稱：右緣對齊對話框右緣
+      if (fullscreenTrigger) {
+        fullscreenTrigger.style.right = `${parentRect.right - boxRect.right}px`;
+        fullscreenTrigger.style.bottom = bottom;
+      }
     };
     place();
     // 對話框進場動畫（transform）不會觸發 ResizeObserver，動畫結束後再校正一次
@@ -38,11 +51,19 @@ export function DialoguePlayerView({ view, history, historyScrollable, textSize,
     observer.observe(parent);
     window.addEventListener("resize", place);
     return () => { window.clearTimeout(settleTimer); observer.disconnect(); window.removeEventListener("resize", place); };
-  }, [boxRef, view?.canReview, view?.lineId, textSize]);
+  }, [boxRef, view?.canReview, view?.lineId, textSize, hasFullscreenPrompt]);
   return <>
     {view && <>
       {view.canReview && <button ref={historyTriggerRef} className="dialogue-history-trigger" type="button" aria-haspopup="dialog" aria-expanded={Boolean(history)} aria-hidden={Boolean(history)} disabled={Boolean(history)} onPointerDown={onPointerInput} onClick={event => { event.stopPropagation(); onOpenHistory(); }}>
         {gamepadMode ? <GamepadHint text="按 [LT] 回顧訊息" /> : <><span>按</span><img className="dialogue-mouse-button-icon" src={mouseRight} alt="滑鼠右鍵" draggable={false} /><span>回顧訊息</span></>}
+      </button>}
+      {onFullscreen && !history && <button ref={fullscreenTriggerRef} className="dialogue-fullscreen-trigger" type="button" aria-label="進入全螢幕" onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); onFullscreen(); }}>
+        <span>按</span>
+        <svg className="dialogue-fullscreen-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="1.5" y="1.5" width="21" height="21" rx="4" />
+          <path d="M8 6.5H6.5V8M16 6.5h1.5V8M8 17.5H6.5V16M16 17.5h1.5V16" />
+        </svg>
+        <span>全螢幕</span>
       </button>}
       <button ref={boxRef} className={`dialogue-box dialogue-size-${textSize}${history ? " is-history-open" : ""}`} type="button" aria-label="對話；按下顯示下一頁" disabled={Boolean(history)} data-dialogue-id={view.dialogueId} data-line-id={view.lineId} onPointerDown={onPointerInput} onClick={onAdvance}>
         <span className="dialogue-frame-surface" aria-hidden="true" /><span className="dialogue-frame-bloom" aria-hidden="true" />
