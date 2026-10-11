@@ -2722,62 +2722,6 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   outline: none;
 }
 
-.mobile-interaction-trigger {
-  position: absolute;
-  z-index: 10;
-  right: clamp(64px, 15vw, 104px);
-  bottom: clamp(100px, 15vh, 154px);
-  display: none;
-  width: 66px;
-  height: 66px;
-  padding: 13px;
-  place-items: center;
-  border: 1px solid rgba(225, 255, 250, 0.48);
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 35% 28%, rgba(214, 255, 248, 0.24), transparent 34%),
-    rgba(7, 24, 28, 0.68);
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.32),
-    inset 0 0 12px rgba(180, 255, 245, 0.08);
-  color: #e8fffb;
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(7px) scale(0.9);
-  transition: opacity 100ms linear, transform 100ms ease-out;
-  -webkit-tap-highlight-color: transparent;
-  backdrop-filter: blur(9px);
-}
-
-.mobile-interaction-trigger.is-visible {
-  opacity: 0.76;
-  pointer-events: auto;
-  transform: translateY(0) scale(1);
-}
-
-.mobile-interaction-trigger:active {
-  opacity: 1;
-  transform: scale(0.9);
-}
-
-.mobile-interaction-trigger svg {
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  fill: rgba(221, 255, 249, 0.08);
-  stroke: currentColor;
-  stroke-width: 1.75;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  filter: drop-shadow(0 0 3px rgba(197, 255, 247, 0.48));
-}
-
-.mobile-interaction-trigger .mobile-interaction-object {
-  fill: rgba(130, 239, 224, 0.52);
-  stroke-width: 1.4;
-}
-
 .minimap-hud {
   position: absolute;
   z-index: 7;
@@ -8624,11 +8568,6 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
     height: 8px;
   }
 
-  .mobile-interaction-trigger {
-    right: 118px;
-    bottom: 80px;
-    display: grid;
-  }
 
   .fullscreen-trigger {
     right: 14px;
@@ -12096,6 +12035,12 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 .world-operation-hint .hint-copy { min-width:0; white-space:normal; overflow-wrap:anywhere; }
 .world-operation-hint .hint-input { flex-shrink:0; }
 .world-operation-hint .hint-gamepad img { display:block; width:28px; height:28px; }
+/* 行動裝置版身體接觸互動：手型＋箱子圖示取代 [E] */
+.world-operation-hint .hint-hand { display:block; width:26px; height:26px; }
+.world-operation-hint .hint-hand[hidden] { display:none; }
+.world-operation-hint .hint-hand svg { display:block; width:100%; height:100%; overflow:visible; filter:drop-shadow(0 0 3px rgba(197, 255, 247, .45)); }
+.world-operation-hint .hint-hand-palm { fill:#e8fffb; }
+.world-operation-hint .hint-hand-box { fill:rgba(255, 214, 120, .18); stroke:#ffd98a; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 
 /* Mobile HUDs share one top edge and a stable front-to-back order. */
 @media (max-width: 680px), (hover: none) and (pointer: coarse) {
@@ -12222,11 +12167,9 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
     background:transparent; box-shadow:none;
     transform:scale(var(--mobile-controls-scale,1)); transform-origin:bottom left;
   }
-  .game-shell .mobile-interaction-trigger { right:148px; bottom:80px; }
   /* Share Settings' lower edge above the responsive quick dock. */
   .game-shell .minimap-hud,
-  .game-shell .minimap-hud.is-collapsed,
-  .game-shell .mobile-interaction-trigger {
+  .game-shell .minimap-hud.is-collapsed {
     bottom: var(--mobile-hud-controls-bottom, 80px);
   }
 }
@@ -12248,8 +12191,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   transform: translateX(-50%) scale(var(--ui-scale, 1));
   transform-origin: bottom center;
 }
-.game-shell .world-operation-hint,
-.game-shell .mobile-interaction-trigger { scale: var(--ui-scale, 1); }
+.game-shell .world-operation-hint { scale: var(--ui-scale, 1); }
 /* 搖桿以 translate(-50%, -50%) 讓中心對準觸碰點：縮放併入同一個 transform，scale 屬性會讓置中偏向右下 */
 .game-shell .touch-joystick-view { transform: translate(-50%, -50%) scale(var(--ui-scale, 1)); }
 
@@ -12284,11 +12226,9 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 @media (max-width: 680px), (hover: none) and (pointer: coarse) {
   .game-shell .inventory-hotbar,
   .game-shell .minimap-hud,
-  .game-shell .mobile-interaction-trigger,
   .game-shell .fullscreen-trigger { transition: opacity 160ms ease, visibility 0s linear 0s; }
   .game-shell:has(.dialogue-box) .inventory-hotbar,
   .game-shell:has(.dialogue-box) .minimap-hud,
-  .game-shell:has(.dialogue-box) .mobile-interaction-trigger,
   .game-shell:has(.dialogue-box) .fullscreen-trigger {
     opacity: 0;
     visibility: hidden;
@@ -12300,8 +12240,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 /* 手機橫向：快捷列在左下，右下角是空的，小地圖與互動鈕直接貼齊底部 14px（直向維持在置中快捷列上方） */
 @media (orientation: landscape) and (max-width: 680px), (orientation: landscape) and (hover: none) and (pointer: coarse) {
   .game-shell .minimap-hud,
-  .game-shell .minimap-hud.is-collapsed,
-  .game-shell .mobile-interaction-trigger { bottom: max(14px, env(safe-area-inset-bottom)); }
+  .game-shell .minimap-hud.is-collapsed { bottom: max(14px, env(safe-area-inset-bottom)); }
 }
 
 /* 手機：快捷列右側放得下小地圖時（movement-lab 依實際寬度判斷），小地圖貼齊右下角 14px */
@@ -12367,10 +12306,25 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   .game-shell .quest-hud:not(.is-mobile-mini) .quest-objective-label { font-size: 13px; }
 }
 
-/* 任務 UI 切換時的文字淡入（外框補間完成後才顯示，150ms 與生存 UI 相同） */
+/* 任務 UI 切換時的文字交換：新內容 0.2 秒淡入，同時舊狀態的複本（.quest-fade-ghost）淡出 */
 .quest-hud :is(.quest-type-icon, .quest-mini-summary, .quest-title, .quest-summary-progress, .quest-list-mask) {
-  transition: opacity 150ms linear;
+  transition: opacity 200ms linear;
 }
+.quest-hud.quest-fade-ghost {
+  pointer-events: none;
+  overflow: hidden;
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  transition: opacity 200ms linear;
+}
+.quest-hud.quest-fade-ghost::before,
+.quest-hud.quest-fade-ghost::after,
+.quest-hud.quest-fade-ghost > .hud-frame-art,
+.quest-hud.quest-fade-ghost .quest-event-frame { display: none; }
+.quest-hud.quest-fade-ghost .quest-header { border-color: transparent; background: none; }
+.quest-hud.quest-fade-ghost.is-fading { opacity: 0; }
 .quest-hud[data-content-fade="hidden"] :is(.quest-type-icon, .quest-mini-summary, .quest-title, .quest-summary-progress, .quest-list-mask) {
   opacity: 0;
   transition: none;
@@ -12444,3 +12398,4 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   stroke-linejoin: round;
   filter: drop-shadow(0 0 3px rgba(129, 148, 84, 0.45));
 }
+

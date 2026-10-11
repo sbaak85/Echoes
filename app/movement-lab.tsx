@@ -2095,6 +2095,88 @@ function getMobileUiScale() {
   return Number.isFinite(preview) && preview >= 0.3 && preview <= 1 ? preview : MOBILE_UI_SCALE;
 }
 
+/** 手型互動提示點的半徑（UI 100% 時的畫面像素，實際再乘上手機 UI 比例） */
+const MOBILE_HAND_HINT_RADIUS = 33;
+// 手：Font Awesome Free「hand-holding」（CC BY 4.0，旋轉 180°）；箱子：Lucide「package」（ISC）。
+// 座標系為 24×24 圖示框，見 THIRD_PARTY_NOTICES.md
+const MOBILE_HAND_HINT_HAND_PATH =
+  "M66.7 384l42.5-42.5c24-24 56.6-37.5 90.5-37.5L352 304c17.7 0 32 14.3 32 32s-14.3 32-32 32l-72 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l112.6 0 119.7-88.2c17.8-13.1 42.8-9.3 55.9 8.5s9.3 42.8-8.5 55.9L433.1 485.5c-23.4 17.2-51.6 26.5-80.7 26.5L32 512c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l34.7 0z";
+const MOBILE_HAND_HINT_BOX_PATHS = [
+  "M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z",
+  "M12 22V12",
+  "M3.29 7L12 12L20.71 7",
+  "m7.5 4.27 9 5.15",
+];
+let mobileHandHintPaths: { hand: Path2D; box: Path2D[] } | null = null;
+
+/**
+ * 在目前座標原點畫手型互動提示點（圓底＋外框＋手心朝下拿箱子）。
+ * emphasis 0～1：淡入並由小放大；顯示後外框與光暈從一般狀態往更亮呼吸（1.4 秒來回）。
+ */
+function drawMobileHandHint(
+  context: CanvasRenderingContext2D,
+  emphasis: number,
+  time: number,
+  zoom: number,
+) {
+  if (emphasis <= 0.001 || typeof Path2D === "undefined") return;
+  mobileHandHintPaths ??= {
+    hand: new Path2D(MOBILE_HAND_HINT_HAND_PATH),
+    box: MOBILE_HAND_HINT_BOX_PATHS.map((d) => new Path2D(d)),
+  };
+  const paths = mobileHandHintPaths;
+  const uiScale = getMobileUiScale();
+  // 呼吸：0＝一般狀態，1＝最亮（平滑來回）
+  const breath = 0.5 - Math.cos((time / 1400) * Math.PI) * 0.5;
+  const radius = MOBILE_HAND_HINT_RADIUS;
+  context.save();
+  context.globalAlpha *= emphasis * 0.92;
+  // 以畫面像素繪製：抵銷場景縮放，再套用手機 UI 比例與淡入縮放
+  context.scale((uiScale * (0.5 + 0.5 * emphasis)) / zoom, (uiScale * (0.5 + 0.5 * emphasis)) / zoom);
+
+  // 圓底與外框（外框加光暈呼吸）
+  context.beginPath();
+  context.arc(0, 0, radius, 0, Math.PI * 2);
+  context.fillStyle = "rgba(7, 24, 28, 0.68)";
+  context.fill();
+  const sheen = context.createRadialGradient(-radius * 0.3, -radius * 0.44, 0, -radius * 0.3, -radius * 0.44, radius * 0.75);
+  sheen.addColorStop(0, "rgba(214, 255, 248, 0.24)");
+  sheen.addColorStop(1, "rgba(214, 255, 248, 0)");
+  context.fillStyle = sheen;
+  context.fill();
+  context.fillStyle = `rgba(180, 255, 245, ${0.04 + 0.12 * breath})`;
+  context.fill();
+  context.shadowColor = `rgba(170, 255, 244, ${0.55 * breath})`;
+  context.shadowBlur = 16 * breath;
+  context.lineWidth = 2;
+  context.strokeStyle = `rgba(${225 + 10 * breath}, 255, ${250 + 2 * breath}, ${0.48 + 0.47 * breath})`;
+  context.stroke();
+
+  // 圖示：24×24 框置中，內距與原按鈕相同（66px 圓內留 10px）
+  const iconSize = radius * 2 - 20;
+  context.translate(-iconSize / 2, -iconSize / 2);
+  context.scale(iconSize / 24, iconSize / 24);
+  context.shadowColor = `rgba(${197 + 13 * breath}, 255, ${247 + breath}, ${0.48 + 0.42 * breath})`;
+  context.shadowBlur = (3 + 3 * breath) * (iconSize / 24);
+  context.save();
+  context.transform(-0.039931, 0, 0, -0.039931, 23.5, 21.445);
+  context.fillStyle = `rgb(${232 + 23 * breath}, 255, ${251 + 4 * breath})`;
+  context.fill(paths.hand);
+  context.restore();
+  context.save();
+  context.translate(4.2, 9.3);
+  context.scale(0.65, 0.65);
+  context.lineWidth = 2;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.fillStyle = "rgba(255, 214, 120, 0.18)";
+  context.strokeStyle = `rgb(255, ${217 + 20 * breath}, ${138 + 50 * breath})`;
+  context.fill(paths.box[0]);
+  paths.box.forEach((path) => context.stroke(path));
+  context.restore();
+  context.restore();
+}
+
 function isMobileHudLayout() {
   return (
     typeof window !== "undefined" &&
@@ -3840,14 +3922,6 @@ export function MovementLab() {
     "等待手把輸入…",
   );
   const [activeKeyboardKeys, setActiveKeyboardKeys] = useState<string[]>([]);
-  const [mobileInteractionTarget, setMobileInteractionTarget] = useState<{
-    id: string;
-    label: string;
-  } | null>(null);
-  const [mobileSceneConnectionTarget, setMobileSceneConnectionTarget] = useState<{
-    id: string;
-    label: string;
-  } | null>(null);
   const [survivalState, setSurvivalState] = useState<SurvivalGameState>(
     INITIAL_SURVIVAL_STATE,
   );
@@ -4696,21 +4770,74 @@ export function MovementLab() {
     return () => { observer.disconnect(); window.removeEventListener("resize", update); };
   }, [quickAssign?.slotIndex, quickAssign?.itemId]);
 
-  useLayoutEffect(() => {
-    // 與生存 UI 相同：外框補間期間先隱藏文字，外框展開／收合完成後再淡入，避免文字先跳到定位
+  // 任務 UI 展開／收合的文字交換：外框補間期間保留舊狀態的文字（以複本疊在原位），
+  // 外框接近新尺寸時再用 0.2 秒交叉淡入淡出，避免外框動畫中是空的或文字先跳到定位
+  const questFadeSnapshotRef = useRef<{ html: string; height: number } | null>(null);
+  const questFadeAnimatingRef = useRef(false);
+  const captureQuestFadeSnapshot = useCallback(() => {
+    const questHud = questHudRef.current;
+    if (!questHud || questFadeAnimatingRef.current) return;
+    questFadeSnapshotRef.current = { html: questHud.outerHTML, height: questHud.offsetHeight };
+  }, []);
+  useEffect(() => {
     const questHud = questHudRef.current;
     if (!questHud) return;
-    const reveal = () => { questHud.dataset.contentFade = "visible"; };
-    questHud.dataset.contentFade = "hidden";
-    // 保險：補間的逐幀更新若被延遲（例如分頁在背景），時間到仍會顯示文字，不會一直隱藏
-    const revealTimer = window.setTimeout(reveal, HUD_PANEL_TWEEN_DURATION_MS + 80);
+    captureQuestFadeSnapshot();
+    // 靜止時內容（進度、目標文字）有變動就更新快照
+    const observer = new MutationObserver(captureQuestFadeSnapshot);
+    observer.observe(questHud, { subtree: true, childList: true, characterData: true });
+    return () => observer.disconnect();
+  }, [captureQuestFadeSnapshot]);
+
+  useLayoutEffect(() => {
+    const questHud = questHudRef.current;
+    if (!questHud) return;
+    const snapshot = questFadeSnapshotRef.current;
+    questHud.parentElement?.querySelectorAll(".quest-fade-ghost").forEach((ghost) => ghost.remove());
+    let ghost: HTMLElement | null = null;
+    if (snapshot && questHud.parentElement) {
+      const holder = document.createElement("div");
+      holder.innerHTML = snapshot.html;
+      ghost = holder.firstElementChild as HTMLElement | null;
+      if (ghost) {
+        ghost.classList.add("quest-fade-ghost");
+        ghost.removeAttribute("data-content-fade");
+        ghost.setAttribute("aria-hidden", "true");
+        ghost.style.height = `${snapshot.height}px`;
+        ghost.querySelectorAll("button").forEach((button) => button.remove());
+        questHud.after(ghost);
+      }
+    }
+    questFadeAnimatingRef.current = true;
+    questHud.dataset.contentFade = ghost ? "hidden" : "visible";
+    let swapped = false;
+    const swap = () => {
+      if (swapped) return;
+      swapped = true;
+      questHud.dataset.contentFade = "visible";
+      if (ghost) {
+        const fadingGhost = ghost;
+        fadingGhost.classList.add("is-fading");
+        window.setTimeout(() => fadingGhost.remove(), 240);
+      }
+    };
+    // 外框補間到約 60% 時開始交換；計時器作為保險（逐幀更新被延遲時仍會完成）
+    const swapTimer = window.setTimeout(swap, HUD_PANEL_TWEEN_DURATION_MS * 0.6 + 40);
+    const settleTimer = window.setTimeout(() => {
+      swap();
+      questFadeAnimatingRef.current = false;
+      captureQuestFadeSnapshot();
+    }, HUD_PANEL_TWEEN_DURATION_MS + 260);
     previousQuestPanelHeightRef.current = playHudPanelHeightTween(
       questHud,
       previousQuestPanelHeightRef.current,
-      (progress) => { if (progress >= 1) reveal(); },
+      (progress) => { if (progress >= 0.6) swap(); },
     );
-    return () => window.clearTimeout(revealTimer);
-  }, [questPanelCollapsed, questMobileMode, activeQuestHud?.stageId, activeQuestHud?.objectives.length, completedQuestHistory.length]);
+    return () => {
+      window.clearTimeout(swapTimer);
+      window.clearTimeout(settleTimer);
+    };
+  }, [questPanelCollapsed, questMobileMode, activeQuestHud?.stageId, activeQuestHud?.objectives.length, completedQuestHistory.length, captureQuestFadeSnapshot]);
 
   useEffect(() => {
     const previous = hudAudioStateRef.current;
@@ -9036,8 +9163,6 @@ export function MovementLab() {
       footstepShouldPlay = false;
       footstepAudio.pause();
       wasMoving = false;
-      setMobileInteractionTarget(null);
-      setMobileSceneConnectionTarget(null);
       return true;
     };
     sceneConnectionTransferRequestRef.current = (connectionId) => {
@@ -9098,8 +9223,12 @@ export function MovementLab() {
     let worldItemHighlightLastTime = 0;
     let previousPlayerPromptTargetId: string | null = null;
     let previousCursorPromptTargetId: string | null = null;
-    let mobileInteractionTargetId: string | null = null;
-    let mobileSceneConnectionTargetId: string | null = null;
+    // 手機版的「手型互動提示點」。
+    // anchorId＝角色目前可互動的目標；fadeTarget＝正在顯示手型提示的目標（離開後保留到淡出結束）；
+    // hitArea＝手型提示在畫面上的可點範圍（點到即互動，不觸發虛擬搖桿）
+    let interactButtonAnchorId: string | null = null;
+    let interactButtonFadeTarget: SceneInteractable | null = null;
+    let mobileHandHintHitArea: { x: number; y: number; radius: number } | null = null;
     const interactionHintAnimation = new Map<
       string,
       { opacity: number; emphasis: number; lastTime: number }
@@ -9652,7 +9781,6 @@ export function MovementLab() {
       activePromptTargetId = null;
       previousPlayerPromptTargetId = null;
       previousCursorPromptTargetId = null;
-      mobileInteractionTargetId = null;
       activeStoryTriggerZoneIds.clear();
       eligibleStoryTriggerZoneIds.clear();
       player.x = point.x;
@@ -12536,6 +12664,18 @@ export function MovementLab() {
         x: clamp(event.clientX - bounds.left, 0, viewportWidth),
         y: clamp(event.clientY - bounds.top, 0, viewportHeight),
       };
+      // 點到手型互動提示點即互動（此範圍不冒出虛擬搖桿）
+      if (
+        mobileHandHintHitArea &&
+        Math.hypot(
+          screenPoint.x - mobileHandHintHitArea.x,
+          screenPoint.y - mobileHandHintHitArea.y,
+        ) <= mobileHandHintHitArea.radius
+      ) {
+        canvas.focus({ preventScroll: true });
+        mobileInteractionActionRef.current();
+        return;
+      }
       if (
         event.pointerType === "touch" &&
         screenPoint.y >= viewportHeight * 0.5
@@ -12992,15 +13132,6 @@ export function MovementLab() {
         collectedWorldItemIdsRef.current,
         isInteractableSelectable,
       );
-      const nextMobileInteractionTargetId = playerTarget?.id ?? null;
-      if (mobileInteractionTargetId !== nextMobileInteractionTargetId) {
-        mobileInteractionTargetId = nextMobileInteractionTargetId;
-        setMobileInteractionTarget(
-          playerTarget
-            ? { id: playerTarget.id, label: playerTarget.label }
-            : null,
-        );
-      }
       const manualSceneConnection = !playerTarget && !sceneArrivalLockedRef.current
         ? (SCENE_DATA.connections ?? []).find(
             (connection) =>
@@ -13010,18 +13141,71 @@ export function MovementLab() {
               canActivateSceneConnection(connection),
           )
         : null;
-      const nextMobileSceneConnectionTargetId = manualSceneConnection?.id ?? null;
-      if (mobileSceneConnectionTargetId !== nextMobileSceneConnectionTargetId) {
-        mobileSceneConnectionTargetId = nextMobileSceneConnectionTargetId;
-        setMobileSceneConnectionTarget(
-          manualSceneConnection
-            ? { id: manualSceneConnection.id, label: manualSceneConnection.label }
-            : null,
-        );
-      }
       const activeDialogueTargetId =
         dialoguePlaybackRef.current?.interactable.id ?? null;
       const zoom = getSceneZoom(viewportWidth, viewportHeight);
+      // 手機版的手型互動提示點（畫在遊戲畫面上，點它即互動）。
+      // 互動多邊形：提示點的一般狀態照常繪製，可互動狀態改畫成手型（於下方提示點迴圈處理）。
+      // 地上道具等沒有提示點的目標：3D Icon 照常顯示，可拾取時在道具位置額外疊一個手型提示點。
+      // 桌機維持原本的提示點。
+      const handHintEnabled = isMobileHudLayout();
+      const nextHandHintAnchor = handHintEnabled
+        ? playerTarget ??
+          (manualSceneConnection
+            ? sceneInteractablesRef.current.find(
+                (interactable) => interactable.id === `exit:${manualSceneConnection.id}`,
+              ) ?? null
+            : null)
+        : null;
+      interactButtonAnchorId = nextHandHintAnchor?.id ?? null;
+      if (nextHandHintAnchor) interactButtonFadeTarget = nextHandHintAnchor;
+      if (!handHintEnabled) interactButtonFadeTarget = null;
+      mobileHandHintHitArea = null;
+      // 目標已被拾取或移除（不在目前場景的可互動清單中）時，手型提示立即消失
+      if (
+        interactButtonFadeTarget &&
+        interactButtonFadeTarget.id !== interactButtonAnchorId &&
+        (!sceneInteractablesRef.current.some((interactable) => interactable.id === interactButtonFadeTarget?.id) ||
+          (interactButtonFadeTarget.worldItemKind === "placed" &&
+            interactButtonFadeTarget.worldItemId &&
+            collectedWorldItemIdsRef.current.has(interactButtonFadeTarget.worldItemId)))
+      ) {
+        worldItemHighlights.delete(interactButtonFadeTarget.id);
+        interactButtonFadeTarget = null;
+      }
+      const handHintTarget = interactButtonFadeTarget;
+      if (handHintTarget && !handHintTarget.interactionHintPoint) {
+        let anchorPoint: Point;
+        let emphasis: number;
+        if (handHintTarget.worldItemKind && handHintTarget.itemId && handHintTarget.position) {
+          const item = ITEM_BY_ID.get(handHintTarget.itemId);
+          const bounds = item ? getWorldItemIconBounds(item) : null;
+          anchorPoint = {
+            x: handHintTarget.position.x,
+            y: handHintTarget.position.y + WORLD_ITEM_ICON_GROUND_OFFSET +
+              (bounds ? ((bounds.top + bounds.bottom) / 2) * WORLD_ITEM_ICON_SCALE : 0),
+          };
+          // 沿用道具亮起的淡入淡出（約 0.12 秒）
+          emphasis = worldItemHighlights.get(handHintTarget.id) ?? 0;
+        } else {
+          anchorPoint = getInteractionTweenPoint(handHintTarget);
+          emphasis = handHintTarget.id === interactButtonAnchorId ? 1 : 0;
+        }
+        const smoothEmphasis = emphasis * emphasis * (3 - 2 * emphasis);
+        const bob = Math.sin(time / 210) * (4 / zoom) * smoothEmphasis;
+        context.save();
+        context.translate(anchorPoint.x, anchorPoint.y + bob);
+        drawMobileHandHint(context, smoothEmphasis, time, zoom);
+        context.restore();
+        if (handHintTarget.id === interactButtonAnchorId && smoothEmphasis > 0.5) {
+          mobileHandHintHitArea = {
+            x: viewportWidth / 2 + (anchorPoint.x - camera.x) * zoom,
+            y: viewportHeight / 2 + (anchorPoint.y + bob - camera.y) * zoom,
+            radius: MOBILE_HAND_HINT_RADIUS * getMobileUiScale() + 8,
+          };
+        }
+        if (emphasis <= 0.001 && handHintTarget.id !== interactButtonAnchorId) interactButtonFadeTarget = null;
+      }
 
       sceneInteractablesRef.current.forEach((interactable) => {
         const point = interactable.interactionHintPoint;
@@ -13120,22 +13304,43 @@ export function MovementLab() {
         const fillAlpha = 0.58 + (0.82 - 0.58) * emphasis;
         const outlineAlpha = 0.34 + (0.72 - 0.34) * emphasis;
 
-        context.save();
-        context.globalAlpha = animation.opacity;
-        context.translate(point.x, point.y + bob);
-        context.shadowColor = "rgba(255, 255, 255, 0.82)";
-        context.shadowBlur = (12 + (18 - 12) * emphasis) / zoom;
-        context.fillStyle = `rgba(255, 255, 255, ${fillAlpha})`;
-        context.beginPath();
-        context.arc(0, 0, radius, 0, Math.PI * 2);
-        context.fill();
+        // 手機版可互動狀態改畫成手型提示——圓點隨亮起程度淡出，手型同步淡入
+        const handReplacesHint = interactable.id === interactButtonFadeTarget?.id;
+        if (handReplacesHint) {
+          if (interactable.id === interactButtonAnchorId && emphasis > 0.5 && animation.opacity > 0.5) {
+            mobileHandHintHitArea = {
+              x: viewportWidth / 2 + (point.x - camera.x) * zoom,
+              y: viewportHeight / 2 + (point.y + bob - camera.y) * zoom,
+              radius: MOBILE_HAND_HINT_RADIUS * getMobileUiScale() + 8,
+            };
+          }
+          if (emphasis <= 0.001 && interactable.id !== interactButtonAnchorId) {
+            interactButtonFadeTarget = null;
+          }
+        }
 
-        context.shadowBlur = 0;
-        context.strokeStyle = `rgba(255, 255, 255, ${outlineAlpha})`;
-        context.lineWidth = 1.2 / zoom;
-        context.beginPath();
-        context.arc(0, 0, radius * 1.85, 0, Math.PI * 2);
-        context.stroke();
+        context.save();
+        context.globalAlpha = animation.opacity * (handReplacesHint ? 1 - emphasis : 1);
+        context.translate(point.x, point.y + bob);
+        {
+          context.shadowColor = "rgba(255, 255, 255, 0.82)";
+          context.shadowBlur = (12 + (18 - 12) * emphasis) / zoom;
+          context.fillStyle = `rgba(255, 255, 255, ${fillAlpha})`;
+          context.beginPath();
+          context.arc(0, 0, radius, 0, Math.PI * 2);
+          context.fill();
+
+          context.shadowBlur = 0;
+          context.strokeStyle = `rgba(255, 255, 255, ${outlineAlpha})`;
+          context.lineWidth = 1.2 / zoom;
+          context.beginPath();
+          context.arc(0, 0, radius * 1.85, 0, Math.PI * 2);
+          context.stroke();
+        }
+        if (handReplacesHint) {
+          context.globalAlpha = animation.opacity;
+          drawMobileHandHint(context, emphasis, time, zoom);
+        }
 
         const interactionName = interactable.label.trim();
         if (interactionName && emphasis > 0.001) {
@@ -13712,6 +13917,12 @@ export function MovementLab() {
     const hintKey = document.createElement("span");
     hintKey.className = "hint-key";
     hintInput.appendChild(hintKey);
+    // 手機版身體接觸互動時，以手型＋箱子圖示取代 [E]（同手型互動提示點的圖案，不含外圈）
+    const hintHand = document.createElement("span");
+    hintHand.className = "hint-hand";
+    hintHand.hidden = true;
+    hintHand.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path class="hint-hand-palm" transform="matrix(-0.039931 0 0 -0.039931 23.5 21.445)" d="${MOBILE_HAND_HINT_HAND_PATH}"/><g class="hint-hand-box" transform="translate(4.2 9.3) scale(0.65)">${MOBILE_HAND_HINT_BOX_PATHS.map((d) => `<path d="${d}"/>`).join("")}</g></svg>`;
+    hintInput.appendChild(hintHand);
 
     const drawPromptPill = (
       centerX: number,
@@ -13727,9 +13938,13 @@ export function MovementLab() {
       if (hintTarget.textContent !== targetLabel) hintTarget.textContent = targetLabel;
       const keyText = interactionKeyLabel ? `[${interactionKeyLabel}]` : "";
       if (hintKey.textContent !== keyText) hintKey.textContent = keyText;
+      // 行動裝置版：身體接觸互動（顯示按鍵的提示）改用手型＋箱子圖示
+      const showHandIcon =
+        !showMouseLeftIcon && !showGamepadIcon && interactionKeyLabel !== null && isMobileHudLayout();
       hintInput.className = showMouseLeftIcon ? "hint-input mouse-crop" : showGamepadIcon ? "hint-input hint-gamepad" : "hint-input";
       hintImage.hidden = !showMouseLeftIcon && !showGamepadIcon;
-      hintKey.hidden = showMouseLeftIcon || showGamepadIcon;
+      hintKey.hidden = showMouseLeftIcon || showGamepadIcon || showHandIcon;
+      hintHand.hidden = !showHandIcon;
       const source = showMouseLeftIcon ? mouseLeftPromptImage.src : gamepadPromptImage.src;
       if (!hintImage.hidden && hintImage.src !== source) hintImage.src = source;
       operationHint.hidden = false;
@@ -16778,8 +16993,6 @@ export function MovementLab() {
     playOneShotAudio("gameOverImageRevealed");
   }, [survivalState.gameOverReason]);
 
-  const mobileInteractionButtonTarget =
-    mobileInteractionTarget ?? mobileSceneConnectionTarget;
   const dayNightStyle = getDayNightCssVariables(
     survivalState.gameMinutes,
   ) as CSSProperties;
@@ -18899,47 +19112,6 @@ export function MovementLab() {
           <span className="minimap-cardinal minimap-east">E</span><span className="minimap-cardinal minimap-south">S</span><span className="minimap-cardinal minimap-west">W</span>
           <span className="minimap-toggle-mark" />
         </span>
-      </button>
-
-      <button
-        className={`mobile-interaction-trigger${
-          mobileInteractionButtonTarget &&
-          !optionsOpen &&
-          !inventoryOpen &&
-          !powerPuzzleOpen &&
-          !itemUseConfirmation &&
-          !sceneConnectionConfirmation &&
-          !dialogueView
-            ? " is-visible"
-            : ""
-        }`}
-        type="button"
-        aria-label={
-          mobileInteractionButtonTarget
-            ? `與${mobileInteractionButtonTarget.label}互動`
-            : "目前沒有可互動物件"
-        }
-        disabled={
-          !mobileInteractionButtonTarget ||
-          optionsOpen ||
-          inventoryOpen ||
-          powerPuzzleOpen ||
-          Boolean(itemUseConfirmation) ||
-          Boolean(sceneConnectionConfirmation) ||
-          Boolean(dialogueView)
-        }
-        onClick={(event) => {
-          event.stopPropagation();
-          mobileInteractionActionRef.current();
-        }}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path className="mobile-interaction-object" d="M17 1l1.5 1.5L17 4l-1.5-1.5z" />
-          <path d="M18 11V6a2 2 0 0 0-4 0v5" />
-          <path d="M14 10V4a2 2 0 0 0-4 0v6" />
-          <path d="M10 10.5V6a2 2 0 0 0-4 0v8" />
-          <path d="M6 14v-2a2 2 0 0 0-4 0v4a8 8 0 0 0 8 8h2a8 8 0 0 0 8-8v-5a2 2 0 0 0-4 0v3" />
-        </svg>
       </button>
 
       {!optionsOpen && !inventoryOpen && !powerPuzzleOpen && !itemUseConfirmation && !dialogueView ? (

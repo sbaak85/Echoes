@@ -239,9 +239,26 @@ export async function readSaveDataSlot(slotId: SaveDataSlotId) {
   }
 }
 
+/**
+ * 開發測試用：網址加上 ?noSave 時，存檔只寫進本分頁的 sessionStorage，不寫入伺服器的 SaveData/，
+ * 避免測試或預覽時覆蓋正式存檔（讀檔仍正常讀取伺服器上的存檔）。
+ */
+function isSaveWriteIsolated() {
+  try {
+    const search = typeof window === "undefined" ? undefined : window.location?.search;
+    return typeof search === "string" && new URLSearchParams(search).has("noSave");
+  } catch {
+    return false;
+  }
+}
+
 export async function writeSaveDataSlot(slotId: SaveDataSlotId, save: EchoesSaveData) {
   const normalized = normalizeEchoesSaveData(save);
   if (!normalized) throw new Error("save-data-write-invalid");
+  if (isSaveWriteIsolated()) {
+    window.sessionStorage.setItem(sessionKey(slotId), JSON.stringify(normalized));
+    return "browser-session" as const;
+  }
   const response = await fetchLocalSaveDataApi("/api/save-data", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ slotId, save: normalized }),
@@ -256,6 +273,10 @@ export async function writeSaveDataSlot(slotId: SaveDataSlotId, save: EchoesSave
 
 export async function deleteSaveDataSlot(slotId: SaveDataSlotId) {
   if (slotId === "autosave") throw new Error("autosave-cannot-be-deleted");
+  if (isSaveWriteIsolated()) {
+    window.sessionStorage.removeItem(sessionKey(slotId));
+    return "browser-session" as const;
+  }
   const response = await fetchLocalSaveDataApi(
     `/api/save-data?slot=${encodeURIComponent(slotId)}`,
     { method: "DELETE" },
