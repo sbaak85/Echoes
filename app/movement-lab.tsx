@@ -2177,6 +2177,21 @@ function drawMobileHandHint(
   context.restore();
 }
 
+/** 手機直式背包：三區改為頁籤切換，點道具在格子下方彈出功能選單 */
+const MOBILE_PORTRAIT_INVENTORY_QUERY =
+  "(orientation: portrait) and (max-width: 680px), (orientation: portrait) and (hover: none) and (pointer: coarse)";
+function isMobilePortraitInventory() {
+  return typeof window !== "undefined" && window.matchMedia(MOBILE_PORTRAIT_INVENTORY_QUERY).matches;
+}
+type InventoryMobileTab = "summary" | "selected" | "catalog";
+/** 較高的直式手機（如 390×844）道具清單排 4×5 格，其餘維持 4×4 */
+const INVENTORY_TALL_PORTRAIT_QUERY = "(orientation: portrait) and (max-width: 680px) and (min-height: 760px)";
+const INVENTORY_MOBILE_TABS: ReadonlyArray<{ id: InventoryMobileTab; label: string }> = [
+  { id: "summary", label: "生存背包" },
+  { id: "selected", label: "選中道具" },
+  { id: "catalog", label: "道具清單" },
+];
+
 function isMobileHudLayout() {
   return (
     typeof window !== "undefined" &&
@@ -3922,6 +3937,17 @@ export function MovementLab() {
     "等待手把輸入…",
   );
   const [activeKeyboardKeys, setActiveKeyboardKeys] = useState<string[]>([]);
+  // 手機直式背包目前顯示的分區（每次打開背包預設為道具清單）
+  const [inventoryMobileTab, setInventoryMobileTab] = useState<InventoryMobileTab>("catalog");
+  // 道具清單每頁格數：較高的直式手機 20 格（4×5），其餘 16 格（4×4）
+  const [inventoryPageSize, setInventoryPageSize] = useState(16);
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(INVENTORY_TALL_PORTRAIT_QUERY);
+    const update = () => setInventoryPageSize(mediaQuery.matches ? 20 : 16);
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
   const [survivalState, setSurvivalState] = useState<SurvivalGameState>(
     INITIAL_SURVIVAL_STATE,
   );
@@ -4017,11 +4043,15 @@ export function MovementLab() {
     sequence: number;
   } | null>(null);
   const hasActiveQuest = activeQuestHud !== null;
+  // Inventory temporarily changes presentation, preserving both chosen HUD modes.
+  const inventoryMobileHudMini = mobileHudLayout && inventoryOpen;
+  const visibleSurvivalMobileMode = inventoryMobileHudMini ? "mini" : survivalMobileMode;
+  const visibleQuestMobileMode = inventoryMobileHudMini ? "mini" : questMobileMode;
   const survivalPanelExpanded = mobileHudLayout
-    ? survivalMobileMode === "expanded"
+    ? visibleSurvivalMobileMode === "expanded"
     : survivalExpanded;
   const questPanelCollapsed = mobileHudLayout
-    ? questMobileMode !== "expanded"
+    ? visibleQuestMobileMode !== "expanded"
     : questCollapsed;
   const previousSurvivalPanelHeightRef = useRef<number | null>(null);
   const [survivalInfoExpanded, setSurvivalInfoExpanded] = useState(survivalPanelExpanded);
@@ -4599,7 +4629,7 @@ export function MovementLab() {
         if (!survivalPanelExpanded && progress >= 0.5) setSurvivalInfoExpanded(false);
       },
     );
-  }, [survivalPanelExpanded, survivalMobileMode]);
+  }, [survivalPanelExpanded, visibleSurvivalMobileMode]);
 
   useLayoutEffect(() => {
     const dock = quickDockRef.current;
@@ -4837,7 +4867,7 @@ export function MovementLab() {
       window.clearTimeout(swapTimer);
       window.clearTimeout(settleTimer);
     };
-  }, [questPanelCollapsed, questMobileMode, activeQuestHud?.stageId, activeQuestHud?.objectives.length, completedQuestHistory.length, captureQuestFadeSnapshot]);
+  }, [questPanelCollapsed, visibleQuestMobileMode, activeQuestHud?.stageId, activeQuestHud?.objectives.length, completedQuestHistory.length, captureQuestFadeSnapshot]);
 
   useEffect(() => {
     const previous = hudAudioStateRef.current;
@@ -8284,6 +8314,7 @@ export function MovementLab() {
 
   // The long-lived keyboard/gamepad loop must not capture render-time HUD modes.
   const cycleMobileHudPanel = useCallback((panel: "survival" | "quest") => {
+    if (inventoryOpenRef.current) return;
     const canShare = measureMobileHudSpace();
     mobileHudLastOpenedRef.current = panel;
     setMobileHudCanShare(canShare);
@@ -8335,6 +8366,7 @@ export function MovementLab() {
     setInventoryGamepadFocusValue("items");
     setInventorySelectedActionValue("use");
     inventoryOpenRef.current = open;
+    if (open && !wasOpen) setInventoryMobileTab("catalog");
     if (!open) {
       clearInventoryItemInspectImmediately();
       const pendingDrag = pendingInventoryDragRef.current;
@@ -16436,11 +16468,11 @@ export function MovementLab() {
       item: { ...stack.definition, count: stack.count },
       index: stack.databaseIndex,
     }));
-  const inventoryPageCount = Math.max(1, Math.ceil(filteredInventoryItems.length / 16));
+  const inventoryPageCount = Math.max(1, Math.ceil(filteredInventoryItems.length / inventoryPageSize));
   const currentInventoryPage = Math.min(inventoryPage, inventoryPageCount - 1);
   const visibleInventoryItems = filteredInventoryItems.slice(
-    currentInventoryPage * 16,
-    currentInventoryPage * 16 + 16,
+    currentInventoryPage * inventoryPageSize,
+    currentInventoryPage * inventoryPageSize + inventoryPageSize,
   );
   const selectedInventoryStack = selectedEquippedBackpack
     ? null
@@ -16478,8 +16510,8 @@ export function MovementLab() {
       inventoryPageCount;
     setInventoryPage(nextPage);
     const targetPosition = selectLast
-      ? Math.min((nextPage + 1) * 16, filteredInventoryItems.length) - 1
-      : nextPage * 16;
+      ? Math.min((nextPage + 1) * inventoryPageSize, filteredInventoryItems.length) - 1
+      : nextPage * inventoryPageSize;
     const targetItem = filteredInventoryItems[targetPosition];
     if (targetItem) selectInventoryItem(targetItem.index);
   };
@@ -16516,6 +16548,33 @@ export function MovementLab() {
           (shellRect?.height ?? window.innerHeight) - menuHeight - menuEdgeGap,
         ),
       ),
+      databaseIndex,
+    });
+  };
+
+  // 手機直式：點道具後在該格子正下方彈出功能選單（下方放不下時改放在格子上方）
+  const openInventoryItemMenuBelow = (cell: HTMLElement, databaseIndex: number) => {
+    const shellRect = gameShellRef.current?.getBoundingClientRect();
+    const cellRect = cell.getBoundingClientRect();
+    const menuWidth = 164;
+    const menuHeight = 196;
+    const menuGap = 6;
+    const menuEdgeGap = 8;
+    const left = shellRect?.left ?? 0;
+    const top = shellRect?.top ?? 0;
+    const width = shellRect?.width ?? window.innerWidth;
+    const height = shellRect?.height ?? window.innerHeight;
+    const below = cellRect.bottom + menuGap;
+    const y = below + menuHeight <= top + height - menuEdgeGap
+      ? below
+      : Math.max(top + menuEdgeGap, cellRect.top - menuGap - menuHeight);
+    setInventoryContextMenu({
+      kind: "inventory",
+      x: Math.max(
+        left + menuEdgeGap,
+        Math.min(cellRect.left + cellRect.width / 2 - menuWidth / 2, left + width - menuWidth - menuEdgeGap),
+      ),
+      y,
       databaseIndex,
     });
   };
@@ -17310,8 +17369,9 @@ export function MovementLab() {
       <aside
         ref={survivalHudRef}
         className={`survival-hud${survivalPanelExpanded ? " is-expanded" : ""}${
-          mobileHudLayout && survivalMobileMode === "mini" ? " is-mobile-mini" : ""
-        }${inventoryOpen ? " is-inventory-open" : ""}${survivalInfoExpanded ? " is-info-expanded" : ""}`}
+          // 手機版開背包時生存 UI 縮成 mini（桌機則隱藏，由背包內的生存背包欄顯示數值）
+          mobileHudLayout && visibleSurvivalMobileMode === "mini" ? " is-mobile-mini" : ""
+        }${inventoryOpen ? (mobileHudLayout ? " is-inventory-mini" : " is-inventory-open") : ""}${survivalInfoExpanded ? " is-info-expanded" : ""}`}
         aria-label="生存狀態指示表"
       >
         <header className="survival-clock survival-clock-desktop">
@@ -17327,7 +17387,7 @@ export function MovementLab() {
         </header>
         <div
           className="survival-mobile-minimal-panel"
-          aria-hidden={!mobileHudLayout || survivalMobileMode !== "mini"}
+          aria-hidden={!mobileHudLayout || visibleSurvivalMobileMode !== "mini"}
         >
           <span className="hud-frame-art" aria-hidden="true"><span className="hud-frame-glow" /></span>
           <span className="survival-mobile-mini-arrow" aria-hidden="true" />
@@ -17357,7 +17417,7 @@ export function MovementLab() {
         <div className="survival-content-mask">
         <div
           className="survival-mini-panel"
-          aria-hidden={survivalInfoExpanded || survivalMobileMode === "mini"}
+          aria-hidden={survivalInfoExpanded || visibleSurvivalMobileMode === "mini"}
         >
           {SURVIVAL_STATS.map((stat) => {
             const value = survivalState.values[stat.id];
@@ -17410,8 +17470,8 @@ export function MovementLab() {
       <aside
         ref={questHudRef}
         className={`quest-hud${questPanelCollapsed ? " is-collapsed" : ""}${
-          mobileHudLayout && questMobileMode === "mini" ? " is-mobile-mini" : ""
-        }${
+          mobileHudLayout && visibleQuestMobileMode === "mini" ? " is-mobile-mini" : ""
+        }${inventoryMobileHudMini ? " is-inventory-mini" : ""}${
           hasActiveQuest ? "" : " is-history"
         }${activeQuestHudEvent ? ` is-event-${activeQuestHudEvent.kind}` : ""}${
           questStageEntering ? " is-stage-entering" : ""
@@ -17517,6 +17577,7 @@ export function MovementLab() {
           aria-label={questPanelCollapsed ? "展開任務提示" : "收合任務提示"}
           aria-expanded={!questPanelCollapsed}
           aria-keyshortcuts="Q"
+          disabled={inventoryMobileHudMini}
           onClick={() => {
             toggleQuestPanel();
           }}
@@ -17677,7 +17738,7 @@ export function MovementLab() {
           onPointerDown={(event) => {
             if (
               event.target instanceof Element &&
-              event.target.closest(".inventory-body, .inventory-close")
+              event.target.closest(".inventory-body, .inventory-close, .inventory-mobile-tabs")
             ) return;
             playOneShotAudio("uiInput");
             setInventoryPanelOpen(false);
@@ -17720,7 +17781,26 @@ export function MovementLab() {
               </button>
             </header>
 
-            <div className="inventory-body">
+            {/* 手機直式：三區以頁籤切換（其他版面由 CSS 隱藏） */}
+            <nav className="inventory-mobile-tabs" role="tablist" aria-label="背包分區">
+              {INVENTORY_MOBILE_TABS.map((tab) => (
+                <button
+                  className={inventoryMobileTab === tab.id ? "is-active" : undefined}
+                  type="button"
+                  role="tab"
+                  key={tab.id}
+                  aria-selected={inventoryMobileTab === tab.id}
+                  onClick={() => {
+                    setInventoryContextMenu(null);
+                    setInventoryMobileTab(tab.id);
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+
+            <div className="inventory-body" data-mobile-tab={inventoryMobileTab}>
               <aside className="inventory-summary-panel">
                 <div className="inventory-summary-content">
                   <h3>生存背包<small>BACKPACK</small></h3>
@@ -17923,7 +18003,7 @@ export function MovementLab() {
                   ) : null}
                   {visibleInventoryItems.map(({ item, index }) => (
                     <button
-                      className={`inventory-item is-${item.category}${(inventoryGamepadMode === "dpad" && questPromptInputMode === "gamepad" ? selectedInventoryIndex === index : inventoryHoverHint?.itemId === item.id) ? " is-selected" : ""}`}
+                      className={`inventory-item is-${item.category}${(inventoryGamepadMode === "dpad" && questPromptInputMode === "gamepad" ? selectedInventoryIndex === index : inventoryHoverHint?.itemId === item.id || (inventoryContextMenu?.kind === "inventory" && inventoryContextMenu.databaseIndex === index)) ? " is-selected" : ""}`}
                       type="button"
                       key={item.id}
                       data-inventory-index={index}
@@ -17948,6 +18028,7 @@ export function MovementLab() {
                           return;
                         }
                         selectInventoryItem(index);
+                        if (isMobilePortraitInventory()) openInventoryItemMenuBelow(event.currentTarget, index);
                       }}
                     >
                       <span className="inventory-item-kind" aria-hidden="true">{getInventoryCategoryPresentation(item.category).symbol}</span>
@@ -18063,8 +18144,14 @@ export function MovementLab() {
             type="button"
             disabled={!contextInventoryItem || !getInventoryItemArtworkPreview(contextInventoryItem.id)}
             onClick={() => {
-              if (contextInventoryItem) openInventoryItemInspect(contextInventoryItem);
-              else showUnavailableInventoryAction("查看");
+              if (contextInventoryItem) {
+                // 手機直式：查看時切到選中道具頁並開啟大圖
+                if (isMobilePortraitInventory()) {
+                  setInventoryMobileTab("selected");
+                  setInventoryContextMenu(null);
+                }
+                openInventoryItemInspect(contextInventoryItem);
+              } else showUnavailableInventoryAction("查看");
             }}
           >
             查看

@@ -11409,7 +11409,7 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
     radial-gradient(ellipse at 0 0, rgba(63, 148, 178, .24), transparent 45%),
     radial-gradient(ellipse at 100% 100%, rgba(63, 148, 178, .2), transparent 45%),
     url("../public/ui/dialogue/grid.svg") repeat,
-    rgba(5, 14, 24, .7);
+    var(--inventory-skin-base, rgba(5, 14, 24, .7));
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: inset 0 0 18px rgba(111, 212, 255, .13);
@@ -12400,3 +12400,305 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   filter: drop-shadow(0 0 3px rgba(129, 148, 84, 0.45));
 }
 
+
+/* ---------- 手機直式背包：三區（生存背包／選中道具／道具清單）改為上方頁籤切換 ----------
+   每區寬度統一為螢幕寬（左右各留 12px）；預設顯示道具清單，點道具在格子下方彈出功能選單（movement-lab）。 */
+.inventory-mobile-tabs { display: none; }
+@media (orientation: portrait) and (max-width: 680px), (orientation: portrait) and (hover: none) and (pointer: coarse) {
+  /* 頂排 HUD（生存 mini／時鐘）維持原位，背包從頂排下方開始，標題與關閉鈕不和時鐘重疊 */
+  .game-shell .inventory-overlay { padding-inline: 12px; padding-top: calc(var(--mobile-hud-top, 14px) + 34px); }
+  .game-shell .inventory-header { min-height: 44px; padding: 0 0 4px; }
+  .game-shell .inventory-dialog {
+    width: 100%;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    transform: translateY(-16px);
+  }
+  .game-shell .inventory-header :is(p, .inventory-title-ornament) { display: none; }
+  /* One grid-spanning frame keeps stroke width, antialiasing and gradient
+     continuous from the tab strip down to every panel's bottom corners. */
+  .game-shell .inventory-dialog > .inventory-header { grid-area: 1 / 1; }
+  .game-shell .inventory-dialog > .inventory-mobile-tabs { grid-area: 2 / 1; }
+  .game-shell .inventory-dialog > .inventory-body { grid-area: 3 / 1; }
+  .game-shell .inventory-dialog::after {
+    content: "";
+    position: relative;
+    grid-area: 2 / 1 / 4 / 2;
+    z-index: 5;
+    min-width: 0;
+    min-height: 0;
+    pointer-events: none;
+    background: var(--inventory-skin-edge);
+    clip-path: var(--inventory-skin-ring);
+  }
+  .game-shell .inventory-dialog :is(.inventory-summary-panel, .inventory-selected-panel, .inventory-catalog)::after {
+    content: none;
+  }
+  .game-shell .inventory-mobile-tabs {
+    position: relative;
+    z-index: 4;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: -1px;
+    clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%, 0 8px);
+    background: #050e18;
+  }
+  .game-shell .inventory-mobile-tabs button {
+    position: relative;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 0;
+    background: linear-gradient(180deg, rgba(63, 148, 178, .12), transparent);
+    box-shadow: inset -1px 0 0 rgba(134, 216, 242, .2);
+    color: #7f9aa5;
+    font-family: var(--inventory-font-family);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .game-shell .inventory-mobile-tabs button:last-child { box-shadow: none; }
+  .game-shell .inventory-mobile-tabs button:focus,
+  .game-shell .inventory-mobile-tabs button:focus-visible { outline: none; }
+  /* Same bottom-to-top gold glow as the PC category selection. */
+  .game-shell .inventory-mobile-tabs button.is-active {
+    background: linear-gradient(to top, rgba(216, 168, 81, .2), rgba(135, 92, 31, .07) 48%, transparent 82%);
+    color: #efd298;
+    text-shadow: 0 0 7px rgba(255, 224, 158, .52), 0 0 15px rgba(209, 153, 65, .28);
+  }
+  .game-shell .inventory-mobile-tabs button.is-active::after {
+    content: "";
+    position: absolute;
+    right: 1px;
+    bottom: 0;
+    left: 1px;
+    height: 3px;
+    pointer-events: none;
+    background: linear-gradient(to top, #f1c972 0, #dca84f 46%, rgba(218, 164, 74, .36) 78%, transparent 100%);
+    box-shadow: 0 -2px 5px rgba(239, 196, 108, .28), 0 -4px 9px rgba(205, 143, 51, .12);
+  }
+  .game-shell .inventory-dialog :is(.inventory-summary-panel, .inventory-selected-panel, .inventory-catalog) {
+    /* The skin draws its own 1px frame. A transparent native border would
+       inset that frame by 1px relative to the borderless tab strip. */
+    border-width: 0;
+    --inventory-skin-base: #050e18;
+    --inventory-skin-shape: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px));
+  }
+  /* Inherit the PC corner-pattern fade, with an opaque base on touch layouts. */
+  .game-shell .inventory-dialog :is(.inventory-summary-panel, .inventory-selected-panel, .inventory-catalog)::before {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  /* 關閉鈕右緣切齊面板右緣 */
+  .game-shell .inventory-dialog .inventory-close {
+    top: calc(50% - 21px);
+    right: 0;
+    width: 38px;
+    height: 38px;
+    font-size: 30px;
+  }
+  .game-shell .inventory-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  /* 道具清單：排序／搜尋列在手機隱藏，明確指定列，避免道具格被排進高度 0 的列 */
+  .game-shell .inventory-dialog .inventory-catalog {
+    grid-template-rows: var(--inventory-heading-band) minmax(0, 1fr) auto;
+  }
+  .game-shell .inventory-dialog .inventory-grid-viewport { grid-row: 2; }
+  .game-shell .inventory-dialog .inventory-pages { grid-row: 3; }
+  /* 4 欄道具格由上往下排，格子維持接近方形（不再拉長填滿高度） */
+  .game-shell .inventory-dialog .inventory-items {
+    height: auto;
+    grid-template-rows: none;
+    grid-auto-rows: auto;
+    align-content: start;
+  }
+  .game-shell .inventory-dialog .inventory-items .inventory-item { aspect-ratio: 5 / 6; }
+  .game-shell .inventory-body > :is(.inventory-summary-panel, .inventory-selected-panel, .inventory-catalog) { display: none; }
+  .game-shell .inventory-body[data-mobile-tab="summary"] > .inventory-summary-panel,
+  .game-shell .inventory-body[data-mobile-tab="selected"] > .inventory-selected-panel,
+  .game-shell .inventory-body[data-mobile-tab="catalog"] > .inventory-catalog { display: grid; }
+}
+
+/* 手機直式背包：字級與間距（390px 寬參考；最小可讀 12px，標題 15px，主要名稱 18–20px） */
+@media (orientation: portrait) and (max-width: 680px), (orientation: portrait) and (hover: none) and (pointer: coarse) {
+  .game-shell .inventory-dialog {
+    --inventory-heading-font: 15px;
+    --inventory-heading-band: 42px;
+  }
+  .game-shell .inventory-dialog :is(.inventory-summary-content > h3, .inventory-selected-panel > header) small { font-size: 10px; }
+
+  /* 生存背包：取消桌機的整體縮小，直接用可讀字級 */
+  .game-shell .inventory-dialog .inventory-summary-panel {
+    --inventory-summary-scale: 1;
+    --inventory-summary-size: 100%;
+  }
+  .game-shell .inventory-dialog .inventory-summary-content {
+    padding: 0 16px 14px;
+    row-gap: 12px;
+  }
+  .game-shell .inventory-dialog .inventory-survival-panel { padding: 12px 14px; gap: 12px; }
+  .game-shell .inventory-dialog .inventory-survival-panel .survival-stat-icon { font-size: 18px; }
+  .game-shell .inventory-dialog .inventory-survival-panel .survival-stat-label { font-size: 15px; }
+  .game-shell .inventory-dialog .inventory-survival-panel .survival-stat output { font-size: 13px; }
+  .game-shell .inventory-dialog .inventory-weight strong { font-size: 16px; }
+  .game-shell .inventory-dialog .inventory-category-stats { padding: 6px 4px 0; }
+  .game-shell .inventory-dialog .inventory-category-stats p { margin: 9px 0; font-size: 15px; }
+
+  /* 選中道具：名稱、說明、數值與四個按鈕 */
+  .game-shell .inventory-dialog .inventory-selected-panel {
+    grid-template-rows: var(--inventory-heading-band) minmax(140px, 1fr) auto auto;
+    padding-inline: 14px;
+    padding-bottom: 14px;
+  }
+  .game-shell .inventory-dialog .inventory-selected-copy { gap: 8px 10px; padding: 12px 2px 14px; }
+  .game-shell .inventory-dialog .inventory-selected-copy h3 { font-size: 20px; }
+  .game-shell .inventory-dialog .inventory-selected-copy > strong { font-size: 14px; }
+  .game-shell .inventory-dialog .inventory-selected-copy p { font-size: 14px; line-height: 1.5; }
+  .game-shell .inventory-dialog .inventory-selected-copy p.inventory-survival-effects { padding: 7px 10px; font-size: 13px; }
+  .game-shell .inventory-dialog .inventory-selected-copy output { font-size: 13px; }
+  .game-shell .inventory-dialog .inventory-selected-actions { gap: 8px; }
+  .game-shell .inventory-dialog .inventory-selected-actions button { min-height: 46px; padding: 0 8px; font-size: 16px; }
+
+  /* 道具清單：分類頁籤、格子間距、名稱與數量、翻頁 */
+  .game-shell .inventory-dialog .inventory-catalog { padding: 0 10px 6px; row-gap: 10px; }
+  .game-shell .inventory-dialog .inventory-categories button { gap: 3px; padding-inline: 2px; font-size: 13px; }
+  .game-shell .inventory-dialog .inventory-items { gap: 8px; }
+  .game-shell .inventory-dialog .inventory-items .inventory-item { padding: 6px 6px 7px; }
+  .game-shell .inventory-dialog .inventory-items .inventory-item-icon { width: 70cqw; height: 62cqh; }
+  .game-shell .inventory-dialog .inventory-items .inventory-item :is(strong, small) { font-size: 12px; }
+  /* 道具名稱小兩級，盡量完整顯示；仍放不下才以「…」截斷 */
+  .game-shell .inventory-dialog .inventory-items .inventory-item strong { font-size: 10px; letter-spacing: 0; }
+  .game-shell .inventory-dialog .inventory-items .inventory-item-kind { top: 5px; left: 6px; font-size: 12px; }
+  .game-shell .inventory-dialog .inventory-pages { min-height: 46px; gap: 30px; padding-top: 0; font-size: 16px; }
+  .game-shell .inventory-dialog .inventory-pages button { min-width: 44px; min-height: 44px; font-size: 20px; }
+  /* 點道具彈出的功能選單（總高需維持在 movement-lab 預留的 196px 內） */
+  .inventory-context-menu:not(.is-hotbar-menu) button { padding: 10px 14px; font-size: 15px; }
+}
+
+/* Touch tablets retain the PC tools row between categories and items. */
+@media (orientation: portrait) and (min-width: 681px) and (hover: none) and (pointer: coarse) {
+  .game-shell .inventory-dialog .inventory-catalog {
+    grid-template-rows: var(--inventory-heading-band) auto minmax(0, 1fr) auto;
+  }
+  .game-shell .inventory-dialog .inventory-catalog-tools { grid-row: 2; }
+  .game-shell .inventory-dialog .inventory-grid-viewport { grid-row: 3; }
+  .game-shell .inventory-dialog .inventory-pages { grid-row: 4; }
+}
+
+/* Both mobile HUDs remain visible above inventory in portrait and landscape. */
+.game-shell :is(.survival-hud, .quest-hud).is-inventory-mini { z-index: 12; }
+
+/* 手機直式背包：生存背包／選中道具版面（375×667 到 390×844 都要放得下）
+   頁籤已標示分區名稱，面板內重複的小標題隱藏，把高度留給內容。 */
+@media (orientation: portrait) and (max-width: 680px), (orientation: portrait) and (hover: none) and (pointer: coarse) {
+  .game-shell .inventory-dialog :is(.inventory-summary-content > h3, .inventory-selected-panel > header) { display: none; }
+
+  /* 生存背包：維持上下排列（生存數值 → 背包圖 → 重量 → 分類統計）。
+     背包圖那一列吃剩餘高度，背包依該列實際高度縮放（見下方 @container），不會蓋到重量列 */
+  .game-shell .inventory-dialog .inventory-summary-content {
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    gap: 10px;
+    padding: 12px 14px 12px;
+    overflow: hidden;
+  }
+  .game-shell .inventory-dialog .inventory-survival-panel { margin: 0; padding: 12px 14px; gap: 10px; }
+  .game-shell .inventory-dialog .inventory-bag-art {
+    container: inventory-bag-art / size;
+    min-height: 0;
+  }
+  .game-shell .inventory-dialog .inventory-bag-art > .backpack-container { transform: scale(1.2); }
+  .game-shell .inventory-dialog .inventory-backpack-equipment { top: 0; }
+  .game-shell .inventory-dialog .inventory-category-stats { padding-top: 4px; }
+  .game-shell .inventory-dialog .inventory-category-stats p { margin: 7px 0; }
+
+  /* 選中道具：大圖吃剩餘高度，名稱說明與四個按鈕固定在下方 */
+  .game-shell .inventory-dialog .inventory-selected-panel {
+    grid-template-rows: minmax(96px, 1fr) auto auto;
+    padding-top: 6px;
+  }
+  .game-shell .inventory-dialog .inventory-selected-copy { gap: 6px 10px; padding: 10px 2px 12px; }
+  .game-shell .inventory-dialog .inventory-selected-copy p { line-height: 1.45; }
+  .game-shell .inventory-dialog .inventory-selected-actions button { min-height: 44px; }
+}
+/* 較矮的直式手機（如 375×667）：數值面板與按鈕再緊湊一點 */
+@media (orientation: portrait) and (max-width: 680px) and (max-height: 720px) {
+  .game-shell .inventory-dialog .inventory-survival-panel { padding: 8px 12px; gap: 3px; }
+  .game-shell .inventory-dialog .inventory-survival-panel .survival-stat { grid-template-rows: 20px 5px; row-gap: 3px; }
+  .game-shell .inventory-dialog .inventory-summary-content { gap: 8px; padding-block: 10px 8px; }
+  .game-shell .inventory-dialog .inventory-weight { gap: 4px 10px; }
+  .game-shell .inventory-dialog .inventory-category-stats { padding-top: 2px; }
+  .game-shell .inventory-dialog .inventory-category-stats p { margin: 3px 0; font-size: 14px; }
+  .game-shell .inventory-dialog .inventory-survival-panel .survival-stat-label { font-size: 14px; }
+  .game-shell .inventory-dialog .inventory-backpack-equipment { width: 48px; height: 48px; padding: 2px; }
+  .game-shell .inventory-dialog .inventory-backpack-equipment .inventory-item-icon { width: 44px; height: 44px; }
+  /* 選中道具：按鈕矮一點、貼近底部，資訊文字更緊密，把高度讓給上方大圖 */
+  .game-shell .inventory-dialog .inventory-selected-panel { padding-bottom: 8px; }
+  .game-shell .inventory-dialog .inventory-selected-copy { gap: 3px 8px; padding: 6px 2px 8px; }
+  .game-shell .inventory-dialog .inventory-selected-copy h3 { font-size: 18px; }
+  .game-shell .inventory-dialog .inventory-selected-copy > strong { font-size: 13px; }
+  .game-shell .inventory-dialog .inventory-selected-copy p { font-size: 13px; line-height: 1.35; }
+  .game-shell .inventory-dialog .inventory-selected-copy p.inventory-survival-effects { padding: 4px 8px; font-size: 12px; }
+  .game-shell .inventory-dialog .inventory-selected-copy output { font-size: 12px; }
+  .game-shell .inventory-dialog .inventory-selected-actions { gap: 6px; }
+  .game-shell .inventory-dialog .inventory-selected-actions button { min-height: 36px; font-size: 15px; }
+}
+/* 背包圖依可用高度縮放（直式手機）：空間足夠時放大，較矮時縮小，避免與重量列重疊 */
+@container inventory-bag-art (min-height: 190px) {
+  .game-shell .inventory-dialog .inventory-bag-art > .backpack-container { transform: scale(1.4); }
+}
+@container inventory-bag-art (max-height: 150px) {
+  .game-shell .inventory-dialog .inventory-bag-art > .backpack-container { transform: scale(1); }
+}
+@container inventory-bag-art (max-height: 125px) {
+  .game-shell .inventory-dialog .inventory-bag-art > .backpack-container { transform: scale(.82); }
+}
+@container inventory-bag-art (max-height: 104px) {
+  .game-shell .inventory-dialog .inventory-bag-art > .backpack-container { transform: scale(.68); }
+}
+/* 較矮的直式手機：背包容量圖示稍微放大，填滿背包圖那一列的高度 */
+@media (orientation: portrait) and (max-width: 680px) and (max-height: 720px) {
+  @container inventory-bag-art (max-height: 125px) {
+    .game-shell .inventory-dialog .inventory-bag-art > .backpack-container { transform: scale(.94); }
+  }
+}
+/* 較高的直式手機：數值面板與分類列間距放寬 */
+@media (orientation: portrait) and (max-width: 680px) and (min-height: 760px) {
+  .game-shell .inventory-dialog .inventory-survival-panel { padding: 16px 16px; gap: 16px; }
+  .game-shell .inventory-dialog .inventory-category-stats p { margin: 10px 0; }
+}
+
+/* 手機直式道具清單：格子大小依清單區（container）實際寬高計算，翻頁列永遠完整露出
+   - 較高的直式（≥760px，如 390×844）：每頁 4×5（movement-lab 依同一條件切換每頁 20 格）
+   - 其餘直式（如 375×667）：每頁 4×4 正方形格，空間不足時格子與間距一起縮小 */
+@media (orientation: portrait) and (max-width: 680px), (orientation: portrait) and (hover: none) and (pointer: coarse) {
+  .game-shell .inventory-dialog .inventory-items {
+    --inv-gap: 6px;
+    --inv-cell: min(calc((100cqw - 3 * var(--inv-gap)) / 4), calc((100cqh - 3 * var(--inv-gap)) / 4));
+    width: 100%;
+    height: auto;
+    grid-template-columns: repeat(4, var(--inv-cell));
+    grid-template-rows: none;
+    grid-auto-rows: var(--inv-cell);
+    gap: var(--inv-gap);
+    justify-content: center;
+    align-content: start;
+  }
+  .game-shell .inventory-dialog .inventory-items .inventory-item { aspect-ratio: auto; }
+}
+@media (orientation: portrait) and (max-width: 680px) and (max-height: 720px) {
+  .game-shell .inventory-dialog .inventory-items { --inv-gap: 5px; }
+  .game-shell .inventory-dialog .inventory-items .inventory-item { padding: 4px 4px 5px; }
+}
+@media (orientation: portrait) and (max-width: 680px) and (min-height: 760px) {
+  .game-shell .inventory-dialog .inventory-items {
+    --inv-gap: 8px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: calc((100cqh - 4 * var(--inv-gap)) / 5);
+  }
+}
