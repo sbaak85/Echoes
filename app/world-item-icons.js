@@ -527,3 +527,52 @@ export function drawWorldItemIcon(target, item, time, phase = 0, highlight = 0) 
   target.restore();
   return true;
 }
+
+/** 拾取閃光的長度：Icon 在 1 倍時間內淡出，光暈以 2 倍時間擴散淡出 */
+export const WORLD_ITEM_PICKUP_FLASH_SPAN = 2;
+const easeOut = (t) => 1 - (1 - t) * (1 - t);
+
+// 類別色剪影（光暈用）：以箱體本體圖染色，第一次用到時才產生
+function getTintSprite(sprites) {
+  if (sprites.tint) return sprites.tint;
+  const size = BOX * RENDER_SCALE, tint = makeCanvas(size, size), g = tint.getContext("2d");
+  g.drawImage(sprites.base, 0, 0);
+  g.globalCompositeOperation = "source-in";
+  g.fillStyle = `rgb(${sprites.rgb})`;
+  g.fillRect(0, 0, size, size);
+  sprites.tint = tint;
+  return tint;
+}
+
+/**
+ * 拾取成功時的閃光（預覽 output/pickup-flash 的 E 組）：Icon 原地淡出；
+ * 另一層類別色光暈獨立放大到約 2 倍並模糊淡出。座標與 drawWorldItemIcon 相同（原點＝接地中心）。
+ * @param {number} progress 經過時間 ÷ 閃光時間（0..WORLD_ITEM_PICKUP_FLASH_SPAN）
+ * @returns {boolean} 是否仍在播放
+ */
+export function drawWorldItemPickupFlash(target, item, time, phase, progress) {
+  const sprites = getItemSprites(item);
+  if (!sprites || progress < 0 || progress > WORLD_ITEM_PICKUP_FLASH_SPAN) return false;
+  if (progress < 1) {
+    target.save();
+    target.globalAlpha *= 1 - progress;
+    drawWorldItemIcon(target, item, time, phase, 1);
+    target.restore();
+  }
+  const q = Math.min(1, progress / WORLD_ITEM_PICKUP_FLASH_SPAN);
+  const scale = 1.05 + 1.0 * easeOut(q);
+  const bounds = getWorldItemIconBounds(item);
+  const centerY = bounds ? (bounds.top + bounds.bottom) / 2 : -20;
+  // 模糊半徑以畫面像素計：換算成目前變換下約 3.3～7.5 個世界單位
+  const pixelScale = Math.hypot(target.getTransform().a, target.getTransform().b) || 1;
+  target.save();
+  target.globalCompositeOperation = "lighter";
+  target.globalAlpha *= (1 - q) * 0.55;
+  target.filter = `blur(${(3.3 + 4.2 * q) * pixelScale}px)`;
+  target.translate(0, centerY);
+  target.scale(scale, scale);
+  target.translate(0, -centerY);
+  target.drawImage(getTintSprite(sprites), -BOX_OX, -BOX_OY, BOX, BOX);
+  target.restore();
+  return true;
+}

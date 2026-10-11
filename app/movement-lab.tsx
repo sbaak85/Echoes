@@ -73,7 +73,12 @@ import {
   type BlackScreenOverlayHandle,
 } from "./black-screen-overlay";
 import { BgmDirector } from "./bgm-director";
-import { drawWorldItemIcon, getWorldItemIconBounds } from "./world-item-icons.js";
+import {
+  drawWorldItemIcon,
+  drawWorldItemPickupFlash,
+  getWorldItemIconBounds,
+  WORLD_ITEM_PICKUP_FLASH_SPAN,
+} from "./world-item-icons.js";
 import {
   getDayNightCssVariables,
   isDebugTimeCommand,
@@ -2019,6 +2024,8 @@ function getInventoryItemArtworkPreview(itemId: string) {
 // Existing related artwork for legacy/test items that do not yet have dedicated art.
 /** 世界掉落道具箱體 Icon 的接地點相對道具座標的下移量（世界像素） */
 const WORLD_ITEM_ICON_GROUND_OFFSET = 8;
+/** 拾取閃光：Icon 淡出時間（光暈為其 WORLD_ITEM_PICKUP_FLASH_SPAN 倍） */
+const WORLD_ITEM_PICKUP_FLASH_DURATION_MS = 100;
 /** 世界掉落道具箱體 Icon 的放大倍率（1 = 預覽頁的 1× 尺寸） */
 const WORLD_ITEM_ICON_SCALE = 1.3;
 /** 依世界道具 ID 錯開箱體 Icon 的明滅相位，避免同畫面的道具同步閃爍 */
@@ -3719,6 +3726,13 @@ export function MovementLab() {
     new Map(),
   );
   const worldItemLandingAudioPlayedRef = useRef<Set<string>>(new Set());
+  // 拾取成功的閃光（Icon 淡出＋光暈擴散），由 drawWorldItemPickups 每幀播放
+  const worldItemPickupFlashesRef = useRef<Array<{
+    item: ItemDefinition;
+    position: Point;
+    phase: number;
+    startedAt: number;
+  }>>([]);
   const sceneInteractablesRef = useRef<SceneInteractable[]>(
     buildSceneInteractables(
       [],
@@ -11609,6 +11623,14 @@ export function MovementLab() {
             });
             saveQuestSaveData(questManager.exportSave());
           }
+          if (interactable.position) {
+            worldItemPickupFlashesRef.current.push({
+              item,
+              position: { ...interactable.position },
+              phase: getWorldItemIconPhase(interactable.worldItemId),
+              startedAt: performance.now(),
+            });
+          }
           playOneShotAudio("worldItemPickedUp");
           showPlayerItemGain(item.name, quantity);
 
@@ -13050,6 +13072,17 @@ export function MovementLab() {
 
       // 依透視排序：畫面上越下方（越靠前）的道具越晚畫，圖層在上
       pickups.sort((a, b) => a.drawPosition.y - b.drawPosition.y);
+      // 剛被拾取的道具：Icon 0.1 秒淡出，光暈 0.2 秒擴散淡出
+      worldItemPickupFlashesRef.current = worldItemPickupFlashesRef.current.filter((flash) => {
+        const progress = (time - flash.startedAt) / WORLD_ITEM_PICKUP_FLASH_DURATION_MS;
+        if (progress > WORLD_ITEM_PICKUP_FLASH_SPAN) return false;
+        context.save();
+        context.translate(flash.position.x, flash.position.y + WORLD_ITEM_ICON_GROUND_OFFSET);
+        context.scale(WORLD_ITEM_ICON_SCALE, WORLD_ITEM_ICON_SCALE);
+        drawWorldItemPickupFlash(context, flash.item, time, flash.phase, Math.max(0, progress));
+        context.restore();
+        return true;
+      });
       pickups.forEach(({
         interactable,
         item,
