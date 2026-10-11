@@ -12342,18 +12342,19 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 /* 新手教學提示卡：隨 --ui-scale 縮放（位置由 new-player-tutorial-overlay 以縮放後大小計算） */
 .game-shell .new-player-tutorial-hint { scale: var(--ui-scale, 1); transform-origin: top left; }
 
-/* Options 對話框：手機版隨 --ui-scale 縮小。寬高先除以比例再縮放，
-   縮放後仍佔原本的畫面比例（寬最多 560px、高 80%），內容區可顯示更多項目。 */
+/* Options 對話框：手機版縮小，但比其他 UI 大一些（--ui-scale × 1.25，最多 100%；UI 60% 時為 75%）。
+   寬高先除以比例再縮放，縮放後仍佔原本的畫面比例（寬最多 560px、高 80%），內容區可顯示更多項目。 */
 @media (max-width: 680px), (hover: none) and (pointer: coarse) {
   .game-shell .options-dialog {
+    --options-scale: min(1, calc(var(--ui-scale, 1) * 1.25));
     /* 縮放前的尺寸會大於遮罩區，grid 置中會靠上對齊，改用絕對定位置中 */
     position: absolute;
     top: 50%;
     left: 50%;
-    width: calc(min(100% - 28px, 560px) / var(--ui-scale, 1));
-    height: calc(80% / var(--ui-scale, 1));
+    width: calc(min(100% - 28px, 560px) / var(--options-scale));
+    height: calc(80% / var(--options-scale));
     translate: -50% -50%;
-    scale: var(--ui-scale, 1);
+    scale: var(--options-scale);
     transform-origin: center;
   }
 }
