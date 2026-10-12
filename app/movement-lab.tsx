@@ -2271,8 +2271,15 @@ function isMobilePortraitInventory() {
   return typeof window !== "undefined" && window.matchMedia(MOBILE_PORTRAIT_INVENTORY_QUERY).matches;
 }
 type InventoryMobileTab = "summary" | "selected" | "catalog";
-/** 較高的直式手機（如 390×844）道具清單排 4×5 格，其餘維持 4×4 */
-const INVENTORY_TALL_PORTRAIT_QUERY = "(orientation: portrait) and (max-width: 680px) and (min-height: 760px)";
+/**
+ * 手機直式道具清單：固定 4 欄、寬度填滿，列數依清單區高度在 2～5 列之間自動選擇。
+ * 格子高度最多為寬度的 1.2 倍；超過就多排一列。空間不足時格子可變成橫向長方形（以閱讀性為主），
+ * 例如 390×844 → 4×5、375×667 → 4×4（近正方形）、含網址列的 iPhone SE → 4×3、更矮 → 4×2。
+ */
+const INVENTORY_PHONE_COLUMNS = 4;
+const INVENTORY_PHONE_MIN_ROWS = 2;
+const INVENTORY_PHONE_MAX_ROWS = 5;
+const INVENTORY_PHONE_MAX_CELL_ASPECT = 1.2;
 const INVENTORY_MOBILE_TABS: ReadonlyArray<{ id: InventoryMobileTab; label: string }> = [
   { id: "summary", label: "生存背包" },
   { id: "selected", label: "選中道具" },
@@ -4035,15 +4042,48 @@ export function MovementLab() {
   const [activeKeyboardKeys, setActiveKeyboardKeys] = useState<string[]>([]);
   // 手機直式背包目前顯示的分區（每次打開背包預設為道具清單）
   const [inventoryMobileTab, setInventoryMobileTab] = useState<InventoryMobileTab>("catalog");
-  // 道具清單每頁格數：較高的直式手機 20 格（4×5），其餘 16 格（4×4）
+  // 道具清單每頁格數：手機直式依清單區高度決定列數（4 欄 × 2～5 列），其餘版面固定 16 格（4×4）
   const [inventoryPageSize, setInventoryPageSize] = useState(16);
-  useEffect(() => {
-    const mediaQuery = window.matchMedia(INVENTORY_TALL_PORTRAIT_QUERY);
-    const update = () => setInventoryPageSize(mediaQuery.matches ? 20 : 16);
+  useLayoutEffect(() => {
+    if (!inventoryOpen) return;
+    const shell = gameShellRef.current;
+    const viewport = shell?.querySelector<HTMLElement>(".inventory-grid-viewport");
+    const items = shell?.querySelector<HTMLElement>(".inventory-items");
+    if (!viewport || !items) return;
+    const update = () => {
+      const phonePortrait = isMobilePortraitInventory() && !isTabletDevice();
+      if (!phonePortrait) {
+        items.classList.remove("is-phone-fit");
+        items.style.removeProperty("--inv-row-height");
+        setInventoryPageSize(16);
+        return;
+      }
+      // 清單頁籤隱藏時量不到大小：保留上一次的結果
+      const width = viewport.clientWidth;
+      const height = viewport.clientHeight;
+      if (!width || !height) return;
+      const gap = parseFloat(getComputedStyle(items).rowGap) || 0;
+      const cellWidth = (width - (INVENTORY_PHONE_COLUMNS - 1) * gap) / INVENTORY_PHONE_COLUMNS;
+      const maxCellHeight = cellWidth * INVENTORY_PHONE_MAX_CELL_ASPECT;
+      const rows = clamp(
+        Math.ceil((height + gap) / (maxCellHeight + gap)),
+        INVENTORY_PHONE_MIN_ROWS,
+        INVENTORY_PHONE_MAX_ROWS,
+      );
+      const rowHeight = Math.min(maxCellHeight, (height - (rows - 1) * gap) / rows);
+      items.classList.add("is-phone-fit");
+      items.style.setProperty("--inv-row-height", `${Math.floor(rowHeight)}px`);
+      setInventoryPageSize(INVENTORY_PHONE_COLUMNS * rows);
+    };
     update();
-    mediaQuery.addEventListener("change", update);
-    return () => mediaQuery.removeEventListener("change", update);
-  }, []);
+    const observer = new ResizeObserver(update);
+    observer.observe(viewport);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [inventoryOpen]);
   const [survivalState, setSurvivalState] = useState<SurvivalGameState>(
     INITIAL_SURVIVAL_STATE,
   );
@@ -4222,6 +4262,22 @@ export function MovementLab() {
       setSurvivalMobileMode("expanded");
     } else if (stepId === "minimap") {
       setMinimapCollapsed(false);
+    }
+  };
+  // 行動裝置版教學：點擊鏤空的介面時在「展開」與「一般版」之間切換（與鍵盤 Q／R、手把 RB／LB 相同，只是不經過 mini）
+  const toggleNewPlayerTutorialTarget = () => {
+    const stepId = newPlayerTutorialStepRef.current;
+    if (!newPlayerTutorialReadyRef.current) return;
+    if (stepId === "quest") {
+      const expand = questMobileMode !== "expanded";
+      setQuestCollapsed(!expand);
+      setQuestMobileMode(expand ? "expanded" : "collapsed");
+    } else if (stepId === "survival") {
+      const expand = survivalMobileMode !== "expanded";
+      setSurvivalExpanded(expand);
+      setSurvivalMobileMode(expand ? "expanded" : "collapsed");
+    } else if (stepId === "minimap") {
+      setMinimapCollapsed((collapsed) => !collapsed);
     }
   };
   const dismissNewPlayerTutorial = () => {
@@ -4783,6 +4839,9 @@ export function MovementLab() {
         host.style.setProperty("--mobile-fullscreen-left", `${rect.left - hostRect.left}px`);
         host.style.setProperty("--mobile-fullscreen-bottom", `${hostRect.bottom - rect.top + 8 * visualScale}px`);
         host.style.setProperty("--mobile-hud-controls-bottom", `${hostRect.bottom - rect.bottom}px`);
+        // 手機直式開背包時，全螢幕鈕改排在設定鈕右側（同一列、間距一格）
+        host.style.setProperty("--mobile-fullscreen-beside-left", `${rect.right - hostRect.left + 8 * visualScale}px`);
+        host.style.setProperty("--mobile-fullscreen-beside-bottom", `${hostRect.bottom - rect.bottom}px`);
       }
       // 快捷列右側放得下小地圖（含左右邊距）時，小地圖直接貼齊右下角；放不下才墊高到快捷列上方
       const minimap = host.querySelector<HTMLElement>(".minimap-hud");
@@ -10647,6 +10706,19 @@ export function MovementLab() {
           !event.repeat
         ) {
           setMinimapCollapsed((collapsed) => !collapsed);
+        } else if (
+          // 與手把 RB／LB 相同：任務步驟按 Q、生存步驟按 R 可實際收折／展開該介面
+          newPlayerTutorialStepRef.current === "quest" &&
+          key === "q" &&
+          !event.repeat
+        ) {
+          toggleQuestPanel();
+        } else if (
+          newPlayerTutorialStepRef.current === "survival" &&
+          key === "r" &&
+          !event.repeat
+        ) {
+          toggleSurvivalPanel();
         }
         return;
       }
@@ -17966,6 +18038,8 @@ export function MovementLab() {
                   ? minimapCollapsed
                   : false
           }
+          hotbarIconPath={getInventoryItemArtworkPreview("R0005")?.iconPath}
+          onToggleTarget={toggleNewPlayerTutorialTarget}
           onContinue={advanceNewPlayerTutorial}
         />
       ) : null}
@@ -19585,7 +19659,8 @@ export function MovementLab() {
         onClick={(event) => event.stopPropagation()}
       />
 
-      {!optionsOpen && !inventoryOpen && !powerPuzzleOpen && !itemUseConfirmation && !dialogueView ? (
+      {/* 背包開啟時全螢幕鈕照常顯示、可按（樣式上疊在背包遮罩之上） */}
+      {!optionsOpen && !powerPuzzleOpen && !itemUseConfirmation && !dialogueView ? (
         <button
           className="fullscreen-trigger"
           type="button"
