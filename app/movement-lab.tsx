@@ -2113,12 +2113,27 @@ function isTabletDevice() {
   const shortSide = Math.min(window.screen.width, window.screen.height);
   return shortSide >= TABLET_MIN_SCREEN_SHORT_SIDE && window.matchMedia(TABLET_MEDIA_QUERY).matches;
 }
+/** 手機排版的參考螢幕短邊（CSS px）：以 412 寬（Android 預設顯示大小）的版面為基準 */
+const PHONE_REFERENCE_SHORT_SIDE = 412;
+/** 窄於參考寬度的手機不再放大最低多少（極端值保護） */
+const PHONE_DENSITY_MIN_FACTOR = 0.8;
+/**
+ * 手機螢幕比參考寬度窄時（例如系統顯示大小調大、Chrome 100% 只剩約 365px），
+ * UI 比例與地圖縮放一起乘上「螢幕短邊 ÷ 412」，讓版面看起來和 412 寬的手機相同，只是整體等比縮小。
+ * 平板、桌機與 412 以上的手機維持 1。螢幕尺寸以 CSS px 計，與方向無關。
+ */
+function getPhoneDensityFactor() {
+  if (typeof window === "undefined" || !isMobileHudLayout() || isTabletDevice()) return 1;
+  const shortSide = Math.min(window.screen.width, window.screen.height);
+  if (!(shortSide > 0)) return 1;
+  return clamp(shortSide / PHONE_REFERENCE_SHORT_SIDE, PHONE_DENSITY_MIN_FACTOR, 1);
+}
 /** 預覽用：網址加上 ?mobileUiScale=0.7 可暫時覆蓋手機 UI 比例（0.3～1） */
 function getMobileUiScale() {
   if (typeof window === "undefined") return MOBILE_UI_SCALE;
   const preview = Number(new URLSearchParams(window.location.search).get("mobileUiScale"));
   if (Number.isFinite(preview) && preview >= 0.3 && preview <= 1) return preview;
-  return isTabletDevice() ? MOBILE_UI_SCALE * TABLET_UI_SCALE_FACTOR : MOBILE_UI_SCALE;
+  return isTabletDevice() ? MOBILE_UI_SCALE * TABLET_UI_SCALE_FACTOR : MOBILE_UI_SCALE * getPhoneDensityFactor();
 }
 
 /** 手型互動提示點的半徑（UI 100% 時的畫面像素，實際再乘上手機 UI 比例） */
@@ -3481,11 +3496,12 @@ function getCollisionSlidePosition(
 }
 
 function getSceneZoom(viewportWidth: number, viewportHeight: number) {
+  // 窄螢幕手機：地圖也依螢幕短邊等比縮小，與 412 寬手機看到的範圍比例一致（見 getPhoneDensityFactor）
   const baseZoom = clamp(
     Math.min(viewportWidth / 920, viewportHeight / 650),
     1.08,
     1.45,
-  );
+  ) * getPhoneDensityFactor();
   // 全螢幕等非 16:9 畫面可能比地圖還寬／高：放大到可視範圍不超過地圖，
   // 避免露出地圖外的空白或相鄰場景（一般 16:9 舞台不受影響）
   return Math.max(baseZoom, viewportWidth / WORLD.width, viewportHeight / WORLD.height);
