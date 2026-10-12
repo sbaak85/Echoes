@@ -12417,6 +12417,14 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
     height: 176px;
   }
 }
+@media (orientation: portrait) and (hover: none) and (pointer: coarse) {
+  /* 平板直向背包：視窗寬度貼齊 4 欄道具格（--inventory-fit-width 由 movement-lab 依格子實際大小計算），置中 */
+  .game-shell[data-device-class="tablet"] .inventory-dialog {
+    width: min(100%, var(--inventory-fit-width, 100%));
+    justify-self: center;
+    margin-inline: auto;
+  }
+}
 
 /* 開頭黑畫面對話：對話框右上角的「按 [□] 全螢幕」提示（樣式與左上的回顧訊息對稱；位置由 dialogue-player-view 計算） */
 .dialogue-fullscreen-trigger {

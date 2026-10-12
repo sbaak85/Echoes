@@ -4880,6 +4880,52 @@ export function MovementLab() {
     };
   }, []);
 
+  // 平板直向背包：道具格受高度限制成正方形，視窗卻撐滿寬度、左右空一大截。
+  // 量出「4 格＋間距」的寬度，讓整個背包視窗寬度貼齊道具格（--inventory-fit-width，見 globals.css）。
+  // 生存背包／選中道具頁籤時清單區隱藏量不到，沿用上次量到的「視窗外框與清單區的差距」換算。
+  useLayoutEffect(() => {
+    if (!inventoryOpen) return;
+    const shell = gameShellRef.current;
+    const dialog = shell?.querySelector<HTMLElement>(".inventory-dialog");
+    if (!shell || !dialog) return;
+    let chrome: { width: number; height: number } | null = null;
+    const update = () => {
+      const tabletPortrait =
+        shell.dataset.deviceClass === "tablet" && window.matchMedia("(orientation: portrait)").matches;
+      if (!tabletPortrait) {
+        dialog.style.removeProperty("--inventory-fit-width");
+        return;
+      }
+      const viewport = dialog.querySelector<HTMLElement>(".inventory-grid-viewport");
+      const items = dialog.querySelector<HTMLElement>(".inventory-items");
+      const dialogRect = dialog.getBoundingClientRect();
+      // 外框差距（標題、頁籤、工具列、翻頁列與內距）與視窗寬度無關，量一次即可換算
+      if (viewport && items && viewport.offsetHeight > 0) {
+        chrome = {
+          width: dialog.offsetWidth - viewport.clientWidth,
+          height: dialog.offsetHeight - viewport.clientHeight,
+        };
+      }
+      if (!chrome || !(dialogRect.height > 0)) return;
+      const gap = items ? parseFloat(getComputedStyle(items).columnGap) || 0 : 0;
+      const cell = (dialog.offsetHeight - chrome.height - 3 * gap) / 4;
+      if (!(cell > 0)) return;
+      const fitWidth = Math.ceil(4 * cell + 3 * gap + chrome.width + 1);
+      dialog.style.setProperty("--inventory-fit-width", `${fitWidth}px`);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(dialog);
+    const viewport = dialog.querySelector<HTMLElement>(".inventory-grid-viewport");
+    if (viewport) observer.observe(viewport);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+      dialog.style.removeProperty("--inventory-fit-width");
+    };
+  }, [inventoryOpen]);
+
   useLayoutEffect(() => {
     if (!quickAssign) return;
     const dock = quickDockRef.current;
