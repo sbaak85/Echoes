@@ -12248,7 +12248,6 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   .game-shell[data-minimap-beside-dock="true"] .minimap-hud,
   .game-shell[data-minimap-beside-dock="true"] .minimap-hud.is-collapsed { bottom: max(14px, env(safe-area-inset-bottom)); }
 }
-
 /* ---------- 手機 mini 面板：生存條用四個圓環、任務顯示進度與標題，兩者同寬 ---------- */
 .survival-mini-stats,
 .quest-mini-summary { display: none; }
@@ -12366,6 +12365,19 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 @media (orientation: landscape) and (max-width: 680px), (orientation: landscape) and (hover: none) and (pointer: coarse) {
   .game-shell .options-header { padding-block: 12px 8px; }
   .game-shell .options-header p { display: none; }
+}
+
+/* ---------- 平板（觸控、寬 700 以上且高 560 以上；手機直向寬度不到、手機橫向高度不到） ----------
+   放在檔尾，覆蓋前面的手機設定 */
+@media (hover: none) and (pointer: coarse) and (min-width: 700px) and (min-height: 560px) {
+  /* 小地圖放大，收合狀態維持原樣 */
+  .game-shell .minimap-hud:not(.is-collapsed) {
+    width: 176px;
+    height: 176px;
+  }
+  /* 直向時生存／任務 UI 寬度取自 mini 寬度（手機 200px）：平板畫面夠寬，放寬約 1.45 倍。
+     橫向本來就用 --mobile-survival-width / --mobile-quest-width，不受影響 */
+  .game-shell { --mobile-hud-mini-width: 290px; }
 }
 
 /* 開頭黑畫面對話：對話框右上角的「按 [□] 全螢幕」提示（樣式與左上的回顧訊息對稱；位置由 dialogue-player-view 計算） */

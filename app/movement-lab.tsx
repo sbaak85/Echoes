@@ -2096,11 +2096,18 @@ const MOBILE_HUD_MEDIA_QUERY =
   "(max-width: 680px), (hover: none) and (pointer: coarse)";
 /** 手機版（直向與橫向）整體 UI 縮放比例；文字隨元件一起縮放 */
 const MOBILE_UI_SCALE = 0.6;
+/** 平板（觸控、寬 700 以上且高 560 以上）畫面較寬裕：UI 比例再放大 12%（直向與橫向）；與 globals.css 平板區段同條件 */
+const TABLET_MEDIA_QUERY =
+  "(hover: none) and (pointer: coarse) and (min-width: 700px) and (min-height: 560px)";
+const TABLET_UI_SCALE_FACTOR = 1.12;
 /** 預覽用：網址加上 ?mobileUiScale=0.7 可暫時覆蓋手機 UI 比例（0.3～1） */
 function getMobileUiScale() {
   if (typeof window === "undefined") return MOBILE_UI_SCALE;
   const preview = Number(new URLSearchParams(window.location.search).get("mobileUiScale"));
-  return Number.isFinite(preview) && preview >= 0.3 && preview <= 1 ? preview : MOBILE_UI_SCALE;
+  if (Number.isFinite(preview) && preview >= 0.3 && preview <= 1) return preview;
+  return window.matchMedia(TABLET_MEDIA_QUERY).matches
+    ? MOBILE_UI_SCALE * TABLET_UI_SCALE_FACTOR
+    : MOBILE_UI_SCALE;
 }
 
 /** 手型互動提示點的半徑（UI 100% 時的畫面像素，實際再乘上手機 UI 比例） */
@@ -9243,6 +9250,11 @@ export function MovementLab() {
     };
     let touchJoystickPointerId: number | null = null;
     let touchJoystickVisible = false;
+    // 畫面下半部的觸控先暫存判定：100ms 內放開且移動未達 8dp 為單點（走一般點擊流程），
+    // 超過 100ms 或移動達 8dp 才轉成虛擬搖桿。8dp 即 8 個 CSS 像素。
+    const TOUCH_TAP_MAX_MS = 100;
+    const TOUCH_DRAG_THRESHOLD_PX = 8;
+    let pendingTouchJoystick: { pointerId: number; origin: Point; timer: number } | null = null;
     let heldPointerId: number | null = null;
     let heldPointerScreen: Point | null = null;
     let heldPointerRetargetElapsed = 0;
@@ -9830,6 +9842,10 @@ export function MovementLab() {
       touchJoystickPointerId = null;
       touchJoystickVisible = false;
       touchJoystick.input = { x: 0, y: 0 };
+      if (pendingTouchJoystick) {
+        window.clearTimeout(pendingTouchJoystick.timer);
+        pendingTouchJoystick = null;
+      }
       heldPointerId = null;
       heldPointerScreen = null;
       heldPointerContinuous = false;
@@ -12681,8 +12697,23 @@ export function MovementLab() {
       touchJoystick.input.y = directionY * inputStrength;
     };
 
-    const beginTouchJoystick = (event: PointerEvent, screenPoint: Point) => {
-      touchJoystickPointerId = event.pointerId;
+    const cancelPendingTouchJoystick = () => {
+      if (!pendingTouchJoystick) return;
+      window.clearTimeout(pendingTouchJoystick.timer);
+      pendingTouchJoystick = null;
+    };
+
+    // 長按或拖曳確定後，以按下的起點建立搖桿；current 為目前手指位置（拖曳時立即套用位移）
+    const promotePendingTouchJoystick = (current?: Point) => {
+      const pending = pendingTouchJoystick;
+      if (!pending) return;
+      cancelPendingTouchJoystick();
+      beginTouchJoystick(pending.pointerId, pending.origin);
+      if (current) updateTouchJoystick(current);
+    };
+
+    const beginTouchJoystick = (pointerId: number, screenPoint: Point) => {
+      touchJoystickPointerId = pointerId;
       touchJoystickVisible = true;
       touchJoystick.inputOrigin.x = screenPoint.x;
       touchJoystick.inputOrigin.y = screenPoint.y;
@@ -12692,7 +12723,13 @@ export function MovementLab() {
       touchJoystick.knob.y = touchJoystick.origin.y;
       touchJoystick.input.x = 0;
       touchJoystick.input.y = 0;
-      canvas.setPointerCapture(event.pointerId);
+      if (!canvas.hasPointerCapture(pointerId)) {
+        try {
+          canvas.setPointerCapture(pointerId);
+        } catch {
+          // The pointer already ended; pointerup/cancel will clear the joystick.
+        }
+      }
     };
 
     const endTouchJoystick = (event: PointerEvent) => {
@@ -12744,18 +12781,34 @@ export function MovementLab() {
         event.pointerType === "touch" &&
         screenPoint.y >= viewportHeight * 0.5
       ) {
-        beginTouchJoystick(event, screenPoint);
+        // 先不決定：100ms 內放開且未移動 8dp → 單點；否則轉成虛擬搖桿
+        cancelPendingTouchJoystick();
+        const pointerId = event.pointerId;
+        pendingTouchJoystick = {
+          pointerId,
+          origin: screenPoint,
+          timer: window.setTimeout(() => {
+            // 只在同一根手指仍按著、尚未判定時轉成搖桿
+            if (pendingTouchJoystick?.pointerId === pointerId) promotePendingTouchJoystick();
+          }, TOUCH_TAP_MAX_MS),
+        };
+        canvas.setPointerCapture(pointerId);
         canvas.focus({ preventScroll: true });
         return;
       }
+      startHeldPointer(event, screenPoint, {
+        x: event.clientX - bounds.left,
+        y: event.clientY - bounds.top,
+      });
+    };
+
+    // 一般點擊／按住流程（上半部觸控、滑鼠，以及下半部判定為單點的觸控共用）
+    const startHeldPointer = (event: PointerEvent, screenPoint: Point, pointerScreen: Point) => {
       virtualCursor.x = screenPoint.x;
       virtualCursor.y = screenPoint.y;
       virtualCursorVisible = event.pointerType === "mouse";
       heldPointerId = event.pointerId;
-      heldPointerScreen = {
-        x: event.clientX - bounds.left,
-        y: event.clientY - bounds.top,
-      };
+      heldPointerScreen = pointerScreen;
       heldPointerRetargetElapsed = 0;
       heldPointerDuration = 0;
       heldPointerContinuous = false;
@@ -12764,7 +12817,7 @@ export function MovementLab() {
       pointerGestureConsumed = false;
       pointerInteractionTriggeredId = null;
       touchEffect = null;
-      canvas.setPointerCapture(event.pointerId);
+      if (!canvas.hasPointerCapture(event.pointerId)) canvas.setPointerCapture(event.pointerId);
       assignHeldPointerAction(true);
       canvas.focus({ preventScroll: true });
     };
@@ -12793,6 +12846,20 @@ export function MovementLab() {
     };
 
     const onPointerMove = (event: PointerEvent) => {
+      if (pendingTouchJoystick?.pointerId === event.pointerId) {
+        event.preventDefault();
+        const bounds = canvas.getBoundingClientRect();
+        const point = {
+          x: clamp(event.clientX - bounds.left, 0, viewportWidth),
+          y: clamp(event.clientY - bounds.top, 0, viewportHeight),
+        };
+        const { origin } = pendingTouchJoystick;
+        // 移動達 8dp：確定為拖曳，立即轉成搖桿並套用目前位移
+        if (Math.hypot(point.x - origin.x, point.y - origin.y) >= TOUCH_DRAG_THRESHOLD_PX) {
+          promotePendingTouchJoystick(point);
+        }
+        return;
+      }
       if (event.pointerId === touchJoystickPointerId) {
         event.preventDefault();
         const bounds = canvas.getBoundingClientRect();
@@ -12908,6 +12975,13 @@ export function MovementLab() {
 
     const onPointerUp = (event: PointerEvent) => {
       if (endTouchJoystick(event)) return;
+      if (pendingTouchJoystick?.pointerId === event.pointerId) {
+        // 100ms 內放開且未移動 8dp：視為單點，在按下的位置走一般點擊流程（移動或互動），
+        // 下方再以一般流程結束並顯示點擊特效
+        const { origin } = pendingTouchJoystick;
+        cancelPendingTouchJoystick();
+        startHeldPointer(event, origin, origin);
+      }
       if (event.pointerId === heldPointerId) {
         const bounds = canvas.getBoundingClientRect();
         heldPointerScreen = {
@@ -12920,6 +12994,12 @@ export function MovementLab() {
 
     const onPointerCancel = (event: PointerEvent) => {
       if (endTouchJoystick(event)) return;
+      if (pendingTouchJoystick?.pointerId === event.pointerId) {
+        // 被取消的手勢不重播成單點
+        cancelPendingTouchJoystick();
+        if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+        return;
+      }
       endHeldPointer(event, false);
     };
 
@@ -16468,6 +16548,7 @@ export function MovementLab() {
       saveInteractionUsageState(interactionUsageRef.current);
       cancelAnimationFrame(animationFrame);
       operationHint.remove();
+      cancelPendingTouchJoystick();
       touchJoystickView.dispose();
       resizeObserver.disconnect();
       window.removeEventListener("keydown", onKeyDown);
