@@ -12686,7 +12686,6 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   .game-shell .inventory-dialog .inventory-category-stats p { margin: 3px 0; font-size: 14px; }
   .game-shell .inventory-dialog .inventory-survival-panel .survival-stat-label { font-size: 14px; }
   .game-shell .inventory-dialog .inventory-backpack-equipment { width: 48px; height: 48px; padding: 2px; }
-  .game-shell .inventory-dialog .inventory-backpack-equipment .inventory-item-icon { width: 44px; height: 44px; }
   /* 選中道具：按鈕矮一點、貼近底部，資訊文字更緊密，把高度讓給上方大圖 */
   .game-shell .inventory-dialog .inventory-selected-panel { padding-bottom: 8px; }
   .game-shell .inventory-dialog .inventory-selected-copy { gap: 3px 8px; padding: 6px 2px 8px; }

@@ -21,9 +21,11 @@
 .backpack-container.is-empty .body:before,.backpack-container.is-empty .side:before,.backpack-container.is-empty .lid-fill{opacity:0}
 .inventory-dialog .inventory-bag-art{position:relative;min-height:116px}
 .inventory-dialog .inventory-bag-art > .backpack-container{transform:translate(0,14px) scale(1.2);transform-origin:center}
-.inventory-dialog .inventory-backpack-equipment{position:absolute;z-index:1;left:0;top:8px;width:60px;height:60px;min-height:0;grid-template-rows:1fr;padding:3px}
+/* 選擇器多一個 .inventory-item：覆蓋通用道具格的 padding:4%（以整個背包圖區寬度計算，會把圖示擠出格子） */
+.inventory-dialog .inventory-item.inventory-backpack-equipment{position:absolute;z-index:1;left:0;top:8px;width:60px;height:60px;min-height:0;grid-template-rows:1fr;padding:2px}
 .inventory-dialog .inventory-backpack-equipment:focus,.inventory-dialog .inventory-backpack-equipment:focus-visible{outline:none}
-.inventory-dialog .inventory-backpack-equipment .inventory-item-icon{width:56px;height:56px;transform:none}
+/* 圖示填滿格子內容區：格子在各版面被改成不同大小時都保持置中、不溢出 */
+.inventory-dialog .inventory-backpack-equipment .inventory-item-icon{width:100%;height:100%;transform:none}
 .inventory-dialog .inventory-backpack-equipment .inventory-item-icon>.backpack-container{zoom:.4}
 .inventory-item-icon>.backpack-container{zoom:.55}
 .inventory-feature-art .backpack-container{transform:scale(1.8)}
