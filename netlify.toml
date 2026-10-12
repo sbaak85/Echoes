@@ -1,0 +1,20 @@
+# Publish the static game entry, using root-relative URLs on Netlify.
+# Keep the existing /Echoes/ GitHub Pages build unchanged.
+[build]
+  command = "pnpm exec vite build --config vite.pages.config.ts --base / --outDir ../output/netlify-site"
+  publish = "output/netlify-site"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # This deployment uses Vite, even though the repository also depends on Next.js.
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
+
+[dev]
+  framework = "#static"
+  publish = "output/netlify-site"
+
+# Vite emits content-hashed file names under /assets/, so they can be cached for good.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
