@@ -12367,17 +12367,55 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   .game-shell .options-header p { display: none; }
 }
 
-/* ---------- 平板（觸控、寬 700 以上且高 560 以上；手機直向寬度不到、手機橫向高度不到） ----------
+/* ---------- 小地圖動作按鈕（行動裝置）：小地圖外圈左上的金色 1/6 環 ----------
+   中心、尺寸與點擊範圍（clip-path）由 movement-lab 的 syncMinimapActionButton 設定；
+   整體隨 --ui-scale 縮放，出現時由小地圖中心往外推出並淡入。 */
+.minimap-action { display: none; }
+@media (max-width: 680px), (hover: none) and (pointer: coarse) {
+  .game-shell .minimap-action {
+    position: absolute;
+    z-index: 8;
+    display: block;
+    padding: 0;
+    border: 0;
+    outline: none;
+    background: none;
+    box-shadow: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    /* 手指稍微移動也不讓瀏覽器轉成捲動手勢（否則會 pointercancel、按鈕失效） */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    translate: -50% -50%;
+    scale: var(--ui-scale, 1);
+    pointer-events: none;
+  }
+  .game-shell .minimap-action:is(:focus, :focus-visible) { outline: none; box-shadow: none; }
+  .game-shell .minimap-action[data-visible="true"] { pointer-events: auto; }
+  .game-shell .minimap-action .minimap-action-art {
+    display: block;
+    opacity: 0;
+    transform: translate(9px, 9px) scale(.88);
+    transform-origin: center;
+    transition: opacity 100ms ease, transform 140ms cubic-bezier(.2, .9, .3, 1.2), filter 90ms ease;
+  }
+  .game-shell .minimap-action[data-visible="true"] .minimap-action-art { opacity: 1; transform: none; }
+  .game-shell .minimap-action[data-visible="true"]:active .minimap-action-art { transform: scale(.96); filter: brightness(1.35); }
+  /* 對話時與小地圖一起收起 */
+  .game-shell:has(.dialogue-box) .minimap-action { visibility: hidden; pointer-events: none; }
+}
+
+/* ---------- 平板 ----------
+   是否為平板由 movement-lab 判定（螢幕短邊 600 以上＋觸控、寬 700 以上且高 560 以上），寫入 data-device-class。
+   生存／任務 UI 的放寬（--mobile-hud-mini-width 290px）也由 movement-lab 設定：只在時鐘仍放得進頂排時才放寬。
    放在檔尾，覆蓋前面的手機設定 */
-@media (hover: none) and (pointer: coarse) and (min-width: 700px) and (min-height: 560px) {
+@media (max-width: 680px), (hover: none) and (pointer: coarse) {
   /* 小地圖放大，收合狀態維持原樣 */
-  .game-shell .minimap-hud:not(.is-collapsed) {
+  .game-shell[data-device-class="tablet"] .minimap-hud:not(.is-collapsed) {
     width: 176px;
     height: 176px;
   }
-  /* 直向時生存／任務 UI 寬度取自 mini 寬度（手機 200px）：平板畫面夠寬，放寬約 1.45 倍。
-     橫向本來就用 --mobile-survival-width / --mobile-quest-width，不受影響 */
-  .game-shell { --mobile-hud-mini-width: 290px; }
 }
 
 /* 開頭黑畫面對話：對話框右上角的「按 [□] 全螢幕」提示（樣式與左上的回顧訊息對稱；位置由 dialogue-player-view 計算） */

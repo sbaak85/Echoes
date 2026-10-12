@@ -2096,18 +2096,25 @@ const MOBILE_HUD_MEDIA_QUERY =
   "(max-width: 680px), (hover: none) and (pointer: coarse)";
 /** 手機版（直向與橫向）整體 UI 縮放比例；文字隨元件一起縮放 */
 const MOBILE_UI_SCALE = 0.6;
-/** 平板（觸控、寬 700 以上且高 560 以上）畫面較寬裕：UI 比例再放大 12%（直向與橫向）；與 globals.css 平板區段同條件 */
+/** 平板（觸控、寬 700 以上且高 560 以上）畫面較寬裕：UI 比例再放大 12%（直向與橫向） */
 const TABLET_MEDIA_QUERY =
   "(hover: none) and (pointer: coarse) and (min-width: 700px) and (min-height: 560px)";
+/** 平板螢幕短邊至少 600 CSS px（手機約 360～440）：避免手機在電腦版網站模式或特殊縮放下被誤判成平板 */
+const TABLET_MIN_SCREEN_SHORT_SIDE = 600;
 const TABLET_UI_SCALE_FACTOR = 1.12;
+/** 平板直向時生存／任務 UI 的放寬寬度（未縮放）；只有頂排放得下時鐘時才套用（見 --mobile-hud-mini-width） */
+const TABLET_HUD_WIDE_WIDTH = 290;
+function isTabletDevice() {
+  if (typeof window === "undefined") return false;
+  const shortSide = Math.min(window.screen.width, window.screen.height);
+  return shortSide >= TABLET_MIN_SCREEN_SHORT_SIDE && window.matchMedia(TABLET_MEDIA_QUERY).matches;
+}
 /** 預覽用：網址加上 ?mobileUiScale=0.7 可暫時覆蓋手機 UI 比例（0.3～1） */
 function getMobileUiScale() {
   if (typeof window === "undefined") return MOBILE_UI_SCALE;
   const preview = Number(new URLSearchParams(window.location.search).get("mobileUiScale"));
   if (Number.isFinite(preview) && preview >= 0.3 && preview <= 1) return preview;
-  return window.matchMedia(TABLET_MEDIA_QUERY).matches
-    ? MOBILE_UI_SCALE * TABLET_UI_SCALE_FACTOR
-    : MOBILE_UI_SCALE;
+  return isTabletDevice() ? MOBILE_UI_SCALE * TABLET_UI_SCALE_FACTOR : MOBILE_UI_SCALE;
 }
 
 /** 手型互動提示點的半徑（UI 100% 時的畫面像素，實際再乘上手機 UI 比例） */
@@ -2190,6 +2197,52 @@ function drawMobileHandHint(
   paths.box.forEach((path) => context.stroke(path));
   context.restore();
   context.restore();
+}
+
+/**
+ * 小地圖動作按鈕（行動裝置）：小地圖外圈左上的金色 1/6 環，角色接觸可互動物件時浮出，點擊等同點手型提示。
+ * 以小地圖未縮放半徑設計（整體再由 CSS 乘上 --ui-scale）；內圈線貼齊小地圖外緣 6px。
+ * 手機用小版（環厚 64、72°），平板用大版（外環線外擴：環厚 84、82°）。
+ */
+function buildMinimapActionMarkup(minimapRadius: number, large: boolean) {
+  const r0 = minimapRadius + 6;
+  const r1 = r0 + (large ? 84 : 64);
+  const span = large ? 82 : 72;
+  const size = Math.ceil((r1 + 16) * 2);
+  const c = size / 2;
+  const a0 = 225 - span / 2;
+  const a1 = 225 + span / 2;
+  const point = (r: number, angle: number) => {
+    const radians = (angle * Math.PI) / 180;
+    return `${(c + r * Math.cos(radians)).toFixed(2)} ${(c + r * Math.sin(radians)).toFixed(2)}`;
+  };
+  const sector = (inner: number, outer: number, from: number, to: number) =>
+    `M${point(outer, from)} A${outer} ${outer} 0 0 1 ${point(outer, to)} L${point(inner, to)} A${inner} ${inner} 0 0 0 ${point(inner, from)} Z`;
+  const arc = (r: number) => `M${point(r, a0)} A${r} ${r} 0 0 1 ${point(r, a1)}`;
+  // 頭尾漸層淡出：CSS conic 角度 0° 朝上、順時針（= SVG 角度 + 90°）
+  const fadeLength = Math.min(14, span * 0.22);
+  const fade = `conic-gradient(from ${a0 + 90}deg, transparent 0deg, #000 ${fadeLength}deg, #000 ${span - fadeLength}deg, transparent ${span}deg, transparent 360deg)`;
+  const iconSize = large ? 52 : 46;
+  const iconCenter = ((r0 + r1) / 2) * Math.SQRT1_2;
+  const iconLeft = c - iconCenter - iconSize / 2;
+  const iconTop = c - iconCenter - iconSize / 2;
+  const svg =
+    `<svg class="minimap-action-art" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="-webkit-mask:${fade};mask:${fade}">` +
+    `<defs><linearGradient id="minimap-action-stroke" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff3cf"/><stop offset=".4" stop-color="#f2c46b"/><stop offset="1" stop-color="#7a5a24"/></linearGradient>` +
+    `<radialGradient id="minimap-action-fill" gradientUnits="userSpaceOnUse" cx="${c}" cy="${c}" r="${r1}"><stop offset="${(r0 / r1).toFixed(3)}" stop-color="#4a3512" stop-opacity=".88"/><stop offset="1" stop-color="#1c1307" stop-opacity=".9"/></radialGradient></defs>` +
+    `<path d="${sector(r0, r1, a0, a1)}" fill="url(#minimap-action-fill)"/>` +
+    `<path d="${arc(r1)}" fill="none" stroke="url(#minimap-action-stroke)" stroke-width="1.8"/>` +
+    `<path d="${arc(r0)}" fill="none" stroke="#f2c46b" stroke-opacity=".5" stroke-width="1"/>` +
+    `<svg x="${iconLeft.toFixed(2)}" y="${iconTop.toFixed(2)}" width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" overflow="visible" style="filter:drop-shadow(0 0 4px rgba(255,207,110,.53))">` +
+    `<g transform="matrix(-0.039931,0,0,-0.039931,23.5,21.445)"><path fill="#fff6e2" d="${MOBILE_HAND_HINT_HAND_PATH}"/></g>` +
+    `<g transform="translate(4.2 9.3) scale(.65)" fill="none" stroke="#ffcf6e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` +
+    `<path fill="rgba(255,200,90,.28)" d="${MOBILE_HAND_HINT_BOX_PATHS[0]}"/>` +
+    MOBILE_HAND_HINT_BOX_PATHS.slice(1).map((d) => `<path d="${d}"/>`).join("") +
+    `</g></svg></svg>`;
+  // 觸控判定區比外觀大一圈（手指容錯），內緣從小地圖邊緣起算
+  const hit = { inner: minimapRadius, outer: r1 + 12, from: a0 - 6, to: a1 + 6 };
+  const hitPath = sector(hit.inner, hit.outer, hit.from, hit.to);
+  return { size, svg, hitPath, hit };
 }
 
 /** 手機直式背包：三區改為頁籤切換，點道具在格子下方彈出功能選單 */
@@ -3549,6 +3602,7 @@ export function MovementLab() {
   const cursorCanvasRef = useRef<HTMLCanvasElement>(null);
   const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
   const minimapPlayerMarkerRef = useRef<HTMLSpanElement>(null);
+  const minimapActionRef = useRef<HTMLButtonElement>(null);
   const minimapInteractionMarkerRefs = useRef<Map<string, HTMLSpanElement>>(
     new Map(),
   );
@@ -4659,10 +4713,26 @@ export function MovementLab() {
     if (!dock || !host) return;
     const update = () => {
       // 整體 UI 縮放：手機固定 MOBILE_UI_SCALE；桌機在舞台小於 1024×576 時依比例縮小（下限 0.6）
-      const uiScale = window.matchMedia(MOBILE_HUD_MEDIA_QUERY).matches
+      const mobileLayout = window.matchMedia(MOBILE_HUD_MEDIA_QUERY).matches;
+      const uiScale = mobileLayout
         ? getMobileUiScale()
         : clamp(Math.min(host.clientWidth / 1024, host.clientHeight / 576), 0.6, 1);
       host.style.setProperty("--ui-scale", String(uiScale));
+      // 平板判定交給 JS（螢幕短邊＋視窗大小），CSS 以 data-device-class 套用平板外觀
+      const tablet = mobileLayout && isTabletDevice();
+      host.dataset.deviceClass = tablet ? "tablet" : "phone";
+      // 平板：生存／任務 UI 放寬，但只在「兩塊放寬面板＋時鐘」仍放得進頂排時才套用（時鐘不會被擠到第二行）；
+      // 放不下或是手機一律維持 mini 寬度
+      let hudWide = false;
+      if (tablet) {
+        const clock = host.querySelector<HTMLElement>(".survival-clock-mobile");
+        const probe = host.querySelector<HTMLElement>(".mobile-hud-space-probe");
+        const clockWidth = (clock?.offsetWidth ?? 0) * uiScale;
+        const sideGap = 8;
+        hudWide = (probe?.clientWidth ?? 0) >= 2 * TABLET_HUD_WIDE_WIDTH * uiScale + clockWidth + 2 * sideGap;
+      }
+      if (hudWide) host.style.setProperty("--mobile-hud-mini-width", `${TABLET_HUD_WIDE_WIDTH}px`);
+      else host.style.removeProperty("--mobile-hud-mini-width");
       const style = getComputedStyle(dock);
       const centered = style.getPropertyValue("--dock-centered").trim() === "1";
       // Resolve the safe-area length through a real CSS length property.
@@ -12765,6 +12835,12 @@ export function MovementLab() {
         x: clamp(event.clientX - bounds.left, 0, viewportWidth),
         y: clamp(event.clientY - bounds.top, 0, viewportHeight),
       };
+      // 小地圖動作按鈕浮出時，其範圍優先於點擊地點與虛擬搖桿（按鈕本身已攔截；這裡防止落到畫布的情況）
+      if (isPointInMinimapAction(event.clientX, event.clientY)) {
+        canvas.focus({ preventScroll: true });
+        mobileInteractionActionRef.current();
+        return;
+      }
       // 點到手型互動提示點即互動（此範圍不冒出虛擬搖桿）
       if (
         mobileHandHintHitArea &&
@@ -13286,6 +13362,68 @@ export function MovementLab() {
       });
     };
 
+    // 小地圖動作按鈕：只在顯示中才讀版面（中心對齊小地圖），尺寸或裝置類型改變才重建外觀
+    let minimapActionVisible = false;
+    let minimapActionShapeKey = "";
+    // 顯示中的點擊範圍（未縮放半徑與角度），供畫布的 pointerdown 優先判定
+    let minimapActionHit: { inner: number; outer: number; from: number; to: number } | null = null;
+    const isPointInMinimapAction = (clientX: number, clientY: number) => {
+      const element = minimapActionRef.current;
+      if (!minimapActionVisible || !minimapActionHit || !element) return false;
+      const rect = element.getBoundingClientRect();
+      const scale = rect.width / Math.max(1, element.offsetWidth);
+      const dx = clientX - (rect.left + rect.width / 2);
+      const dy = clientY - (rect.top + rect.height / 2);
+      const distance = Math.hypot(dx, dy) / scale;
+      const angle = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
+      return (
+        distance >= minimapActionHit.inner &&
+        distance <= minimapActionHit.outer &&
+        angle >= minimapActionHit.from &&
+        angle <= minimapActionHit.to
+      );
+    };
+    const syncMinimapActionButton = (active: boolean) => {
+      const element = minimapActionRef.current;
+      const host = element?.parentElement;
+      const minimap = host?.querySelector<HTMLElement>(".minimap-hud");
+      if (!element || !host || !minimap) return;
+      const show =
+        active &&
+        !isWorldInteractionBlockedByUi() &&
+        // 舊版 Safari（17.4 前）沒有 checkVisibility，視為可見
+        (minimap.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) ?? true);
+      if (!show) {
+        if (minimapActionVisible) {
+          minimapActionVisible = false;
+          element.dataset.visible = "false";
+        }
+        return;
+      }
+      const radius = minimap.offsetWidth / 2;
+      const large = isTabletDevice();
+      const shapeKey = `${radius}:${large}`;
+      if (shapeKey !== minimapActionShapeKey) {
+        minimapActionShapeKey = shapeKey;
+        const { size, svg, hitPath, hit } = buildMinimapActionMarkup(radius, large);
+        minimapActionHit = hit;
+        element.innerHTML = svg;
+        element.style.width = `${size}px`;
+        element.style.height = `${size}px`;
+        element.style.clipPath = `path('${hitPath}')`;
+      }
+      const hostRect = host.getBoundingClientRect();
+      const rect = minimap.getBoundingClientRect();
+      element.style.left = `${rect.left - hostRect.left + rect.width / 2}px`;
+      element.style.top = `${rect.top - hostRect.top + rect.height / 2}px`;
+      if (!minimapActionVisible) {
+        // 外觀與位置先就緒（隱藏狀態），下一個樣式計算才切成顯示，讓出現動畫一定播放
+        minimapActionVisible = true;
+        void element.offsetWidth;
+        element.dataset.visible = "true";
+      }
+    };
+
     const syncMinimapInteractionMarker = (
       interactable: SceneInteractable,
       visible: boolean,
@@ -13339,6 +13477,8 @@ export function MovementLab() {
       interactButtonAnchorId = nextHandHintAnchor?.id ?? null;
       if (nextHandHintAnchor) interactButtonFadeTarget = nextHandHintAnchor;
       if (!handHintEnabled) interactButtonFadeTarget = null;
+      // 上一幀算出的手型提示可點範圍即「角色接觸可互動物件」，同步給小地圖動作按鈕
+      syncMinimapActionButton(mobileHandHintHitArea !== null);
       mobileHandHintHitArea = null;
       // 目標已被拾取或移除（不在目前場景的可互動清單中）時，手型提示立即消失
       if (
@@ -19349,6 +19489,24 @@ export function MovementLab() {
           <span className="minimap-toggle-mark" />
         </span>
       </button>
+
+      {/* 小地圖動作按鈕：顯示、位置與外觀由遊戲迴圈依手型互動提示同步（syncMinimapActionButton） */}
+      <button
+        ref={minimapActionRef}
+        className="minimap-action"
+        type="button"
+        tabIndex={-1}
+        aria-label="互動"
+        data-visible="false"
+        // 按下即觸發（與手型互動提示相同），不等 click：手指稍微移動或放開較慢也不會漏掉
+        onPointerDown={(event) => {
+          event.stopPropagation();
+          if (event.currentTarget.dataset.visible !== "true") return;
+          event.preventDefault();
+          mobileInteractionActionRef.current();
+        }}
+        onClick={(event) => event.stopPropagation()}
+      />
 
       {!optionsOpen && !inventoryOpen && !powerPuzzleOpen && !itemUseConfirmation && !dialogueView ? (
         <button
