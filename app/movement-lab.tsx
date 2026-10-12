@@ -2104,6 +2104,10 @@ const TABLET_MIN_SCREEN_SHORT_SIDE = 600;
 const TABLET_UI_SCALE_FACTOR = 1.12;
 /** 平板直向時生存／任務 UI 的放寬寬度（未縮放）；只有頂排放得下時鐘時才套用（見 --mobile-hud-mini-width） */
 const TABLET_HUD_WIDE_WIDTH = 290;
+/** 手機直向生存／任務 UI 的標準寬度（未縮放，與 globals.css 的 --mobile-hud-mini-width 相同） */
+const MOBILE_HUD_MINI_WIDTH = 200;
+/** 畫面太窄時面板最多縮到這個寬度（未縮放），再窄才讓時鐘換到第二行 */
+const MOBILE_HUD_MIN_WIDTH = 170;
 function isTabletDevice() {
   if (typeof window === "undefined") return false;
   const shortSide = Math.min(window.screen.width, window.screen.height);
@@ -4723,15 +4727,23 @@ export function MovementLab() {
       host.dataset.deviceClass = tablet ? "tablet" : "phone";
       // 平板：生存／任務 UI 放寬，但只在「兩塊放寬面板＋時鐘」仍放得進頂排時才套用（時鐘不會被擠到第二行）；
       // 放不下或是手機一律維持 mini 寬度
-      let hudWide = false;
-      if (tablet) {
+      // 手機（或放不下放寬版的平板）：畫面太窄、兩塊面板＋時鐘超出頂排時，面板自動縮窄讓時鐘留在頂排
+      // （例如系統顯示大小調大、瀏覽器縮放 100% 時視口只有約 365px 的手機）
+      let hudWidth = MOBILE_HUD_MINI_WIDTH;
+      if (mobileLayout) {
         const clock = host.querySelector<HTMLElement>(".survival-clock-mobile");
         const probe = host.querySelector<HTMLElement>(".mobile-hud-space-probe");
         const clockWidth = (clock?.offsetWidth ?? 0) * uiScale;
-        const sideGap = 8;
-        hudWide = (probe?.clientWidth ?? 0) >= 2 * TABLET_HUD_WIDE_WIDTH * uiScale + clockWidth + 2 * sideGap;
+        const available = probe?.clientWidth ?? 0;
+        // 時鐘排版要求與兩側面板各留 2px，這裡多留一點緩衝
+        const sideGap = 4;
+        const fitWidth = (available - clockWidth - 2 * sideGap) / 2 / uiScale;
+        if (tablet && fitWidth >= TABLET_HUD_WIDE_WIDTH) hudWidth = TABLET_HUD_WIDE_WIDTH;
+        else if (available > 0 && fitWidth < MOBILE_HUD_MINI_WIDTH) {
+          hudWidth = Math.max(MOBILE_HUD_MIN_WIDTH, Math.floor(fitWidth));
+        }
       }
-      if (hudWide) host.style.setProperty("--mobile-hud-mini-width", `${TABLET_HUD_WIDE_WIDTH}px`);
+      if (hudWidth !== MOBILE_HUD_MINI_WIDTH) host.style.setProperty("--mobile-hud-mini-width", `${hudWidth}px`);
       else host.style.removeProperty("--mobile-hud-mini-width");
       const style = getComputedStyle(dock);
       const centered = style.getPropertyValue("--dock-centered").trim() === "1";
@@ -4772,6 +4784,9 @@ export function MovementLab() {
     observer.observe(dock);
     const minimapElement = host.querySelector<HTMLElement>(".minimap-hud");
     if (minimapElement) observer.observe(minimapElement);
+    // 時鐘寬度（字型載入、時間文字）會影響面板是否需要縮窄
+    const clockElement = host.querySelector<HTMLElement>(".survival-clock-mobile");
+    if (clockElement) observer.observe(clockElement);
     window.addEventListener("resize", update);
     return () => { observer.disconnect(); window.removeEventListener("resize", update); };
   }, []);
