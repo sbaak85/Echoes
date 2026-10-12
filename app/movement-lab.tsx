@@ -75,6 +75,7 @@ import {
 import { BgmDirector } from "./bgm-director";
 import {
   drawWorldItemIcon,
+  drawWorldItemLabel,
   drawWorldItemPickupFlash,
   getWorldItemIconBounds,
   WORLD_ITEM_PICKUP_FLASH_SPAN,
@@ -9266,6 +9267,15 @@ export function MovementLab() {
     let activePromptOwner: "player" | "cursor" | null = null;
     let activePromptTargetId: string | null = null;
     const worldItemHighlights = new Map<string, number>();
+    // 道具屬性文字：掉落物圖層先記下，等角色畫完再畫，讓文字疊在角色上層
+    const worldItemLabelQueue: {
+      item: ItemDefinition;
+      position: Point;
+      rotation: number;
+      scaleX: number;
+      scaleY: number;
+      highlight: number;
+    }[] = [];
     let worldItemHighlightLastTime = 0;
     let previousPlayerPromptTargetId: string | null = null;
     let previousCursorPromptTargetId: string | null = null;
@@ -12999,10 +13009,23 @@ export function MovementLab() {
       drawStreamedSceneImages(SCENE_DATA);
     };
 
+    // 畫在角色之後：道具屬性文字永遠疊在角色上層
+    const drawWorldItemLabels = () => {
+      for (const label of worldItemLabelQueue) {
+        context.save();
+        context.translate(label.position.x, label.position.y + WORLD_ITEM_ICON_GROUND_OFFSET);
+        context.rotate(label.rotation);
+        context.scale(label.scaleX * WORLD_ITEM_ICON_SCALE, label.scaleY * WORLD_ITEM_ICON_SCALE);
+        drawWorldItemLabel(context, label.item, label.highlight);
+        context.restore();
+      }
+    };
+
     const drawWorldItemPickups = (time: number) => {
       // 外光暈與光束動態只在游標指向或角色進入互動距離（即目前的互動提示目標）時出現，約 0.12 秒淡入淡出
       const highlightElapsed = Math.max(0, Math.min(100, time - worldItemHighlightLastTime));
       worldItemHighlightLastTime = time;
+      worldItemLabelQueue.length = 0;
       const pickups: {
         interactable: SceneInteractable;
         item: ItemDefinition;
@@ -13112,8 +13135,19 @@ export function MovementLab() {
           time,
           getWorldItemIconPhase(interactable.worldItemId ?? interactable.id),
           highlight,
+          { label: false },
         );
         context.restore();
+        if (drewIcon && highlight > 0) {
+          worldItemLabelQueue.push({
+            item,
+            position: drawPosition,
+            rotation: drawRotation,
+            scaleX: drawScaleX,
+            scaleY: drawScaleY,
+            highlight,
+          });
+        }
         if (drewIcon) return;
 
         const pulse = 0.82 + Math.sin(time / 420) * 0.12;
@@ -16384,6 +16418,7 @@ export function MovementLab() {
         drawWorldItemPickups(time);
         drawSceneCollision();
         drawPlayer();
+        drawWorldItemLabels();
         drawInteractionHintPoints(time);
         drawPlayerStatuses(time);
         drawPlayerInfoFloats(time);

@@ -23,6 +23,15 @@ const CATEGORIES = {
 // 各形狀頂面的大約高度（世界單位），光束從這裡升起
 const SHAPE_TOP = { cube: 19, chamferCube: 27, truncOcta: 25, facet: 29 };
 
+// ---------- 道具屬性文字（互動狀態時浮在光束中段） ----------
+const CATEGORY_LABEL = { main: "主線道具", quest: "任務道具", tool: "工具", resource: "資源", food: "食物" };
+/** 文字大小（世界單位） */
+const LABEL_SIZE = 6.2;
+/** 文字中心相對光束中點往下的距離（世界單位） */
+const LABEL_DROP = 3.5;
+// 立方體與倒角方塊的光束起點離輪廓最高點較遠，文字會貼近箱頂，額外往上提
+const LABEL_LIFT = { cube: 4, chamferCube: 4 };
+
 // 目前繪製目標；預先繪製時切換到離屏畫布
 let ctx = null;
 let SURFACE_TINT = null;
@@ -449,7 +458,10 @@ function getItemSprites(item) {
   g.filter = "none";
   g.globalCompositeOperation = "source-in"; g.fillStyle = `rgba(${cat.rgb},1)`; g.fillRect(0, 0, size, size);
   g.globalCompositeOperation = "destination-out"; g.drawImage(body, 0, 0);
-  const sprites = { base, glow, edge, beam: getBeamSprite(cat.rgb), rgb: cat.rgb, top: SHAPE_TOP[cat.shape] ?? 20 };
+  const sprites = {
+    base, glow, edge, beam: getBeamSprite(cat.rgb), rgb: cat.rgb, top: SHAPE_TOP[cat.shape] ?? 20,
+    label: CATEGORY_LABEL[item.category] ?? "", labelLift: LABEL_LIFT[cat.shape] ?? 0,
+  };
   SPRITES.set(item.id, sprites);
   return sprites;
 }
@@ -490,9 +502,10 @@ function getBeamSprite(rgb) {
  * @param {number} time 動畫時間（毫秒）
  * @param {number} phase 讓不同道具的明滅錯開（毫秒）
  * @param {number} highlight 互動目標強度 0..1（游標指向或角色進入互動距離時為 1）：控制外光暈與光束動態
+ * @param {{ label?: boolean }} [options] label=false 時不畫道具屬性文字，改由呼叫端在角色之後以 drawWorldItemLabel 另外畫
  * @returns {boolean} 該道具是否有箱體 Icon
  */
-export function drawWorldItemIcon(target, item, time, phase = 0, highlight = 0) {
+export function drawWorldItemIcon(target, item, time, phase = 0, highlight = 0, options = {}) {
   const sprites = getItemSprites(item);
   if (!sprites) return false;
   const t = time + phase;
@@ -525,7 +538,58 @@ export function drawWorldItemIcon(target, item, time, phase = 0, highlight = 0) 
     target.drawImage(sprites.edge, -BOX_OX, -BOX_OY, BOX, BOX);
   }
   target.restore();
+  if (options.label !== false && active > 0.001 && sprites.label) drawCategoryLabel(target, sprites, baseY, active);
   return true;
+}
+
+/**
+ * 只畫道具屬性文字（座標與 drawWorldItemIcon 相同，原點＝接地中心）。
+ * 遊戲在角色之後呼叫，讓文字疊在角色上層，不被擋住。
+ * @param {CanvasRenderingContext2D} target
+ * @param {{ id: string, englishName: string, category: string }} item
+ * @param {number} highlight 互動目標強度 0..1
+ * @returns {boolean} 是否有畫出文字
+ */
+export function drawWorldItemLabel(target, item, highlight) {
+  const sprites = getItemSprites(item);
+  const active = Math.min(1, Math.max(0, highlight));
+  if (!sprites || !sprites.label || active <= 0.001) return false;
+  drawCategoryLabel(target, sprites, -sprites.top * 0.8, active);
+  return true;
+}
+
+/**
+ * 互動狀態時，在光束中段顯示道具屬性（深色圓角底、無框線）。
+ * 隨 highlight 淡入淡出，淡入時略往上浮。
+ */
+function drawCategoryLabel(target, sprites, baseY, active) {
+  const eased = active * active * (3 - 2 * active);
+  const y = baseY - BEAM_L * 0.5 + LABEL_DROP - sprites.labelLift + (1 - eased) * 3;
+  const size = LABEL_SIZE;
+  const pixel = Math.hypot(target.getTransform().a, target.getTransform().b) || 1;
+  target.save();
+  target.globalCompositeOperation = "source-over";
+  target.globalAlpha *= eased;
+  target.font = `700 ${size}px "Microsoft JhengHei UI", "Microsoft JhengHei", sans-serif`;
+  if ("letterSpacing" in target) target.letterSpacing = `${size * 0.12}px`;
+  target.textAlign = "center";
+  target.textBaseline = "middle";
+  const width = target.measureText(sprites.label).width;
+  const padX = size * 0.55, h = size * 1.5, w = width + padX * 2;
+  target.beginPath();
+  if (target.roundRect) target.roundRect(-w / 2, y - h / 2, w, h, size * 0.32);
+  else target.rect(-w / 2, y - h / 2, w, h);
+  target.fillStyle = "rgba(6,14,20,0.68)";
+  target.fill();
+  // 類別色微光，再疊清楚的近白字
+  target.shadowColor = `rgba(${sprites.rgb},0.95)`;
+  target.shadowBlur = size * 0.6 * pixel;
+  target.fillStyle = `rgba(${sprites.rgb},0.9)`;
+  target.fillText(sprites.label, 0, y);
+  target.shadowBlur = 0;
+  target.fillStyle = "rgba(255,252,240,0.96)";
+  target.fillText(sprites.label, 0, y);
+  target.restore();
 }
 
 /** 拾取閃光的長度：Icon 在 1 倍時間內淡出，光暈以 2 倍時間擴散淡出 */
@@ -556,7 +620,8 @@ export function drawWorldItemPickupFlash(target, item, time, phase, progress) {
   if (progress < 1) {
     target.save();
     target.globalAlpha *= 1 - progress;
-    drawWorldItemIcon(target, item, time, phase, 1);
+    // The pickup flash is drawn in the world layer; its label would sit under the character.
+    drawWorldItemIcon(target, item, time, phase, 1, { label: false });
     target.restore();
   }
   const q = Math.min(1, progress / WORLD_ITEM_PICKUP_FLASH_SPAN);
