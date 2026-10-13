@@ -2108,10 +2108,24 @@ const TABLET_HUD_WIDE_WIDTH = 290;
 const MOBILE_HUD_MINI_WIDTH = 200;
 /** 畫面太窄時面板最多縮到這個寬度（未縮放），再窄才讓時鐘換到第二行 */
 const MOBILE_HUD_MIN_WIDTH = 170;
+/**
+ * 重複使用同一個 MediaQueryList（其 .matches 會即時反映目前狀態），
+ * 避免地圖縮放、手型提示等每一幀都會呼叫的判斷反覆 matchMedia 產生新物件。
+ */
+const mediaQueryListCache = new Map<string, MediaQueryList>();
+function matchesMediaQuery(query: string) {
+  if (typeof window === "undefined") return false;
+  let list = mediaQueryListCache.get(query);
+  if (!list) {
+    list = window.matchMedia(query);
+    mediaQueryListCache.set(query, list);
+  }
+  return list.matches;
+}
 function isTabletDevice() {
   if (typeof window === "undefined") return false;
   const shortSide = Math.min(window.screen.width, window.screen.height);
-  return shortSide >= TABLET_MIN_SCREEN_SHORT_SIDE && window.matchMedia(TABLET_MEDIA_QUERY).matches;
+  return shortSide >= TABLET_MIN_SCREEN_SHORT_SIDE && matchesMediaQuery(TABLET_MEDIA_QUERY);
 }
 /** 手機排版的參考螢幕短邊（CSS px）：以 412 寬（Android 預設顯示大小）的版面為基準 */
 const PHONE_REFERENCE_SHORT_SIDE = 412;
@@ -2128,11 +2142,15 @@ function getPhoneDensityFactor() {
   if (!(shortSide > 0)) return 1;
   return clamp(shortSide / PHONE_REFERENCE_SHORT_SIDE, PHONE_DENSITY_MIN_FACTOR, 1);
 }
-/** 預覽用：網址加上 ?mobileUiScale=0.7 可暫時覆蓋手機 UI 比例（0.3～1） */
+/** 預覽用：網址加上 ?mobileUiScale=0.7 可暫時覆蓋手機 UI 比例（0.3～1）；網址只在載入時解析一次 */
+let previewMobileUiScale: number | null | undefined;
 function getMobileUiScale() {
   if (typeof window === "undefined") return MOBILE_UI_SCALE;
-  const preview = Number(new URLSearchParams(window.location.search).get("mobileUiScale"));
-  if (Number.isFinite(preview) && preview >= 0.3 && preview <= 1) return preview;
+  if (previewMobileUiScale === undefined) {
+    const preview = Number(new URLSearchParams(window.location.search).get("mobileUiScale"));
+    previewMobileUiScale = Number.isFinite(preview) && preview >= 0.3 && preview <= 1 ? preview : null;
+  }
+  if (previewMobileUiScale !== null) return previewMobileUiScale;
   return isTabletDevice() ? MOBILE_UI_SCALE * TABLET_UI_SCALE_FACTOR : MOBILE_UI_SCALE * getPhoneDensityFactor();
 }
 
@@ -2280,6 +2298,20 @@ const INVENTORY_PHONE_COLUMNS = 4;
 const INVENTORY_PHONE_MIN_ROWS = 2;
 const INVENTORY_PHONE_MAX_ROWS = 5;
 const INVENTORY_PHONE_MAX_CELL_ASPECT = 1.2;
+/**
+ * 手機橫式道具清單：5 欄，預設 3 列（5×3），第 3 列放不下時改 2 列（5×2）。
+ * 格子為橫向長方形：高度最多為寬度的 0.85 倍；每列至少要有寬度 0.6 倍（且不低於 48px）才算放得下。
+ * 清單區較窄（5 欄時每格寬不到 60px，如 iPhone SE 橫向）改為 4 欄（4×3／4×2），格子較寬。
+ * （清單區內容以 zoom .8 縮小顯示，48px 約等於畫面上 38px、60px 約 48px）
+ */
+const INVENTORY_PHONE_LANDSCAPE_COLUMNS = 5;
+const INVENTORY_PHONE_LANDSCAPE_NARROW_COLUMNS = 4;
+const INVENTORY_PHONE_LANDSCAPE_MIN_CELL_WIDTH = 60;
+const INVENTORY_PHONE_LANDSCAPE_ROWS = 3;
+const INVENTORY_PHONE_LANDSCAPE_MAX_CELL_ASPECT = 0.85;
+const INVENTORY_PHONE_LANDSCAPE_MIN_CELL_ASPECT = 0.6;
+const INVENTORY_PHONE_LANDSCAPE_MIN_ROW_HEIGHT = 48;
+const MOBILE_LANDSCAPE_QUERY = "(orientation: landscape)";
 const INVENTORY_MOBILE_TABS: ReadonlyArray<{ id: InventoryMobileTab; label: string }> = [
   { id: "summary", label: "生存背包" },
   { id: "selected", label: "選中道具" },
@@ -2287,10 +2319,7 @@ const INVENTORY_MOBILE_TABS: ReadonlyArray<{ id: InventoryMobileTab; label: stri
 ];
 
 function isMobileHudLayout() {
-  return (
-    typeof window !== "undefined" &&
-    window.matchMedia(MOBILE_HUD_MEDIA_QUERY).matches
-  );
+  return matchesMediaQuery(MOBILE_HUD_MEDIA_QUERY);
 }
 
 
@@ -4042,7 +4071,7 @@ export function MovementLab() {
   const [activeKeyboardKeys, setActiveKeyboardKeys] = useState<string[]>([]);
   // 手機直式背包目前顯示的分區（每次打開背包預設為道具清單）
   const [inventoryMobileTab, setInventoryMobileTab] = useState<InventoryMobileTab>("catalog");
-  // 道具清單每頁格數：手機直式依清單區高度決定列數（4 欄 × 2～5 列），其餘版面固定 16 格（4×4）
+  // 道具清單每頁格數：手機直式依清單區高度決定列數（4 欄 × 2～5 列）、手機橫式 5×3 或 5×2，其餘版面固定 16 格（4×4）
   const [inventoryPageSize, setInventoryPageSize] = useState(16);
   useLayoutEffect(() => {
     if (!inventoryOpen) return;
@@ -4051,10 +4080,13 @@ export function MovementLab() {
     const items = shell?.querySelector<HTMLElement>(".inventory-items");
     if (!viewport || !items) return;
     const update = () => {
-      const phonePortrait = isMobilePortraitInventory() && !isTabletDevice();
-      if (!phonePortrait) {
+      const phone = isMobileHudLayout() && !isTabletDevice();
+      const phonePortrait = phone && isMobilePortraitInventory();
+      const phoneLandscape = phone && !phonePortrait && matchesMediaQuery(MOBILE_LANDSCAPE_QUERY);
+      if (!phonePortrait && !phoneLandscape) {
         items.classList.remove("is-phone-fit");
         items.style.removeProperty("--inv-row-height");
+        items.style.removeProperty("--inv-columns");
         setInventoryPageSize(16);
         return;
       }
@@ -4063,6 +4095,28 @@ export function MovementLab() {
       const height = viewport.clientHeight;
       if (!width || !height) return;
       const gap = parseFloat(getComputedStyle(items).rowGap) || 0;
+      if (phoneLandscape) {
+        const cellWidthFor = (columnCount: number) => (width - (columnCount - 1) * gap) / columnCount;
+        const columns = cellWidthFor(INVENTORY_PHONE_LANDSCAPE_COLUMNS) >= INVENTORY_PHONE_LANDSCAPE_MIN_CELL_WIDTH
+          ? INVENTORY_PHONE_LANDSCAPE_COLUMNS
+          : INVENTORY_PHONE_LANDSCAPE_NARROW_COLUMNS;
+        const cellWidth = cellWidthFor(columns);
+        const minRowHeight = Math.max(
+          INVENTORY_PHONE_LANDSCAPE_MIN_ROW_HEIGHT,
+          cellWidth * INVENTORY_PHONE_LANDSCAPE_MIN_CELL_ASPECT,
+        );
+        const fitRowHeight = (rowCount: number) => (height - (rowCount - 1) * gap) / rowCount;
+        const rows = fitRowHeight(INVENTORY_PHONE_LANDSCAPE_ROWS) >= minRowHeight
+          ? INVENTORY_PHONE_LANDSCAPE_ROWS
+          : INVENTORY_PHONE_LANDSCAPE_ROWS - 1;
+        const rowHeight = Math.min(cellWidth * INVENTORY_PHONE_LANDSCAPE_MAX_CELL_ASPECT, fitRowHeight(rows));
+        items.classList.add("is-phone-fit");
+        items.style.setProperty("--inv-columns", String(columns));
+        items.style.setProperty("--inv-row-height", `${Math.floor(rowHeight)}px`);
+        setInventoryPageSize(columns * rows);
+        return;
+      }
+      items.style.removeProperty("--inv-columns");
       const cellWidth = (width - (INVENTORY_PHONE_COLUMNS - 1) * gap) / INVENTORY_PHONE_COLUMNS;
       const maxCellHeight = cellWidth * INVENTORY_PHONE_MAX_CELL_ASPECT;
       const rows = clamp(
