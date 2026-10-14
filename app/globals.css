@@ -2639,6 +2639,11 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   font-size: 16px;
   font-style: normal;
 }
+/* 三角箭頭指向教學說明的對象（方向由 new-player-tutorial-overlay 依實際位置決定） */
+.new-player-tutorial-actions i { display: inline-block; }
+.new-player-tutorial-actions i.is-left { transform: rotate(180deg); }
+.new-player-tutorial-actions i.is-down { transform: rotate(90deg); }
+.new-player-tutorial-actions i.is-up { transform: rotate(-90deg); }
 
 .new-player-tutorial-hint:hover:where(:root:not([data-cursor-owner]) *, :root[data-cursor-owner="mouse"] *) {
   border-color: rgba(214, 184, 255, 0.96);

@@ -103,6 +103,23 @@ export function getNewPlayerTutorialHintPosition(
   }
 
   const fitsHorizontally = left >= edge && left + cardWidth <= spotlight.viewportWidth - edge;
+  // 窄畫面（手機直向）：預設寬度放不進目標旁邊時，改用目標旁剩下的寬度（不小於 150px），
+  // 上緣對齊目標，卡片寬度自動縮窄、文字自動換行，仍維持在任務／生存 UI 的旁邊
+  if (!fitsHorizontally && (placement === "left" || placement === "right")) {
+    const sideEdge = 14;
+    const sideGap = Math.min(gap, 8);
+    const sideWidth = placement === "left"
+      ? spotlight.x - sideGap - sideEdge
+      : spotlight.viewportWidth - sideEdge - (spotlight.x + spotlight.width + sideGap);
+    if (sideWidth >= 150) {
+      const fittedWidth = Math.min(cardWidth, sideWidth);
+      return {
+        left: placement === "left" ? spotlight.x - sideGap - fittedWidth : spotlight.x + spotlight.width + sideGap,
+        top: clampPosition(spotlight.y, sideEdge, spotlight.viewportHeight - cardHeight - sideEdge),
+        width: fittedWidth / uiScale,
+      };
+    }
+  }
   if (!fitsHorizontally && placement !== "above") {
     left = (spotlight.viewportWidth - cardWidth) / 2;
     top = spotlight.y + spotlight.height + 20;
@@ -142,6 +159,16 @@ export function NewPlayerTutorialOverlay({
     : inputMode === "mobile"
       ? "點擊"
       : "按 [空白鍵]";
+  // 下排三角箭頭指向說明的對象：依卡片與鏤空目標的實際相對位置決定方向
+  const pointerDirection = (() => {
+    if (!spotlight || !hintPosition) return "right";
+    const cardWidth = hintPosition.width * uiScale;
+    const cardHeight = 138 * uiScale;
+    if (hintPosition.top + cardHeight <= spotlight.y + 1) return "down";
+    if (hintPosition.top >= spotlight.y + spotlight.height - 1) return "up";
+    const cardCenterX = hintPosition.left + cardWidth / 2;
+    return spotlight.x + spotlight.width / 2 < cardCenterX ? "left" : "right";
+  })();
   const operationHint = getNewPlayerTutorialOperationHint(
     step.id,
     targetCollapsed,
@@ -295,7 +322,7 @@ export function NewPlayerTutorialOverlay({
                 <GamepadHint text={prompt} enabled={inputMode === "gamepad"} /> {step.actionLabel}
               </span>
               <b>{step.order} / 4</b>
-              <i aria-hidden="true">▶</i>
+              <i className={`is-${pointerDirection}`} aria-hidden="true">▶</i>
             </span>
           </strong>
         </button>
