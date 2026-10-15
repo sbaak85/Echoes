@@ -4,8 +4,8 @@
   "displayName": "ship_interior",
   "image": {
     "file": "ship_interior.png",
-    "width": 1536,
-    "height": 1536
+    "width": 2477,
+    "height": 2477
   },
   "foregroundLayers": [
     {
@@ -20,17 +20,17 @@
     }
   ],
   "world": {
-    "width": 1536,
-    "height": 1536
+    "width": 2477,
+    "height": 2477
   },
   "grid": {
-    "size": 5,
+    "size": 3,
     "visible": false,
     "snap": true
   },
   "playerSpawn": {
-    "x": 455,
-    "y": 630,
+    "x": 733.88,
+    "y": 1016.15,
     "facing": "S"
   },
   "teleportPoints": [],
@@ -41,396 +41,412 @@
       "label": "NavMesh 1",
       "points": [
         {
-          "x": 280,
-          "y": 535
+          "x": 451.62,
+          "y": 862.92
         },
         {
-          "x": 415,
-          "y": 455
+          "x": 669.37,
+          "y": 733.88
         },
         {
-          "x": 420,
-          "y": 415
+          "x": 677.43,
+          "y": 653.24
         },
         {
-          "x": 470,
-          "y": 415
+          "x": 774.21,
+          "y": 661.3
         },
         {
-          "x": 505,
-          "y": 430
+          "x": 822.6,
+          "y": 685.5
         },
         {
-          "x": 585,
-          "y": 455
+          "x": 943.57,
+          "y": 725.82
         },
         {
-          "x": 605,
-          "y": 480
+          "x": 991.95,
+          "y": 766.14
         },
         {
-          "x": 630,
-          "y": 495
+          "x": 1032.28,
+          "y": 790.34
         },
         {
-          "x": 630,
-          "y": 510
+          "x": 1032.28,
+          "y": 814.53
         },
         {
-          "x": 660,
-          "y": 530
+          "x": 1072.6,
+          "y": 838.73
         },
         {
-          "x": 685,
-          "y": 520
+          "x": 1112.92,
+          "y": 814.53
         },
         {
-          "x": 740,
-          "y": 560
+          "x": 1201.64,
+          "y": 879.05
         },
         {
-          "x": 650,
-          "y": 620
+          "x": 1201.64,
+          "y": 903.24
         },
         {
-          "x": 650,
-          "y": 635
+          "x": 1048.41,
+          "y": 1000.02
         },
         {
-          "x": 720,
-          "y": 680
+          "x": 1048.41,
+          "y": 1024.21
         },
         {
-          "x": 735,
-          "y": 670
+          "x": 1080.67,
+          "y": 1032.28
         },
         {
-          "x": 720,
-          "y": 655
+          "x": 1161.31,
+          "y": 1088.73
         },
         {
-          "x": 720,
-          "y": 645
+          "x": 1180.67,
+          "y": 1074.21
         },
         {
-          "x": 805,
-          "y": 590
+          "x": 1161.31,
+          "y": 1056.47
         },
         {
-          "x": 835,
-          "y": 610
+          "x": 1161.31,
+          "y": 1040.34
         },
         {
-          "x": 820,
-          "y": 630
+          "x": 1298.41,
+          "y": 951.63
         },
         {
-          "x": 830,
-          "y": 650
+          "x": 1346.8,
+          "y": 983.89
         },
         {
-          "x": 860,
-          "y": 670
+          "x": 1322.61,
+          "y": 1016.15
         },
         {
-          "x": 805,
-          "y": 710
+          "x": 1338.73,
+          "y": 1048.41
         },
         {
-          "x": 795,
-          "y": 705
+          "x": 1387.12,
+          "y": 1080.67
         },
         {
-          "x": 780,
-          "y": 705
+          "x": 1298.41,
+          "y": 1145.18
         },
         {
-          "x": 780,
-          "y": 715
+          "x": 1282.28,
+          "y": 1137.12
         },
         {
-          "x": 920,
-          "y": 815
+          "x": 1258.09,
+          "y": 1137.12
         },
         {
-          "x": 935,
-          "y": 805
+          "x": 1258.09,
+          "y": 1153.25
         },
         {
-          "x": 890,
-          "y": 770
+          "x": 1483.9,
+          "y": 1314.54
         },
         {
-          "x": 900,
-          "y": 750
+          "x": 1500.03,
+          "y": 1306.48
         },
         {
-          "x": 930,
-          "y": 750
+          "x": 1500.03,
+          "y": 1290.35
         },
         {
-          "x": 1050,
-          "y": 835
+          "x": 1435.51,
+          "y": 1241.96
         },
         {
-          "x": 1050,
-          "y": 855
+          "x": 1451.64,
+          "y": 1209.7
         },
         {
-          "x": 1025,
-          "y": 870
+          "x": 1500.03,
+          "y": 1209.7
         },
         {
-          "x": 995,
-          "y": 850
+          "x": 1693.58,
+          "y": 1346.8
         },
         {
-          "x": 990,
-          "y": 860
+          "x": 1693.58,
+          "y": 1379.06
         },
         {
-          "x": 1015,
-          "y": 880
+          "x": 1653.26,
+          "y": 1403.25
         },
         {
-          "x": 950,
-          "y": 920
+          "x": 1604.87,
+          "y": 1370.99
         },
         {
-          "x": 915,
-          "y": 900
+          "x": 1596.8,
+          "y": 1387.12
         },
         {
-          "x": 905,
-          "y": 905
+          "x": 1637.13,
+          "y": 1419.38
         },
         {
-          "x": 905,
-          "y": 935
+          "x": 1532.29,
+          "y": 1483.9
         },
         {
-          "x": 905,
-          "y": 975
+          "x": 1475.83,
+          "y": 1451.64
         },
         {
-          "x": 975,
-          "y": 1025
+          "x": 1459.7,
+          "y": 1459.7
         },
         {
-          "x": 1010,
-          "y": 1005
+          "x": 1459.7,
+          "y": 1508.09
         },
         {
-          "x": 1035,
-          "y": 1020
+          "x": 1459.7,
+          "y": 1572.61
         },
         {
-          "x": 1055,
-          "y": 1005
+          "x": 1572.61,
+          "y": 1653.26
         },
         {
-          "x": 1125,
-          "y": 960
+          "x": 1629.06,
+          "y": 1621
         },
         {
-          "x": 1140,
-          "y": 970
+          "x": 1669.39,
+          "y": 1645.19
         },
         {
-          "x": 1155,
-          "y": 965
+          "x": 1701.64,
+          "y": 1621
         },
         {
-          "x": 1155,
-          "y": 955
+          "x": 1814.55,
+          "y": 1548.42
         },
         {
-          "x": 1125,
-          "y": 935
+          "x": 1838.74,
+          "y": 1564.55
         },
         {
-          "x": 1125,
-          "y": 920
+          "x": 1862.94,
+          "y": 1556.48
         },
         {
-          "x": 1185,
-          "y": 885
+          "x": 1862.94,
+          "y": 1540.35
         },
         {
-          "x": 1215,
-          "y": 895
+          "x": 1814.55,
+          "y": 1508.09
         },
         {
-          "x": 1270,
-          "y": 935
+          "x": 1814.55,
+          "y": 1475.83
         },
         {
-          "x": 1245,
-          "y": 955
+          "x": 1911.33,
+          "y": 1419.38
         },
         {
-          "x": 1245,
-          "y": 970
+          "x": 1959.71,
+          "y": 1443.58
         },
         {
-          "x": 1255,
-          "y": 985
+          "x": 2048.43,
+          "y": 1508.09
         },
         {
-          "x": 1225,
-          "y": 1005
+          "x": 2008.1,
+          "y": 1540.35
         },
         {
-          "x": 1205,
-          "y": 1005
+          "x": 2008.1,
+          "y": 1564.55
         },
         {
-          "x": 1205,
-          "y": 1015
+          "x": 2024.23,
+          "y": 1588.74
         },
         {
-          "x": 1265,
-          "y": 1055
+          "x": 1975.84,
+          "y": 1621
         },
         {
-          "x": 1265,
-          "y": 1065
+          "x": 1943.58,
+          "y": 1621
         },
         {
-          "x": 1190,
-          "y": 1110
+          "x": 1943.58,
+          "y": 1637.13
         },
         {
-          "x": 1120,
-          "y": 1065
+          "x": 2052,
+          "y": 1712
         },
         {
-          "x": 1100,
-          "y": 1065
+          "x": 2052,
+          "y": 1732
         },
         {
-          "x": 1060,
-          "y": 1090
+          "x": 1940,
+          "y": 1800
         },
         {
-          "x": 1030,
-          "y": 1070
+          "x": 1828,
+          "y": 1720
         },
         {
-          "x": 1010,
-          "y": 1070
+          "x": 1808,
+          "y": 1724
         },
         {
-          "x": 965,
-          "y": 1095
+          "x": 1712,
+          "y": 1788
         },
         {
-          "x": 825,
-          "y": 995
+          "x": 1677,
+          "y": 1794
         },
         {
-          "x": 820,
-          "y": 955
+          "x": 1629,
+          "y": 1794
         },
         {
-          "x": 830,
-          "y": 905
+          "x": 1596,
+          "y": 1792
         },
         {
-          "x": 860,
-          "y": 885
+          "x": 1330.67,
+          "y": 1604.87
         },
         {
-          "x": 860,
-          "y": 875
+          "x": 1322.61,
+          "y": 1540.35
         },
         {
-          "x": 788.7175,
-          "y": 823.15814
+          "x": 1338.73,
+          "y": 1459.7
         },
         {
-          "x": 685,
-          "y": 890
+          "x": 1387.12,
+          "y": 1427.45
         },
         {
-          "x": 640,
-          "y": 855
+          "x": 1387.12,
+          "y": 1411.32
         },
         {
-          "x": 740,
-          "y": 795
+          "x": 1272.15,
+          "y": 1327.7
         },
         {
-          "x": 740,
-          "y": 785
+          "x": 1104.86,
+          "y": 1435.51
         },
         {
-          "x": 680,
-          "y": 740
+          "x": 1032.28,
+          "y": 1379.06
         },
         {
-          "x": 670,
-          "y": 740
+          "x": 1193.57,
+          "y": 1282.28
         },
         {
-          "x": 665,
-          "y": 760
+          "x": 1193.57,
+          "y": 1266.15
         },
         {
-          "x": 590,
-          "y": 805
+          "x": 1096.79,
+          "y": 1193.57
         },
         {
-          "x": 525,
-          "y": 755
+          "x": 1080.67,
+          "y": 1193.57
         },
         {
-          "x": 610,
-          "y": 705
+          "x": 1072.6,
+          "y": 1225.83
         },
         {
-          "x": 610,
-          "y": 695
+          "x": 951.63,
+          "y": 1298.41
         },
         {
-          "x": 580,
-          "y": 675
+          "x": 838.73,
+          "y": 1209.7
         },
         {
-          "x": 570,
-          "y": 675
+          "x": 943.57,
+          "y": 1145.18
         },
         {
-          "x": 445,
-          "y": 755
+          "x": 983.89,
+          "y": 1137.12
         },
         {
-          "x": 325,
-          "y": 675
+          "x": 983.89,
+          "y": 1120.99
         },
         {
-          "x": 325,
-          "y": 645
+          "x": 935.5,
+          "y": 1088.73
         },
         {
-          "x": 440,
-          "y": 580
+          "x": 919.37,
+          "y": 1088.73
         },
         {
-          "x": 440,
-          "y": 560
+          "x": 717.76,
+          "y": 1217.76
         },
         {
-          "x": 420,
-          "y": 560
+          "x": 524.2,
+          "y": 1088.73
         },
         {
-          "x": 330,
-          "y": 610
+          "x": 524.2,
+          "y": 1040.34
         },
         {
-          "x": 305,
-          "y": 590
+          "x": 709.69,
+          "y": 935.5
+        },
+        {
+          "x": 709.69,
+          "y": 903.24
+        },
+        {
+          "x": 677.43,
+          "y": 903.24
+        },
+        {
+          "x": 532.27,
+          "y": 983.89
+        },
+        {
+          "x": 491.94,
+          "y": 951.63
         }
       ]
     }
@@ -438,72 +454,1092 @@
   "collisions": [
     {
       "id": "collision-001",
-      "label": "\u591A\u908A\u5F62\u78B0\u649E 1",
+      "label": "多邊形碰撞 1",
       "shape": "polygon",
       "points": [
         {
-          "x": 505,
-          "y": 510
+          "x": 814.53,
+          "y": 822.6
         },
         {
-          "x": 595,
-          "y": 460
+          "x": 967.76,
+          "y": 733.88
         },
         {
-          "x": 610,
-          "y": 465
+          "x": 983.89,
+          "y": 741.95
         },
         {
-          "x": 520,
-          "y": 515
+          "x": 830.66,
+          "y": 830.66
         }
       ]
     },
     {
       "id": "collision-002",
-      "label": "\u591A\u908A\u5F62\u78B0\u649E 2",
+      "label": "多邊形碰撞 2",
       "shape": "polygon",
       "points": [
         {
-          "x": 500,
-          "y": 590
+          "x": 822.6,
+          "y": 959.7
         },
         {
-          "x": 490,
-          "y": 570
+          "x": 798.4,
+          "y": 935.5
         },
         {
-          "x": 510,
-          "y": 550
+          "x": 798.4,
+          "y": 919.37
         },
         {
-          "x": 530,
-          "y": 545
+          "x": 822.6,
+          "y": 895.18
         },
         {
-          "x": 555,
-          "y": 545
+          "x": 854.85,
+          "y": 887.11
         },
         {
-          "x": 580,
-          "y": 560
+          "x": 895.18,
+          "y": 887.11
         },
         {
-          "x": 585,
-          "y": 580
+          "x": 919.37,
+          "y": 895.18
         },
         {
-          "x": 570,
-          "y": 595
+          "x": 943.57,
+          "y": 911.31
         },
         {
-          "x": 535,
-          "y": 600
+          "x": 943.57,
+          "y": 935.5
+        },
+        {
+          "x": 911.31,
+          "y": 959.7
+        },
+        {
+          "x": 870.98,
+          "y": 967.76
+        }
+      ]
+    },
+    {
+      "id": "collision-003",
+      "label": "多邊形碰撞 3",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1914,
+          "y": 1812
+        },
+        {
+          "x": 1770,
+          "y": 1713
+        },
+        {
+          "x": 1770,
+          "y": 1698
+        },
+        {
+          "x": 1782,
+          "y": 1692
+        },
+        {
+          "x": 1935,
+          "y": 1797
         }
       ]
     }
   ],
-  "interactables": [],
+  "interactables": [
+    {
+      "id": "shipinterior-interaction-001",
+      "label": "料理台",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1225.83,
+          "y": 975.82
+        },
+        {
+          "x": 1290.35,
+          "y": 1024.21
+        },
+        {
+          "x": 1346.8,
+          "y": 1016.15
+        },
+        {
+          "x": 1451.64,
+          "y": 943.57
+        },
+        {
+          "x": 1314.54,
+          "y": 846.79
+        },
+        {
+          "x": 1225.83,
+          "y": 903.24
+        }
+      ],
+      "type": "use",
+      "verb": "使用",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionPoints": [
+        {
+          "facing": "NE",
+          "x": 1297.4965,
+          "y": 995.6528
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 1350.27,
+        "y": 895.78
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-001-line-001",
+            "speaker": "Sbaak",
+            "text": "今天的合成餐是「烤雞風味」……\n聞起來倒是蠻像回事的。",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "shipinterior-interaction-001-line-002",
+            "speaker": "Sbaak",
+            "text": "（我盯著盤子裡淡黃色的方塊）\n……這東西以前真的有雞嗎？",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "shipinterior-interaction-001-line-003",
+            "speaker": "Sbaak",
+            "text": "熱一份合成餐，填飽肚子才有力氣幹活。",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "目前無法使用。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "shipinterior-interaction-002",
+      "label": "洗手台",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 935.5,
+          "y": 1112.92
+        },
+        {
+          "x": 983.89,
+          "y": 1145.18
+        },
+        {
+          "x": 988,
+          "y": 1184
+        },
+        {
+          "x": 904,
+          "y": 1236
+        },
+        {
+          "x": 824,
+          "y": 1176
+        },
+        {
+          "x": 919.37,
+          "y": 1112.92
+        }
+      ],
+      "type": "use",
+      "verb": "使用",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionPoints": [
+        {
+          "facing": "NW",
+          "x": 926.6429,
+          "y": 1199.5947
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 892.44,
+        "y": 1101.7
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-002-line-001",
+            "speaker": "Sbaak",
+            "text": "回收水的溫度剛好……洗把臉清醒一下。",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "shipinterior-interaction-002-line-002",
+            "speaker": "Sbaak",
+            "text": "水壓穩定，回收循環也正常。\n（職業病，連洗個手都要檢查一下）",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "shipinterior-interaction-002-line-003",
+            "speaker": "Sbaak",
+            "text": "把手上的機油洗乾淨……雖然等一下大概又會弄髒。",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "目前無法使用。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "shipinterior-interaction-003",
+      "label": "飛航記錄儀",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 528,
+          "y": 880
+        },
+        {
+          "x": 700,
+          "y": 772
+        },
+        {
+          "x": 700,
+          "y": 760
+        },
+        {
+          "x": 564,
+          "y": 664
+        },
+        {
+          "x": 528,
+          "y": 672
+        },
+        {
+          "x": 484,
+          "y": 696
+        },
+        {
+          "x": 456,
+          "y": 828
+        }
+      ],
+      "type": "check",
+      "verb": "檢查",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionPoints": [
+        {
+          "facing": "NW",
+          "x": 609.8416,
+          "y": 826.8015
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 558.67,
+        "y": 714.29
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-003-line-001",
+            "speaker": "Sbaak",
+            "text": "（翻閱今天的紀錄）\n例行檢查、例行航段……例行的一天。"
+          },
+          {
+            "lineId": "shipinterior-interaction-003-line-002",
+            "speaker": "Sbaak",
+            "text": "這種什麼都沒發生的日誌，船長最喜歡了。"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "目前無法使用。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "shipinterior-interaction-004",
+      "label": "臥鋪",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1233.89,
+          "y": 1354.86
+        },
+        {
+          "x": 1145.18,
+          "y": 1411.32
+        },
+        {
+          "x": 1024.21,
+          "y": 1322.61
+        },
+        {
+          "x": 1112.92,
+          "y": 1266.15
+        }
+      ],
+      "type": "use",
+      "verb": "使用",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionPoints": [
+        {
+          "facing": "NW",
+          "x": 1096.0256,
+          "y": 1366.1202
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 1073.07,
+        "y": 1300.4
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-004-line-001",
+            "speaker": "Sbaak",
+            "text": "瞇一下就好……引擎只要有一點怪聲，我一定聽得見。",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "shipinterior-interaction-004-line-002",
+            "speaker": "Sbaak",
+            "text": "長程航線最難熬的不是工作，\n是一直待在同一個地方。",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "shipinterior-interaction-004-line-003",
+            "speaker": "Sbaak",
+            "text": "床位比上一艘船寬一點……這點我很滿意。",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "目前無法使用。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "shipinterior-interaction-005",
+      "label": "貨櫃箱",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1540,
+          "y": 1676
+        },
+        {
+          "x": 1640,
+          "y": 1744
+        },
+        {
+          "x": 1564,
+          "y": 1796
+        },
+        {
+          "x": 1460,
+          "y": 1724
+        }
+      ],
+      "type": "check",
+      "verb": "檢查",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionPoints": [
+        {
+          "facing": "SW",
+          "x": 1580.9092,
+          "y": 1761.1865
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 1509.1,
+        "y": 1749.11
+      },
+      "showOnMinimap": true,
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-005-line-001",
+            "speaker": "Sbaak",
+            "text": "貨物固定帶綁得很紮實……歐文的手藝還是一樣可靠。",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "shipinterior-interaction-005-line-002",
+            "speaker": "Sbaak",
+            "text": "（我敲了敲箱體）裝得滿滿的……這趟的貨可不輕啊。",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "目前無法使用。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "shipinterior-interaction-006",
+      "label": "貨櫃箱",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1660,
+          "y": 1752
+        },
+        {
+          "x": 1736,
+          "y": 1700
+        },
+        {
+          "x": 1792,
+          "y": 1744
+        },
+        {
+          "x": 1716,
+          "y": 1796
+        }
+      ],
+      "type": "check",
+      "verb": "檢查",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionPoints": [
+        {
+          "facing": "SE",
+          "x": 1707.0101,
+          "y": 1776.6207
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 1741,
+        "y": 1761.79
+      },
+      "showOnMinimap": true,
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-006-line-001",
+            "speaker": "Sbaak",
+            "text": "C-02 的固定鎖……前幾天才鬧過一次脾氣。"
+          },
+          {
+            "lineId": "shipinterior-interaction-006-line-002",
+            "speaker": "Sbaak",
+            "text": "（我確認了一下鎖扣的讀數）現在看起來是正常的……\n抵達之後還是整組換掉比較保險。"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "目前無法使用。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "shipinterior-interaction-007",
+      "label": "工作台",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1872,
+          "y": 1476
+        },
+        {
+          "x": 1992,
+          "y": 1564
+        },
+        {
+          "x": 2060,
+          "y": 1512
+        },
+        {
+          "x": 1920,
+          "y": 1412
+        },
+        {
+          "x": 1872,
+          "y": 1412
+        }
+      ],
+      "type": "operation",
+      "verb": "操作",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionPoints": [
+        {
+          "facing": "NE",
+          "x": 1954.62,
+          "y": 1486.6667
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 2024.25,
+        "y": 1390.01
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-007-line-001",
+            "speaker": "Sbaak",
+            "text": "扳手、焊槍、診斷儀……工具都在原位，一樣不少。"
+          },
+          {
+            "lineId": "shipinterior-interaction-007-line-002",
+            "speaker": "Sbaak",
+            "text": "船上只要有東西壞了，而且其他人不知道該找誰——\n那就是找我。"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "目前無法使用。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "shipinterior-interaction-008",
+      "label": "量子曲速引擎",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1483.9,
+          "y": 1245.18
+        },
+        {
+          "x": 1625.84,
+          "y": 1348.41
+        },
+        {
+          "x": 1683.9,
+          "y": 1309.7
+        },
+        {
+          "x": 1509.71,
+          "y": 1180.67
+        },
+        {
+          "x": 1483.9,
+          "y": 1200.02
+        }
+      ],
+      "type": "check",
+      "verb": "檢查",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionPoints": [
+        {
+          "facing": "NE",
+          "x": 1572.6488,
+          "y": 1279.8942
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 1614.9,
+        "y": 1187.76
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-008-line-001",
+            "speaker": "",
+            "text": "（我把手掌貼在外殼上，感受著穩定的低頻震動）"
+          },
+          {
+            "lineId": "shipinterior-interaction-008-line-002",
+            "speaker": "Sbaak",
+            "text": "核心溫度正常、輸出曲線平穩……今天的你也很乖嘛。"
+          },
+          {
+            "lineId": "shipinterior-interaction-008-line-003",
+            "speaker": "Sbaak",
+            "text": "保持下去，我們就能準時抵達 Tabit。"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "目前無法使用。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "shipinterior-interaction-009",
+      "label": "航線監測終端",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 960,
+          "y": 816
+        },
+        {
+          "x": 1064,
+          "y": 888
+        },
+        {
+          "x": 1096,
+          "y": 888
+        },
+        {
+          "x": 1176,
+          "y": 836
+        },
+        {
+          "x": 1032.28,
+          "y": 735.5
+        },
+        {
+          "x": 961.31,
+          "y": 774.21
+        }
+      ],
+      "type": "check",
+      "verb": "檢查",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionPoints": [
+        {
+          "facing": "NE",
+          "x": 1029.4163,
+          "y": 862.45245
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 1128.75,
+        "y": 725.5
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-009-line-001",
+            "speaker": "Sbaak",
+            "text": "航線偏差 0.000……自動導航一切正常。"
+          },
+          {
+            "lineId": "shipinterior-interaction-009-line-002",
+            "speaker": "Sbaak",
+            "text": "伊恩看到大概又要抱怨，\n自動導航正在讓人類忘記怎麼看星星了。"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "目前無法使用。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "shipinterior-interaction-010",
+      "label": "飛控氣壓閥",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 704,
+          "y": 704
+        },
+        {
+          "x": 792,
+          "y": 756
+        },
+        {
+          "x": 828,
+          "y": 756
+        },
+        {
+          "x": 920,
+          "y": 700
+        },
+        {
+          "x": 808,
+          "y": 632
+        },
+        {
+          "x": 776,
+          "y": 632
+        },
+        {
+          "x": 704,
+          "y": 660
+        }
+      ],
+      "type": "check",
+      "verb": "檢查",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionPoints": [
+        {
+          "facing": "NE",
+          "x": 803.53467,
+          "y": 702.7738
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 828.96313,
+        "y": 637.4247
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-010-line-001",
+            "speaker": "Sbaak",
+            "text": "氣壓讀數……都在標準範圍內。"
+          },
+          {
+            "lineId": "shipinterior-interaction-010-line-002",
+            "speaker": "Sbaak",
+            "text": "（順手鎖緊了一個有點鬆動的接頭）\n好了，小毛病就要趁早處理。"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "目前無法使用。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "shipinterior-interaction-011",
+      "label": "歐文",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1428,
+          "y": 1520
+        },
+        {
+          "x": 1428,
+          "y": 1540
+        },
+        {
+          "x": 1364,
+          "y": 1588
+        },
+        {
+          "x": 1248,
+          "y": 1500
+        },
+        {
+          "x": 1332,
+          "y": 1448
+        }
+      ],
+      "type": "dialogue",
+      "verb": "對話",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionHintPoint": {
+        "x": 1308.633,
+        "y": 1498.1821
+      },
+      "showOnMinimap": true,
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo",
+          "歐文"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-011-line-001",
+            "speaker": "歐文",
+            "text": "喲，工程師！引擎今天沒給你找麻煩吧？"
+          },
+          {
+            "lineId": "shipinterior-interaction-011-line-002",
+            "speaker": "Sbaak",
+            "text": "託福，安靜得很。\n倒是你，別忘了還欠我三十二點。"
+          },
+          {
+            "lineId": "shipinterior-interaction-011-line-003",
+            "speaker": "歐文",
+            "text": "嘖，記這麼清楚……下一局我一定全部贏回來！"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "目前無法使用。"
+          }
+        ]
+      }
+    }
+  ],
   "movementGuides": [],
   "storyTriggers": [],
   "itemPoints": [],

@@ -8,8 +8,8 @@ renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;r
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;host.append(renderer.domElement);
 const camera=new THREE.OrthographicCamera(-20,20,15,-15,.1,200);
 const orbit=new OrbitControls(camera,renderer.domElement);orbit.enableDamping=true;orbit.dampingFactor=.08;orbit.minZoom=.5;orbit.maxZoom=4;orbit.maxPolarAngle=Math.PI*.48;orbit.minPolarAngle=.03;orbit.target.set(0,.6,0);
-// Low neutral fill preserves cutaway readability; local fixtures now set each room's mood.
-scene.add(new THREE.HemisphereLight(0xb5cad7,0x222831,.55));
+// Lift ambient and lower-surface detail while local fixtures retain each room's mood.
+scene.add(new THREE.HemisphereLight(0xb5cad7,0x303945,.90));
 const sun=new THREE.DirectionalLight(0xc1cfdb,.90);sun.position.set(-9,22,14);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-23,right:23,top:18,bottom:-18,near:1,far:65});sun.shadow.bias=-.00025;sun.shadow.normalBias=.03;scene.add(sun);
 const fill=new THREE.DirectionalLight(0x7badcf,.40);fill.position.set(12,10,-15);scene.add(fill);
 const ship=new THREE.Group();scene.add(ship);
