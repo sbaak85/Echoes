@@ -1,0 +1,9 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>遠星迴聲 · 3D 艙內空間</title><link rel="stylesheet" href="/style.css"><script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script></head><body>
+<header><div><span class="eyebrow">ECHOES BEYOND / INTERIOR STUDY 01</span><h1>遠星迴聲 <small>艙內空間</small></h1></div><span class="badge">3D 結構預覽</span></header>
+<main><section id="viewport" aria-label="船艦三維預覽"><div id="loading">正在建立艙內空間…</div><div class="view-tools"><button id="iso">透視總覽</button><button id="bridge-view">駕駛艙近看</button><button id="workshop-view">工作艙近看</button><button id="top">俯視配置</button><button id="reverse">另一側</button><button id="closer" aria-label="放大">＋</button><button id="farther" aria-label="縮小">－</button></div><div class="scene-caption"><strong>DECK 01</strong><span>駕駛艙 → 中央通道 → 工作與儲物區</span></div><div class="help">拖曳旋轉 · 滾輪縮放 · 右鍵平移 · 點擊艙門開關<br>鍵盤方向鍵／手把左搖桿選項，Enter／A 確認</div></section>
+<aside><div class="panel-title"><span>空間控制</span><button id="reset">重設</button></div><p class="intro">按參考圖建立的可編輯幾何草稿。駕駛台為固定整組，其他設備可獨立隱藏。</p>
+<section class="controls-section"><h2>01 <span>船體剖面</span></h2><div id="hull-controls"></div></section>
+<section class="controls-section"><h2>02 <span>艙門獨立開關</span><button id="all-doors">全部關閉</button></h2><p class="intro">點選各艙門列即可開關，也可直接點擊模型上的門。對外艙門預設關閉。</p><div id="door-controls"></div></section>
+<section class="controls-section"><h2>03 <span>獨立設備</span><button id="all-props">全部隱藏</button></h2><div id="prop-controls"></div></section>
+<div id="status" role="status">初始化中</div><p class="footnote">僅 Worktree 預覽 · 不影響正式場景<br>尺寸為建模比例，尚未接入角色碰撞與任務。</p></aside></main>
+<script type="module" src="/scene.js"></script></body></html>

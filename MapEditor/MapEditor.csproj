@@ -17,6 +17,7 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);runtime\**</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="bin\**;obj\**;publish\**;runtime\**" />
     <Compile
       Include="..\AudioEventManager\AudioEventEditorForm.cs"
       Link="AudioEventEditorForm.cs" />

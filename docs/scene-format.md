@@ -7,6 +7,13 @@ spawn position, and runtime movement cannot drift apart.
 Version 1 fields:
 
 - `image` and `world`: source image name and world dimensions.
+- `foregroundLayers`: optional ordered array of image overlays (last entry drawn
+  foremost). Each has `id`, `label`, `file`, world-space `x`/`y`, uniform `scale`
+  (default 1, applied to the overlay's native pixel dimensions), `opacity` (0–1),
+  and `visible`. Files are relative to the scene JSON and are copied alongside it
+  on save/export. Missing array means no overlays. MapEditor draws these above
+  the background and below editing markers; the global preview visibility toggle
+  is not persisted. Game rendering and character occlusion are not yet connected.
 - `grid`: editor grid size, visibility, and snapping preference.
 - `playerSpawn`: player foot position and one of the eight directions.
 - `entryPoints`: named, reusable map-entry landing points. Each record stores

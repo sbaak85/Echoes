@@ -82,6 +82,38 @@ public sealed class EditorCanvas : Control
     private readonly ToolStripMenuItem _deleteItemPointContextItem = new("刪除此 ItemPoint");
 
     private Bitmap? _sceneImage;
+    private readonly Dictionary<string, Bitmap> _foregroundImages = new(StringComparer.OrdinalIgnoreCase);
+    public Func<string, string?>? ResolveForegroundImage { get; set; }
+    public bool ShowForegroundImages { get; set; } = true;
+
+    public void UpdateForegroundLayers(IEnumerable<ForegroundImageLayer> layers)
+    {
+        var copy = layers.Select(layer => layer.Copy()).ToList();
+        PerformMutation(() => _document.ForegroundLayers = copy);
+    }
+
+    private void ClearForegroundCache()
+    {
+        foreach (var image in _foregroundImages.Values) image.Dispose();
+        _foregroundImages.Clear();
+    }
+
+    private void DrawForegroundImages(Graphics graphics)
+    {
+        if (!ShowForegroundImages) return;
+        foreach (var layer in _document.ForegroundLayers)
+        {
+            if (!layer.Visible || layer.Opacity <= 0) continue;
+            var path = ResolveForegroundImage?.Invoke(layer.File);
+            if (path is null) continue;
+            if (!_foregroundImages.TryGetValue(path, out var image))
+            {
+                image = ImageLoader.Load(path);
+                _foregroundImages.Add(path, image);
+            }
+            ForegroundRendering.Draw(graphics, image, layer);
+        }
+    }
     private SceneDocument _document = new();
     private EditorTool _tool = EditorTool.Select;
     private LayerSelection _selection = LayerSelection.None;
@@ -260,6 +292,7 @@ public sealed class EditorCanvas : Control
         _shapeEnd = null;
         ReleaseMouseCapture();
         _sceneImage?.Dispose();
+        ClearForegroundCache();
         _sceneImage = image;
         _document = document;
         _selection = LayerSelection.None;
@@ -1447,6 +1480,7 @@ public sealed class EditorCanvas : Control
             _nodeContextMenu.Dispose();
             _worldPointContextMenu.Dispose();
             _sceneImage?.Dispose();
+            ClearForegroundCache();
             _sceneImage = null;
         }
 
@@ -1488,6 +1522,7 @@ public sealed class EditorCanvas : Control
         graphics.DrawImage(
             _sceneImage,
             new RectangleF(0, 0, _document.World.Width, _document.World.Height));
+        DrawForegroundImages(graphics);
         DrawGrid(graphics);
         DrawNavMesh(graphics);
         DrawCollisions(graphics);

@@ -369,6 +369,11 @@ public sealed class MainForm : Form
         viewMenu.DropDownItems.Add(CreateMenuItem("符合視窗", Keys.Control | Keys.D0, (_, _) => _canvas.FitToView()));
         viewMenu.DropDownItems.Add(CreateMenuItem("放大", Keys.Control | Keys.Add, (_, _) => _canvas.ZoomBy(1.2f)));
         viewMenu.DropDownItems.Add(CreateMenuItem("縮小", Keys.Control | Keys.Subtract, (_, _) => _canvas.ZoomBy(1f / 1.2f)));
+        var foregroundMenu = new ToolStripMenuItem("前景圖片(&L)");
+        foregroundMenu.DropDownItems.Add(CreateMenuItem("管理前景圖片圖層…", Keys.None, (_, _) => EditForegroundLayers()));
+        var showForeground = new ToolStripMenuItem("顯示前景圖片") { Checked = true, CheckOnClick = true };
+        showForeground.CheckedChanged += (_, _) => { _canvas.ShowForegroundImages = showForeground.Checked; _canvas.Invalidate(); };
+        foregroundMenu.DropDownItems.Add(showForeground);
 
         var toolsMenu = new ToolStripMenuItem("工具(&T)");
         toolsMenu.DropDownItems.Add(CreateMenuItem(
@@ -376,7 +381,7 @@ public sealed class MainForm : Form
             Keys.None,
             (_, _) => OpenAudioEventEditor()));
 
-        menu.Items.AddRange(new ToolStripItem[] { fileMenu, editMenu, viewMenu, toolsMenu });
+        menu.Items.AddRange(new ToolStripItem[] { fileMenu, editMenu, viewMenu, foregroundMenu, toolsMenu });
         return menu;
     }
 
@@ -395,6 +400,7 @@ public sealed class MainForm : Form
         };
 
         toolbar.Items.Add(CreateToolbarButton("開啟圖片", "從 Windows 選擇 PNG、JPG、WebP 等場景圖片", (_, _) => OpenImage()));
+        toolbar.Items.Add(CreateToolbarButton("前景圖層", "加入透明牆圖，設定位置、縮放、顯示與不透明度", (_, _) => EditForegroundLayers()));
         toolbar.Items.Add(CreateToolbarButton("儲存", "儲存目前場景 JSON", (_, _) => SaveDocument()));
         toolbar.Items.Add(CreateToolbarButton("匯出遊戲", "複製圖片並輸出到 public/maps，遊戲會讀取同一份資料", (_, _) => ExportToGame()));
         toolbar.Items.Add(CreateToolbarButton(
@@ -1067,6 +1073,117 @@ public sealed class MainForm : Form
         }
     }
 
+    private string? ResolveForegroundImage(string file)
+    {
+        if (Path.IsPathRooted(file)) return File.Exists(file) ? file : null;
+        var directories = new[] { _scenePath is null ? null : Path.GetDirectoryName(_scenePath),
+            _imagePath is null ? null : Path.GetDirectoryName(_imagePath),
+            _projectRoot is null ? null : Path.Combine(_projectRoot, "public", "maps") };
+        return directories.Where(d => d is not null).Select(d => Path.Combine(d!, file)).FirstOrDefault(File.Exists);
+    }
+
+    private void EditForegroundLayers()
+    {
+        if (_imagePath is null) { MessageBox.Show(this, "請先開啟底圖。", "前景圖片"); return; }
+        try
+        {
+            using var editor = new ForegroundLayerEditorForm(_canvas.Document, _imagePath, ResolveForegroundImage);
+            if (editor.ShowDialog(this) != DialogResult.OK) return;
+            var layers = editor.Layers.Select(l => l.Copy()).ToList();
+            // Keep imported sources intact; give conflicting filenames a distinct asset name.
+            var directory = Path.GetDirectoryName(_imagePath)!;
+            foreach (var layer in layers)
+            {
+                var source = ResolveForegroundImage(layer.File) ?? throw new FileNotFoundException($"找不到前景圖片：{layer.File}");
+                using var check = ImageLoader.Load(source);
+                var target = Path.Combine(directory, Path.GetFileName(source));
+                if (!PathsEqual(source, target) && File.Exists(target) && !FilesMatch(source, target))
+                    target = Path.Combine(directory, Path.GetFileNameWithoutExtension(source) + "_" + Guid.NewGuid().ToString("N")[..8] + Path.GetExtension(source));
+                if (!PathsEqual(source, target) && !File.Exists(target)) File.Copy(source, target);
+                // Absolute in-memory reference avoids ambiguity with the original scene directory.
+                layer.File = target;
+            }
+            _canvas.UpdateForegroundLayers(layers);
+            _statusLabel.Text = $"已套用 {layers.Count} 個前景圖層；請儲存場景。可由「前景圖片」選單暫時隱藏。";
+        }
+        catch (Exception exception) { ShowError("無法套用前景圖層", exception); }
+    }
+
+    private void CopyForegroundAssets(string directory)
+    {
+        // Resolve every source before changing any references; never silently overwrite another image.
+        var assets = _canvas.Document.ForegroundLayers.Select(layer => (
+            Layer: layer,
+            Source: ResolveForegroundImage(layer.File) ?? throw new FileNotFoundException($"找不到前景圖片：{layer.File}"),
+            Target: Path.Combine(directory, Path.GetFileName(layer.File)))).ToList();
+        foreach (var asset in assets)
+        {
+            if (!PathsEqual(asset.Source, asset.Target) && File.Exists(asset.Target) && !FilesMatch(asset.Source, asset.Target))
+                throw new IOException($"目的資料夾已有不同內容的前景圖片：{asset.Target}。請先替圖片使用不同檔名。");
+        }
+        Directory.CreateDirectory(directory);
+        foreach (var asset in assets)
+            if (!PathsEqual(asset.Source, asset.Target) && !File.Exists(asset.Target)) File.Copy(asset.Source, asset.Target);
+        foreach (var asset in assets) asset.Layer.File = Path.GetFileName(asset.Target);
+    }
+
+    internal void RunForegroundSelfTest(string projectRoot)
+    {
+        var directory = Path.Combine(projectRoot, "output", "mapeditor-foreground", "verification");
+        Directory.CreateDirectory(directory);
+        var basePath = Path.Combine(projectRoot, "public", "maps", "ship_interior.png");
+        var wallPath = Path.Combine(projectRoot, "public", "maps", "ship_interior_Wall.png");
+        var document = SceneDocument.CreateForImage(basePath, 1536, 1536);
+        document.ForegroundLayers.Add(new ForegroundImageLayer { Label = "船艙隔牆", File = wallPath });
+        using (var editor = new ForegroundLayerEditorForm(document, basePath, ResolveForegroundImage)
+            { ShowInTaskbar = false, StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000) })
+        {
+            editor.Show(); Application.DoEvents();
+            editor.RunControlSelfTest(Path.Combine(directory, "foreground-editor.png"));
+            editor.Close();
+        }
+        var localBase = Path.Combine(directory, Path.GetFileName(basePath));
+        File.Copy(basePath, localBase, true);
+        var jsonPath = Path.Combine(directory, "ship_interior.scene.json");
+        ApplyLoadedScene(document, ImageLoader.Load(localBase), localBase, jsonPath);
+        _canvas.UpdateForegroundLayers(Array.Empty<ForegroundImageLayer>());
+        _canvas.Undo();
+        if (_canvas.Document.ForegroundLayers.Count != 1) throw new InvalidOperationException("Foreground undo failed.");
+        _canvas.Redo();
+        if (_canvas.Document.ForegroundLayers.Count != 0) throw new InvalidOperationException("Foreground redo failed.");
+        _canvas.Undo();
+        if (!SaveDocument()) throw new InvalidOperationException("Foreground save failed.");
+        var saved = SceneJson.Load(jsonPath);
+        if (saved.ForegroundLayers.Count != 1 || saved.ForegroundLayers[0].File != "ship_interior_Wall.png" ||
+            !File.Exists(Path.Combine(directory, saved.ForegroundLayers[0].File)))
+            throw new InvalidOperationException("Foreground portable assets round trip failed.");
+        LoadSceneFile(jsonPath); Application.DoEvents(); _canvas.FitToView();
+        using (var bitmap = new Bitmap(Width, Height))
+        {
+            DrawToBitmap(bitmap, new Rectangle(0, 0, Width, Height));
+            bitmap.Save(Path.Combine(directory, "mapeditor-overlay.png"));
+        }
+        // Exercise the same alpha renderer with known colors, independent of artwork.
+        using var source = new Bitmap(10, 10);
+        using (var g = Graphics.FromImage(source)) g.Clear(Color.Red);
+        using var result = new Bitmap(30, 30);
+        using (var g = Graphics.FromImage(result))
+        {
+            g.Clear(Color.Blue);
+            ForegroundRendering.Draw(g, source, new ForegroundImageLayer { X = 10, Y = 10, Opacity = .5f });
+        }
+        var pixel = result.GetPixel(15, 15);
+        if (pixel.R < 120 || pixel.R > 135 || pixel.B < 120 || pixel.B > 135 || result.GetPixel(2, 2).B != 255)
+            throw new InvalidOperationException("Foreground alpha or position rendering failed.");
+        saved.ForegroundLayers[0].Scale = 0;
+        try { SceneJson.Validate(saved); throw new InvalidOperationException("Invalid scale was accepted."); }
+        catch (InvalidDataException) { }
+        var legacy = SceneJson.Load(Path.Combine(projectRoot, "public", "maps", "map_test01.scene.json"));
+        if (legacy.ForegroundLayers.Count != 0) throw new InvalidOperationException("Legacy scene default failed.");
+        File.WriteAllText(Path.Combine(directory, "result.txt"), "PASS: controls, ordering, alpha rendering, undo/redo, portable image copy, save/reload, invalid scale, legacy scene compatibility.");
+        _dirty = false;
+    }
+
     private void OpenScene()
     {
         if (!ConfirmDiscardChanges()) return;
@@ -1164,6 +1281,7 @@ public sealed class MainForm : Form
         {
             _imagePath = Path.GetFullPath(imagePath);
             _scenePath = scenePath is null ? null : Path.GetFullPath(scenePath);
+            _canvas.ResolveForegroundImage = ResolveForegroundImage;
             _canvas.SetScene(document, image);
             _gridButton.Checked = document.Grid.Visible;
             _snapButton.Checked = document.Grid.Snap;
@@ -1219,6 +1337,7 @@ public sealed class MainForm : Form
         {
             PrepareDocumentForSave(_imagePath);
             ValidateConnectionTargets();
+            CopyForegroundAssets(Path.GetDirectoryName(targetPath!)!);
             SceneJson.Save(targetPath!, _canvas.Document);
             _scenePath = Path.GetFullPath(targetPath!);
             _dirty = false;
@@ -1277,6 +1396,7 @@ public sealed class MainForm : Form
             PrepareDocumentForSave(imageTarget);
             ValidateConnectionTargets();
             var sceneTarget = Path.Combine(mapsDirectory, $"{Path.GetFileNameWithoutExtension(_imagePath)}.scene.json");
+            CopyForegroundAssets(mapsDirectory);
             SceneJson.Save(sceneTarget, _canvas.Document);
             _scenePath = sceneTarget;
             _dirty = false;

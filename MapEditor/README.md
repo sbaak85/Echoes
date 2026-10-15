@@ -20,6 +20,19 @@ the much larger .NET SDK is a build tool and is not stored in this repository.
 
 Included in version 1:
 
+- 「前景圖層」工具列按鈕／「前景圖片」選單可新增多張透明 PNG 或其他圖片，
+  即時預覽與底圖疊合。每層可命名、調整 X/Y、等比縮放、不透明度、顯示狀態，
+  以及往底層／往前層排序；清單越下方越靠前。套用後支援復原／重做。
+  與底圖同尺寸、同構圖的牆圖使用 X=0、Y=0、縮放 100%。
+- 「前景圖片 → 顯示前景圖片」只暫時切換主畫布預覽，不更動已儲存圖層狀態。
+  前景畫在底圖上方、NavMesh 等編輯標記下方，方便畫牆後的行走與碰撞區。
+- 前景設定儲存在場景 JSON 的 `foregroundLayers`。匯入圖片時保留來源檔案，
+  必要時複製到目前底圖旁；同名異內容的匯入圖片會改用唯一檔名。
+  儲存／另存／匯出會將前景圖片複製到場景 JSON 旁並寫入相對檔名；
+  目的地同名異內容的檔案會阻止儲存，不會直接覆寫。
+  移除圖層只移除參照，不刪除圖片。舊場景未設定此欄位時視為無前景。
+  此功能目前限編輯器；遊戲繪製、角色前後判定與局部防遮擋尚未接線。
+
 - NavMesh polygon drawing.
 - Polygon, rectangle, and circle collision drawing.
 - Selection, whole-shape movement, vertex/radius editing, scaling, deletion,

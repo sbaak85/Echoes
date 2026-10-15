@@ -10,6 +10,7 @@ public sealed class SceneDocument
     public string SceneId { get; set; } = "new_scene";
     public string DisplayName { get; set; } = "New scene";
     public SceneImage Image { get; set; } = new();
+    public List<ForegroundImageLayer> ForegroundLayers { get; set; } = new();
     public SceneWorld World { get; set; } = new();
     public GridSettings Grid { get; set; } = new();
     public PlayerSpawn PlayerSpawn { get; set; } = new();
@@ -53,6 +54,19 @@ public sealed class SceneImage
     public string File { get; set; } = "";
     public int Width { get; set; }
     public int Height { get; set; }
+}
+
+public sealed class ForegroundImageLayer
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Label { get; set; } = "前景圖片";
+    public string File { get; set; } = "";
+    public float X { get; set; }
+    public float Y { get; set; }
+    public float Scale { get; set; } = 1;
+    public float Opacity { get; set; } = 1;
+    public bool Visible { get; set; } = true;
+    public ForegroundImageLayer Copy() => (ForegroundImageLayer)MemberwiseClone();
 }
 
 public sealed class SceneWorld
@@ -957,6 +971,16 @@ public static class SceneJson
             ? document.SceneId
             : document.DisplayName.Trim();
         document.WorldLayout ??= new WorldLayout();
+        document.ForegroundLayers ??= new();
+        var foregroundIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var layer in document.ForegroundLayers)
+        {
+            if (layer is null || string.IsNullOrWhiteSpace(layer.Id) || !foregroundIds.Add(layer.Id) ||
+                string.IsNullOrWhiteSpace(layer.File) || !float.IsFinite(layer.X) || !float.IsFinite(layer.Y) ||
+                !float.IsFinite(layer.Scale) || layer.Scale <= 0 ||
+                !float.IsFinite(layer.Opacity) || layer.Opacity < 0 || layer.Opacity > 1)
+                throw new InvalidDataException("前景圖層的 ID、圖片、位置、縮放或透明度無效。");
+        }
         document.EntryPoints ??= new List<SceneEntryPoint>();
         document.Connections ??= new List<SceneConnection>();
 

@@ -16,6 +16,22 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--foreground-self-test")
+        {
+            ConfigureWindowsForms();
+            var root = args.Skip(1).FirstOrDefault() ?? ProjectPaths.FindProjectRoot(AppContext.BaseDirectory)!;
+            try
+            {
+                using var form = new MainForm { ShowInTaskbar = false, SuppressUnsavedPrompt = true,
+                    StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000) };
+                form.Show(); Application.DoEvents(); form.RunForegroundSelfTest(root); form.Close(); return 0;
+            }
+            catch (Exception exception)
+            {
+                var folder = Path.Combine(root, "output", "mapeditor-foreground", "verification");
+                Directory.CreateDirectory(folder); File.WriteAllText(Path.Combine(folder, "failure.txt"), exception.ToString()); return 1;
+            }
+        }
         if (args.Length > 0 && args[0].Equals("--self-test", StringComparison.OrdinalIgnoreCase))
         {
             try
@@ -1057,8 +1073,8 @@ internal static class EditorSelfTest
 
         var audioSaveTestDirectory = Path.Combine(
             projectRoot,
-            "MapEditor",
-            "runtime",
+            "output",
+            "mapeditor-foreground",
             "audio-save-self-test");
         var audioSaveTestPath = Path.Combine(
             audioSaveTestDirectory,
