@@ -24,6 +24,7 @@ import { RadarPlayerMarker } from "./radar-player-marker";
 import { DEFAULT_BACKPACK_ID, backpackCapacity, canUpgradeBackpack, equipBackpack, loadEquippedBackpack, normalizeBackpackInventory, saveEquippedBackpack } from "./inventory-capacity";
 import { BackpackContainer } from "./backpack-container";
 import { createSceneStarfield, type SceneBackdropConfig } from "./scene-starfield";
+import { createHullStreams, type HullStreamLane } from "./scene-hull-streams";
 import { AssignFrame } from "./quick-assign-frame";
 import { scheduleUiAssetWarmup } from "./ui-asset-warmup";
 import { SurvivalNeedIcon } from "./survival-need-icon";
@@ -758,6 +759,8 @@ type SceneFile = {
   image: { file: string; width: number; height: number };
   /** 場景背景效果（例如船艙外的星空），畫在底圖下方；目前手動寫在場景 JSON */
   backdrop?: SceneBackdropConfig;
+  /** 船身流動光痕的流動帶（後層畫在底圖下、前層畫在前景圖層上）；目前手動寫在場景 JSON */
+  hullStreams?: HullStreamLane[];
   /** 前景圖層（MapEditor「前景圖片」）：畫在角色上方，例如牆面；座標與縮放以場景像素計 */
   foregroundLayers?: Array<{
     id?: string;
@@ -13440,6 +13443,7 @@ export function MovementLab() {
 
     // 場景前景圖層（牆面等）：畫在角色上方。尚未做角色前後判定與局部防遮擋（見 MapEditor README）
     const sceneStarfield = createSceneStarfield();
+    const sceneHullStreams = createHullStreams();
     const drawSceneForegroundLayers = () => {
       const layers = SCENE_DATA.foregroundLayers;
       if (!layers?.length) return;
@@ -16964,11 +16968,14 @@ export function MovementLab() {
         player.y = previousPlayerY;
       } else {
         context.translate(-camera.x, -camera.y);
+        // 船身流動光痕：後層在底圖下（被船殼遮住一部分），前層在牆面等前景圖層之上
+        sceneHullStreams.draw(context, SCENE_DATA.hullStreams, "back", time, SCENE_DATA.backdrop?.mode);
         drawMap();
         drawWorldItemPickups(time);
         drawSceneCollision();
         drawPlayer();
         drawSceneForegroundLayers();
+        sceneHullStreams.draw(context, SCENE_DATA.hullStreams, "front", time, SCENE_DATA.backdrop?.mode);
         drawWorldItemLabels();
         drawInteractionHintPoints(time);
         drawPlayerStatuses(time);

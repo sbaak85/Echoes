@@ -12,6 +12,8 @@ public sealed class SceneDocument
     public SceneImage Image { get; set; } = new();
     /// <summary>場景背景效果（例如船艙外的星空）。編輯器目前不提供介面，只在讀寫時保留，避免存檔遺失手動設定。</summary>
     public SceneBackdrop? Backdrop { get; set; }
+    /// <summary>船身流動光痕的流動帶。編輯器目前不提供介面，只在讀寫時保留，避免存檔遺失手動設定。</summary>
+    public List<HullStreamLane>? HullStreams { get; set; }
     public List<ForegroundImageLayer> ForegroundLayers { get; set; } = new();
     public SceneWorld World { get; set; } = new();
     public GridSettings Grid { get; set; } = new();
@@ -139,6 +141,24 @@ public sealed class SceneBackdrop
     public float? Speed { get; set; }
     public float? Density { get; set; }
     public float? Angle { get; set; }
+    /// <summary>流動星雲（多色星雲沿流動方向循環飄過）</summary>
+    public bool? Clouds { get; set; }
+    public float? CloudOpacity { get; set; }
+}
+
+/// <summary>船身流動光痕的一條流動帶（遊戲端：app/scene-hull-streams.ts）。</summary>
+public sealed class HullStreamLane
+{
+    /// <summary>"front"：畫在船與前景圖層之上；"back"：畫在船底圖之下。</summary>
+    public string Layer { get; set; } = "front";
+    public ScenePoint From { get; set; } = new();
+    public ScenePoint To { get; set; } = new();
+    public float Width { get; set; } = 180;
+    public float? Density { get; set; }
+    public float? Speed { get; set; }
+    public float? Opacity { get; set; }
+    /// <summary>false 時保留資料但不顯示。</summary>
+    public bool? Visible { get; set; }
 }
 
 public sealed class WorldLayout

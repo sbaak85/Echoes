@@ -10,10 +10,39 @@
   "backdrop": {
     "type": "starfield",
     "mode": "warp",
-    "speed": 0.8,
-    "density": 0.5,
-    "angle": 33
+    "speed": 0.6,
+    "density": 0.45,
+    "angle": 33,
+    "clouds": true,
+    "cloudOpacity": 1
   },
+  "hullStreams": [
+    {
+      "layer": "back",
+      "from": {
+        "x": 77,
+        "y": 926
+      },
+      "to": {
+        "x": 2127,
+        "y": 2380
+      },
+      "width": 220,
+      "visible": false
+    },
+    {
+      "layer": "front",
+      "from": {
+        "x": 150,
+        "y": 822
+      },
+      "to": {
+        "x": 2200,
+        "y": 2276
+      },
+      "width": 180
+    }
+  ],
   "foregroundLayers": [
     {
       "id": "113b3e343a4c4bc0aee7f35ca655a916",
