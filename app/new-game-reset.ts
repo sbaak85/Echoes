@@ -69,7 +69,7 @@ export type NewGameProgress = {
   campPower: CampPowerState;
 };
 
-export function createNewGameProgress(): NewGameProgress {
+export function createNewGameProgress(chapter: 2 | 3 = 3): NewGameProgress {
   const survival = createInitialSurvivalState();
   return {
     survival,
@@ -80,17 +80,17 @@ export function createNewGameProgress(): NewGameProgress {
     droppedWorldItems: [],
     itemPointProgress: createInitialItemPointProgress(),
     hotbarAssignments: [...DEFAULT_HOTBAR_ASSIGNMENTS],
-    story: createInitialStoryProgress(),
+    story: { ...createInitialStoryProgress(), currentChapter: chapter },
     campPower: createInitialCampPowerState(survival.gameMinutes),
   };
 }
 
-export function resetStoredNewGameProgress(): NewGameProgress {
+export function resetStoredNewGameProgress(chapter: 2 | 3 = 3): NewGameProgress {
   // This marker prevents a stale portable autosave from being applied during
   // the reload that completes New Game. It is cleared only after a fresh
   // autosave has been written successfully.
   markNewGameResetPending();
-  const progress = createNewGameProgress();
+  const progress = createNewGameProgress(chapter);
   saveSurvivalState(progress.survival);
   saveInteractionUsageState(progress.interactionUsage);
   savePlayerInventory(progress.inventory);

@@ -1,11 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { MovementLab } from "../../app/movement-lab";
+import { GameEntry } from "../../app/game-entry";
 import "../../app/globals.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <MovementLab />
+    <GameEntry />
   </StrictMode>,
 );

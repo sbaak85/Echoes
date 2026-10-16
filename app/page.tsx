@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { MovementLab } from "./movement-lab";
+import { GameEntry } from "./game-entry";
 
 export const metadata: Metadata = {
   title: "map_test01 Movement Lab",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function Home() {
-  return <MovementLab />;
+  return <GameEntry />;
 }

@@ -1,0 +1,15 @@
+.chapter-entry { min-height:100dvh; display:grid; place-items:center; padding:24px; color:#e5eff3; background:radial-gradient(ellipse at 50% 30%,#1a303c 0%,#0a141d 50%,#060b10 100%); font-family:system-ui,sans-serif; }
+.chapter-entry section { width:min(680px,100%); text-align:center; }
+.chapter-entry-kicker { color:#d4ba84; letter-spacing:.5em; font-size:14px; }
+.chapter-entry h1 { font-size:clamp(24px,4vw,34px); font-weight:500; margin:18px 0 36px; }
+.chapter-entry-options { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.chapter-entry button { display:flex; flex-direction:column; align-items:center; gap:16px; padding:38px 18px; color:inherit; background:#11222e; border:1px solid #405663; border-radius:10px; cursor:pointer; outline:none; box-shadow:none; transition:background .15s,border-color .15s; -webkit-tap-highlight-color:transparent; }
+.chapter-entry button:focus,.chapter-entry button:focus-visible { outline:none; box-shadow:none; }
+.chapter-entry button span { color:#88afbf; font-size:12px; letter-spacing:.15em; }
+.chapter-entry button strong { font-size:28px; font-weight:500; }
+.chapter-entry button small { color:#acbac3; font-size:14px; }
+.chapter-entry[data-owner=directional],.chapter-entry[data-owner=directional] *,.chapter-entry[data-owner=touch],.chapter-entry[data-owner=touch] * { cursor:none; }
+.chapter-entry[data-owner=directional] button[data-selected=true],.chapter-entry[data-owner=mouse] button:hover { background:#203946; border-color:#d4ba84; }
+.chapter-entry button:disabled { opacity:.65; }
+.chapter-entry-note { color:#8ca1ae; font-size:13px; line-height:1.8; margin-top:30px; }
+@media(max-width:480px) { .chapter-entry-options { gap:12px; } .chapter-entry button { padding:28px 10px; } .chapter-entry button strong { font-size:24px; } }

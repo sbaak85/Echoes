@@ -10,6 +10,8 @@ public sealed class SceneDocument
     public string SceneId { get; set; } = "new_scene";
     public string DisplayName { get; set; } = "New scene";
     public SceneImage Image { get; set; } = new();
+    /// <summary>場景背景效果（例如船艙外的星空）。編輯器目前不提供介面，只在讀寫時保留，避免存檔遺失手動設定。</summary>
+    public SceneBackdrop? Backdrop { get; set; }
     public List<ForegroundImageLayer> ForegroundLayers { get; set; } = new();
     public SceneWorld World { get; set; } = new();
     public GridSettings Grid { get; set; } = new();
@@ -128,6 +130,15 @@ public sealed class CollisionShape
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public float Radius { get; set; }
+}
+
+public sealed class SceneBackdrop
+{
+    public string Type { get; set; } = "starfield";
+    public string? Mode { get; set; }
+    public float? Speed { get; set; }
+    public float? Density { get; set; }
+    public float? Angle { get; set; }
 }
 
 public sealed class WorldLayout

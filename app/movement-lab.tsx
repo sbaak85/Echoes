@@ -1,4 +1,5 @@
 "use client";
+import { createChapter02StartFlow, CHAPTER02_START_FLOW_ID } from "./chapter02-start-flow";
 import { getIdleSpriteSources, makeTransparentIdleSprite } from "./player-idle-sprites";
 import { getWalkFrameSources, makeTransparentWalkSprites, drawTransparentCharacterSprite, type TransparentCharacterSprite, type TransparentWalkSprite } from "./player-walk-sprites";
 import { useResponsiveConfirmation } from "./responsive-confirmation";
@@ -22,6 +23,7 @@ import { InventorySurvivalFloat } from "./inventory-survival-float";
 import { RadarPlayerMarker } from "./radar-player-marker";
 import { DEFAULT_BACKPACK_ID, backpackCapacity, canUpgradeBackpack, equipBackpack, loadEquippedBackpack, normalizeBackpackInventory, saveEquippedBackpack } from "./inventory-capacity";
 import { BackpackContainer } from "./backpack-container";
+import { createSceneStarfield, type SceneBackdropConfig } from "./scene-starfield";
 import { AssignFrame } from "./quick-assign-frame";
 import { scheduleUiAssetWarmup } from "./ui-asset-warmup";
 import { SurvivalNeedIcon } from "./survival-need-icon";
@@ -58,6 +60,7 @@ import {
 import mapTest01Scene from "../public/maps/map_test01.scene.json";
 import mapTest02Scene from "../public/maps/map_test02.scene.json";
 import mapScene06BScene from "../public/maps/map_scene_06B.scene.json";
+import shipInteriorScene from "../public/maps/ship_interior.scene.json";
 import questDocumentSource from "../public/quests/quest-data.json";
 import {
   AUDIO_EVENT_CONFIG,
@@ -753,6 +756,19 @@ type SceneTeleportPoint = Point & {
 type SceneFile = {
   sceneId: string;
   image: { file: string; width: number; height: number };
+  /** 場景背景效果（例如船艙外的星空），畫在底圖下方；目前手動寫在場景 JSON */
+  backdrop?: SceneBackdropConfig;
+  /** 前景圖層（MapEditor「前景圖片」）：畫在角色上方，例如牆面；座標與縮放以場景像素計 */
+  foregroundLayers?: Array<{
+    id?: string;
+    label?: string;
+    file: string;
+    x?: number;
+    y?: number;
+    scale?: number;
+    opacity?: number;
+    visible?: boolean;
+  }>;
   world: { width: number; height: number };
   worldLayout?: { x: number; y: number; layer?: number };
   playerSpawn: Point & { facing: string };
@@ -805,11 +821,27 @@ type SceneFile = {
 type SceneConnection = NonNullable<SceneFile["connections"]>[number];
 
 const SCENE_REGISTRY = new Map<string, SceneFile>(
-  [mapTest01Scene, mapTest02Scene, mapScene06BScene].map((scene) => {
-    const typedScene = scene as SceneFile;
+  [mapTest01Scene, mapTest02Scene, mapScene06BScene, shipInteriorScene].map((scene) => {
+    const typedScene = (scene.sceneId === "ship_interior"
+      ? { ...scene, worldLayout: { x: 0, y: 0, layer: -2 } }
+      : scene) as SceneFile;
     return [typedScene.sceneId, typedScene];
   }),
 );
+/**
+ * 單場景預覽：網址加上 ?scene=<sceneId>（例如 ?scene=ship_interior&noSave）時，
+ * 只載入該場景（不拼接同層的其他地圖），直接在它的出生點開始，不跑章節劇情。
+ */
+const PREVIEW_SCENE_ID = (() => {
+  if (typeof window === "undefined") return null;
+  const sceneId = new URLSearchParams(window.location.search).get("scene");
+  return sceneId && SCENE_REGISTRY.has(sceneId) ? sceneId : null;
+})();
+if (PREVIEW_SCENE_ID) {
+  for (const sceneId of [...SCENE_REGISTRY.keys()]) {
+    if (sceneId !== PREVIEW_SCENE_ID) SCENE_REGISTRY.delete(sceneId);
+  }
+}
 
 // Keep only decoded scene background images warm.  NavMesh, collision and
 // minimap data remain scene-local and are still activated only on transfer.
@@ -817,6 +849,20 @@ const SCENE_IMAGE_CACHE = new Map<string, HTMLImageElement>();
 
 function getSceneImageSource(scene: SceneFile) {
   return `./maps/${scene.image.file}`;
+}
+
+// 前景圖層圖片快取（以檔名為鍵，第一次用到時載入）
+const SCENE_FOREGROUND_IMAGE_CACHE = new Map<string, HTMLImageElement>();
+function getSceneForegroundImage(file: string) {
+  if (typeof Image === "undefined") return null;
+  let image = SCENE_FOREGROUND_IMAGE_CACHE.get(file);
+  if (!image) {
+    image = new Image();
+    image.decoding = "async";
+    image.src = `./maps/${file}`;
+    SCENE_FOREGROUND_IMAGE_CACHE.set(file, image);
+  }
+  return image;
 }
 
 function preloadSceneImage(scene: SceneFile) {
@@ -3611,6 +3657,33 @@ function drawMiniMapGeometry(canvas: HTMLCanvasElement) {
 
 const INITIAL_SURVIVAL_STATE = createInitialSurvivalState();
 
+if (PREVIEW_SCENE_ID) activateSceneRuntime(SCENE_REGISTRY.get(PREVIEW_SCENE_ID)!);
+
+/** Called by the lazy chapter selector before mounting any runtime or loading saved progress. */
+export async function prepareChapterStart(chapter: 2 | 3) {
+  const scene = SCENE_REGISTRY.get(chapter === 2 ? "ship_interior" : DEFAULT_SCENE_ID);
+  if (!scene) throw new Error("找不到起始場景");
+  const loadImage = async (file: string) => {
+    const image = new Image();
+    image.src = `./maps/${file}`;
+    await image.decode();
+    return image;
+  };
+  // Wait for the map and every visible foreground before clearing the loading screen.
+  const [background, ...foregrounds] = await Promise.all([
+    loadImage(scene.image.file),
+    ...(scene.foregroundLayers ?? []).filter(layer => layer.visible !== false).map(async layer => ({
+      file: layer.file, image: await loadImage(layer.file),
+    })),
+  ]);
+  SCENE_IMAGE_CACHE.set(scene.sceneId, background as HTMLImageElement);
+  for (const layer of foregrounds as { file: string; image: HTMLImageElement }[]) {
+    SCENE_FOREGROUND_IMAGE_CACHE.set(layer.file, layer.image);
+  }
+  resetStoredNewGameProgress(chapter);
+  activateSceneRuntime(scene);
+}
+
 export function MovementLab() {
   const itemUseResponsiveRef = useResponsiveConfirmation();
   const submissionResponsiveRef = useResponsiveConfirmation();
@@ -3651,9 +3724,9 @@ export function MovementLab() {
     const timer = window.setTimeout(() => setPlantSuccessVisible(false), 2600);
     return () => window.clearTimeout(timer);
   }, [plantSuccessVisible]);
-  const [currentSceneId, setCurrentSceneId] = useState(DEFAULT_SCENE_ID);
+  const [currentSceneId, setCurrentSceneId] = useState(SCENE_DATA.sceneId);
   const currentSceneData =
-    SCENE_REGISTRY.get(currentSceneId) ?? SCENE_REGISTRY.get(DEFAULT_SCENE_ID)!;
+    SCENE_REGISTRY.get(currentSceneId) ?? SCENE_REGISTRY.get(PREVIEW_SCENE_ID ?? DEFAULT_SCENE_ID)!;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cursorCanvasRef = useRef<HTMLCanvasElement>(null);
   const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -7940,8 +8013,14 @@ export function MovementLab() {
     });
     events.on("interactionSettled", ({ interactionId }) => checkScene6Investigation(interactionId));
     events.on("gameReady", () => checkScene6Investigation());
-    events.on("gameReady", ({ currentChapter }) =>
-      events.emit("chapterStarted", { chapter: currentChapter }));
+    events.on("gameReady", ({ currentChapter }) => {
+      // 單場景預覽不跑章節劇情（開場字幕、黑幕、教學）：直接拿掉開場黑幕
+      if (PREVIEW_SCENE_ID) {
+        setBlackScreenOpacity(0);
+        return;
+      }
+      events.emit("chapterStarted", { chapter: currentChapter });
+    });
     events.on("chapterStarted", async ({
       chapter,
       blackAlreadyVisible,
@@ -7960,6 +8039,17 @@ export function MovementLab() {
         const started = await chapterFlowManager.run(CHAPTER_3_START_FLOW);
         startAutomaticQuestsForChapter(chapter);
         if (!started) resumeAfterSkippedChapterOpen();
+        return;
+      }
+
+      if (chapter === 2) {
+        try {
+          const started = await chapterFlowManager.run(createChapter02StartFlow());
+          if (!started) resumeAfterSkippedChapterOpen();
+        } catch (error) {
+          console.error("[Chapter02] 開場流程未完成：", error);
+          resumeAfterSkippedChapterOpen();
+        }
         return;
       }
 
@@ -8053,6 +8143,13 @@ export function MovementLab() {
 
   const completeStorySkip = (source: "keyboard" | "gamepad" | "touch") => {
     storySkipHoldRef.current = null;
+    if (chapterFlowManager.getActiveFlowId() === CHAPTER02_START_FLOW_ID) {
+      setStorySkipVisible(false);
+      suppressNextStoryClickRef.current = source === "touch";
+      // Chapter 2 skips the introduction, then completes its briefing before granting work.
+      chapterFlowManager.requestSkip();
+      return;
+    }
     storySkipBlackoutGuardRef.current = true;
     setStorySkipVisible(false);
     suppressNextStoryClickRef.current = source === "touch";
@@ -13341,6 +13438,29 @@ export function MovementLab() {
     canvas.addEventListener("lostpointercapture", onPointerCancel);
     requestBgmPlayback();
 
+    // 場景前景圖層（牆面等）：畫在角色上方。尚未做角色前後判定與局部防遮擋（見 MapEditor README）
+    const sceneStarfield = createSceneStarfield();
+    const drawSceneForegroundLayers = () => {
+      const layers = SCENE_DATA.foregroundLayers;
+      if (!layers?.length) return;
+      for (const layer of layers) {
+        if (layer.visible === false || !layer.file) continue;
+        const image = getSceneForegroundImage(layer.file);
+        if (!image?.complete || image.naturalWidth <= 0) continue;
+        const scale = layer.scale ?? 1;
+        context.save();
+        context.globalAlpha = clamp(layer.opacity ?? 1, 0, 1);
+        context.drawImage(
+          image,
+          layer.x ?? 0,
+          layer.y ?? 0,
+          image.naturalWidth * scale,
+          image.naturalHeight * scale,
+        );
+        context.restore();
+      }
+    };
+
     const drawStreamedSceneImages = (originScene: SceneFile | null) => {
       const originLayout = originScene
         ? getSceneWorldLayout(originScene)
@@ -16794,6 +16914,13 @@ export function MovementLab() {
       context.clearRect(0, 0, viewportWidth, viewportHeight);
       context.fillStyle = "#06101b";
       context.fillRect(0, 0, viewportWidth, viewportHeight);
+      // 場景背景星空（畫面座標，不隨地圖捲動）：底圖透明處會露出來
+      const sceneBackdrop = SCENE_DATA.backdrop;
+      if (sceneBackdrop?.type === "starfield") {
+        sceneStarfield.draw(context, viewportWidth, viewportHeight, time, sceneBackdrop);
+      } else {
+        sceneStarfield.reset();
+      }
 
       context.save();
       context.translate(viewportWidth / 2, viewportHeight / 2);
@@ -16841,6 +16968,7 @@ export function MovementLab() {
         drawWorldItemPickups(time);
         drawSceneCollision();
         drawPlayer();
+        drawSceneForegroundLayers();
         drawWorldItemLabels();
         drawInteractionHintPoints(time);
         drawPlayerStatuses(time);

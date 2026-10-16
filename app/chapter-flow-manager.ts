@@ -317,6 +317,7 @@ export class ChapterFlowManager {
           break;
         case "playDialogue": {
           const result = await this.host.playDialogue(action.dialogueId);
+          if (allowSkip && this.skipRequested) return;
           if (action.requireCompleted && (!result || typeof result !== "object" ||
               !("completed" in result) || result.completed !== true)) {
             throw new Error(`Dialogue did not complete: ${action.dialogueId}`);

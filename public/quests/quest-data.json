@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "chapters": [
     {
+      "id": "CH02",
+      "name": "第二章",
+      "startCondition": "",
+      "openingEventFlowId": "",
+      "completionQuestIds": [],
+      "endingEventFlowId": "",
+      "nextChapterId": ""
+    },
+    {
       "id": "CH03",
       "name": "\u7B2C\u4E09\u7AE0",
       "startCondition": "",
@@ -23,6 +32,73 @@
     }
   ],
   "quests": [
+    {
+      "id": "QUEST_CH02_MAIN_001",
+      "name": "伊薩卡號的勤務",
+      "description": "",
+      "chapterId": "CH02",
+      "type": "main",
+      "grantMethod": "afterDialogue",
+      "grantSourceId": "chapter02-start",
+      "grantCondition": "",
+      "prerequisiteQuestIds": [],
+      "startDelaySeconds": 0,
+      "startPresentationDelaySeconds": 0,
+      "canAbandon": false,
+      "canReaccept": false,
+      "displayMode": "standard",
+      "completionFlagId": "QUEST_CH02_MAIN_001_COMPLETED",
+      "completionTriggerType": "none",
+      "completionTriggerId": "",
+      "completionTriggerDelaySeconds": 0,
+      "completionPresentationDelaySeconds": 0,
+      "completionEventFlowId": "",
+      "rewardItemId": "",
+      "rewardItemAmount": 0,
+      "failureDeadline": "",
+      "failureEventId": "",
+      "failureMode": "permanent",
+      "onFailedEventFlowId": "",
+      "stages": [
+        {
+          "id": "QUEST_CH02_MAIN_001_STAGE_01",
+          "name": "日常維護",
+          "startDelaySeconds": 0,
+          "startPresentationDelaySeconds": 0,
+          "completionDelaySeconds": 0,
+          "completionPresentationDelaySeconds": 0,
+          "completionMode": "all",
+          "startEventFlowId": "",
+          "completionEventFlowId": "",
+          "nextStageId": "",
+          "objectives": [
+            {
+              "id": "QUEST_CH02_MAIN_001_OBJ_01",
+              "displayText": "檢查航線監測終端",
+              "startDelaySeconds": 0,
+              "startPresentationDelaySeconds": 0,
+              "completionDelaySeconds": 0,
+              "completionPresentationDelaySeconds": 0,
+              "activationMode": "immediate",
+              "activationEventId": "",
+              "blocksStageCompletion": true,
+              "type": "interactionSucceeded",
+              "targetId": "shipinterior-interaction-009",
+              "targetIds": [],
+              "itemRequirements": [],
+              "targetState": "",
+              "requiredAmount": 1,
+              "countMode": "accumulated",
+              "interactionMode": "succeeded",
+              "showProgress": false,
+              "showHintIcon": false,
+              "completionEventFlowId": "",
+              "unlockDialogueId": ""
+            }
+          ]
+        }
+      ]
+    },
     {
       "id": "QUEST_CH03_MAIN_001",
       "name": "\u78BA\u8A8D\u71DF\u5730\u72C0\u6CC1",

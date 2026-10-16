@@ -7,6 +7,13 @@
     "width": 2477,
     "height": 2477
   },
+  "backdrop": {
+    "type": "starfield",
+    "mode": "warp",
+    "speed": 0.8,
+    "density": 0.5,
+    "angle": 33
+  },
   "foregroundLayers": [
     {
       "id": "113b3e343a4c4bc0aee7f35ca655a916",
@@ -454,7 +461,7 @@
   "collisions": [
     {
       "id": "collision-001",
-      "label": "多邊形碰撞 1",
+      "label": "\u591A\u908A\u5F62\u78B0\u649E 1",
       "shape": "polygon",
       "points": [
         {
@@ -477,7 +484,7 @@
     },
     {
       "id": "collision-002",
-      "label": "多邊形碰撞 2",
+      "label": "\u591A\u908A\u5F62\u78B0\u649E 2",
       "shape": "polygon",
       "points": [
         {
@@ -528,7 +535,7 @@
     },
     {
       "id": "collision-003",
-      "label": "多邊形碰撞 3",
+      "label": "\u591A\u908A\u5F62\u78B0\u649E 3",
       "shape": "polygon",
       "points": [
         {
@@ -557,36 +564,36 @@
   "interactables": [
     {
       "id": "shipinterior-interaction-001",
-      "label": "料理台",
+      "label": "\u6599\u7406\u53F0",
       "shape": "polygon",
       "points": [
         {
-          "x": 1225.83,
-          "y": 975.82
+          "x": 1228.83,
+          "y": 978.82
         },
         {
-          "x": 1290.35,
-          "y": 1024.21
+          "x": 1293.35,
+          "y": 1027.21
         },
         {
-          "x": 1346.8,
-          "y": 1016.15
+          "x": 1349.8,
+          "y": 1019.15
         },
         {
-          "x": 1451.64,
-          "y": 943.57
+          "x": 1454.64,
+          "y": 946.57
         },
         {
-          "x": 1314.54,
-          "y": 846.79
+          "x": 1317.54,
+          "y": 849.79
         },
         {
-          "x": 1225.83,
-          "y": 903.24
+          "x": 1228.83,
+          "y": 906.24
         }
       ],
       "type": "use",
-      "verb": "使用",
+      "verb": "\u4F7F\u7528",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -597,16 +604,24 @@
         "spirit": 0,
         "timeMinutes": 0
       },
+      "interactionLimitMode": "once",
+      "itemRewards": [
+        {
+          "itemId": "R0050",
+          "quantity": 1,
+          "delivery": "inventory"
+        }
+      ],
       "interactionPoints": [
         {
           "facing": "NE",
-          "x": 1297.4965,
-          "y": 995.6528
+          "x": 1300.4965,
+          "y": 998.6528
         }
       ],
       "interactionHintPoint": {
-        "x": 1350.27,
-        "y": 895.78
+        "x": 1353.27,
+        "y": 898.78
       },
       "activationDistance": 52,
       "dialogue": {
@@ -619,21 +634,21 @@
           {
             "lineId": "shipinterior-interaction-001-line-001",
             "speaker": "Sbaak",
-            "text": "今天的合成餐是「烤雞風味」……\n聞起來倒是蠻像回事的。",
+            "text": "\u4ECA\u5929\u7684\u5408\u6210\u9910\u662F\u300C\u70E4\u96DE\u98A8\u5473\u300D\u2026\u2026\n\u805E\u8D77\u4F86\u5012\u662F\u883B\u50CF\u56DE\u4E8B\u7684\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
             "lineId": "shipinterior-interaction-001-line-002",
             "speaker": "Sbaak",
-            "text": "（我盯著盤子裡淡黃色的方塊）\n……這東西以前真的有雞嗎？",
+            "text": "\uFF08\u6211\u76EF\u8457\u76E4\u5B50\u88E1\u6DE1\u9EC3\u8272\u7684\u65B9\u584A\uFF09\n\u2026\u2026\u9019\u6771\u897F\u4EE5\u524D\u771F\u7684\u6709\u96DE\u55CE\uFF1F",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
             "lineId": "shipinterior-interaction-001-line-003",
             "speaker": "Sbaak",
-            "text": "熱一份合成餐，填飽肚子才有力氣幹活。",
+            "text": "\u71B1\u4E00\u4EFD\u5408\u6210\u9910\uFF0C\u586B\u98FD\u809A\u5B50\u624D\u6709\u529B\u6C23\u5E79\u6D3B\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           }
@@ -649,14 +664,14 @@
           {
             "lineId": "",
             "speaker": "Sbaak",
-            "text": "目前無法使用。"
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }
     },
     {
       "id": "shipinterior-interaction-002",
-      "label": "洗手台",
+      "label": "\u6D17\u624B\u53F0",
       "shape": "polygon",
       "points": [
         {
@@ -685,7 +700,7 @@
         }
       ],
       "type": "use",
-      "verb": "使用",
+      "verb": "\u4F7F\u7528",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -718,21 +733,21 @@
           {
             "lineId": "shipinterior-interaction-002-line-001",
             "speaker": "Sbaak",
-            "text": "回收水的溫度剛好……洗把臉清醒一下。",
+            "text": "\u56DE\u6536\u6C34\u7684\u6EAB\u5EA6\u525B\u597D\u2026\u2026\u6D17\u628A\u81C9\u6E05\u9192\u4E00\u4E0B\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
             "lineId": "shipinterior-interaction-002-line-002",
             "speaker": "Sbaak",
-            "text": "水壓穩定，回收循環也正常。\n（職業病，連洗個手都要檢查一下）",
+            "text": "\u6C34\u58D3\u7A69\u5B9A\uFF0C\u56DE\u6536\u5FAA\u74B0\u4E5F\u6B63\u5E38\u3002\n\uFF08\u8077\u696D\u75C5\uFF0C\u9023\u6D17\u500B\u624B\u90FD\u8981\u6AA2\u67E5\u4E00\u4E0B\uFF09",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
             "lineId": "shipinterior-interaction-002-line-003",
             "speaker": "Sbaak",
-            "text": "把手上的機油洗乾淨……雖然等一下大概又會弄髒。",
+            "text": "\u628A\u624B\u4E0A\u7684\u6A5F\u6CB9\u6D17\u4E7E\u6DE8\u2026\u2026\u96D6\u7136\u7B49\u4E00\u4E0B\u5927\u6982\u53C8\u6703\u5F04\u9AD2\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           }
@@ -748,14 +763,14 @@
           {
             "lineId": "",
             "speaker": "Sbaak",
-            "text": "目前無法使用。"
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }
     },
     {
       "id": "shipinterior-interaction-003",
-      "label": "飛航記錄儀",
+      "label": "\u98DB\u822A\u8A18\u9304\u5100",
       "shape": "polygon",
       "points": [
         {
@@ -788,7 +803,7 @@
         }
       ],
       "type": "check",
-      "verb": "檢查",
+      "verb": "\u6AA2\u67E5",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -821,12 +836,12 @@
           {
             "lineId": "shipinterior-interaction-003-line-001",
             "speaker": "Sbaak",
-            "text": "（翻閱今天的紀錄）\n例行檢查、例行航段……例行的一天。"
+            "text": "\uFF08\u7FFB\u95B1\u4ECA\u5929\u7684\u7D00\u9304\uFF09\n\u4F8B\u884C\u6AA2\u67E5\u3001\u4F8B\u884C\u822A\u6BB5\u2026\u2026\u4F8B\u884C\u7684\u4E00\u5929\u3002"
           },
           {
             "lineId": "shipinterior-interaction-003-line-002",
             "speaker": "Sbaak",
-            "text": "這種什麼都沒發生的日誌，船長最喜歡了。"
+            "text": "\u9019\u7A2E\u4EC0\u9EBC\u90FD\u6C92\u767C\u751F\u7684\u65E5\u8A8C\uFF0C\u8239\u9577\u6700\u559C\u6B61\u4E86\u3002"
           }
         ]
       },
@@ -840,14 +855,14 @@
           {
             "lineId": "",
             "speaker": "Sbaak",
-            "text": "目前無法使用。"
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }
     },
     {
       "id": "shipinterior-interaction-004",
-      "label": "臥鋪",
+      "label": "\u81E5\u92EA",
       "shape": "polygon",
       "points": [
         {
@@ -868,7 +883,7 @@
         }
       ],
       "type": "use",
-      "verb": "使用",
+      "verb": "\u4F7F\u7528",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -901,21 +916,21 @@
           {
             "lineId": "shipinterior-interaction-004-line-001",
             "speaker": "Sbaak",
-            "text": "瞇一下就好……引擎只要有一點怪聲，我一定聽得見。",
+            "text": "\u7787\u4E00\u4E0B\u5C31\u597D\u2026\u2026\u5F15\u64CE\u53EA\u8981\u6709\u4E00\u9EDE\u602A\u8072\uFF0C\u6211\u4E00\u5B9A\u807D\u5F97\u898B\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
             "lineId": "shipinterior-interaction-004-line-002",
             "speaker": "Sbaak",
-            "text": "長程航線最難熬的不是工作，\n是一直待在同一個地方。",
+            "text": "\u9577\u7A0B\u822A\u7DDA\u6700\u96E3\u71AC\u7684\u4E0D\u662F\u5DE5\u4F5C\uFF0C\n\u662F\u4E00\u76F4\u5F85\u5728\u540C\u4E00\u500B\u5730\u65B9\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
             "lineId": "shipinterior-interaction-004-line-003",
             "speaker": "Sbaak",
-            "text": "床位比上一艘船寬一點……這點我很滿意。",
+            "text": "\u5E8A\u4F4D\u6BD4\u4E0A\u4E00\u8258\u8239\u5BEC\u4E00\u9EDE\u2026\u2026\u9019\u9EDE\u6211\u5F88\u6EFF\u610F\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           }
@@ -931,14 +946,14 @@
           {
             "lineId": "",
             "speaker": "Sbaak",
-            "text": "目前無法使用。"
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }
     },
     {
       "id": "shipinterior-interaction-005",
-      "label": "貨櫃箱",
+      "label": "\u8CA8\u6AC3\u7BB1T-005",
       "shape": "polygon",
       "points": [
         {
@@ -959,7 +974,7 @@
         }
       ],
       "type": "check",
-      "verb": "檢查",
+      "verb": "\u6AA2\u67E5",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -993,14 +1008,14 @@
           {
             "lineId": "shipinterior-interaction-005-line-001",
             "speaker": "Sbaak",
-            "text": "貨物固定帶綁得很紮實……歐文的手藝還是一樣可靠。",
+            "text": "\u8CA8\u7269\u56FA\u5B9A\u5E36\u7D81\u5F97\u5F88\u7D2E\u5BE6\u2026\u2026\u6B50\u6587\u7684\u624B\u85DD\u9084\u662F\u4E00\u6A23\u53EF\u9760\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
             "lineId": "shipinterior-interaction-005-line-002",
             "speaker": "Sbaak",
-            "text": "（我敲了敲箱體）裝得滿滿的……這趟的貨可不輕啊。",
+            "text": "\uFF08\u6211\u6572\u4E86\u6572\u7BB1\u9AD4\uFF09\u88DD\u5F97\u6EFF\u6EFF\u7684\u2026\u2026\u9019\u8D9F\u7684\u8CA8\u53EF\u4E0D\u8F15\u554A\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           }
@@ -1016,14 +1031,14 @@
           {
             "lineId": "",
             "speaker": "Sbaak",
-            "text": "目前無法使用。"
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }
     },
     {
       "id": "shipinterior-interaction-006",
-      "label": "貨櫃箱",
+      "label": "\u8CA8\u6AC3\u7BB1F-006",
       "shape": "polygon",
       "points": [
         {
@@ -1044,7 +1059,7 @@
         }
       ],
       "type": "check",
-      "verb": "檢查",
+      "verb": "\u6AA2\u67E5",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -1078,12 +1093,12 @@
           {
             "lineId": "shipinterior-interaction-006-line-001",
             "speaker": "Sbaak",
-            "text": "C-02 的固定鎖……前幾天才鬧過一次脾氣。"
+            "text": "C-02 \u7684\u56FA\u5B9A\u9396\u2026\u2026\u524D\u5E7E\u5929\u624D\u9B27\u904E\u4E00\u6B21\u813E\u6C23\u3002"
           },
           {
             "lineId": "shipinterior-interaction-006-line-002",
             "speaker": "Sbaak",
-            "text": "（我確認了一下鎖扣的讀數）現在看起來是正常的……\n抵達之後還是整組換掉比較保險。"
+            "text": "\uFF08\u6211\u78BA\u8A8D\u4E86\u4E00\u4E0B\u9396\u6263\u7684\u8B80\u6578\uFF09\u73FE\u5728\u770B\u8D77\u4F86\u662F\u6B63\u5E38\u7684\u2026\u2026\n\u62B5\u9054\u4E4B\u5F8C\u9084\u662F\u6574\u7D44\u63DB\u6389\u6BD4\u8F03\u4FDD\u96AA\u3002"
           }
         ]
       },
@@ -1097,14 +1112,14 @@
           {
             "lineId": "",
             "speaker": "Sbaak",
-            "text": "目前無法使用。"
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }
     },
     {
       "id": "shipinterior-interaction-007",
-      "label": "工作台",
+      "label": "\u5DE5\u4F5C\u53F0",
       "shape": "polygon",
       "points": [
         {
@@ -1129,7 +1144,7 @@
         }
       ],
       "type": "operation",
-      "verb": "操作",
+      "verb": "\u64CD\u4F5C",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -1162,12 +1177,12 @@
           {
             "lineId": "shipinterior-interaction-007-line-001",
             "speaker": "Sbaak",
-            "text": "扳手、焊槍、診斷儀……工具都在原位，一樣不少。"
+            "text": "\u6273\u624B\u3001\u710A\u69CD\u3001\u8A3A\u65B7\u5100\u2026\u2026\u5DE5\u5177\u90FD\u5728\u539F\u4F4D\uFF0C\u4E00\u6A23\u4E0D\u5C11\u3002"
           },
           {
             "lineId": "shipinterior-interaction-007-line-002",
             "speaker": "Sbaak",
-            "text": "船上只要有東西壞了，而且其他人不知道該找誰——\n那就是找我。"
+            "text": "\u8239\u4E0A\u53EA\u8981\u6709\u6771\u897F\u58DE\u4E86\uFF0C\u800C\u4E14\u5176\u4ED6\u4EBA\u4E0D\u77E5\u9053\u8A72\u627E\u8AB0\u2014\u2014\n\u90A3\u5C31\u662F\u627E\u6211\u3002"
           }
         ]
       },
@@ -1181,14 +1196,14 @@
           {
             "lineId": "",
             "speaker": "Sbaak",
-            "text": "目前無法使用。"
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }
     },
     {
       "id": "shipinterior-interaction-008",
-      "label": "量子曲速引擎",
+      "label": "\u91CF\u5B50\u66F2\u901F\u5F15\u64CE",
       "shape": "polygon",
       "points": [
         {
@@ -1213,7 +1228,7 @@
         }
       ],
       "type": "check",
-      "verb": "檢查",
+      "verb": "\u6AA2\u67E5",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -1246,17 +1261,17 @@
           {
             "lineId": "shipinterior-interaction-008-line-001",
             "speaker": "",
-            "text": "（我把手掌貼在外殼上，感受著穩定的低頻震動）"
+            "text": "\uFF08\u6211\u628A\u624B\u638C\u8CBC\u5728\u5916\u6BBC\u4E0A\uFF0C\u611F\u53D7\u8457\u7A69\u5B9A\u7684\u4F4E\u983B\u9707\u52D5\uFF09"
           },
           {
             "lineId": "shipinterior-interaction-008-line-002",
             "speaker": "Sbaak",
-            "text": "核心溫度正常、輸出曲線平穩……今天的你也很乖嘛。"
+            "text": "\u6838\u5FC3\u6EAB\u5EA6\u6B63\u5E38\u3001\u8F38\u51FA\u66F2\u7DDA\u5E73\u7A69\u2026\u2026\u4ECA\u5929\u7684\u4F60\u4E5F\u5F88\u4E56\u561B\u3002"
           },
           {
             "lineId": "shipinterior-interaction-008-line-003",
             "speaker": "Sbaak",
-            "text": "保持下去，我們就能準時抵達 Tabit。"
+            "text": "\u4FDD\u6301\u4E0B\u53BB\uFF0C\u6211\u5011\u5C31\u80FD\u6E96\u6642\u62B5\u9054 Tabit\u3002"
           }
         ]
       },
@@ -1270,14 +1285,14 @@
           {
             "lineId": "",
             "speaker": "Sbaak",
-            "text": "目前無法使用。"
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }
     },
     {
       "id": "shipinterior-interaction-009",
-      "label": "航線監測終端",
+      "label": "\u822A\u7DDA\u76E3\u6E2C\u7D42\u7AEF",
       "shape": "polygon",
       "points": [
         {
@@ -1306,7 +1321,7 @@
         }
       ],
       "type": "check",
-      "verb": "檢查",
+      "verb": "\u6AA2\u67E5",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -1339,12 +1354,12 @@
           {
             "lineId": "shipinterior-interaction-009-line-001",
             "speaker": "Sbaak",
-            "text": "航線偏差 0.000……自動導航一切正常。"
+            "text": "\u822A\u7DDA\u504F\u5DEE 0.000\u2026\u2026\u81EA\u52D5\u5C0E\u822A\u4E00\u5207\u6B63\u5E38\u3002"
           },
           {
             "lineId": "shipinterior-interaction-009-line-002",
             "speaker": "Sbaak",
-            "text": "伊恩看到大概又要抱怨，\n自動導航正在讓人類忘記怎麼看星星了。"
+            "text": "\u4F0A\u6069\u770B\u5230\u5927\u6982\u53C8\u8981\u62B1\u6028\uFF0C\n\u81EA\u52D5\u5C0E\u822A\u6B63\u5728\u8B93\u4EBA\u985E\u5FD8\u8A18\u600E\u9EBC\u770B\u661F\u661F\u4E86\u3002"
           }
         ]
       },
@@ -1358,14 +1373,14 @@
           {
             "lineId": "",
             "speaker": "Sbaak",
-            "text": "目前無法使用。"
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }
     },
     {
       "id": "shipinterior-interaction-010",
-      "label": "飛控氣壓閥",
+      "label": "\u6C23\u58D3\u95A5",
       "shape": "polygon",
       "points": [
         {
@@ -1398,7 +1413,7 @@
         }
       ],
       "type": "check",
-      "verb": "檢查",
+      "verb": "\u6AA2\u67E5",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -1431,12 +1446,12 @@
           {
             "lineId": "shipinterior-interaction-010-line-001",
             "speaker": "Sbaak",
-            "text": "氣壓讀數……都在標準範圍內。"
+            "text": "\u6C23\u58D3\u8B80\u6578\u2026\u2026\u90FD\u5728\u6A19\u6E96\u7BC4\u570D\u5167\u3002"
           },
           {
             "lineId": "shipinterior-interaction-010-line-002",
             "speaker": "Sbaak",
-            "text": "（順手鎖緊了一個有點鬆動的接頭）\n好了，小毛病就要趁早處理。"
+            "text": "\uFF08\u9806\u624B\u9396\u7DCA\u4E86\u4E00\u500B\u6709\u9EDE\u9B06\u52D5\u7684\u63A5\u982D\uFF09\n\u597D\u4E86\uFF0C\u5C0F\u6BDB\u75C5\u5C31\u8981\u8D81\u65E9\u8655\u7406\u3002"
           }
         ]
       },
@@ -1450,14 +1465,14 @@
           {
             "lineId": "",
             "speaker": "Sbaak",
-            "text": "目前無法使用。"
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }
     },
     {
       "id": "shipinterior-interaction-011",
-      "label": "歐文",
+      "label": "\u6B50\u6587",
       "shape": "polygon",
       "points": [
         {
@@ -1482,7 +1497,7 @@
         }
       ],
       "type": "dialogue",
-      "verb": "對話",
+      "verb": "\u5C0D\u8A71",
       "survivalRequirements": {
         "mode": "all"
       },
@@ -1504,23 +1519,23 @@
         "speakers": [
           "Sbaak",
           "Echo",
-          "歐文"
+          "\u6B50\u6587"
         ],
         "lines": [
           {
             "lineId": "shipinterior-interaction-011-line-001",
-            "speaker": "歐文",
-            "text": "喲，工程師！引擎今天沒給你找麻煩吧？"
+            "speaker": "\u6B50\u6587",
+            "text": "\u55B2\uFF0C\u5DE5\u7A0B\u5E2B\uFF01\u5F15\u64CE\u4ECA\u5929\u6C92\u7D66\u4F60\u627E\u9EBB\u7169\u5427\uFF1F"
           },
           {
             "lineId": "shipinterior-interaction-011-line-002",
             "speaker": "Sbaak",
-            "text": "託福，安靜得很。\n倒是你，別忘了還欠我三十二點。"
+            "text": "\u8A17\u798F\uFF0C\u5B89\u975C\u5F97\u5F88\u3002\n\u5012\u662F\u4F60\uFF0C\u5225\u5FD8\u4E86\u9084\u6B20\u6211\u4E09\u5341\u4E8C\u9EDE\u3002"
           },
           {
             "lineId": "shipinterior-interaction-011-line-003",
-            "speaker": "歐文",
-            "text": "嘖，記這麼清楚……下一局我一定全部贏回來！"
+            "speaker": "\u6B50\u6587",
+            "text": "\u5616\uFF0C\u8A18\u9019\u9EBC\u6E05\u695A\u2026\u2026\u4E0B\u4E00\u5C40\u6211\u4E00\u5B9A\u5168\u90E8\u8D0F\u56DE\u4F86\uFF01"
           }
         ]
       },
@@ -1534,7 +1549,7 @@
           {
             "lineId": "",
             "speaker": "Sbaak",
-            "text": "目前無法使用。"
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
         ]
       }
