@@ -191,6 +191,8 @@ import {
 } from "./frequency-calibration-puzzle.tsx";
 import { FREQUENCY_CALIBRATION_COMPLETION_FLAG } from "./frequency-calibration-puzzle";
 import { WeldingRoutePuzzle } from "./welding-route-puzzle.tsx";
+import { BusCardPuzzle } from "./bus-card-puzzle.tsx";
+import { BUS_CARD_INTERACTION_ID } from "./bus-card-puzzle.ts";
 import { StarCardsGame } from "./star-cards-game.tsx";
 import {
   isDebugDeathCommand,
@@ -3832,6 +3834,11 @@ export function MovementLab() {
   const inventoryItemInspectOpenRef = useRef(false);
   const inventoryItemInspectCloseTimerRef = useRef<number | null>(null);
   const powerPuzzleOpenRef = useRef(false);
+  const busCardOpenRef = useRef(false);
+  const busCardFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const busCardInitialOwnerRef = useRef<"mouse" | "keyboard" | "gamepad" | "touch">("mouse");
+  const completeBusCardInteractionRef = useRef<() => void>(() => {});
+  const [busCardOpen, setBusCardOpen] = useState(false);
   const frequencyPuzzleOpenRef = useRef(false);
   const weldingPuzzleOpenRef = useRef(false);
   const starCardsOpenRef = useRef(false);
@@ -4562,6 +4569,11 @@ export function MovementLab() {
   };
 
   const closePowerRoutingPuzzle = () => {
+    if (busCardOpenRef.current) {
+      busCardOpenRef.current = false;
+      setBusCardOpen(false);
+      window.queueMicrotask(() => canvasRef.current?.focus({ preventScroll: true }));
+    }
     stopFrequencyFineTuningAudio(true);
     bgmDirectorRef.current?.setMinigameState("power-routing", null);
     bgmDirectorRef.current?.setMinigameState("frequency-calibration", null);
@@ -4678,6 +4690,23 @@ export function MovementLab() {
     setWeldingPuzzleSessionKey((current) => current + 1);
     setWeldingPuzzleOpen(true);
     setPowerPuzzleOpen(true);
+  };
+
+  const openBusCardPuzzle = (interactable: SceneInteractable, source: PendingInteraction["source"]) => {
+    dismissTimeElapsedNotice();
+    clearInventoryHoverHint();
+    optionsOpenRef.current = false;
+    inventoryOpenRef.current = false;
+    setOptionsOpen(false);
+    setInventoryOpen(false);
+    powerPuzzleSessionRef.current = { interactable, source };
+    // Reuse the shared minigame world/persistence lock. Input belongs to the embedded board.
+    powerPuzzleOpenRef.current = true;
+    busCardOpenRef.current = true;
+    busCardInitialOwnerRef.current = source === "gamepad" ? "gamepad" :
+      cursorOwnership.owner === "touch" ? "touch" : source === "keyboard" ? "keyboard" : "mouse";
+    setPowerPuzzleOpen(true);
+    setBusCardOpen(true);
   };
 
   const handleWeldingPuzzleVirtualCursorAvailabilityChange = useCallback(
@@ -10577,6 +10606,11 @@ export function MovementLab() {
     });
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (busCardOpenRef.current) {
+        event.preventDefault();
+        busCardFrameRef.current?.contentWindow?.focus();
+        return;
+      }
       const key = event.key.toLowerCase();
       if (plantController.isOpen && !dialoguePlaybackRef.current) {
         event.preventDefault();
@@ -11155,7 +11189,7 @@ export function MovementLab() {
             undefined,
             {
               itemIds: new Set(ITEM_DEFINITIONS.map((item) => item.id)),
-              puzzleIds: new Set([PLANT_PUZZLE_ID]),
+              puzzleIds: new Set([PLANT_PUZZLE_ID, BUS_CARD_INTERACTION_ID]),
               interactionIds: new Set(
                 [...SCENE_REGISTRY.values()].flatMap((scene) =>
                   (scene.interactables ?? []).map((interactable) => interactable.id),
@@ -12148,6 +12182,16 @@ export function MovementLab() {
       );
     };
 
+    completeBusCardInteractionRef.current = () => {
+      const session = powerPuzzleSessionRef.current;
+      if (!busCardOpenRef.current || session?.interactable.id !== BUS_CARD_INTERACTION_ID) return;
+      closePowerRoutingPuzzle();
+      if (completeInteraction(session.interactable, session.source)) {
+        publishPuzzleCompleted(session);
+        requestPortableAutosaveRef.current("bus-card-completed");
+      }
+    };
+
     const openCampPowerRefillConfirmation = (
       interactable: SceneInteractable,
       source: PendingInteraction["source"],
@@ -12450,6 +12494,11 @@ export function MovementLab() {
         return true;
       }
       if (openQuestItemSubmissionConfirmation(interactable, source)) return true;
+      if (interactable.id === BUS_CARD_INTERACTION_ID) {
+        openBusCardPuzzle(interactable, source);
+        if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
+        return true;
+      }
       if (interactable.id === CAMP_POWER_RESONATOR_INTERACTION_ID) {
         return openCampPowerRefillConfirmation(interactable, source);
       }
@@ -14929,6 +14978,31 @@ export function MovementLab() {
       const nativeGamepadInput = getNativeGamepadInput(
         nativeGamepadRef.current,
       );
+      if (busCardOpenRef.current) {
+        // Transfer browser AND native controller input; never let the same press reach the map.
+        const pad = browserGamepadInput.connected ? browserGamepadInput : nativeGamepadInput;
+        const buttons = Array.from({ length: 16 }, () => ({ pressed: false }));
+        buttons[0].pressed = pad.confirmPressed;
+        buttons[1].pressed = pad.backPressed;
+        buttons[12].pressed = pad.dpadY < 0;
+        buttons[13].pressed = pad.dpadY > 0;
+        buttons[14].pressed = pad.dpadX < 0;
+        buttons[15].pressed = pad.dpadX > 0;
+        busCardFrameRef.current?.contentWindow?.postMessage({ channel: "echoes-bus-card", type: "gamepad",
+          pad: pad.connected ? { axes: [pad.stickX, pad.stickY], buttons } : null }, window.location.origin);
+        gamepadHandoffGate.requireNeutral();
+        pressedKeys.clear();
+        pendingInteraction = null;
+        autoPath = [];
+        autoDestination = null;
+        lockedAutoMovementGuideId = null;
+        bypassedAutoMovementGuideId = null;
+        heldPointerScreen = null;
+        virtualCursorVisible = false;
+        deactivateGamepadCursor();
+        updateFootstepAudio(0, deltaTime);
+        return;
+      }
       const gamepadInput = gamepadHandoffGate.filter(browserGamepadInput.connected
         ? browserGamepadInput
         : nativeGamepadInput);
@@ -18901,7 +18975,10 @@ export function MovementLab() {
         />
       ) : null}
 
-      {powerPuzzleOpen && !frequencyPuzzleOpen && !weldingPuzzleOpen ? (
+      {busCardOpen ? <BusCardPuzzle frameRef={busCardFrameRef} initialOwner={busCardInitialOwnerRef.current}
+        onCancel={closePowerRoutingPuzzle} onComplete={() => completeBusCardInteractionRef.current()} /> : null}
+
+      {powerPuzzleOpen && !frequencyPuzzleOpen && !weldingPuzzleOpen && !busCardOpen ? (
         <PowerRoutingPuzzle
           ref={powerPuzzleControllerRef}
           availablePower={campPowerState.current}

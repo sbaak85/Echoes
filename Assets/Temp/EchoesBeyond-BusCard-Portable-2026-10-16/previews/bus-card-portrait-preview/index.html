@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10191e">
+  <title>伊薩卡號 · 直式主機板預覽</title>
+  <link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="drag.css"><link rel="stylesheet" href="hardware.css"><link rel="stylesheet" href="portrait.css">
+</head>
+<body data-owner="mouse">
+  <main class="console">
+    <header>
+      <div class="identity"><span class="ship-mark" aria-hidden="true">I</span><div><div class="eyebrow">ECHOES BEYOND THE STARS / ITHACA</div><h1>直式引擎主機板</h1><p>匯流排導通測試 · PORTRAIT CONSOLE</p></div></div>
+      <div class="header-tools"><span class="preview-badge">直式試玩</span><button id="sound" class="utility" aria-pressed="false">音效：關</button><button id="reset" class="utility">重新測試</button></div>
+    </header>
+    <div class="portrait-layout">
+    <section class="workbench" aria-label="引擎匯流排操作面板">
+      <div class="circuit-panel">
+        <i class="chassis-screw screw-tl" aria-hidden="true"></i><i class="chassis-screw screw-tr" aria-hidden="true"></i><i class="chassis-screw screw-bl" aria-hidden="true"></i><i class="chassis-screw screw-br" aria-hidden="true"></i>
+        <div class="panel-heading"><span><i class="status-dot"></i> 匯流排主機板 <small>MB–04 / ROUTING MATRIX</small></span><span class="legend"><i class="legend-node"></i> 編號接點相接 · 交叉處不導通</span></div>
+        <svg id="circuit" viewBox="0 0 490 430" role="img" aria-label="接點由左到右排列，四路管道由上往下展開；從 00 電源串聯三段到 06 核心">
+          <defs>
+            <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#8eaab8" stroke-opacity=".06"/></pattern>
+            <filter id="glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4"/></filter>
+            <linearGradient id="terminal-metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#bdc4b8"/><stop offset=".4" stop-color="#606f6a"/><stop offset=".6" stop-color="#273b39"/><stop offset="1" stop-color="#9ea793"/></linearGradient>
+          </defs>
+          <rect width="490" height="430" fill="url(#grid)"/>
+          <g id="channels"></g><g id="energy"></g><g id="nodes"></g>
+        </svg>
+        <div class="socket-rail"><span>直向擴充插槽</span><span>4 SOCKETS / 3 MODULES</span></div>
+        <div class="slot-strip" id="slots"></div>
+        <div class="board-footer"><span id="selection-message">把卡架中的卡片拖進空槽；拖出插槽即可拔除。</span><span class="mono" id="insert-count">0 / 3 CARDS</span></div>
+      </div>
+      <aside class="diagnostics">
+        <div class="eyebrow diagnostic-plate">ITHACA · CONTINUITY CHECK</div>
+        <div class="progress-heading"><span>串聯進度</span><strong><span id="chain-count">0</span><small> / 3</small></strong></div>
+        <div id="steps" class="steps"></div>
+        <div class="core-widget" id="core-widget"><div class="core-rings" aria-hidden="true"><span></span><span></span><b>06</b></div><div><div class="eyebrow">WARP CORE</div><strong id="core-state">等待供能</strong></div></div>
+        <div id="status" class="status-message" role="status" aria-live="polite">讓三張卡的管道首尾相接，將電流送至引擎核心。</div>
+        <div class="hint-area"><button id="hint" class="hint-button" aria-expanded="false">需要一點提示</button><div class="hint-copy"><p id="hint-text" hidden></p></div></div>
+        <div class="readout"><span>檢查模式</span><b>低功率 · 無時限</b><span>插拔次數</span><b id="moves">00</b></div>
+      </aside>
+    </section>
+    <section class="card-drawer" aria-label="匯流排卡片架">
+      <div class="drawer-label"><span class="eyebrow">REMOVABLE MODULES</span><h2>匯流排卡</h2><p>按住卡片拖入插槽<br>拖出拔除 · 互拖交換</p><span class="drawer-stamp">ENGINEERING / 02</span></div><div id="cards" class="cards"></div>
+    </section>
+    </div>
+    <footer><span id="input-help">拖入插卡 · 拖出拔卡 · 拖到已插卡交換 · Esc 取消</span><span class="footer-note">伊薩卡號 / 維護終端 02</span></footer>
+  </main>
+  <script type="module" src="app.mjs"></script>
+</body>
+</html>

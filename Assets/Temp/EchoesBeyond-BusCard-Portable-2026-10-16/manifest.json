@@ -1,0 +1,316 @@
+{
+  "package": "EchoesBeyond-BusCard-Portable-2026-10-16",
+  "snapshotDate": "2026-10-16",
+  "timezone": "Asia/Taipei",
+  "runtimeTested": "Node.js v24.19.0 / Windows x64",
+  "nodeExecutableIncluded": false,
+  "excludes": [
+    "manifest.json"
+  ],
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 1275,
+      "sha256": "d14e74ab57fd4cc6fea3f7a06480f8d282ea9bf041f34d77879fd881e762faf7"
+    },
+    {
+      "path": "docs/製作還原與繼承指南.md",
+      "bytes": 17000,
+      "sha256": "9f097e77f5091a1fb38c7a234ead3bd8057c0a52df37668db5340c8c52ca18c3"
+    },
+    {
+      "path": "docs/驗證紀錄.md",
+      "bytes": 2857,
+      "sha256": "99c6dd76ad23cc4306b7fc51b66ffb97ea7a4600b57abc1b090f02df9e244462"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/app.mjs",
+      "bytes": 18166,
+      "sha256": "fdd16b30a2e7fabac52dd3e6e80e4d6deceec1e6be3da51654eaf67a4d07b932"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/assets/bus-module-portrait.png",
+      "bytes": 3019825,
+      "sha256": "de5dcce080908b9783ad771d53a6a27d96198c6289ed24c17ecee93ca9ff4b08",
+      "image": {
+        "width": 793,
+        "height": 1983
+      }
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/assets/motherboard-portrait.png",
+      "bytes": 2426903,
+      "sha256": "8a3b0fa5361ac725e430b13b7d0570523b0fc1060898ff33b6c29b296f7b4716",
+      "image": {
+        "width": 1060,
+        "height": 1484
+      }
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/assets/prompts.json",
+      "bytes": 3189,
+      "sha256": "2ad85a7c3c53c5d4640106c81024a8deedb1948240cb69e09207be00d38e06fe"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/drag-lifecycle.test.mjs",
+      "bytes": 5122,
+      "sha256": "d8ba6e4e21bbfc29bc8d9b7e9f4a729bd4518adb39a2a49b56fd239232299ee5"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/drag.css",
+      "bytes": 3079,
+      "sha256": "bb12329b0b4edebc66e00c1cd1c388d89049c8c6ecd290a6bf623566c471878b"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/drag.mjs",
+      "bytes": 6819,
+      "sha256": "6c674afddd2068fa2c4d903ca5d1ad38f54c7548a276eeda6d2ae54174a0c8d2"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/drag.test.mjs",
+      "bytes": 1976,
+      "sha256": "c429d42dce1d24e892c60082f1eae04396931463b1aa49a20038db225102faa4"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/hardware.css",
+      "bytes": 18670,
+      "sha256": "18535cab8c544ba17ff4ff361fac893e3cd6add26470417300153a0e47b01ba8"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/index.html",
+      "bytes": 4438,
+      "sha256": "14f79187e76ca3078850653e7fc2d061957061ab86242c1347aca7b8c8e6e6b6"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/input.mjs",
+      "bytes": 5498,
+      "sha256": "cf5c0e7c81980f46e71363987ab20af4f6c12f2625d01eca22a0a0e85ece42fe"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/input.test.mjs",
+      "bytes": 4254,
+      "sha256": "601f42d3e4c0d1b9a0ca03bc89b172c6ac44058efa359f7212458db8540f0812"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/model.mjs",
+      "bytes": 2267,
+      "sha256": "26f2933a5538e9ea7b56841f5d3119a98af5f44212419fba4ee2196c593f23c4"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/model.test.mjs",
+      "bytes": 3112,
+      "sha256": "735eb3a70094d0a8cdb1aea51bdc18a6e00571483013ba029912d64382632f51"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/portrait.css",
+      "bytes": 8974,
+      "sha256": "e6b1ef51fff8c0f25066b9bcc3d9cf046de17b2815319e5946742e7d683acfe6"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/README.txt",
+      "bytes": 1376,
+      "sha256": "842825b586fb4d1f0e24be6b7e93d9e27e52c76ee38e279e2d9634512cb3c24b"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/server.mjs",
+      "bytes": 1377,
+      "sha256": "21f00d54975ba9395a55a5d778f505f33e1e1c743dc7f7886d74f1eecf1f8077"
+    },
+    {
+      "path": "previews/bus-card-portrait-preview/style.css",
+      "bytes": 12060,
+      "sha256": "6f0ba7f14360089c6c3ac18b1411dc4465ba87c0cb8f72fe9d1c50fa455654a8"
+    },
+    {
+      "path": "previews/bus-card-preview/app.mjs",
+      "bytes": 17849,
+      "sha256": "c7c77a7d203b5e35f24e1d3bd35d61c3e8a82276d24dbaa32dc6b3e2386fe23e"
+    },
+    {
+      "path": "previews/bus-card-preview/assets/bus-module-v2.png",
+      "bytes": 2603115,
+      "sha256": "67e2425e729a836f662c62729e2eb09cefb16cd3f0484c4bcbfcc8168017aaa9",
+      "image": {
+        "width": 1983,
+        "height": 793
+      }
+    },
+    {
+      "path": "previews/bus-card-preview/assets/bus-module.png",
+      "bytes": 2667612,
+      "sha256": "01e9a39bc3393f0853e8fc95d76ca2b583fbd0b7709c081e75929b367ab8f6b1",
+      "image": {
+        "width": 1983,
+        "height": 793
+      }
+    },
+    {
+      "path": "previews/bus-card-preview/assets/motherboard-v2.png",
+      "bytes": 2552796,
+      "sha256": "c8e518d82dc0246df04b1db1e84a4a656e7a7e4c9489ea681e8866b338e643da",
+      "image": {
+        "width": 1586,
+        "height": 992
+      }
+    },
+    {
+      "path": "previews/bus-card-preview/assets/motherboard.png",
+      "bytes": 2732087,
+      "sha256": "f16929d84f8130a4a08a9826002dfd24ec73b13d03af54ac0445c355968c340d",
+      "image": {
+        "width": 1586,
+        "height": 992
+      }
+    },
+    {
+      "path": "previews/bus-card-preview/assets/prompts-v2.json",
+      "bytes": 3958,
+      "sha256": "d9348d949d3ab8a8012ac133a6fdabaee4e25135d849b9567c539f1d56ac20e4"
+    },
+    {
+      "path": "previews/bus-card-preview/assets/prompts.json",
+      "bytes": 3391,
+      "sha256": "9c28981cf95dce54b36973e873135feb97614bfe96504a2f1c5c08c87baa13af"
+    },
+    {
+      "path": "previews/bus-card-preview/drag-lifecycle.test.mjs",
+      "bytes": 5122,
+      "sha256": "d8ba6e4e21bbfc29bc8d9b7e9f4a729bd4518adb39a2a49b56fd239232299ee5"
+    },
+    {
+      "path": "previews/bus-card-preview/drag.css",
+      "bytes": 3079,
+      "sha256": "bb12329b0b4edebc66e00c1cd1c388d89049c8c6ecd290a6bf623566c471878b"
+    },
+    {
+      "path": "previews/bus-card-preview/drag.mjs",
+      "bytes": 6819,
+      "sha256": "6c674afddd2068fa2c4d903ca5d1ad38f54c7548a276eeda6d2ae54174a0c8d2"
+    },
+    {
+      "path": "previews/bus-card-preview/drag.test.mjs",
+      "bytes": 1976,
+      "sha256": "c429d42dce1d24e892c60082f1eae04396931463b1aa49a20038db225102faa4"
+    },
+    {
+      "path": "previews/bus-card-preview/hardware.css",
+      "bytes": 18646,
+      "sha256": "b1be2faf44e032811643b22072f4a5bd4c4683c1b2349d5222c56f561ae9134e"
+    },
+    {
+      "path": "previews/bus-card-preview/index.html",
+      "bytes": 4379,
+      "sha256": "5d67a0e1f7c5780946c9fda8bdcf2ef98590a75b78af681804fb2067563f4125"
+    },
+    {
+      "path": "previews/bus-card-preview/input.mjs",
+      "bytes": 5498,
+      "sha256": "cf5c0e7c81980f46e71363987ab20af4f6c12f2625d01eca22a0a0e85ece42fe"
+    },
+    {
+      "path": "previews/bus-card-preview/input.test.mjs",
+      "bytes": 4254,
+      "sha256": "601f42d3e4c0d1b9a0ca03bc89b172c6ac44058efa359f7212458db8540f0812"
+    },
+    {
+      "path": "previews/bus-card-preview/model.mjs",
+      "bytes": 2267,
+      "sha256": "26f2933a5538e9ea7b56841f5d3119a98af5f44212419fba4ee2196c593f23c4"
+    },
+    {
+      "path": "previews/bus-card-preview/model.test.mjs",
+      "bytes": 3112,
+      "sha256": "735eb3a70094d0a8cdb1aea51bdc18a6e00571483013ba029912d64382632f51"
+    },
+    {
+      "path": "previews/bus-card-preview/README.txt",
+      "bytes": 2298,
+      "sha256": "06c1faa3b140cbad005b6cceedd26287b945fb48f4894b7ad47a43359c640822"
+    },
+    {
+      "path": "previews/bus-card-preview/server.mjs",
+      "bytes": 1400,
+      "sha256": "f4ad1658ad8db74d7ae55db3a9ede9f7ab75cb492216e007b6b11d359ccba0be"
+    },
+    {
+      "path": "previews/bus-card-preview/style.css",
+      "bytes": 12060,
+      "sha256": "6f0ba7f14360089c6c3ac18b1411dc4465ba87c0cb8f72fe9d1c50fa455654a8"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2960,
+      "sha256": "4580e4e67f3d94967cd0578656f290e523f0a3aff51add4612b20fac81df0b03"
+    },
+    {
+      "path": "reference/bus-card-portrait-terminal-refined.png",
+      "bytes": 135757,
+      "sha256": "8a56baa6d50d6b0aa4a34355c4df7b46547633003120797efe6d94f399c91fa3"
+    },
+    {
+      "path": "reference/bus-card-scifi-preview.png",
+      "bytes": 158378,
+      "sha256": "a89c2f6dabf70537e0c07f0225025feb4f0a4ed6583fb371a9ffa8c2b0326575"
+    },
+    {
+      "path": "reference/portable-landscape-verified.png",
+      "bytes": 152819,
+      "sha256": "c01d8d4efef30f0af5bb13c4c67aab12096835fbc34fbde5070adf9a63002700"
+    },
+    {
+      "path": "reference/portable-portrait-verified.png",
+      "bytes": 134449,
+      "sha256": "47030d86095bcfb4d8130f0d1c2cfbd0341e5d3a9ccf417517fd650a1731fd01"
+    },
+    {
+      "path": "rules/browser-ui-focus-visuals/agents/openai.yaml",
+      "bytes": 307,
+      "sha256": "fac4127fddb75faf22aa50be935ace37e6928ebffc47bbb2491a8a1cf8ff7876"
+    },
+    {
+      "path": "rules/browser-ui-focus-visuals/SKILL.md",
+      "bytes": 22536,
+      "sha256": "f25efe6826ead353a83309ef2121760570f2ca53761fc9c43e54eab8619d38a4"
+    },
+    {
+      "path": "runtime/README.txt",
+      "bytes": 376,
+      "sha256": "50280696e5bc46a44c22dd20bf33f6942f971b982ac29225e319eb4dbd1f0708"
+    },
+    {
+      "path": "scripts/test.mjs",
+      "bytes": 679,
+      "sha256": "89217888fb91a8d95f6e020ea15991611ea4d00d16abb93e8d6da739f3a8b589"
+    },
+    {
+      "path": "scripts/verify.mjs",
+      "bytes": 1106,
+      "sha256": "4032fa74730de5925add2ff66ed646b2ceb1cbdb234e0e162f22df2c359baa22"
+    },
+    {
+      "path": "server.mjs",
+      "bytes": 4135,
+      "sha256": "cd068b6f0951d9b55e1b83da24cc4fb4feaf06e4a307e066a0a736cfb654087e"
+    },
+    {
+      "path": "start-landscape.cmd",
+      "bytes": 52,
+      "sha256": "a52dcbba591d368af5f1735fbbd27774225bdd505f2b8b3d1522a9c226985478"
+    },
+    {
+      "path": "start.cmd",
+      "bytes": 411,
+      "sha256": "f187ecaccdaec9be619bf115427814135a2fc23ba7b04baf71f795ebcca0effb"
+    },
+    {
+      "path": "test.cmd",
+      "bytes": 252,
+      "sha256": "543a8b104c6c6fba4bc087df5a11cd3532307a0d05c48288bc69146049fc5f63"
+    },
+    {
+      "path": "verify.cmd",
+      "bytes": 254,
+      "sha256": "d0765117b8d8b0c5f4cf9674f27de471c7e0f5cf5d6929ad7d8210c476bcbe6c"
+    }
+  ]
+}
