@@ -1,0 +1,16 @@
+{
+  "generator": "Built-in image_gen",
+  "variant": "Portrait board and upright bus modules",
+  "assets": [
+    {
+      "key": "motherboard-portrait",
+      "path": "C:/Users/sbaak.fang/.codex/worktrees/world-item-icon-preview/EchoesBeyond/output/bus-card-preview/assets/motherboard-v2.png",
+      "prompt": "Adapt this exact sci-fi engineering mainboard art into a PORTRAIT version for the same interactive game. Portrait canvas approximately 5:7, top-down orthographic, upright rectangular motherboard. Preserve the art direction: silver/ivory geometric armor, dark petrol-blue substrate, restrained cyan energy tubes, amber maintenance lights, merchant spacecraft hardware, slight stylized industrial wear. Recompose the border hardware for a tall portrait frame. Thin perimeter, large open central blue-green area. Reserve upper-middle x10%-90% y12%-62% as quiet empty dark substrate for a live circuit diagram, reserve lower-middle x10%-90% y65%-91% as empty service bay for four vertical card sockets to be overlaid. Raised equipment only on narrow perimeter: chunky armor at corners, segmented cyan waveguides and locking couplers vertically down both side borders, power distribution structure along top and bottom. Central area clear with only subtle sparse engraved traces. NO drawn slots, NO cards, NO screens, NO digits, NO labels, NO words. Same high-quality game prop rendering and material polish as reference, not a modern PC. The deliverable is the single portrait mainboard background plate, complete and uncropped, nearly fills canvas, no external environment. Do not just stretch or rotate the old landscape image; recompose into a purpose-built portrait board."
+    },
+    {
+      "key": "bus-module-portrait",
+      "path": "C:/Users/sbaak.fang/.codex/worktrees/world-item-icon-preview/EchoesBeyond/output/bus-card-preview/assets/bus-module-v2.png",
+      "prompt": "Recompose this exact spaceship ENERGY BUS CARTRIDGE into a narrow VERTICAL PORTRAIT card with width:height 2:5. This is an upright insertable game item in Echoes Beyond the Stars. Preserve the same design family: bevelled layered graphite and ivory titanium armor, warm copper service details, softly stylized hard-surface 3D rendering, selective wear, restrained cyan energy core. Top 25% is a blank light metallic identification plate for a live A/B/C overlay. Middle 50% contains the protected cyan core and vertically arranged luminous waveguides and geometric couplers. Bottom end has SIX wide copper contact pads across the narrow bottom edge, separated by dark insulating ribs, visibly suitable for sliding down into a socket. Small mechanical retaining tabs at top-left and top-right, slender silver armor running down the sides. One single upright object, complete silhouette, minimal transparent margins, no horizontal duplication. No text, no letters, no numbers, no logos, no room, no hands, no cast shadow outside the object. True transparent background. Important: the writing plate remains at the TOP and contact pads at the BOTTOM, not a sideways rotation of the existing image. Match reference aesthetic and proportions of details while redesigning the card vertically."
+    }
+  ]
+}

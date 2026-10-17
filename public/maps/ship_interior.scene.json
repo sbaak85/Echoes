@@ -445,16 +445,16 @@
           "y": 1120.99
         },
         {
-          "x": 935.5,
-          "y": 1088.73
+          "x": 918,
+          "y": 1074
         },
         {
-          "x": 919.37,
-          "y": 1088.73
+          "x": 906,
+          "y": 1074
         },
         {
-          "x": 717.76,
-          "y": 1217.76
+          "x": 699,
+          "y": 1200
         },
         {
           "x": 524.2,
@@ -704,28 +704,44 @@
       "shape": "polygon",
       "points": [
         {
-          "x": 935.5,
-          "y": 1112.92
+          "x": 951,
+          "y": 1125
         },
         {
-          "x": 983.89,
-          "y": 1145.18
+          "x": 984,
+          "y": 1149
         },
         {
-          "x": 988,
-          "y": 1184
+          "x": 984,
+          "y": 1188
         },
         {
           "x": 904,
           "y": 1236
         },
         {
-          "x": 824,
-          "y": 1176
+          "x": 855,
+          "y": 1197
         },
         {
-          "x": 919.37,
-          "y": 1112.92
+          "x": 855,
+          "y": 1167
+        },
+        {
+          "x": 879,
+          "y": 1149
+        },
+        {
+          "x": 882,
+          "y": 1119
+        },
+        {
+          "x": 906,
+          "y": 1104
+        },
+        {
+          "x": 930,
+          "y": 1116
         }
       ],
       "type": "use",
@@ -748,8 +764,8 @@
         }
       ],
       "interactionHintPoint": {
-        "x": 892.44,
-        "y": 1101.7
+        "x": 899.93835,
+        "y": 1111.5745
       },
       "activationDistance": 52,
       "dialogue": {
@@ -903,12 +919,12 @@
           "y": 1411.32
         },
         {
-          "x": 1024.21,
-          "y": 1322.61
+          "x": 1011,
+          "y": 1311
         },
         {
-          "x": 1112.92,
-          "y": 1266.15
+          "x": 1101,
+          "y": 1257
         }
       ],
       "type": "use",
@@ -994,12 +1010,12 @@
           "y": 1744
         },
         {
-          "x": 1564,
-          "y": 1796
+          "x": 1548,
+          "y": 1803
         },
         {
-          "x": 1460,
-          "y": 1724
+          "x": 1446,
+          "y": 1731
         }
       ],
       "type": "check",
@@ -1037,7 +1053,7 @@
           {
             "lineId": "shipinterior-interaction-005-line-001",
             "speaker": "Sbaak",
-            "text": "\u8CA8\u7269\u56FA\u5B9A\u5E36\u7D81\u5F97\u5F88\u7D2E\u5BE6\u2026\u2026\u6B50\u6587\u7684\u624B\u85DD\u9084\u662F\u4E00\u6A23\u53EF\u9760\u3002",
+            "text": "\u9019\u7D44\u8CA8\u7269\u7684\u56FA\u5B9A\u5E36\u6263\u5F97\u5F88\u7262\u2026\u2026\u6B50\u6587\u8FA6\u4E8B\u9084\u662F\u4E00\u6A23\u53EF\u9760\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
@@ -1058,7 +1074,7 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "shipinterior-interaction-005-failure-line-001",
             "speaker": "Sbaak",
             "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
@@ -1079,12 +1095,12 @@
           "y": 1700
         },
         {
-          "x": 1792,
-          "y": 1744
+          "x": 1809,
+          "y": 1752
         },
         {
-          "x": 1716,
-          "y": 1796
+          "x": 1731,
+          "y": 1806
         }
       ],
       "type": "check",
@@ -1122,12 +1138,17 @@
           {
             "lineId": "shipinterior-interaction-006-line-001",
             "speaker": "Sbaak",
-            "text": "C-02 \u7684\u56FA\u5B9A\u9396\u2026\u2026\u524D\u5E7E\u5929\u624D\u9B27\u904E\u4E00\u6B21\u813E\u6C23\u3002"
+            "text": "UC-02 \u7684\u56FA\u5B9A\u6263\u2026\u2026\u6628\u5929\u624D\u51FA\u4E86\u500B\u9EBB\u7169\u3002"
+          },
+          {
+            "lineId": "shipinterior-interaction-006-line-003",
+            "speaker": "Sbaak",
+            "text": "\u5167\u90E8\u6709\u500B\u5361\u69AB\u4F3C\u4E4E\u65B7\u4E86\uFF0C\u5176\u4ED6\u9084\u67098\u7D44UC\u6263\u90FD\u5F88\u7262\u56FA\uFF0C\r\n\u6240\u4EE5\u554F\u984C\u4E00\u6642\u4E0D\u5927..."
           },
           {
             "lineId": "shipinterior-interaction-006-line-002",
             "speaker": "Sbaak",
-            "text": "\uFF08\u6211\u78BA\u8A8D\u4E86\u4E00\u4E0B\u9396\u6263\u7684\u8B80\u6578\uFF09\u73FE\u5728\u770B\u8D77\u4F86\u662F\u6B63\u5E38\u7684\u2026\u2026\n\u62B5\u9054\u4E4B\u5F8C\u9084\u662F\u6574\u7D44\u63DB\u6389\u6BD4\u8F03\u4FDD\u96AA\u3002"
+            "text": "\uFF08\u6211\u78BA\u8A8D\u4E86\u4E00\u4E0B\u9396\u6263\u7684\u78C5\u6578\uFF09\u73FE\u5728\u770B\u8D77\u4F86\u662F\u6B63\u5E38\u7684\u2026\u2026\n\u62B5\u9054\u4E4B\u5F8C\u9084\u662F\u6574\u7D44\u63DB\u6389\u6BD4\u8F03\u4FDD\u96AA\u3002"
           }
         ]
       },
@@ -1139,7 +1160,7 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "shipinterior-interaction-006-failure-line-001",
             "speaker": "Sbaak",
             "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
@@ -1160,12 +1181,12 @@
           "y": 1564
         },
         {
-          "x": 2060,
-          "y": 1512
+          "x": 2163,
+          "y": 1455
         },
         {
-          "x": 1920,
-          "y": 1412
+          "x": 1992,
+          "y": 1332
         },
         {
           "x": 1872,
@@ -1184,6 +1205,31 @@
         "spirit": 0,
         "timeMinutes": 0
       },
+      "interactionLimitMode": "once",
+      "itemRewards": [
+        {
+          "itemId": "R0011",
+          "quantity": 1,
+          "delivery": "world"
+        }
+      ],
+      "useRequirements": [
+        {
+          "dialogueId": "",
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH02_MAIN_001",
+          "stageId": "QUEST_CH02_MAIN_001_STAGE_01",
+          "stageMode": "UnlockUntilCondition",
+          "objectiveId": "QUEST_CH02_MAIN_001_OBJ_03",
+          "objectiveState": "completed",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
       "interactionPoints": [
         {
           "facing": "NE",
@@ -1209,6 +1255,11 @@
             "text": "\u6273\u624B\u3001\u710A\u69CD\u3001\u8A3A\u65B7\u5100\u2026\u2026\u5DE5\u5177\u90FD\u5728\u539F\u4F4D\uFF0C\u4E00\u6A23\u4E0D\u5C11\u3002"
           },
           {
+            "lineId": "shipinterior-interaction-007-line-003",
+            "speaker": "Sbaak",
+            "text": "UC\u6263...\u9019\u88E1\u6709\u4E00\u500B\u5099\u54C1\uFF0C\u62FF\u9019\u500B\u5427!"
+          },
+          {
             "lineId": "shipinterior-interaction-007-line-002",
             "speaker": "Sbaak",
             "text": "\u8239\u4E0A\u53EA\u8981\u6709\u6771\u897F\u58DE\u4E86\uFF0C\u800C\u4E14\u5176\u4ED6\u4EBA\u4E0D\u77E5\u9053\u8A72\u627E\u8AB0\u2014\u2014\n\u90A3\u5C31\u662F\u627E\u6211\u3002"
@@ -1223,7 +1274,7 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "shipinterior-interaction-007-failure-line-001",
             "speaker": "Sbaak",
             "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
@@ -1244,12 +1295,12 @@
           "y": 1348.41
         },
         {
-          "x": 1683.9,
-          "y": 1309.7
+          "x": 1758,
+          "y": 1260
         },
         {
-          "x": 1509.71,
-          "y": 1180.67
+          "x": 1578,
+          "y": 1137
         },
         {
           "x": 1483.9,
@@ -1268,6 +1319,24 @@
         "spirit": 0,
         "timeMinutes": 0
       },
+      "interactionLimitMode": "once",
+      "useRequirements": [
+        {
+          "dialogueId": "",
+          "kind": "questStage",
+          "scope": "interaction",
+          "itemId": "",
+          "questId": "QUEST_CH02_MAIN_001",
+          "stageId": "QUEST_CH02_MAIN_001_STAGE_01",
+          "stageMode": "CurrentStageOnly",
+          "objectiveId": "QUEST_CH02_MAIN_001_OBJ_03",
+          "objectiveState": "unlocked",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
       "interactionPoints": [
         {
           "facing": "NE",
@@ -1295,7 +1364,7 @@
           {
             "lineId": "shipinterior-interaction-008-line-002",
             "speaker": "Sbaak",
-            "text": "\u6838\u5FC3\u6EAB\u5EA6\u6B63\u5E38\u3001\u8F38\u51FA\u66F2\u7DDA\u5E73\u7A69\u2026\u2026\u4ECA\u5929\u7684\u4F60\u4E5F\u5F88\u4E56\u561B\u3002"
+            "text": "\u6838\u5FC3\u6EAB\u5EA6\u6B63\u5E38\u3001\u8F38\u51FA\u66F2\u7DDA\u5E73\u7A69\u2026\u2026\u4ECA\u5929\u7684\u4F60\u4E5F\u5F88\u8A8D\u771F\u561B\u3002"
           },
           {
             "lineId": "shipinterior-interaction-008-line-003",
@@ -1312,9 +1381,25 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "shipinterior-interaction-008-failure-line-001",
             "speaker": "Sbaak",
-            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+            "text": "\u73FE\u5728\u9084\u4E0D\u9700\u8981\u6AA2\u67E5\u9019\u500B\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "shipinterior-interaction-008-failure-line-002",
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u9084\u4E0D\u662F\u7DAD\u8B77\u6642\u9593\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "shipinterior-interaction-008-failure-line-003",
+            "speaker": "Sbaak",
+            "text": "\u5F15\u64CE\u76EE\u524D\u904B\u4F5C\u826F\u597D\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
           }
         ]
       }
@@ -1337,12 +1422,12 @@
           "y": 888
         },
         {
-          "x": 1176,
-          "y": 836
+          "x": 1263,
+          "y": 783
         },
         {
-          "x": 1032.28,
-          "y": 735.5
+          "x": 1110,
+          "y": 675
         },
         {
           "x": 961.31,
@@ -1425,20 +1510,20 @@
           "y": 756
         },
         {
-          "x": 920,
-          "y": 700
+          "x": 957,
+          "y": 675
         },
         {
-          "x": 808,
-          "y": 632
+          "x": 816,
+          "y": 582
         },
         {
-          "x": 776,
-          "y": 632
+          "x": 771,
+          "y": 579
         },
         {
-          "x": 704,
-          "y": 660
+          "x": 705,
+          "y": 624
         }
       ],
       "type": "check",

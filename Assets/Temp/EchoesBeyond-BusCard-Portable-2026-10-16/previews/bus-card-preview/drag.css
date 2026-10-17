@@ -1,0 +1,29 @@
+.bus-card,.slot{touch-action:none;user-select:none;-webkit-user-select:none}
+body[data-owner=mouse] .bus-card:not(:disabled),body[data-owner=mouse] .slot.occupied{cursor:grab}
+body[data-owner=mouse][data-dragging] *,body[data-owner=mouse][data-dragging]{cursor:grabbing!important}
+.drag-origin{opacity:.35!important}
+.slot.drop-ready{border:2px solid #ddf4b0;background:linear-gradient(135deg,#b9d78733,#273a40);box-shadow:inset 0 0 20px #a5d27c22,0 0 16px #afdb8233;transform:translateY(-3px)}
+.slot.drop-ready:after{opacity:1;background:repeating-linear-gradient(90deg,#e5ce91 0 3px,#192126 3px 7px)}
+.slot.drop-blocked{border-color:#dc907f;background:#64392e66}
+.slot.drop-swap{border:2px solid #8ddde9;background:linear-gradient(135deg,#64c8dd33,#273a40);box-shadow:inset 0 0 20px #74d9e822,0 0 16px #81ddeb44;transform:translateY(-3px)}
+.drag-card.swapping{border-color:#8ddde9;box-shadow:0 10px 22px #0008,0 0 20px #81ddeb44}
+.drag-card.swapping .drag-caption{color:#b6edf3}
+.drawer-ready .cards{border-radius:4px;background:#b7d3d008;box-shadow:0 0 0 1px #9bbfb42b}
+.slot .card-grip{position:absolute;right:12px;top:12px;display:none;width:26px;height:5px;background:repeating-linear-gradient(90deg,#d0d6d8 0 2px,transparent 2px 6px);opacity:.6}
+.slot.occupied .card-grip{display:block}
+.slot.occupied .slot-top{padding-right:33px}
+.slot.seating{animation:seat-card .25s ease-out}
+.bus-card.returning{animation:return-card .28s ease-out}
+.drag-card{position:fixed;z-index:100;pointer-events:none;width:232px;min-height:104px;display:flex;gap:14px;align-items:center;padding:16px 18px 22px;border:1px solid var(--card-color);border-top:3px solid var(--card-color);border-radius:5px;background:linear-gradient(145deg,rgba(var(--card-rgb),.22),transparent 65%),#24373e;box-shadow:0 20px 30px #0009,0 0 14px rgba(var(--card-rgb),.16);will-change:left,top,transform;user-select:none}
+.drag-card .card-chip{width:43px;height:49px;flex-shrink:0}
+.drag-card strong{display:block;font-size:13px;font-weight:500;letter-spacing:1px}
+.drag-card small{display:block;font:10px Consolas,"Microsoft JhengHei",sans-serif;color:#b9cbd3;margin-top:7px}
+.drag-caption{display:block;font-size:9px;margin-top:8px;color:#cce0d7;line-height:1.5}
+.drag-pins{position:absolute;bottom:-1px;left:18px;right:18px;height:9px;background:repeating-linear-gradient(90deg,#d7bd7b 0 6px,#1d3038 6px 10px)}
+.drag-card.over-slot{box-shadow:0 10px 22px #0008,0 0 20px #daefb844;border-color:#e0edba}
+.drag-card.over-slot .drag-caption{color:#e0f5b4}
+.drag-card.blocked{border-color:#df9a86}.drag-card.blocked .drag-caption{color:#efbcac}
+@keyframes seat-card{from{transform:translateY(-9px);filter:brightness(1.4)}to{transform:translateY(0);filter:brightness(1)}}
+@keyframes return-card{from{transform:translateY(-8px);opacity:.3}to{transform:translateY(0);opacity:1}}
+@media(max-width:740px){.slot.occupied .slot-top{padding-right:0}.slot .card-grip{right:6px;top:8px;width:14px}.drag-card{width:208px;min-height:94px}}
+@media(prefers-reduced-motion:reduce){.slot.seating,.bus-card.returning{animation:none}}
