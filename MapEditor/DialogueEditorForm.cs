@@ -330,6 +330,8 @@ public sealed class DialogueEditorForm : Form
             HeaderText = "文案內容",
             AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
             SortMode = DataGridViewColumnSortMode.NotSortable,
+            // 編輯框貼滿整格（內建行為會把多行編輯框往下置中，在部分縮放比例下文字掉出格子而看起來一片黑）
+            CellTemplate = new DialogueTextCell(),
         });
         grid.Columns.Add(new DataGridViewTextBoxColumn
         {
@@ -1327,6 +1329,19 @@ public sealed class DialogueEditorForm : Form
         DataGridViewCellParsingEventArgs eventArgs)
     {
         if (
+            sender is DataGridView &&
+            eventArgs.RowIndex >= 0 &&
+            eventArgs.ColumnIndex == TextColumnIndex &&
+            eventArgs.Value is string editedText
+        )
+        {
+            // 編輯框使用 \r\n；存回時統一成 \n，與遊戲資料格式一致
+            eventArgs.Value = editedText.Replace("\r\n", "\n", StringComparison.Ordinal);
+            eventArgs.ParsingApplied = true;
+            return;
+        }
+
+        if (
             sender is not DataGridView ||
             eventArgs.RowIndex < 0 ||
             eventArgs.ColumnIndex != SpeakerColumnIndex ||
@@ -1406,6 +1421,21 @@ public sealed class DialogueEditorForm : Form
         DataGridViewEditingControlShowingEventArgs eventArgs)
     {
         if (
+            sender is DataGridView textGrid &&
+            textGrid.CurrentCell?.ColumnIndex == TextColumnIndex &&
+            eventArgs.Control is DataGridViewTextBoxEditingControl textEditor
+        )
+        {
+            textEditor.TextChanged -= TextEditorOnTextChanged;
+            textEditor.TextChanged += TextEditorOnTextChanged;
+            // 開始編輯時先依目前內容撐開一次（含原本已有的多行台詞）
+            // 編輯框尚未建立視窗（例如表單還沒顯示的自我測試）時不能 BeginInvoke，直接計算
+            if (textEditor.IsHandleCreated) textEditor.BeginInvoke(new Action(() => FitEditingRowToText(textEditor)));
+            else FitEditingRowToText(textEditor);
+            return;
+        }
+
+        if (
             sender is not DataGridView grid ||
             grid.CurrentCell?.ColumnIndex != SpeakerColumnIndex ||
             eventArgs.Control is not DataGridViewComboBoxEditingControl editor
@@ -1426,6 +1456,96 @@ public sealed class DialogueEditorForm : Form
         editor.AutoCompleteSource = AutoCompleteSource.None;
         editor.KeyDown -= SpeakerEditorOnKeyDown;
         editor.KeyDown += SpeakerEditorOnKeyDown;
+    }
+
+    private static void TextEditorOnTextChanged(object? sender, EventArgs eventArgs)
+    {
+        if (sender is DataGridViewTextBoxEditingControl editor) FitEditingRowToText(editor);
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam);
+    private const int EmLineScroll = 0x00B6;
+    private const int EmGetFirstVisibleLine = 0x00CE;
+
+    /// <summary>
+    /// 文案編輯中即時依內容調整列高（Shift+Enter 換行時格子跟著長高、刪行時縮回），
+    /// 並讓視窗跟著長高；內容全部放得下時把捲動拉回第一行，避免前一句被推出格子外。
+    /// 自動列高（AllCells）只看已提交的值、編輯途中也不會重算，所以編輯文案時暫停自動列高、
+    /// 直接設定這一列的高度；編輯結束（GridOnCellEndEdit）再恢復自動列高。
+    /// </summary>
+    private static void FitEditingRowToText(DataGridViewTextBoxEditingControl editor)
+    {
+        if (editor.IsDisposed || editor.EditingControlDataGridView is not { } grid ||
+            !grid.IsCurrentCellInEditMode || !ReferenceEquals(grid.EditingControl, editor) ||
+            grid.CurrentRow is not { } row || grid.CurrentCell?.ColumnIndex != TextColumnIndex)
+        {
+            return;
+        }
+        var text = editor.Text;
+        // 結尾是換行時，最後一個空行也要算進高度
+        if (text.Length == 0 || text.EndsWith('\n')) text += " ";
+        var width = Math.Max(20, editor.ClientSize.Width - 6);
+        var measured = TextRenderer.MeasureText(
+            text,
+            editor.Font,
+            new Size(width, int.MaxValue),
+            TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPadding);
+        var needed = Math.Max(grid.RowTemplate.MinimumHeight, measured.Height + 12);
+        if (row.Height != needed)
+        {
+            if (grid.AutoSizeRowsMode != DataGridViewAutoSizeRowsMode.None)
+            {
+                grid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
+            }
+            row.Height = needed;
+            if (grid.FindForm() is DialogueEditorForm form) form.FitHeightToContent(growOnly: true);
+        }
+        if (editor.IsHandleCreated && editor.ClientSize.Height >= measured.Height)
+        {
+            var firstVisible = (int)SendMessage(editor.Handle, EmGetFirstVisibleLine, IntPtr.Zero, IntPtr.Zero);
+            if (firstVisible > 0) SendMessage(editor.Handle, EmLineScroll, IntPtr.Zero, (IntPtr)(-firstVisible));
+        }
+    }
+
+    /// <summary>
+    /// 文案欄專用儲存格：編輯框一律貼滿整格（不使用內建的往下置中位置），
+    /// 並把台詞裡的 \n 轉成編輯框能顯示的換行（存回時由 CellParsing 轉回 \n）。
+    /// </summary>
+    private sealed class DialogueTextCell : DataGridViewTextBoxCell
+    {
+        public override void InitializeEditingControl(
+            int rowIndex,
+            object? initialFormattedValue,
+            DataGridViewCellStyle dataGridViewCellStyle)
+        {
+            var value = initialFormattedValue as string;
+            if (value is not null && value.Contains('\n') && !value.Contains("\r\n", StringComparison.Ordinal))
+            {
+                value = value.Replace("\n", "\r\n", StringComparison.Ordinal);
+            }
+            base.InitializeEditingControl(rowIndex, value ?? initialFormattedValue, dataGridViewCellStyle);
+        }
+
+        public override void PositionEditingControl(
+            bool setLocation,
+            bool setSize,
+            Rectangle cellBounds,
+            Rectangle cellClip,
+            DataGridViewCellStyle cellStyle,
+            bool singleVerticalBorderAdded,
+            bool singleHorizontalBorderAdded,
+            bool isFirstDisplayedColumn,
+            bool isFirstDisplayedRow)
+        {
+            base.PositionEditingControl(
+                setLocation, setSize, cellBounds, cellClip, cellStyle,
+                singleVerticalBorderAdded, singleHorizontalBorderAdded,
+                isFirstDisplayedColumn, isFirstDisplayedRow);
+            if (DataGridView?.EditingControl is not Control editor) return;
+            var panel = DataGridView.EditingPanel.ClientSize;
+            editor.Bounds = new Rectangle(3, 3, Math.Max(1, panel.Width - 5), Math.Max(1, panel.Height - 4));
+        }
     }
 
     private static void SpeakerEditorOnDrawItem(object? sender, DrawItemEventArgs eventArgs)
@@ -1497,6 +1617,20 @@ public sealed class DialogueEditorForm : Form
         object? sender,
         DataGridViewCellEventArgs eventArgs)
     {
+        if (
+            sender is DataGridView textGrid &&
+            eventArgs.RowIndex >= 0 &&
+            eventArgs.ColumnIndex == TextColumnIndex
+        )
+        {
+            // 編輯期間暫停的自動列高恢復，改由已提交的文案重新計算
+            if (textGrid.AutoSizeRowsMode != DataGridViewAutoSizeRowsMode.AllCells)
+            {
+                textGrid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
+            }
+            return;
+        }
+
         if (
             sender is not DataGridView grid ||
             eventArgs.RowIndex < 0 ||
