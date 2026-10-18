@@ -140,10 +140,22 @@ internal static class Program
         var document = QuestDataStore.Load(Path.Combine(projectRoot, "public", "quests", "quest-data.json"));
         var objectives = document.Quests.SelectMany(quest => quest.Stages).SelectMany(stage => stage.Objectives);
         var welding = objectives.Single(objective => objective.Id == "QUEST_CH03_MAIN_006_OBJ_04");
+        var busCard = objectives.Single(objective => objective.Id == "QUEST_CH02_MAIN_001_OBJ_03");
+        var starCards = objectives.Single(objective => objective.Id == "QUEST_CH02_MAIN_003_OBJ_03");
+        if (!references.Contains("Puzzle", "shipinterior-interaction-017") ||
+            starCards.Type != ObjectiveType.PuzzleCompleted || starCards.TargetId != "shipinterior-interaction-017")
+            throw new InvalidDataException("星際牌 OBJ 必須指向已登錄的星際牌勝利 ID。");
+        if (!references.Contains("Puzzle", "shipinterior-interaction-008") ||
+            busCard.Type != ObjectiveType.PuzzleCompleted || busCard.TargetId != "shipinterior-interaction-008")
+            throw new InvalidDataException("匯流排 OBJ 必須指向已登錄的匯流排解謎完成 ID。");
         var frequency = objectives.Single(objective => objective.Id == "QUEST_CH03_MAIN_006_OBJ_05");
         if (welding.TargetId != "scene3-interaction-024" || frequency.TargetId != "scene3-interaction-025")
             throw new InvalidDataException("焊接與調頻 OBJ 必須保留正式遊戲使用的解謎完成 ID。");
         var issues = QuestValidator.Validate(document, references);
+        if (issues.Any(issue => ReferenceEquals(issue.Target, starCards) && issue.Severity == ValidationSeverity.Error))
+            throw new InvalidDataException("星際牌勝利 OBJ 不應出現驗證錯誤。");
+        if (issues.Any(issue => ReferenceEquals(issue.Target, busCard) && issue.Severity == ValidationSeverity.Error))
+            throw new InvalidDataException("匯流排解謎 OBJ 不應出現驗證錯誤。");
         if (issues.Any(issue => (ReferenceEquals(issue.Target, welding) || ReferenceEquals(issue.Target, frequency)) &&
                                 issue.Severity == ValidationSeverity.Error && issue.Message.Contains("Puzzle")))
             throw new InvalidDataException("地圖中存在的焊接或調頻解謎被誤判為找不到 Puzzle ID。");
@@ -154,7 +166,7 @@ internal static class Program
                 issue.Severity == ValidationSeverity.Error && issue.Message.Contains($"找不到 Puzzle ID：{invalidId}")))
                 throw new InvalidDataException($"無效解謎目標仍必須被驗證阻擋：{invalidId}");
         }
-        Console.WriteLine("Puzzle references passed: power routing, welding, frequency, plant; invalid targets rejected.");
+        Console.WriteLine("Puzzle references passed: power routing, welding, frequency, plant, bus card; invalid targets rejected.");
     }
 
     private static void ValidateScriptActivationAndSubmitTargets(string projectRoot, QuestReferenceCatalog references)

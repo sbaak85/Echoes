@@ -1,4 +1,5 @@
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -38,6 +39,13 @@ public enum SceneLayerKind
 public readonly record struct LayerSelection(SceneLayerKind Kind, int Index)
 {
     public static readonly LayerSelection None = new(SceneLayerKind.None, -1);
+}
+
+internal enum SceneLayerFilter
+{
+    All,
+    ExcludeSelected,
+    OnlySelected,
 }
 
 internal enum DragMode
@@ -142,6 +150,19 @@ public sealed class EditorCanvas : Control
     private bool _endingCapture;
     private bool _paintFailureReported;
     private bool _fastRenderOnce;
+    // 視圖快取：平移、滾輪縮放與拖曳節點時，把場景先畫進一張比畫面大一圈的點陣圖，
+    // 互動期間只位移／縮放貼上這張圖，不再逐格重畫所有 NavMesh 與互動多邊形。
+    // 拖曳節點時快取不含正在編輯的圖形，該圖形與控制點每格即時重畫在快取之上。
+    private Bitmap? _viewCache;
+    private PointF _viewCachePan;
+    private float _viewCacheZoom;
+    private int _viewCacheMargin;
+    private bool _viewCacheExcludesSelection;
+    private LayerSelection _viewCacheSelection = LayerSelection.None;
+    private bool _buildingViewCache;
+    private bool _zoomInteractive;
+    private SceneLayerFilter _sceneLayerFilter = SceneLayerFilter.All;
+    private readonly System.Windows.Forms.Timer _zoomSettleTimer;
     private string? _mutationBefore;
 
     public EditorCanvas()
@@ -157,6 +178,14 @@ public sealed class EditorCanvas : Control
         ForeColor = Color.Gainsboro;
         TabStop = true;
         _renderTimer = new System.Windows.Forms.Timer { Interval = 16 };
+        // 滾輪停止一小段時間後，以完整品質重畫一次。
+        _zoomSettleTimer = new System.Windows.Forms.Timer { Interval = 180 };
+        _zoomSettleTimer.Tick += (_, _) =>
+        {
+            _zoomSettleTimer.Stop();
+            _zoomInteractive = false;
+            if (!IsDisposed && !Disposing && IsHandleCreated) Invalidate();
+        };
         _renderTimer.Tick += (_, _) =>
         {
             _renderTimer.Stop();
@@ -329,6 +358,7 @@ public sealed class EditorCanvas : Control
     public void ZoomBy(float factor)
     {
         var content = ContentRectangle;
+        BeginInteractiveZoom();
         SetZoomAt(_zoom * factor, new Point(content.Left + content.Width / 2, content.Top + content.Height / 2));
     }
 
@@ -1418,7 +1448,7 @@ public sealed class EditorCanvas : Control
             graphics.Clear(BackColor);
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-            DrawScene(graphics);
+            DrawSceneWithViewCache(graphics);
             DrawRulers(graphics);
             _paintFailureReported = false;
         }
@@ -1464,6 +1494,167 @@ public sealed class EditorCanvas : Control
         }
     }
 
+    private bool IsNodeDragging =>
+        _dragMode != DragMode.None && _selection.Kind != SceneLayerKind.None;
+
+    private void DrawSceneWithViewCache(Graphics graphics)
+    {
+        var content = ContentRectangle;
+        var viewMoving = _panning || _zoomInteractive;
+        var dragging = !viewMoving && IsNodeDragging;
+        if ((viewMoving || dragging) && TryDrawViewCache(graphics, content, dragging))
+        {
+            if (dragging)
+            {
+                // 只即時重畫正在編輯的圖形、草稿與控制點。
+                _sceneLayerFilter = SceneLayerFilter.OnlySelected;
+                try { DrawScene(graphics, content); }
+                finally { _sceneLayerFilter = SceneLayerFilter.All; }
+            }
+            return;
+        }
+
+        if (!viewMoving && !dragging) DisposeViewCache();
+        DrawScene(graphics, content);
+    }
+
+    private bool TryDrawViewCache(Graphics graphics, Rectangle content, bool excludeSelection)
+    {
+        if (_sceneImage is null || content.Width <= 0 || content.Height <= 0) return false;
+        if (!IsViewCacheUsable(content, excludeSelection) &&
+            !BuildViewCache(content, excludeSelection)) return false;
+
+        var cache = _viewCache!;
+        var scale = _zoom / _viewCacheZoom;
+        // 快取左上角像素對應的畫面座標（screen = RulerSize + pan + world × zoom）。
+        var cacheLeft = RulerSize + _pan.X + (content.Left - _viewCacheMargin - RulerSize - _viewCachePan.X) * scale;
+        var cacheTop = RulerSize + _pan.Y + (content.Top - _viewCacheMargin - RulerSize - _viewCachePan.Y) * scale;
+
+        var state = graphics.Save();
+        graphics.SetClip(content);
+        using (var contentBackground = new SolidBrush(Color.FromArgb(13, 16, 21)))
+        {
+            graphics.FillRectangle(contentBackground, content);
+        }
+        graphics.CompositingMode = CompositingMode.SourceCopy;
+        graphics.CompositingQuality = CompositingQuality.HighSpeed;
+        graphics.PixelOffsetMode = PixelOffsetMode.HighSpeed;
+        if (Math.Abs(scale - 1f) < 0.0001f)
+        {
+            graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+            graphics.DrawImageUnscaled(cache, (int)Math.Round(cacheLeft), (int)Math.Round(cacheTop));
+        }
+        else
+        {
+            // 只取畫面看得到的那一塊來縮放，避免每格縮放整張大圖。
+            // 縮放中用最近鄰取樣（雙線性慢約 4 倍）；滾輪停下後會以完整品質重畫。
+            var source = RectangleF.Intersect(
+                new RectangleF(0, 0, cache.Width, cache.Height),
+                new RectangleF(
+                    (content.Left - cacheLeft) / scale,
+                    (content.Top - cacheTop) / scale,
+                    content.Width / scale,
+                    content.Height / scale));
+            if (source.Width > 0 && source.Height > 0)
+            {
+                graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+                graphics.DrawImage(
+                    cache,
+                    new RectangleF(
+                        cacheLeft + source.X * scale,
+                        cacheTop + source.Y * scale,
+                        source.Width * scale,
+                        source.Height * scale),
+                    source,
+                    GraphicsUnit.Pixel);
+            }
+        }
+        graphics.Restore(state);
+        return true;
+    }
+
+    private bool IsViewCacheUsable(Rectangle content, bool excludeSelection)
+    {
+        if (_viewCache is null ||
+            _viewCacheExcludesSelection != excludeSelection ||
+            (excludeSelection && _viewCacheSelection != _selection) ||
+            _viewCache.Width != content.Width + _viewCacheMargin * 2 ||
+            _viewCache.Height != content.Height + _viewCacheMargin * 2)
+        {
+            return false;
+        }
+
+        // 縮放超過 2 倍或小於一半時畫質／覆蓋範圍不足，重建一次。
+        var scale = _zoom / _viewCacheZoom;
+        if (scale > 2f || scale < 0.5f) return false;
+        var cacheLeft = RulerSize + _pan.X + (content.Left - _viewCacheMargin - RulerSize - _viewCachePan.X) * scale;
+        var cacheTop = RulerSize + _pan.Y + (content.Top - _viewCacheMargin - RulerSize - _viewCachePan.Y) * scale;
+        return cacheLeft <= content.Left + 0.5f &&
+            cacheTop <= content.Top + 0.5f &&
+            cacheLeft + _viewCache.Width * scale >= content.Right - 0.5f &&
+            cacheTop + _viewCache.Height * scale >= content.Bottom - 0.5f;
+    }
+
+    private bool BuildViewCache(Rectangle content, bool excludeSelection)
+    {
+        DisposeViewCache();
+        // 平移／縮放：四周各多畫半個畫面，超出範圍時才重建一次。
+        // 拖曳節點時畫面不會移動，不需要外圍，建立快取的成本和一般重畫相同。
+        var margin = excludeSelection ? 0 : Math.Max(content.Width, content.Height) / 2;
+        try
+        {
+            var cache = new Bitmap(
+                content.Width + margin * 2,
+                content.Height + margin * 2,
+                PixelFormat.Format32bppPArgb);
+            using (var graphics = Graphics.FromImage(cache))
+            {
+                graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                graphics.TranslateTransform(margin - content.Left, margin - content.Top);
+                _buildingViewCache = true;
+                _sceneLayerFilter = excludeSelection ? SceneLayerFilter.ExcludeSelected : SceneLayerFilter.All;
+                try { DrawScene(graphics, Rectangle.Inflate(content, margin, margin)); }
+                finally
+                {
+                    _buildingViewCache = false;
+                    _sceneLayerFilter = SceneLayerFilter.All;
+                }
+            }
+            _viewCache = cache;
+            _viewCachePan = _pan;
+            _viewCacheZoom = _zoom;
+            _viewCacheMargin = margin;
+            _viewCacheExcludesSelection = excludeSelection;
+            _viewCacheSelection = _selection;
+            return true;
+        }
+        catch (Exception exception) when (exception is ArgumentException or OutOfMemoryException or ExternalException)
+        {
+            DisposeViewCache();
+            return false;
+        }
+    }
+
+    private void DisposeViewCache()
+    {
+        _viewCache?.Dispose();
+        _viewCache = null;
+    }
+
+    private void BeginInteractiveZoom()
+    {
+        _zoomInteractive = true;
+        _zoomSettleTimer.Stop();
+        _zoomSettleTimer.Start();
+    }
+
+    private bool SkipLayer(SceneLayerKind kind, int index)
+    {
+        if (_sceneLayerFilter == SceneLayerFilter.All) return false;
+        var selected = _selection.Kind == kind && _selection.Index == index;
+        return _sceneLayerFilter == SceneLayerFilter.ExcludeSelected ? selected : !selected;
+    }
+
     internal void RequestFastRender()
     {
         if (IsDisposed || Disposing) return;
@@ -1481,19 +1672,25 @@ public sealed class EditorCanvas : Control
             _worldPointContextMenu.Dispose();
             _sceneImage?.Dispose();
             ClearForegroundCache();
+            _zoomSettleTimer.Stop();
+            _zoomSettleTimer.Dispose();
+            DisposeViewCache();
             _sceneImage = null;
         }
 
         base.Dispose(disposing);
     }
 
-    private void DrawScene(Graphics graphics)
+    private void DrawScene(Graphics graphics, Rectangle content)
     {
-        var content = ContentRectangle;
+        // 拖曳節點時：ExcludeSelected 畫進快取（背景與其他圖形），OnlySelected 每格疊在快取上。
+        var staticPass = _sceneLayerFilter != SceneLayerFilter.OnlySelected;
+        var livePass = _sceneLayerFilter != SceneLayerFilter.ExcludeSelected;
         var state = graphics.Save();
         graphics.SetClip(content);
-        using (var contentBackground = new SolidBrush(Color.FromArgb(13, 16, 21)))
+        if (staticPass)
         {
+            using var contentBackground = new SolidBrush(Color.FromArgb(13, 16, 21));
             graphics.FillRectangle(contentBackground, content);
         }
         graphics.TranslateTransform(RulerSize + _pan.X, RulerSize + _pan.Y);
@@ -1506,8 +1703,8 @@ public sealed class EditorCanvas : Control
             return;
         }
 
-        var interactionActive =
-            _fastRenderOnce || _panning || _dragMode != DragMode.None || _shapeStart.HasValue;
+        var interactionActive = !_buildingViewCache &&
+            (_fastRenderOnce || _panning || _zoomInteractive || _dragMode != DragMode.None || _shapeStart.HasValue);
         graphics.InterpolationMode = interactionActive
             ? InterpolationMode.Bilinear
             : _zoom >= 1.5f
@@ -1519,11 +1716,14 @@ public sealed class EditorCanvas : Control
         graphics.CompositingQuality = interactionActive
             ? CompositingQuality.HighSpeed
             : CompositingQuality.HighQuality;
-        graphics.DrawImage(
-            _sceneImage,
-            new RectangleF(0, 0, _document.World.Width, _document.World.Height));
-        DrawForegroundImages(graphics);
-        DrawGrid(graphics);
+        if (staticPass)
+        {
+            graphics.DrawImage(
+                _sceneImage,
+                new RectangleF(0, 0, _document.World.Width, _document.World.Height));
+            DrawForegroundImages(graphics);
+            DrawGrid(graphics);
+        }
         DrawNavMesh(graphics);
         DrawCollisions(graphics);
         DrawInteractables(graphics);
@@ -1533,9 +1733,12 @@ public sealed class EditorCanvas : Control
         DrawTeleportPoints(graphics);
         DrawEntryPoints(graphics);
         DrawItemPoints(graphics);
-        DrawSpawn(graphics);
-        DrawDraft(graphics);
-        DrawSelectionHandles(graphics);
+        if (staticPass) DrawSpawn(graphics);
+        if (livePass)
+        {
+            DrawDraft(graphics);
+            DrawSelectionHandles(graphics);
+        }
         graphics.Restore(state);
     }
 
@@ -1585,6 +1788,7 @@ public sealed class EditorCanvas : Control
 
         for (var index = 0; index < _document.NavMesh.Count; index++)
         {
+            if (SkipLayer(SceneLayerKind.NavMesh, index)) continue;
             var points = ToPointFArray(_document.NavMesh[index].Points);
             if (points.Length < 3) continue;
             graphics.FillPolygon(fill, points);
@@ -1604,6 +1808,7 @@ public sealed class EditorCanvas : Control
 
         for (var index = 0; index < _document.Collisions.Count; index++)
         {
+            if (SkipLayer(SceneLayerKind.Collision, index)) continue;
             var collision = _document.Collisions[index];
             var selected = _selection == new LayerSelection(SceneLayerKind.Collision, index);
 
@@ -1643,6 +1848,7 @@ public sealed class EditorCanvas : Control
 
         for (var index = 0; index < _document.Interactables.Count; index++)
         {
+            if (SkipLayer(SceneLayerKind.Interactable, index)) continue;
             var interactable = _document.Interactables[index];
             var points = ToPointFArray(interactable.Points);
             if (points.Length < 3) continue;
@@ -1756,6 +1962,7 @@ public sealed class EditorCanvas : Control
 
         for (var index = 0; index < _document.StoryTriggers.Count; index++)
         {
+            if (SkipLayer(SceneLayerKind.StoryTrigger, index)) continue;
             var points = ToPointFArray(_document.StoryTriggers[index].Points);
             if (points.Length < 3) continue;
             graphics.FillPolygon(fill, points);
@@ -1779,6 +1986,7 @@ public sealed class EditorCanvas : Control
 
         for (var index = 0; index < _document.Connections.Count; index++)
         {
+            if (SkipLayer(SceneLayerKind.SceneConnection, index)) continue;
             var connection = _document.Connections[index];
             var points = ToPointFArray(connection.Area);
             if (points.Length < 3) continue;
@@ -1805,6 +2013,7 @@ public sealed class EditorCanvas : Control
     {
         for (var index = 0; index < _document.MovementGuides.Count; index++)
         {
+            if (SkipLayer(SceneLayerKind.MovementGuide, index)) continue;
             var guide = _document.MovementGuides[index];
             var points = ToPointFArray(guide.Points);
             if (points.Length < 2) continue;
@@ -1877,6 +2086,7 @@ public sealed class EditorCanvas : Control
         using var labelBrush = new SolidBrush(Color.FromArgb(245, 190, 255, 255));
         for (var index = 0; index < _document.TeleportPoints.Count; index++)
         {
+            if (SkipLayer(SceneLayerKind.TeleportPoint, index)) continue;
             var point = _document.TeleportPoints[index];
             var selected = _selection == new LayerSelection(SceneLayerKind.TeleportPoint, index);
             var radius = (selected ? 11f : 9f) / _zoom;
@@ -1906,6 +2116,7 @@ public sealed class EditorCanvas : Control
         using var labelBrush = new SolidBrush(Color.FromArgb(250, 255, 222, 168));
         for (var index = 0; index < _document.EntryPoints.Count; index++)
         {
+            if (SkipLayer(SceneLayerKind.EntryPoint, index)) continue;
             var point = _document.EntryPoints[index];
             var selected = _selection == new LayerSelection(SceneLayerKind.EntryPoint, index);
             var radius = (selected ? 12f : 10f) / _zoom;
@@ -1942,6 +2153,7 @@ public sealed class EditorCanvas : Control
         using var labelBrush = new SolidBrush(Color.FromArgb(235, 255, 245, 184));
         for (var index = 0; index < _document.ItemPoints.Count; index++)
         {
+            if (SkipLayer(SceneLayerKind.ItemPoint, index)) continue;
             var point = _document.ItemPoints[index];
             var selected = _selection == new LayerSelection(SceneLayerKind.ItemPoint, index);
             var radius = (selected ? 10f : 8f) / _zoom;
@@ -2372,6 +2584,7 @@ public sealed class EditorCanvas : Control
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
+        BeginInteractiveZoom();
         SetZoomAt(_zoom * (e.Delta > 0 ? 1.12f : 1f / 1.12f), e.Location);
     }
 

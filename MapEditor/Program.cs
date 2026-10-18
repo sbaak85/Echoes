@@ -181,6 +181,7 @@ internal static class Program
                                 new QuestStageCatalogEntry(
                                     "QUEST_UI_TEST_STAGE_01",
                                     "第一階段"),
+                                new QuestStageCatalogEntry("QUEST_UI_TEST_STAGE_02", "移除階段"),
                             }),
                     },
                     new[]
@@ -296,6 +297,41 @@ internal static class Program
                         throw new InvalidDataException(
                             "任務階段啟用條件未正確載入 OBJ，或不能保留待設定的關閉條件。");
                     }
+                    var removeQuestCombo = questObjectiveRequirementEditor.Controls
+                        .Find("removeQuest", true).OfType<ComboBox>().Single();
+                    var removeStageCombo = questObjectiveRequirementEditor.Controls
+                        .Find("removeStage", true).OfType<ComboBox>().Single();
+                    if (!removeQuestCombo.Enabled || removeQuestCombo.SelectedIndex != 0)
+                        throw new InvalidDataException("獨立移除條件應可設定且預設空白。");
+                    disableQuestCombo.SelectedIndex = 1;
+                    var disableStageCombo = questObjectiveRequirementEditor.Controls
+                        .Find("disableStage", true).OfType<ComboBox>().Single();
+                    disableStageCombo.SelectedIndex = 1;
+                    removeQuestCombo.SelectedIndex = 1;
+                    removeStageCombo.SelectedIndex = 2;
+                    var modeCombo = questObjectiveRequirementEditor.Controls
+                        .Find("stageMode", true).OfType<ComboBox>().Single();
+                    modeCombo.SelectedIndex = 0;
+                    if (!removeQuestCombo.Enabled || !removeStageCombo.Enabled)
+                        throw new InvalidDataException("移除條件不可受啟用模式限制。");
+                    modeCombo.SelectedIndex = 2;
+                    questObjectiveRequirementEditor.Location = new Point(-20000, -20000);
+                    questObjectiveRequirementEditor.WindowState = FormWindowState.Normal;
+                    System.Windows.Forms.Application.DoEvents();
+                    if (projectRoot is not null)
+                    {
+                        var previewPath = Path.Combine(projectRoot, "output", "interaction-retirement-editor.png");
+                        Directory.CreateDirectory(Path.GetDirectoryName(previewPath)!);
+                        using var bitmap = new Bitmap(questObjectiveRequirementEditor.Width, questObjectiveRequirementEditor.Height);
+                        questObjectiveRequirementEditor.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                        bitmap.Save(previewPath, System.Drawing.Imaging.ImageFormat.Png);
+                    }
+                    ((Button)questObjectiveRequirementEditor.AcceptButton!).PerformClick();
+                    if (questObjectiveRequirementEditor.Requirement.RemoveQuestId != "QUEST_UI_TEST" ||
+                        questObjectiveRequirementEditor.Requirement.RemoveStageId != "QUEST_UI_TEST_STAGE_02" ||
+                        questObjectiveRequirementEditor.Requirement.DisableQuestId != "QUEST_UI_TEST" ||
+                        questObjectiveRequirementEditor.Requirement.DisableStageId != "QUEST_UI_TEST_STAGE_01")
+                        throw new InvalidDataException("移除與關閉條件未獨立保存。");
                     questObjectiveRequirementEditor.Close();
                     dialogueEditor.Show();
                     System.Windows.Forms.Application.DoEvents();
@@ -432,7 +468,9 @@ internal static class EditorSelfTest
         var scene = SceneJson.Load(scenePath);
         SceneJson.Validate(scene);
         if (
-            ItemCatalog.All.Count != 68 ||
+            ItemCatalog.All.Count != 69 ||
+            ItemCatalog.Find("uc-cargo-clamp")?.Id != "T0015" ||
+            ItemCatalog.Find("T0015")?.Name != "UC型扣具" ||
             ItemCatalog.Find("faint-torch")?.Id != "T0014" ||
             ItemCatalog.Find("T0014")?.Name != "微弱的火把" ||
             ItemCatalog.Find("empty-test-tube")?.Id != "R0036" ||
@@ -873,6 +911,10 @@ internal static class EditorSelfTest
                 DisableStageId = "QUEST_TEST_CLOSE_STAGE_01",
                 DisableObjectiveId = "QUEST_TEST_CLOSE_OBJ_01",
                 DisableObjectiveState = "unlocked",
+                RemoveQuestId = "QUEST_TEST_REMOVE",
+                RemoveStageId = "QUEST_TEST_REMOVE_STAGE_03",
+                RemoveObjectiveId = "QUEST_TEST_REMOVE_OBJ_03",
+                RemoveObjectiveState = "completed",
             },
         };
         multiPointInteractable.AllowAttemptWhenRequirementsUnmet = true;
@@ -936,12 +978,38 @@ internal static class EditorSelfTest
                     DisableStageId: "QUEST_TEST_CLOSE_STAGE_01",
                     DisableObjectiveId: "QUEST_TEST_CLOSE_OBJ_01",
                     DisableObjectiveState: "unlocked",
+                    RemoveQuestId: "QUEST_TEST_REMOVE",
+                    RemoveStageId: "QUEST_TEST_REMOVE_STAGE_03",
+                    RemoveObjectiveId: "QUEST_TEST_REMOVE_OBJ_03",
+                    RemoveObjectiveState: "completed",
                 }
         )
         {
             throw new InvalidDataException(
                 "Interaction Points, hint Point, survival settings, item reward, requirements, dialogue phases, or weighted dialogue groups did not survive JSON round-trip.");
         }
+
+        var legacyRemovalRequirement = new InteractionUseRequirement
+        {
+            Kind = "questStage", StageMode = "UnlockUntilCondition",
+            RemoveWhenDisabled = true, DisableQuestId = "Q", DisableStageId = "S2",
+            DisableObjectiveId = "O2", DisableObjectiveState = "completed",
+        };
+        legacyRemovalRequirement.NormalizeRemovalCondition();
+        if (legacyRemovalRequirement is not
+            { RemoveWhenDisabled: false, RemoveQuestId: "Q", RemoveStageId: "S2",
+              RemoveObjectiveId: "O2", RemoveObjectiveState: "completed" })
+            throw new InvalidDataException("舊版移除條件未轉換成獨立條件。");
+        legacyRemovalRequirement.StageMode = "CurrentStageOnly";
+        legacyRemovalRequirement.DisableQuestId = legacyRemovalRequirement.DisableStageId = "";
+        legacyRemovalRequirement.NormalizeRemovalCondition();
+        if (legacyRemovalRequirement.RemoveStageId != "S2")
+            throw new InvalidDataException("移除條件不應依賴啟用模式或關閉條件。");
+        legacyRemovalRequirement.RemoveStageId = "";
+        legacyRemovalRequirement.NormalizeRemovalCondition();
+        if (legacyRemovalRequirement is not
+            { RemoveQuestId: null, RemoveStageId: null, RemoveObjectiveId: null, RemoveObjectiveState: null })
+            throw new InvalidDataException("不完整移除條件未清理。");
 
         var pendingCloseDocument = SceneJson.Deserialize(SceneJson.Serialize(multiPointRoundTrip));
         var pendingCloseRequirement = pendingCloseDocument.Interactables[0]
@@ -960,6 +1028,8 @@ internal static class EditorSelfTest
                 DisableStageId: "",
                 DisableObjectiveId: null,
                 DisableObjectiveState: null,
+                RemoveWhenDisabled: false,
+                RemoveStageId: "QUEST_TEST_REMOVE_STAGE_03",
             })
         {
             throw new InvalidDataException(
@@ -1034,6 +1104,10 @@ internal static class EditorSelfTest
                         DisableStageId: "QUEST_TEST_CLOSE_STAGE_01",
                         DisableObjectiveId: "QUEST_TEST_CLOSE_OBJ_01",
                         DisableObjectiveState: "unlocked",
+                        RemoveQuestId: "QUEST_TEST_REMOVE",
+                    RemoveStageId: "QUEST_TEST_REMOVE_STAGE_03",
+                    RemoveObjectiveId: "QUEST_TEST_REMOVE_OBJ_03",
+                    RemoveObjectiveState: "completed",
                     } ||
                 requirementsEditor.ItemRewards.Count != 2 ||
                 requirementsEditor.ItemRewards[0] is not

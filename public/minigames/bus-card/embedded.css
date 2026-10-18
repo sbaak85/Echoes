@@ -1,0 +1,10 @@
+/* The host owns the Game 1-style backdrop; retain board and card artwork. */
+:root {
+  color-scheme: normal;
+  background: transparent;
+  scrollbar-color: #51646b rgba(3, 12, 16, 0.65);
+}
+
+body {
+  background: transparent;
+}

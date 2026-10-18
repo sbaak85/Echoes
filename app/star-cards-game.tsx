@@ -17,6 +17,8 @@ import {
 import {
   STAR_CARD_DECK,
   STAR_CARD_LANES,
+  getStarCardsMatchWinner,
+  type StarCardsMatchResult,
   canPlaceStarCard,
   compareStarCards,
   createStarCardsImpactParticleLayout,
@@ -119,6 +121,7 @@ type HandFloatMotion = {
 
 type StarCardsGameProps = {
   onClose: () => void;
+  onMatchCompleted?: (result: StarCardsMatchResult) => void;
   audioEvents: Pick<AudioEventManager, "play"> | null;
   initialGamepadMode?: boolean;
   gamepadMode?: boolean;
@@ -203,7 +206,6 @@ type StarCardsAudioEventName =
 const PLAYER_HAND_X = [33.4, 50, 66.6] as const;
 const PLAYER_HAND_BOTTOM = [5.9, 10.6, 5.9] as const;
 const PLAYER_HAND_ROTATION = [-5, 0, 5] as const;
-const STAR_CARDS_WINS_TO_MATCH = 3;
 const STAR_CARD_PLACE_FEEDBACK_MS = 320;
 const STAR_CARD_REJECT_RETURN_MS = 320;
 const STAR_CARD_DROP_FEEDBACK_MS = 1100;
@@ -259,10 +261,19 @@ function getPhaseMessage(phase: StarCardsPhase) {
 
 export function StarCardsGame({
   onClose,
+  onMatchCompleted,
   audioEvents,
   initialGamepadMode = false,
   gamepadMode = initialGamepadMode,
 }: StarCardsGameProps) {
+  const matchReportedRef = useRef(false);
+  const [exitPromptOpen, setExitPromptOpen] = useState(false);
+  const exitPromptRef = useRef(false);
+  const [exitChoice, setExitChoice] = useState(0);
+  const exitChoiceRef = useRef(0);
+  const [exitHoverChoice, setExitHoverChoice] = useState<number | null>(null);
+  const exitDialogRef = useRef<HTMLDivElement | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const [playerInitialDeck] = useState(() => createOwnerDeck("player", 1));
   const [aiInitialDeck] = useState(() => createOwnerDeck("ai", 1));
 
@@ -344,19 +355,21 @@ export function StarCardsGame({
   const dropLaneBoundsRef = useRef<DropLaneBounds | null>(null);
   const dragFrameRef = useRef<number | null>(null);
   const hoveredLaneRef = useRef<StarCardLane | null>(null);
-  const timersRef = useRef<number[]>([]);
+  const timersRef = useRef<{ timer: number; remaining: number; started: number; run: () => void }[]>([]);
   const placementPromptRef = useRef<PlacementPromptState | null>(null);
   const placementPromptSerialRef = useRef(0);
   const placementPromptRequestRef = useRef(0);
   const dropFeedbackSerialRef = useRef(0);
 
   const schedule = useCallback((callback: () => void, delayMs: number) => {
-    const timer = window.setTimeout(() => {
-      timersRef.current = timersRef.current.filter((candidate) => candidate !== timer);
+    const task = { timer: 0, remaining: delayMs, started: performance.now(), run: () => {} };
+    task.run = () => {
+      timersRef.current = timersRef.current.filter((candidate) => candidate !== task);
       callback();
-    }, delayMs);
-    timersRef.current.push(timer);
-    return timer;
+    };
+    if (!exitPromptRef.current) task.timer = window.setTimeout(task.run, delayMs);
+    timersRef.current.push(task);
+    return task.timer;
   }, []);
 
   const markCardsRevealingFront = useCallback((cardIds: readonly string[]) => {
@@ -499,7 +512,7 @@ export function StarCardsGame({
       showPlacementPrompt("initial");
     }, 920);
     return () => {
-      timersRef.current.forEach((timer) => window.clearTimeout(timer));
+      timersRef.current.forEach((task) => window.clearTimeout(task.timer));
       timersRef.current = [];
     };
   }, [initialGamepadMode, playInitialDealAudio, schedule, showPlacementPrompt]);
@@ -574,6 +587,62 @@ export function StarCardsGame({
     setDragging(null);
     setHoveredLane(null);
   }, [stopDragFrame]);
+
+  const requestExit = useCallback(() => {
+    if (exitPromptRef.current) return;
+    exitPromptRef.current = true;
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    timersRef.current.forEach((task) => {
+      window.clearTimeout(task.timer);
+      task.remaining = Math.max(0, task.remaining - (performance.now() - task.started));
+    });
+    const drag = draggingRef.current;
+    const element = dragElementRef.current;
+    if (drag && element?.hasPointerCapture(drag.pointerId)) element.releasePointerCapture(drag.pointerId);
+    clearDragInteraction();
+    setHeldCardId(null);
+    setHoveredHandCardId(null);
+    exitChoiceRef.current = 0;
+    setExitChoice(0);
+    setExitPromptOpen(true);
+  }, [clearDragInteraction]);
+
+  const resumeMatch = useCallback(() => {
+    if (!exitPromptRef.current) return;
+    exitPromptRef.current = false;
+    timersRef.current.forEach((task) => {
+      task.started = performance.now();
+      task.timer = window.setTimeout(task.run, task.remaining);
+    });
+    setExitPromptOpen(false);
+  }, []);
+
+  const confirmExit = useCallback(() => {
+    // Clear pending results before the parent unmounts; abandoning never reports a win.
+    timersRef.current.forEach((task) => window.clearTimeout(task.timer));
+    timersRef.current = [];
+    onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (exitPromptOpen) exitDialogRef.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+    else if (returnFocusRef.current) {
+      if (returnFocusRef.current.isConnected) returnFocusRef.current.focus({ preventScroll: true });
+      returnFocusRef.current = null;
+    }
+  }, [exitPromptOpen]);
+
+  const moveExitChoice = useCallback(() => {
+    cursorOwnership.take("directional");
+    navigationRef.current.mode = "directional";
+    setNavigationMode("directional");
+    exitChoiceRef.current = 1 - exitChoiceRef.current;
+    setExitChoice(exitChoiceRef.current);
+    exitDialogRef.current?.querySelectorAll<HTMLButtonElement>("button")[exitChoiceRef.current]?.focus({ preventScroll: true });
+  }, []);
+
+  const exitActionsRef = useRef({ requestExit, resumeMatch, confirmExit, moveExitChoice });
+  exitActionsRef.current = { requestExit, resumeMatch, confirmExit, moveExitChoice };
 
   const returnDraggedCardToIdle = useCallback((
     activeDrag: DragState,
@@ -1058,11 +1127,9 @@ export function StarCardsGame({
           return;
         }
 
-        const matchWinner = nextPlayerGameWins >= STAR_CARDS_WINS_TO_MATCH
-          ? "PLAYER"
-          : nextAiGameWins >= STAR_CARDS_WINS_TO_MATCH
-            ? "OWEN"
-            : null;
+        const result = { playerWins: nextPlayerGameWins, aiWins: nextAiGameWins };
+        const winner = getStarCardsMatchWinner(result);
+        const matchWinner = winner === "player" ? "PLAYER" : winner === "ai" ? "OWEN" : null;
         if (matchWinner) {
           const resolvedMatchWinner = matchWinner;
           setAnnouncement(
@@ -1074,6 +1141,10 @@ export function StarCardsGame({
               : { text: "失敗了…", outcome: "defeat" },
           );
           schedule(() => setMatchResultBanner(null), 950);
+          if (!matchReportedRef.current) {
+            matchReportedRef.current = true;
+            onMatchCompleted?.(result);
+          }
           return;
         }
 
@@ -1083,7 +1154,7 @@ export function StarCardsGame({
         schedule(() => prepareNextGame(currentGame + 1), 2400);
       }, 900);
     }, 2050);
-  }, [aiGameWins, aiPlaced, aiRemainingDeck.length, currentGame, phase, playExplosionAudioSet, playRandomAudioSet, playStarCardsAudio, playerDrawnCount, playerGameWins, playerPlaced, playerRemainingDeck.length, playerScore, aiScore, markCardsRevealingFront, prepareNextGame, schedule]);
+  }, [aiGameWins, aiPlaced, aiRemainingDeck.length, currentGame, phase, playExplosionAudioSet, playRandomAudioSet, playStarCardsAudio, playerDrawnCount, playerGameWins, playerPlaced, playerRemainingDeck.length, playerScore, aiScore, markCardsRevealingFront, prepareNextGame, schedule, onMatchCompleted]);
 
   const liftPlacedDrawCard = useCallback(() => {
     const placed = playerPlaced.find(
@@ -1174,12 +1245,14 @@ export function StarCardsGame({
   useEffect(() => {
     const handleVirtualCursor = (event: Event) => {
       if (cursorOwnership.owner !== "gamepad") return;
-      const detail = (event as CustomEvent<{ cardId?: string | null }>).detail;
+      const detail = (event as CustomEvent<{ cardId?: string | null; exitChoice?: number | null }>).detail;
       navigationRef.current.mode = "pointer";
       setNavigationMode("pointer");
-      setHoveredHandCardId(detail?.cardId ?? null);
+      setHoveredHandCardId(exitPromptRef.current ? null : detail?.cardId ?? null);
+      setExitHoverChoice(exitPromptRef.current ? detail?.exitChoice ?? null : null);
     };
     const syncDirectionalOwner = () => {
+      setExitHoverChoice(null);
       if (cursorOwnership.owner !== "directional") return;
       navigationRef.current.mode = "directional";
       setNavigationMode("directional");
@@ -1283,25 +1356,34 @@ export function StarCardsGame({
               ? 1
               : Math.abs(gamepad.axes[0] ?? 0) >= 0.65
                 ? Math.sign(gamepad.axes[0] ?? 0)
-                : 0;
+                : exitPromptRef.current && (gamepad.buttons[12]?.pressed || gamepad.buttons[13]?.pressed || Math.abs(gamepad.axes[1] ?? 0) >= 0.65)
+                  ? 1 : 0;
         if (horizontal === 0) horizontalArmed = true;
         else if (horizontalArmed) {
           horizontalArmed = false;
-          navigationRef.current.move(horizontal);
+          if (exitPromptRef.current) exitActionsRef.current.moveExitChoice();
+          else navigationRef.current.move(horizontal);
         }
         const confirm = Boolean(gamepad.buttons[0]?.pressed);
+        const cancel = Boolean(gamepad.buttons[1]?.pressed || gamepad.buttons[8]?.pressed);
         if (
           confirm &&
           !confirmHeld &&
+          !cancel &&
           navigationRef.current.mode === "directional"
         ) {
-          navigationRef.current.activate();
+          if (exitPromptRef.current) {
+            if (exitChoiceRef.current === 0) exitActionsRef.current.resumeMatch();
+            else exitActionsRef.current.confirmExit();
+          } else navigationRef.current.activate();
         }
         confirmHeld = confirm;
-        const cancel = Boolean(gamepad.buttons[1]?.pressed || gamepad.buttons[8]?.pressed);
-        if (cancel && !cancelHeld) onClose();
+        if (cancel && !cancelHeld) {
+          if (exitPromptRef.current) exitActionsRef.current.resumeMatch();
+          else exitActionsRef.current.requestExit();
+        }
         cancelHeld = cancel;
-      }
+      } else { confirmHeld = false; cancelHeld = false; horizontalArmed = true; }
       frame = window.requestAnimationFrame(pollGamepad);
     };
     frame = window.requestAnimationFrame(pollGamepad);
@@ -1313,7 +1395,26 @@ export function StarCardsGame({
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopImmediatePropagation();
-        onClose();
+        if (!event.repeat) {
+          if (exitPromptRef.current) resumeMatch();
+          else requestExit();
+        }
+        return;
+      }
+      if (exitPromptRef.current) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (event.repeat) return;
+        if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab"].includes(event.key)) moveExitChoice();
+        else if (event.key === "Enter" || event.key === " ") {
+          if (navigationRef.current.mode !== "directional") {
+            cursorOwnership.take("directional");
+            navigationRef.current.mode = "directional";
+            setNavigationMode("directional");
+          }
+          if (exitChoiceRef.current === 0) resumeMatch();
+          else confirmExit();
+        }
         return;
       }
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
@@ -1338,7 +1439,7 @@ export function StarCardsGame({
     };
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [heldCardId, onClose, placeCard]);
+  }, [heldCardId, requestExit, resumeMatch, confirmExit, moveExitChoice, placeCard]);
 
   const beginDrag = (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -1710,6 +1811,8 @@ export function StarCardsGame({
         ref={dialogRef}
         className={`star-cards-dialog is-${phase}${handPreselectionActive ? " has-hand-preselection" : ""}`}
         data-navigation-mode={navigationMode}
+        inert={exitPromptOpen}
+        aria-hidden={exitPromptOpen || undefined}
         role="dialog"
         aria-modal="true"
         aria-label="StarCards 星際牌玩法驗證"
@@ -2055,8 +2158,41 @@ export function StarCardsGame({
           <strong>{getPhaseMessage(phase)}</strong>
           <span><GamepadHint text={announcement} enabled={gamepadMode} /></span>
         </div>
-        <div className="star-cards-exit-hint" aria-hidden="true"><GamepadHint text="ESC／B　離開測試" enabled={gamepadMode} /></div>
+        <div className="star-cards-exit-hint" aria-hidden="true"><GamepadHint text="ESC／B／Select　退出牌局" enabled={gamepadMode} /></div>
       </section>
+      {exitPromptOpen ? (
+        <div className="star-cards-exit-scrim" data-navigation-mode={navigationMode}
+          onPointerMove={(event) => {
+            if (event.pointerType === "mouse" && cursorOwnership.recordMouse(event.clientX, event.clientY)) {
+              navigationRef.current.mode = "pointer";
+              setNavigationMode("pointer");
+            }
+          }}
+          onPointerDown={(event) => {
+            if (event.pointerType === "touch") cursorOwnership.take("touch");
+            else if (event.pointerType === "mouse") cursorOwnership.recordMouse(event.clientX, event.clientY, true);
+            navigationRef.current.mode = "pointer";
+            setNavigationMode("pointer");
+            event.stopPropagation();
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div ref={exitDialogRef} className="star-cards-exit-dialog" role="alertdialog" aria-modal="true"
+            aria-labelledby="star-cards-exit-title" aria-describedby="star-cards-exit-description">
+            <div className="star-cards-exit-emblem" aria-hidden="true"><i /><i /><i /></div>
+            <div className="star-cards-exit-eyebrow">STAR CARDS · 星際牌</div>
+            <h2 id="star-cards-exit-title">要放棄這一局嗎？</h2>
+            <p id="star-cards-exit-description">{matchReportedRef.current ? "本場對決已結束，退出即可返回船艙。" : "退出將結束本場對決，牌局進度不會保留。"}</p>
+            <div className="star-cards-exit-actions">
+              <button type="button" data-star-cards-exit-choice="0" data-cursor-hover={navigationMode === "pointer" && exitHoverChoice === 0 ? "true" : undefined} data-gamepad-selected={navigationMode === "directional" && exitChoice === 0 ? "true" : undefined}
+                onClick={resumeMatch}>繼續牌局<span>CONTINUE</span></button>
+              <button type="button" className="is-abandon" data-star-cards-exit-choice="1" data-cursor-hover={navigationMode === "pointer" && exitHoverChoice === 1 ? "true" : undefined} data-gamepad-selected={navigationMode === "directional" && exitChoice === 1 ? "true" : undefined}
+                onClick={confirmExit}>放棄並退出<span>LEAVE MATCH</span></button>
+            </div>
+            <div className="star-cards-exit-footer">{navigationMode === "directional" ? <GamepadHint text={gamepadMode ? "A 確認　B 返回牌局" : "方向鍵 選擇 · Enter 確認 · Esc 返回"} enabled={gamepadMode} /> : "選擇繼續，或結束這場對決"}</div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

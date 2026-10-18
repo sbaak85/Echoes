@@ -167,6 +167,7 @@ import {
 } from "./new-player-tutorial";
 import {
   evaluateInteractionStageRequirement,
+  isInteractionRetired,
   filterInteractionRequirementsByPurpose,
   getUnmetInteractionUseRequirements,
   normalizeInteractionItemRewards,
@@ -193,6 +194,8 @@ import { FREQUENCY_CALIBRATION_COMPLETION_FLAG } from "./frequency-calibration-p
 import { WeldingRoutePuzzle } from "./welding-route-puzzle.tsx";
 import { BusCardPuzzle } from "./bus-card-puzzle.tsx";
 import { BUS_CARD_INTERACTION_ID } from "./bus-card-puzzle.ts";
+import { STAR_CARDS_INTERACTION_ID, completeStarCardsQuestMatch } from "./star-cards-quest-flow.ts";
+import { getStarCardsMatchWinner, type StarCardsMatchResult } from "./star-cards-game.ts";
 import { StarCardsGame } from "./star-cards-game.tsx";
 import {
   isDebugDeathCommand,
@@ -3842,6 +3845,9 @@ export function MovementLab() {
   const frequencyPuzzleOpenRef = useRef(false);
   const weldingPuzzleOpenRef = useRef(false);
   const starCardsOpenRef = useRef(false);
+  const starCardsInputRearmRef = useRef(false);
+  const starCardsSessionRef = useRef<PowerPuzzleSession | null>(null);
+  const completeStarCardsMatchRef = useRef<(result: StarCardsMatchResult) => void>(() => {});
   const starshipInteractionMenuOpenRef = useRef(false);
   const starshipInteractionMenuEntryIdRef = useRef<string | null>(null);
   const starshipInteractionMenuInputRearmRef = useRef(false);
@@ -4592,6 +4598,8 @@ export function MovementLab() {
   };
 
   const closeStarCardsGame = useCallback(() => {
+    starCardsInputRearmRef.current = true;
+    starCardsSessionRef.current = null;
     bgmDirectorRef.current?.setMinigameState("star-cards", null);
     starCardsOpenRef.current = false;
     setStarCardsOpen(false);
@@ -4645,7 +4653,9 @@ export function MovementLab() {
     });
   };
 
-  const openStarCardsGame = () => {
+  const openStarCardsGame = (session?: PowerPuzzleSession) => {
+    if (starCardsOpenRef.current) return;
+    starCardsSessionRef.current = session ?? null;
     closePowerRoutingPuzzle();
     dismissTimeElapsedNotice();
     optionsOpenRef.current = false;
@@ -9856,11 +9866,18 @@ export function MovementLab() {
         !getInteractionUseRequirementFailure(trigger, "all");
     };
 
+    const isInteractableRetired = (interactable: SceneInteractable) => isInteractionRetired(
+      normalizeInteractionUseRequirements(interactable.useRequirements, resolveItemId),
+      (questId, stageId) => questRuntimeManagerRef.current?.hasQuestReachedStage(questId, stageId) ?? false,
+      (questId, objectiveId, state) => questRuntimeManagerRef.current?.hasObjectiveReachedState(questId, objectiveId, state) ?? false,
+    );
+
     const isInteractableConditionActive = (
       interactable: SceneInteractable,
     ) => shouldExposeInteraction(
       Boolean(getInteractionUseRequirementFailure(interactable, "prompt")),
       interactable.allowAttemptWhenRequirementsUnmet === true,
+      isInteractableRetired(interactable),
     );
 
     const isInteractableSelectable = (interactable: SceneInteractable) =>
@@ -9892,6 +9909,7 @@ export function MovementLab() {
       source: PendingInteraction["source"],
       reason: "general" | "survival" = "general",
     ) => {
+      if (isInteractableRetired(interactable)) return false;
       const failureStartedAt = window.performance.now();
       if (source === "pointer") pointerGestureConsumed = true;
       const questManager = questRuntimeManagerRef.current;
@@ -10822,7 +10840,7 @@ export function MovementLab() {
           return;
         }
         event.preventDefault();
-        if (key === "escape" && !event.repeat) closeStarCardsGame();
+        // The StarCards capture handler owns Escape and its abandon confirmation.
         return;
       }
       if (powerPuzzleOpenRef.current) {
@@ -11879,6 +11897,7 @@ export function MovementLab() {
       source: PendingInteraction["source"],
       onCompletionDialogueComplete?: () => void,
     ) => {
+      if (isInteractableRetired(interactable)) return false;
       settleNaturalSurvival();
       if (isInteractableLocked(interactable)) {
         return openInteractionFailureDialogue(interactable, source);
@@ -12192,6 +12211,22 @@ export function MovementLab() {
       }
     };
 
+    completeStarCardsMatchRef.current = (result) => {
+      const session = starCardsSessionRef.current;
+      const manager = questRuntimeManagerRef.current;
+      if (!starCardsOpenRef.current || !session || !manager ||
+          session.interactable.id !== STAR_CARDS_INTERACTION_ID ||
+          getStarCardsMatchWinner(result) !== "player") return;
+      // Only an actual victory from interaction 017 can settle this interaction.
+      // Debug Game 4, defeat and cancellation never consume its use or grant progress.
+      starCardsSessionRef.current = null;
+      if (completeInteraction(session.interactable, session.source) &&
+          completeStarCardsQuestMatch(manager, session.interactable.id, result)) {
+        saveQuestSaveData(manager.exportSave());
+        requestPortableAutosaveRef.current("star-cards-victory");
+      }
+    };
+
     const openCampPowerRefillConfirmation = (
       interactable: SceneInteractable,
       source: PendingInteraction["source"],
@@ -12470,6 +12505,7 @@ export function MovementLab() {
       interactable: SceneInteractable,
       source: PendingInteraction["source"],
     ) => {
+      if (isInteractableRetired(interactable)) return false;
       settleNaturalSurvival();
       if (source === "pointer") pointerGestureConsumed = true;
       hideHotbarSelectionHint();
@@ -12494,8 +12530,26 @@ export function MovementLab() {
         return true;
       }
       if (openQuestItemSubmissionConfirmation(interactable, source)) return true;
+      if (interactable.id === STAR_CARDS_INTERACTION_ID) {
+        const startMatch = () => openStarCardsGame({ interactable, source });
+        if (interactable.storyDialogueId && dialogueManager.get(interactable.storyDialogueId)) {
+          void dialogueManager.playRegistered(interactable.storyDialogueId, interactable, startMatch);
+        } else {
+          const dialogue = selectInteractionDialogue(interactable, "success");
+          if (dialogue) openDialogue(interactable, startMatch, dialogue);
+          else startMatch();
+        }
+        if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
+        return true;
+      }
       if (interactable.id === BUS_CARD_INTERACTION_ID) {
-        openBusCardPuzzle(interactable, source);
+        const startBusCardPuzzle = () => openBusCardPuzzle(interactable, source);
+        const successDialogue = selectInteractionDialogue(interactable, "success");
+        if (successDialogue) {
+          openDialogue(interactable, startBusCardPuzzle, successDialogue);
+        } else {
+          startBusCardPuzzle();
+        }
         if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
         return true;
       }
@@ -15003,6 +15057,10 @@ export function MovementLab() {
         updateFootstepAudio(0, deltaTime);
         return;
       }
+      if (starCardsInputRearmRef.current) {
+        gamepadHandoffGate.requireNeutral();
+        starCardsInputRearmRef.current = false;
+      }
       const gamepadInput = gamepadHandoffGate.filter(browserGamepadInput.connected
         ? browserGamepadInput
         : nativeGamepadInput);
@@ -15459,8 +15517,14 @@ export function MovementLab() {
           const handCard = cursorElement instanceof HTMLElement
             ? cursorElement.closest<HTMLElement>("[data-star-cards-hand-card-id]")
             : null;
+          const exitChoice = cursorElement instanceof HTMLElement
+            ? cursorElement.closest<HTMLElement>("[data-star-cards-exit-choice]")?.dataset.starCardsExitChoice
+            : undefined;
           window.dispatchEvent(new CustomEvent("echoes:star-cards-cursor", {
-            detail: { cardId: handCard?.dataset.starCardsHandCardId ?? null },
+            detail: {
+              cardId: handCard?.dataset.starCardsHandCardId ?? null,
+              exitChoice: exitChoice == null ? null : Number(exitChoice),
+            },
           }));
         }
       }
@@ -15623,8 +15687,7 @@ export function MovementLab() {
           campPowerConfirmationMenuOpen = false;
         }
       } else if (starCardsMenuOpen && backJustPressed) {
-        closeStarCardsGame();
-        starCardsMenuOpen = false;
+        // StarCards owns B / Select edge detection and the confirmation overlay.
       } else if (starshipInteractionMenuOpen && backJustPressed) {
         starshipInteractionMenuControllerRef.current?.back();
         starshipInteractionMenuOpen = starshipInteractionMenuOpenRef.current;
@@ -17092,6 +17155,8 @@ export function MovementLab() {
 
     return () => {
       craftingReturnDialogueController.dispose();
+      completeStarCardsMatchRef.current = () => {};
+      starCardsSessionRef.current = null;
       questSkipKeyController.cancel();
       startStarshipSleepRef.current = () => {};
       settleNaturalSurvival();
@@ -18912,6 +18977,7 @@ export function MovementLab() {
       {starCardsOpen ? (
         <StarCardsGame
           onClose={closeStarCardsGame}
+          onMatchCompleted={(result) => completeStarCardsMatchRef.current(result)}
           audioEvents={audioEventManagerRef.current}
           initialGamepadMode={starCardsInitialGamepadMode}
           gamepadMode={questPromptInputMode === "gamepad"}

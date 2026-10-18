@@ -2,6 +2,15 @@ import { resolveRuntimePublicAssetUrl } from "./public-asset-url.ts";
 
 export const STAR_CARDS_GAME_ID = "StarCards";
 export const STAR_CARDS_DEBUG_NUMBER = 4;
+export const STAR_CARDS_WINS_TO_MATCH = 3;
+export type StarCardsMatchResult = { playerWins: number; aiWins: number };
+
+export function getStarCardsMatchWinner({ playerWins, aiWins }: StarCardsMatchResult): "player" | "ai" | null {
+  if (![playerWins, aiWins].every(value => Number.isInteger(value) && value >= 0 && value <= STAR_CARDS_WINS_TO_MATCH)) return null;
+  if (playerWins === STAR_CARDS_WINS_TO_MATCH && aiWins < STAR_CARDS_WINS_TO_MATCH) return "player";
+  if (aiWins === STAR_CARDS_WINS_TO_MATCH && playerWins < STAR_CARDS_WINS_TO_MATCH) return "ai";
+  return null;
+}
 
 export const starCardsAssetUrl = (fileName: string) => resolveRuntimePublicAssetUrl(
   `ui/star-cards/${fileName}`,

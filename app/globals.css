@@ -10846,6 +10846,104 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   pointer-events: none;
 }
 
+.star-cards-exit-scrim {
+  position: absolute;
+  z-index: 210;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(2, 4, 17, .76);
+  backdrop-filter: blur(9px) saturate(.65);
+  pointer-events: auto;
+  overflow: auto;
+}
+
+.star-cards-exit-dialog {
+  position: relative;
+  isolation: isolate;
+  width: min(560px, 100%);
+  padding: clamp(24px, 4cqw, 46px) clamp(20px, 4cqw, 44px) 24px;
+  border: 1px solid #7974bb;
+  border-radius: 5px 28px 5px 28px;
+  background:
+    radial-gradient(ellipse at 14% 0, #123d6166, transparent 56%),
+    radial-gradient(ellipse at 100% 65%, #672c7c44, transparent 64%),
+    linear-gradient(145deg, #141d32, #090e21 52%, #1d1630);
+  box-shadow: 0 28px 90px #000c, 0 0 44px #5b30b32b, inset 0 0 0 5px #080c18, inset 0 0 0 6px #393654;
+  color: #edeafc;
+  text-align: center;
+  font-family: "Microsoft JhengHei", "Segoe UI", sans-serif;
+}
+
+.star-cards-exit-dialog::before,
+.star-cards-exit-dialog::after {
+  content: "";
+  position: absolute;
+  height: 2px;
+  left: 18%;
+  right: 18%;
+  background: linear-gradient(90deg, transparent, #76dfff, #d080ff, transparent);
+  box-shadow: 0 0 14px #9974ff;
+  pointer-events: none;
+}
+.star-cards-exit-dialog::before { top: 5px; }
+.star-cards-exit-dialog::after { bottom: 5px; }
+.star-cards-exit-emblem { position: relative; width: 90px; height: 64px; margin: 0 auto 18px; }
+.star-cards-exit-emblem i {
+  position: absolute;
+  left: 28px;
+  top: 2px;
+  width: 35px;
+  height: 51px;
+  border: 1px solid #b0a5ef;
+  border-radius: 3px;
+  background: linear-gradient(135deg, #1b3c57, #1a1633);
+  box-shadow: inset 0 0 0 3px #12172e, inset 0 0 0 4px #69628f, 0 0 14px #8c64ff44;
+}
+.star-cards-exit-emblem i:first-child { transform: translate(-19px, 7px) rotate(-24deg); border-color: #69cfff; }
+.star-cards-exit-emblem i:last-child { transform: translate(19px, 7px) rotate(24deg); border-color: #d084ee; }
+.star-cards-exit-emblem i:nth-child(2) { z-index: 1; }
+.star-cards-exit-emblem i:nth-child(2)::after { content: "✦"; display: block; padding-top: 9px; color: #d9c9ff; font-size: 24px; text-shadow: 0 0 10px #bb8eff; }
+.star-cards-exit-eyebrow { color: #9baaca; font: 600 11px/1.5 "Consolas", monospace; letter-spacing: .22em; }
+.star-cards-exit-dialog h2 { margin: 14px 0; font-size: clamp(22px, 3cqw, 30px); font-weight: 600; letter-spacing: .08em; text-shadow: 0 0 24px #ae8cf75c; }
+.star-cards-exit-dialog p { margin: 0; color: #a8b3cd; font-size: 14px; line-height: 1.9; }
+.star-cards-exit-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 30px; }
+.star-cards-exit-actions button {
+  min-height: 68px;
+  padding: 12px 8px;
+  border: 1px solid #5183a1;
+  border-radius: 3px 12px 3px 12px;
+  background: linear-gradient(140deg, #193b50, #111d34);
+  color: #d7f4ff;
+  font: 600 16px/1.4 "Microsoft JhengHei", sans-serif;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 #a8eaff22;
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .15s, border-color .15s, box-shadow .15s;
+}
+.star-cards-exit-actions button span { display: block; margin-top: 5px; opacity: .55; font: 10px/1.2 "Consolas", monospace; letter-spacing: .16em; }
+.star-cards-exit-actions button.is-abandon { background: linear-gradient(140deg, #302339, #1b192b); border-color: #796082; color: #e4c8e6; }
+.star-cards-exit-actions button[data-gamepad-selected="true"],
+html[data-cursor-owner="gamepad"] .star-cards-exit-actions button[data-cursor-hover="true"],
+html[data-cursor-owner="mouse"] .star-cards-exit-scrim[data-navigation-mode="pointer"] button:hover {
+  border-color: #d3b5ff;
+  background: linear-gradient(140deg, #3b3b69, #26203e);
+  box-shadow: inset 0 0 16px #af7eff22, 0 0 0 2px #caa0ff44, 0 0 22px #b26bff44;
+}
+.star-cards-exit-actions button:active { filter: brightness(1.2); }
+.star-cards-exit-footer { min-height: 24px; margin-top: 20px; color: #8688ab; font-size: 12px; }
+.star-cards-exit-scrim[data-navigation-mode="directional"],
+.star-cards-exit-scrim[data-navigation-mode="directional"] * { cursor: none !important; }
+.star-cards-dialog[inert] *, .star-cards-dialog[inert] *::before, .star-cards-dialog[inert] *::after { animation-play-state: paused !important; }
+@media (max-height: 500px) {
+  .star-cards-exit-dialog { padding: 20px 26px 16px; }
+  .star-cards-exit-emblem { display: none; }
+  .star-cards-exit-actions { margin-top: 18px; }
+  .star-cards-exit-footer { margin-top: 12px; }
+}
+
 .star-cards-dialog button:focus,
 .star-cards-dialog button:focus-visible,
 .star-cards-dialog [role="button"]:focus,

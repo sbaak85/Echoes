@@ -12,7 +12,7 @@ test("T0014 has a complete interaction-tool definition and preserves the reserve
   const torch = ITEM_BY_ID.get("T0014");
   assert.equal(ITEM_DATABASE[67].item, torch);
   assert.equal(ITEM_DATABASE.length, 100);
-  assert.equal(ITEM_DATABASE[68].item, null);
+  assert.equal(ITEM_DATABASE[69].item, null);
   assert.equal(torch.englishName, "faint-torch");
   assert.equal(torch.name, "微弱的火把");
   assert.equal(torch.category, "tool");

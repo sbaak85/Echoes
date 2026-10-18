@@ -797,6 +797,8 @@ public sealed class SurvivalEffectEditorForm : Form
              string.IsNullOrWhiteSpace(requirement.DisableStageId))
             ? "持續（待設關閉）"
             : ModeShortLabel(requirement.StageMode);
+        if (!string.IsNullOrWhiteSpace(requirement.RemoveStageId))
+            modeLabel += $"／移除:{requirement.RemoveStageId}";
         controls.StageSettings.Text = string.IsNullOrWhiteSpace(requirement.StageId)
             ? "設定…"
             : $"{modeLabel}｜{requirement.StageId}" +

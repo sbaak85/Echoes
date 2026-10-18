@@ -455,6 +455,16 @@ public sealed class InteractionUseRequirement
     public string? DisableObjectiveId { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DisableObjectiveState { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RemoveWhenDisabled { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RemoveQuestId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RemoveStageId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RemoveObjectiveId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RemoveObjectiveState { get; set; }
     public int Quantity { get; set; } = 1;
     public int Chapter { get; set; } = 1;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -476,10 +486,41 @@ public sealed class InteractionUseRequirement
         DisableStageId = DisableStageId,
         DisableObjectiveId = DisableObjectiveId,
         DisableObjectiveState = DisableObjectiveState,
+        RemoveWhenDisabled = RemoveWhenDisabled,
+        RemoveQuestId = RemoveQuestId,
+        RemoveStageId = RemoveStageId,
+        RemoveObjectiveId = RemoveObjectiveId,
+        RemoveObjectiveState = RemoveObjectiveState,
         Quantity = Quantity,
         Chapter = Chapter,
         MinimumPower = MinimumPower,
     };
+
+    public void NormalizeRemovalCondition()
+    {
+        // Migrate the previous combined checkbox once; subsequent edits are independent.
+        if (RemoveWhenDisabled && string.IsNullOrWhiteSpace(RemoveQuestId) &&
+            string.IsNullOrWhiteSpace(RemoveStageId) && StageMode == "UnlockUntilCondition")
+        {
+            RemoveQuestId = DisableQuestId;
+            RemoveStageId = DisableStageId;
+            RemoveObjectiveId = DisableObjectiveId;
+            RemoveObjectiveState = DisableObjectiveState;
+        }
+        RemoveWhenDisabled = false;
+        RemoveQuestId = RemoveQuestId?.Trim();
+        RemoveStageId = RemoveStageId?.Trim();
+        if (string.IsNullOrWhiteSpace(RemoveQuestId) || string.IsNullOrWhiteSpace(RemoveStageId))
+        {
+            RemoveQuestId = RemoveStageId = RemoveObjectiveId = RemoveObjectiveState = null;
+            return;
+        }
+        RemoveObjectiveId = RemoveObjectiveId?.Trim();
+        if (string.IsNullOrWhiteSpace(RemoveObjectiveId))
+            RemoveObjectiveId = RemoveObjectiveState = null;
+        else
+            RemoveObjectiveState = RemoveObjectiveState == "unlocked" ? "unlocked" : "completed";
+    }
 }
 
 public sealed record ItemCatalogEntry(string Id, string Name)
@@ -554,6 +595,7 @@ public static class ItemCatalog
             ["survival-backpack"] = "T0012",
             ["powered-backpack"] = "T0013",
             ["faint-torch"] = "T0014",
+            ["uc-cargo-clamp"] = "T0015",
             ["navigation-data"] = "Q0001",
             ["memory-charm"] = "Q0002",
             ["ancient-plate"] = "Q0003",
@@ -626,6 +668,7 @@ public static class ItemCatalog
         new("T0012", "30kg 生存背包"),
         new("T0013", "50kg 動力背包"),
         new("T0014", "微弱的火把"),
+        new("T0015", "UC型扣具"),
         new("Q0001", "飛船導航資料"),
         new("Q0002", "遺留下的記憶物"),
         new("Q0003", "古代符號板"),
@@ -1240,6 +1283,7 @@ public static class SceneJson
                                 ? "completed"
                                 : "unlocked";
                         }
+                        requirement.NormalizeRemovalCondition();
                         requirement.DisableQuestId = requirement.DisableQuestId.Trim();
                         requirement.DisableStageId = requirement.DisableStageId.Trim();
                         requirement.DisableObjectiveId = requirement.DisableObjectiveId?.Trim();
@@ -1271,6 +1315,7 @@ public static class SceneJson
                             requirement.DisableStageId = "";
                             requirement.DisableObjectiveId = null;
                             requirement.DisableObjectiveState = null;
+                            requirement.RemoveWhenDisabled = false;
                         }
                         continue;
                     }
@@ -1810,6 +1855,7 @@ public static class SceneJson
                         ? "completed"
                         : "unlocked";
                 }
+                requirement.NormalizeRemovalCondition();
                 requirement.DisableQuestId = requirement.DisableQuestId.Trim();
                 requirement.DisableStageId = requirement.DisableStageId.Trim();
                 requirement.DisableObjectiveId = requirement.DisableObjectiveId?.Trim();
@@ -1841,6 +1887,7 @@ public static class SceneJson
                     requirement.DisableStageId = "";
                     requirement.DisableObjectiveId = null;
                     requirement.DisableObjectiveState = null;
+                    requirement.RemoveWhenDisabled = false;
                 }
                 continue;
             }

@@ -76,6 +76,11 @@ export type InteractionUseRequirement =
       disableStageId?: string;
       disableObjectiveId?: string;
       disableObjectiveState?: InteractionObjectiveState;
+      removeWhenDisabled?: boolean;
+      removeQuestId?: string;
+      removeStageId?: string;
+      removeObjectiveId?: string;
+      removeObjectiveState?: InteractionObjectiveState;
     });
 
 export type InteractionStageMode =
@@ -96,6 +101,42 @@ export type InteractionQuestState =
 export type UnmetInteractionUseRequirement = InteractionUseRequirement & {
   actual: number;
 };
+
+function hasInteractionDisableCondition(
+  requirement: Extract<InteractionUseRequirement, { kind: "questStage" }>,
+  hasQuestReachedStage: (questId: string, stageId: string) => boolean,
+  hasObjectiveReachedState: (questId: string, objectiveId: string, state: InteractionObjectiveState) => boolean,
+): boolean {
+  return requirement.stageMode === "UnlockUntilCondition" &&
+    Boolean(requirement.disableQuestId && requirement.disableStageId &&
+      hasQuestReachedStage(requirement.disableQuestId, requirement.disableStageId) &&
+      (!requirement.disableObjectiveId || hasObjectiveReachedState(
+        requirement.disableQuestId, requirement.disableObjectiveId,
+        requirement.disableObjectiveState ?? "completed",
+      )));
+}
+
+/** Retire the scene interaction, never the quest history. Scope and failed-attempt options cannot override this. */
+export function isInteractionRetired(
+  requirements: readonly InteractionUseRequirement[],
+  hasQuestReachedStage: (questId: string, stageId: string) => boolean,
+  hasObjectiveReachedState: (questId: string, objectiveId: string, state: InteractionObjectiveState) => boolean = () => false,
+): boolean {
+  return requirements.some(requirement => {
+    if (requirement.kind !== "questStage") return false;
+    if (requirement.removeQuestId || requirement.removeStageId) {
+      return Boolean(requirement.removeQuestId && requirement.removeStageId &&
+        hasQuestReachedStage(requirement.removeQuestId, requirement.removeStageId) &&
+        (!requirement.removeObjectiveId || hasObjectiveReachedState(
+          requirement.removeQuestId, requirement.removeObjectiveId,
+          requirement.removeObjectiveState ?? "completed",
+        )));
+    }
+    // Compatibility for scenes saved by the original combined close/remove option.
+    return requirement.removeWhenDisabled === true &&
+      hasInteractionDisableCondition(requirement, hasQuestReachedStage, hasObjectiveReachedState);
+  });
+}
 
 export function evaluateInteractionStageRequirement(
   requirement: Extract<InteractionUseRequirement, { kind: "questStage" }>,
@@ -119,17 +160,7 @@ export function evaluateInteractionStageRequirement(
       requirement.objectiveState ?? "unlocked",
     )
   ) return false;
-  if (
-    requirement.stageMode === "UnlockUntilCondition" &&
-    requirement.disableQuestId &&
-    requirement.disableStageId &&
-    hasQuestReachedStage(requirement.disableQuestId, requirement.disableStageId) &&
-    (!requirement.disableObjectiveId || hasObjectiveReachedState(
-      requirement.disableQuestId,
-      requirement.disableObjectiveId,
-      requirement.disableObjectiveState ?? "completed",
-    ))
-  ) {
+  if (hasInteractionDisableCondition(requirement, hasQuestReachedStage, hasObjectiveReachedState)) {
     return false;
   }
   return true;
@@ -312,6 +343,16 @@ export function normalizeInteractionUseRequirements(
         : "";
       const disableObjectiveState: InteractionObjectiveState =
         candidate.disableObjectiveState === "unlocked" ? "unlocked" : "completed";
+      const legacyRemoval = candidate.removeWhenDisabled === true &&
+        !candidate.removeQuestId && !candidate.removeStageId && stageMode === "UnlockUntilCondition";
+      const removeQuestId = typeof candidate.removeQuestId === "string" && candidate.removeQuestId.trim()
+        ? candidate.removeQuestId.trim() : legacyRemoval ? disableQuestId : "";
+      const removeStageId = typeof candidate.removeStageId === "string" && candidate.removeStageId.trim()
+        ? candidate.removeStageId.trim() : legacyRemoval ? disableStageId : "";
+      const removeObjectiveId = legacyRemoval ? disableObjectiveId :
+        typeof candidate.removeObjectiveId === "string" ? candidate.removeObjectiveId.trim() : "";
+      const removeObjectiveState: InteractionObjectiveState = legacyRemoval ? disableObjectiveState :
+        candidate.removeObjectiveState === "unlocked" ? "unlocked" : "completed";
       return [{
         kind: "questStage",
         questId,
@@ -327,6 +368,10 @@ export function normalizeInteractionUseRequirements(
                 : {}),
             }
           : {}),
+        ...(removeQuestId && removeStageId ? {
+          removeQuestId, removeStageId,
+          ...(removeObjectiveId ? { removeObjectiveId, removeObjectiveState } : {}),
+        } : {}),
         ...scope,
       }];
     }
@@ -399,8 +444,9 @@ export function getUnmetInteractionUseRequirements(
 export function shouldExposeInteraction(
   hasUseRequirementFailure: boolean,
   allowAttemptWhenRequirementsUnmet = false,
+  retired = false,
 ): boolean {
-  return allowAttemptWhenRequirementsUnmet || !hasUseRequirementFailure;
+  return !retired && (allowAttemptWhenRequirementsUnmet || !hasUseRequirementFailure);
 }
 
 export function normalizeInteractionItemReward(

@@ -6,6 +6,7 @@ import {
   STAR_CARD_LANES,
   STAR_CARDS_DEBUG_NUMBER,
   STAR_CARDS_GAME_ID,
+  STAR_CARDS_WINS_TO_MATCH,
   STAR_CARDS_IMPACT_PARTICLE_COUNT,
   canPlaceStarCard,
   compareStarCards,
@@ -249,7 +250,7 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /setPlayerScore\(0\)[\s\S]*setAiScore\(0\)[\s\S]*setPlayerPlaced\(\[\]\)[\s\S]*setPlayerRemainingDeck\(nextPlayerDeck\.slice\(3\)\)/);
   assert.match(source, /setDragging\(null\)[\s\S]*setSnappingCardId\(null\)[\s\S]*setDrawButtonPressed\(false\)[\s\S]*setBattleButtonPressed\(false\)/);
   assert.match(source, /setPhase\("draw-ready"\)/);
-  assert.match(source, /STAR_CARDS_WINS_TO_MATCH = 3/);
+  assert.equal(STAR_CARDS_WINS_TO_MATCH, 3);
   assert.match(source, /starCardsAssetUrl\("button-stack\.png"\)/);
   assert.match(styles, /\.star-cards-stack-status/);
   assert.match(source, /const PLAYER_HAND_X = \[33\.4, 50, 66\.6\]/);

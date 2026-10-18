@@ -23,6 +23,10 @@ internal sealed class QuestStageRequirementEditorForm : Form
     private readonly ComboBox _disableStage = CreateCombo("disableStage");
     private readonly ComboBox _disableObjective = CreateCombo("disableObjective");
     private readonly ComboBox _disableObjectiveState = CreateCombo("disableObjectiveState");
+    private readonly ComboBox _removeQuest = CreateCombo("removeQuest");
+    private readonly ComboBox _removeStage = CreateCombo("removeStage");
+    private readonly ComboBox _removeObjective = CreateCombo("removeObjective");
+    private readonly ComboBox _removeObjectiveState = CreateCombo("removeObjectiveState");
 
     public InteractionUseRequirement Requirement { get; private set; }
 
@@ -32,6 +36,8 @@ internal sealed class QuestStageRequirementEditorForm : Form
         InteractionUseRequirement requirement)
     {
         Requirement = requirement.Clone();
+        Requirement.NormalizeRemovalCondition();
+        requirement = Requirement;
         _quests = BuildQuestChoices(quests, requirement);
         _objectives = BuildObjectiveChoices(objectives, requirement);
 
@@ -41,7 +47,7 @@ internal sealed class QuestStageRequirementEditorForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(620, 490);
+        ClientSize = new Size(620, 698);
         BackColor = Color.FromArgb(25, 28, 34);
         ForeColor = Color.FromArgb(226, 230, 234);
         Font = new Font("Microsoft JhengHei UI", 9F);
@@ -114,10 +120,40 @@ internal sealed class QuestStageRequirementEditorForm : Form
             requirement.DisableObjectiveState ?? "completed");
         Controls.Add(_disableObjectiveState);
 
-        var cancel = CreateButton("取消", 390, 438, 94, 34);
+        AddLabel("移除 Quest ID", 24, 445);
+        _removeQuest.SetBounds(180, 440, 410, 30);
+        _removeQuest.Items.Add("（不設定移除條件）");
+        _removeQuest.Items.AddRange(_quests.Cast<object>().ToArray());
+        SelectQuest(_removeQuest, requirement.RemoveQuestId ?? "", allowEmpty: true);
+        Controls.Add(_removeQuest);
+
+        AddLabel("移除條件 Stage", 24, 489);
+        _removeStage.SetBounds(180, 484, 410, 30);
+        Controls.Add(_removeStage);
+        PopulateStages(_removeQuest, _removeStage, requirement.RemoveStageId ?? "", allowEmpty: true);
+
+        AddLabel("移除 OBJ（選填）", 24, 533);
+        _removeObjective.SetBounds(180, 528, 410, 30);
+        Controls.Add(_removeObjective);
+        PopulateObjectives(_removeQuest, _removeStage, _removeObjective, requirement.RemoveObjectiveId);
+
+        AddLabel("移除 OBJ 狀態", 24, 577);
+        _removeObjectiveState.SetBounds(180, 572, 410, 30);
+        PopulateObjectiveStates(_removeObjectiveState, requirement.RemoveObjectiveState ?? "completed");
+        Controls.Add(_removeObjectiveState);
+        var removalHelp = new Label
+        {
+            Text = "移除條件獨立於啟用／關閉；成立後不顯示、不回應，保留任務進度。",
+            ForeColor = Color.FromArgb(169, 186, 201),
+            AutoSize = true,
+            Location = new Point(24, 615),
+        };
+        Controls.Add(removalHelp);
+
+        var cancel = CreateButton("取消", 390, 648, 94, 34);
         cancel.DialogResult = DialogResult.Cancel;
         Controls.Add(cancel);
-        var save = CreateButton("套用", 496, 438, 94, 34);
+        var save = CreateButton("套用", 496, 648, 94, 34);
         save.Click += (_, _) => SaveRequirement();
         Controls.Add(save);
         AcceptButton = save;
@@ -144,6 +180,13 @@ internal sealed class QuestStageRequirementEditorForm : Form
             _disableObjectiveState,
             (_mode.SelectedItem as ModeChoice)?.Id == "UnlockUntilCondition");
         _mode.SelectedIndexChanged += (_, _) => RefreshDisableControls();
+        _removeQuest.SelectedIndexChanged += (_, _) => PopulateStages(
+            _removeQuest, _removeStage, "", allowEmpty: true);
+        _removeStage.SelectedIndexChanged += (_, _) => PopulateObjectives(
+            _removeQuest, _removeStage, _removeObjective, "");
+        _removeObjective.SelectedIndexChanged += (_, _) => RefreshObjectiveStateControl(
+            _removeObjective, _removeObjectiveState, true);
+        RefreshObjectiveStateControl(_removeObjective, _removeObjectiveState, true);
         RefreshDisableControls();
     }
 
@@ -162,9 +205,24 @@ internal sealed class QuestStageRequirementEditorForm : Form
         var disableObjective = _disableObjective.SelectedItem as QuestObjectiveCatalogEntry;
         var hasCompleteDisableCondition = mode == "UnlockUntilCondition" &&
             disableQuest is not null && disableStage is not null;
+        var removeQuest = _removeQuest.SelectedItem as QuestCatalogEntry;
+        var removeStage = _removeStage.SelectedItem as QuestStageCatalogEntry;
+        var removeObjective = _removeObjective.SelectedItem as QuestObjectiveCatalogEntry;
+        if (removeQuest is not null && removeStage is null)
+        {
+            MessageBox.Show("請指定移除條件 Stage，或清空移除 Quest 以取消移除設定。", Text,
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
         Requirement = new InteractionUseRequirement
         {
             Kind = "questStage",
+            Scope = Requirement.Scope,
+            RemoveQuestId = removeQuest?.Id,
+            RemoveStageId = removeStage?.Id,
+            RemoveObjectiveId = removeObjective?.Id,
+            RemoveObjectiveState = removeObjective is null ? null :
+                (_removeObjectiveState.SelectedItem as ObjectiveStateChoice)?.Id ?? "completed",
             QuestId = quest.Id,
             StageId = stage.Id,
             StageMode = mode,
@@ -203,6 +261,7 @@ internal sealed class QuestStageRequirementEditorForm : Form
             current.DisableQuestId,
             current.DisableStageId,
             current.DisableObjectiveId);
+        AddFallback(current.RemoveQuestId ?? "", current.RemoveStageId ?? "", current.RemoveObjectiveId);
         return values
             .GroupBy(objective => objective.Id, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
@@ -230,6 +289,7 @@ internal sealed class QuestStageRequirementEditorForm : Form
         var values = source.ToList();
         AddFallback(current.QuestId, current.StageId);
         AddFallback(current.DisableQuestId, current.DisableStageId);
+        AddFallback(current.RemoveQuestId ?? "", current.RemoveStageId ?? "");
         return values
             .GroupBy(quest => quest.Id, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
@@ -273,7 +333,7 @@ internal sealed class QuestStageRequirementEditorForm : Form
     {
         stageCombo.BeginUpdate();
         stageCombo.Items.Clear();
-        if (allowEmpty) stageCombo.Items.Add("（尚未指定關閉 Stage）");
+        if (allowEmpty) stageCombo.Items.Add("（尚未指定 Stage）");
         if (questCombo.SelectedItem is QuestCatalogEntry quest)
             stageCombo.Items.AddRange(quest.StageEntries.Cast<object>().ToArray());
         var index = stageCombo.Items.Cast<object>()

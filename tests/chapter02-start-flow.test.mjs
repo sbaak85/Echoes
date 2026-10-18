@@ -11,7 +11,23 @@ const doc = JSON.parse(readFileSync(new URL("../public/quests/quest-data.json", 
 const questId = "QUEST_CH02_MAIN_001";
 function harness(dialogueResult = { completed: true }) {
   const state = { black: false, locked: false, completed: false, dialogue: null };
-  const quests = new QuestRuntimeManager(doc);
+  let now = 100000;
+  const tasks = [];
+  const quests = new QuestRuntimeManager(doc, {
+    now: () => now,
+    scheduleQuestStart: (delay, callback) => tasks.push({ at: now + delay, callback }),
+  });
+  const advance = (ms) => {
+    const end = now + ms;
+    while (tasks.length) {
+      tasks.sort((a, b) => a.at - b.at);
+      if (tasks[0].at > end) break;
+      const task = tasks.shift();
+      now = task.at;
+      task.callback();
+    }
+    now = end;
+  };
   const flow = new ChapterFlowManager({
     setBlack: value => { state.black = value; },
     setInputLocked: value => { state.locked = value; },
@@ -29,7 +45,7 @@ function harness(dialogueResult = { completed: true }) {
   });
   // Only remove real-time waits: action ordering, cleanup and quest rules remain real.
   flow.wait = async () => {};
-  return { state, quests, flow };
+  return { state, quests, flow, advance };
 }
 
 test("chapter choice resets story progress to selected chapter, preserving default third chapter", () => {
@@ -57,16 +73,29 @@ test("chapter 2 uses editor subtitle timings followed by 1s fade and 1s settle",
   ]);
 });
 
-test("briefing completion grants exactly once; only terminal 009 success completes first quest", async () => {
-  const { state, quests, flow } = harness();
+test("briefing grants once after 1.5s; all duties precede the social quest and cargo quest", async () => {
+  const { state, quests, flow, advance } = harness();
   assert.deepEqual(quests.startAvailableAutomaticQuests(null, null, "CH02"), []);
   await flow.run(createChapter02StartFlow());
+  assert.equal(quests.getQuestState(questId), "available");
+  advance(1499);
+  assert.equal(quests.getQuestState(questId), "available");
+  advance(1);
   assert.equal(quests.getQuestState(questId), "active");
   assert.deepEqual(quests.startAvailableAfterDialogueQuests("chapter02-start"), []);
   quests.handleEvent({ type: "interactionSucceeded", targetId: "shipinterior-interaction-008" });
   assert.equal(quests.getQuestState(questId), "active");
   quests.handleEvent({ type: "interactionSucceeded", targetId: "shipinterior-interaction-009" });
+  assert.equal(quests.getQuestState(questId), "active");
+  quests.syncCurrentInventory({ R0050: 1 });
+  advance(2000);
+  quests.handleEvent({ type: "puzzleCompleted", targetId: "shipinterior-interaction-008" });
+  advance(500);
   assert.equal(quests.getQuestState(questId), "completed");
+  assert.deepEqual(quests.startAvailableAutomaticQuests(null, null, "CH02"), ["QUEST_CH02_MAIN_002"]);
+  advance(2000);
+  assert.equal(quests.getQuestState("QUEST_CH02_MAIN_002"), "active");
+  assert.equal(quests.getQuestState("QUEST_CH02_MAIN_003"), "locked");
   assert.equal(state.black, false);
   assert.equal(state.locked, false);
   assert.equal(await flow.run(createChapter02StartFlow()), false);
@@ -82,11 +111,12 @@ test("cancelled briefing does not grant quest and always clears black/input lock
 });
 
 test("skipping opening subtitles still plays mandatory briefing and clears blackout", async () => {
-  const { state, quests, flow } = harness();
+  const { state, quests, flow, advance } = harness();
   let firstWait = true;
   flow.wait = async () => { if (firstWait) { firstWait = false; flow.requestSkip(); } };
   await flow.run(createChapter02StartFlow());
   assert.equal(state.dialogue, "chapter02-start");
+  advance(1500);
   assert.equal(quests.getQuestState(questId), "active");
   assert.equal(state.black, false);
   assert.equal(state.locked, false);
