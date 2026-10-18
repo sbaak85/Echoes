@@ -2435,13 +2435,19 @@
         "characterDelaySeconds": 0.02,
         "speakers": [
           "Sbaak",
-          "Echo"
+          "Echo",
+          "\u6B50\u6587"
         ],
         "lines": [
           {
             "lineId": "shipinterior-interaction-017-line-001",
-            "speaker": "Sbaak",
+            "speaker": "\u6B50\u6587",
             "text": "\u563F\uFF0C\u8981\u4F86\u6253\u4E00\u5834\u661F\u969B\u724C\u55CE?"
+          },
+          {
+            "lineId": "shipinterior-interaction-017-line-002",
+            "speaker": "Sbaak",
+            "text": "\u4F86\u5427! \u6211\u8981\u8B93\u4F60\u8F38\u5230\u7121\u5730\u81EA\u5BB9\u3002"
           }
         ]
       },
@@ -2449,7 +2455,8 @@
         "characterDelaySeconds": 0.02,
         "speakers": [
           "Sbaak",
-          "Echo"
+          "Echo",
+          "\u6B50\u6587"
         ],
         "lines": [
           {
