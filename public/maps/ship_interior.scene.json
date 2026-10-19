@@ -859,32 +859,32 @@
       "shape": "polygon",
       "points": [
         {
-          "x": 528,
-          "y": 880
+          "x": 537,
+          "y": 870
         },
         {
-          "x": 700,
-          "y": 772
+          "x": 663,
+          "y": 795
         },
         {
-          "x": 700,
-          "y": 760
+          "x": 651,
+          "y": 750
         },
         {
-          "x": 564,
-          "y": 664
+          "x": 558,
+          "y": 684
         },
         {
-          "x": 528,
-          "y": 672
+          "x": 540,
+          "y": 684
         },
         {
-          "x": 484,
-          "y": 696
+          "x": 501,
+          "y": 708
         },
         {
-          "x": 456,
-          "y": 828
+          "x": 459,
+          "y": 816
         }
       ],
       "type": "check",
@@ -1616,32 +1616,32 @@
       "shape": "polygon",
       "points": [
         {
-          "x": 708,
-          "y": 699
+          "x": 720,
+          "y": 687
         },
         {
-          "x": 792,
-          "y": 756
+          "x": 810,
+          "y": 735
         },
         {
-          "x": 828,
-          "y": 756
+          "x": 843,
+          "y": 735
         },
         {
-          "x": 957,
-          "y": 675
+          "x": 951,
+          "y": 672
         },
         {
           "x": 816,
-          "y": 582
+          "y": 597
         },
         {
           "x": 771,
-          "y": 579
+          "y": 597
         },
         {
-          "x": 705,
-          "y": 624
+          "x": 720,
+          "y": 627
         }
       ],
       "type": "check",
@@ -1729,6 +1729,13 @@
         }
       ],
       "type": "dialogue",
+      "npc": {
+        "characterId": "owen",
+        "facing": "NE",
+        "scale": 1,
+        "x": 1357.012,
+        "y": 1546.5896
+      },
       "verb": "\u5C0D\u8A71",
       "survivalRequirements": {
         "mode": "all"
@@ -1843,39 +1850,50 @@
       "shape": "polygon",
       "points": [
         {
-          "x": 657,
-          "y": 726
+          "x": 618,
+          "y": 723
         },
         {
-          "x": 657,
-          "y": 705
+          "x": 618,
+          "y": 654
         },
         {
-          "x": 684,
-          "y": 690
+          "x": 663,
+          "y": 630
         },
         {
-          "x": 708,
-          "y": 699
+          "x": 717,
+          "y": 630
         },
         {
-          "x": 750,
-          "y": 729
+          "x": 717,
+          "y": 684
+        },
+        {
+          "x": 774,
+          "y": 717
         },
         {
           "x": 762,
-          "y": 750
+          "y": 756
         },
         {
           "x": 723,
-          "y": 774
+          "y": 780
         },
         {
-          "x": 702,
-          "y": 759
+          "x": 699,
+          "y": 780
         }
       ],
       "type": "dialogue",
+      "npc": {
+        "characterId": "captain",
+        "facing": "S",
+        "scale": 1,
+        "x": 700.3996,
+        "y": 750.6889
+      },
       "verb": "\u5C0D\u8A71",
       "survivalRequirements": {
         "mode": "all"
@@ -1895,22 +1913,23 @@
           "itemId": "",
           "questId": "QUEST_CH02_MAIN_002",
           "stageId": "QUEST_CH02_MAIN_002_STAGE_01",
-          "stageMode": "CurrentStageOnly",
+          "stageMode": "UnlockUntilCondition",
           "objectiveId": "QUEST_CH02_MAIN_002_OBJ_02",
           "objectiveState": "unlocked",
-          "disableQuestId": "",
-          "disableStageId": "",
+          "disableQuestId": "QUEST_CH02_MAIN_002",
+          "disableStageId": "QUEST_CH02_MAIN_002_STAGE_01",
+          "disableObjectiveId": "QUEST_CH02_MAIN_002_OBJ_02",
+          "disableObjectiveState": "completed",
           "quantity": 1,
           "chapter": 1
         }
       ],
       "interactionHintPoint": {
-        "x": 702.0333,
-        "y": 727.4507
+        "x": 699.6454,
+        "y": 659.7744
       },
       "showOnMinimap": true,
       "activationDistance": 52,
-      "skipSuccessDialogue": true,
       "dialogue": {
         "characterDelaySeconds": 0.02,
         "speakers": [
@@ -1979,6 +1998,13 @@
         }
       ],
       "type": "dialogue",
+      "npc": {
+        "characterId": "rena",
+        "facing": "SE",
+        "scale": 1.05,
+        "x": 648.5177,
+        "y": 1032.793
+      },
       "verb": "\u5C0D\u8A71",
       "survivalRequirements": {
         "mode": "all"
@@ -1998,22 +2024,23 @@
           "itemId": "",
           "questId": "QUEST_CH02_MAIN_002",
           "stageId": "QUEST_CH02_MAIN_002_STAGE_01",
-          "stageMode": "CurrentStageOnly",
+          "stageMode": "UnlockUntilCondition",
           "objectiveId": "QUEST_CH02_MAIN_002_OBJ_03",
           "objectiveState": "unlocked",
-          "disableQuestId": "",
-          "disableStageId": "",
+          "disableQuestId": "QUEST_CH02_MAIN_002",
+          "disableStageId": "QUEST_CH02_MAIN_002_STAGE_01",
+          "disableObjectiveId": "QUEST_CH02_MAIN_002_OBJ_03",
+          "disableObjectiveState": "completed",
           "quantity": 1,
           "chapter": 1
         }
       ],
       "interactionHintPoint": {
-        "x": 664.15924,
-        "y": 979.55524
+        "x": 660.7926,
+        "y": 941.0464
       },
       "showOnMinimap": true,
       "activationDistance": 52,
-      "skipSuccessDialogue": false,
       "storyDialogueId": "chapter02-section-3",
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -2062,16 +2089,16 @@
           "y": 771
         },
         {
-          "x": 987,
-          "y": 789
+          "x": 996,
+          "y": 798
         },
         {
-          "x": 987,
-          "y": 828
+          "x": 1008,
+          "y": 834
         },
         {
-          "x": 945,
-          "y": 852
+          "x": 951,
+          "y": 867
         },
         {
           "x": 912,
@@ -2083,6 +2110,13 @@
         }
       ],
       "type": "dialogue",
+      "npc": {
+        "characterId": "ian",
+        "facing": "NE",
+        "scale": 0.95,
+        "x": 953.1604,
+        "y": 842.74756
+      },
       "verb": "\u5C0D\u8A71",
       "survivalRequirements": {
         "mode": "all"
@@ -2102,22 +2136,23 @@
           "itemId": "",
           "questId": "QUEST_CH02_MAIN_002",
           "stageId": "QUEST_CH02_MAIN_002_STAGE_01",
-          "stageMode": "CurrentStageOnly",
+          "stageMode": "UnlockUntilCondition",
           "objectiveId": "QUEST_CH02_MAIN_002_OBJ_04",
           "objectiveState": "unlocked",
-          "disableQuestId": "",
-          "disableStageId": "",
+          "disableQuestId": "QUEST_CH02_MAIN_002",
+          "disableStageId": "QUEST_CH02_MAIN_002_STAGE_01",
+          "disableObjectiveId": "QUEST_CH02_MAIN_002_OBJ_04",
+          "disableObjectiveState": "completed",
           "quantity": 1,
           "chapter": 1
         }
       ],
       "interactionHintPoint": {
-        "x": 937.345,
-        "y": 800.74445
+        "x": 947.53687,
+        "y": 769.21875
       },
       "showOnMinimap": true,
       "activationDistance": 52,
-      "skipSuccessDialogue": true,
       "dialogue": {
         "characterDelaySeconds": 0.02,
         "speakers": [

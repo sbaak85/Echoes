@@ -30,6 +30,22 @@ Version 1 fields:
   the point nearest to the player once when the interaction is triggered, then
   keeps that point for pathfinding, arrival, and facing. The legacy singular
   `interactionPoint` field is still accepted when older scenes are loaded.
+  Optional `npc` attaches one visible character to the interaction:
+  `{ "characterId": "rena", "x": 500, "y": 300, "facing": "SE", "scale": 1 }`.
+  `x` and `y` are the NPC's world-space foot position, independent of the player
+  interaction Points; the NPC may stand outside its parent polygon. `facing`
+  is one of `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, `NW`. `scale` must be positive
+  and finite; the editor authors 0.1–5 (10–500%). Missing `npc` means no character.
+  Character IDs, PNG paths, native dimensions, opaque body heights, and foot
+  anchors come from `public/characters/npc-catalog.json`, shared by editor and
+  runtime. A sprite's render factor is `catalog.defaultHeight / bodyHeight * scale`;
+  its top-left is `(x - anchorX * factor, y - anchorY * factor)`. Thus scale 1
+  gives the shared 152-world-pixel visible body height without tying size to
+  transparent PNG margins. Character images remain shared public assets and
+  are not copied with scene exports. NPCs add no collision geometry. Their
+  appearance uses the parent interaction's existing quest Stage conditions;
+  `npc` introduces no separate quest gates. Runtime close keeps the NPC present,
+  while explicit removal hides it.
   `dialogue.characterDelaySeconds` controls the left-to-right typing
   rate and defaults to `0.02`. `dialogue.speakers` stores the selectable speaker
   list (default `Sbaak`, `Echo`). A blank speaker on any line after the first

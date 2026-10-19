@@ -70,6 +70,25 @@ Included in version 1:
   selected interaction polygon to add another Point and choose its facing.
   With the Select tool, left-click and drag a yellow interaction Point to move
   it directly; it remains constrained to its parent interaction polygon.
+- 在互動多邊形內按右鍵，選「新增 NPC」可指定艦長、伊恩、蕾娜、歐文與
+  N／NE／E／SE／S／SW／W／NW 面向；「角色與方向預覽…」提供四角色縮圖、
+  八方向即時預覽和精確大小百分比。每個互動區最多附掛一名 NPC。
+  在選取工具下可直接拖曳角色；NPC 能站在互動區旁，拖曳不會改動互動區
+  或玩家互動 Point。選取後的青色右上角把手可等比縮放，腳底位置保持固定。
+  雙擊或右鍵角色可修改角色、方向與大小（10–500%）；即使站在多邊形外也可操作。
+  在 NPC 身上按右鍵時，若游標下方有互動多邊形，會穿透至該互動區的選單，
+  可直接「新增互動提示點／移動互動提示點至此」；重疊時優先保留目前選取的互動區。
+  角色超出多邊形的部位仍可透過 NPC 選單移動所屬互動區的提示點。
+  提示點使用右鍵當下的游標位置，不會移動 NPC 或玩家互動 Point。
+  右側 NPC 設定區也可輸入精確百分比後「套用大小」，或開啟「編輯 NPC…」。
+  選取 NPC 時 Delete／刪除只移除 NPC。右鍵「選取所屬互動區」或右側圖層清單
+  可回到父互動區；移動／縮放整個互動區時，附掛的 NPC 會一起變動。
+  NPC 編輯支援復原、重做與場景存檔，沿用父互動區的任務 Stage 等條件；
+  不會額外建立碰撞區、互動 Point 或另一套任務條件。
+- NPC 圖片與腳底對齊資料直接讀取 `../public/characters/npc-catalog.json`。
+  100% 對應目錄的 `defaultHeight`（目前 152 世界像素的可見身高）。場景只保存
+  `npc: { characterId, x, y, facing, scale }`，不複製角色圖片到 maps 目錄；
+  `x/y` 是腳底世界座標。未設定 NPC 的舊場景維持原格式。
 - One optional interaction hint Point per interaction polygon. Right-click
   inside the selected polygon to add or move the translucent white in-game
   prompt dot, or remove it from the same context menu.
@@ -176,6 +195,18 @@ and entrance/exit polygons. Runtime scene loading, camera movement, and actual
 player transfer intentionally remain outside this editor-only version.
 
 Build and publish from the repository root:
+
+NPC verification can run from an isolated build under `output/`; it exercises
+all 32 shared character images, selector directions, actual canvas pointer drag
+and resize, parent transforms, NPC-only deletion, Undo/Redo, JSON save/reload,
+and the real MainForm sidebar. Results and native UI screenshots are written to
+`output/mapeditor-npc/verification/`, without modifying scene files:
+
+```powershell
+$npcBuildRoot = Join-Path (Get-Location) 'output/mapeditor-npc'
+dotnet build MapEditor/MapEditor.csproj -p:BaseOutputPath="$npcBuildRoot/build/" -p:BaseIntermediateOutputPath="$npcBuildRoot/obj/" -p:MSBuildProjectExtensionsPath="$npcBuildRoot/obj/"
+& "$npcBuildRoot/build/Debug/net6.0-windows/MapEditor.exe" --npc-self-test (Get-Location).Path
+```
 
 ```powershell
 dotnet build MapEditor\MapEditor.csproj -c Release

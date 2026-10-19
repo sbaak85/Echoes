@@ -55,9 +55,11 @@ internal enum DragMode
     Vertex,
     CircleRadius,
     InteractionPoint,
+    NpcMove,
+    NpcResize,
 }
 
-public sealed class EditorCanvas : Control
+public sealed partial class EditorCanvas : Control
 {
     private const int RulerSize = 28;
     private const float MinimumZoom = 0.08f;
@@ -234,6 +236,7 @@ public sealed class EditorCanvas : Control
         });
         _nodeContextMenu.BackColor = Color.FromArgb(35, 39, 47);
         _nodeContextMenu.ForeColor = Color.WhiteSmoke;
+        InitializeNpcMenus();
         _moveSpawnContextItem.Click += (_, _) => SetPlayerSpawnAtContext();
         _addItemPointContextItem.Click += (_, _) => AddItemPointAtContext();
         _deleteItemPointContextItem.Click += (_, _) => DeleteItemPointAtContext();
@@ -324,6 +327,7 @@ public sealed class EditorCanvas : Control
         ClearForegroundCache();
         _sceneImage = image;
         _document = document;
+        _npcSelected = false;
         _selection = LayerSelection.None;
         _selectedVertex = -1;
         _selectedInteractionPoint = -1;
@@ -586,7 +590,8 @@ public sealed class EditorCanvas : Control
     public void SelectLayer(LayerSelection selection)
     {
         if (!IsValidSelection(selection)) selection = LayerSelection.None;
-        if (_selection == selection) return;
+        if (_selection == selection && !_npcSelected) return;
+        _npcSelected = false;
         _selection = selection;
         _selectedVertex = -1;
         _selectedInteractionPoint = -1;
@@ -596,6 +601,7 @@ public sealed class EditorCanvas : Control
 
     public void DeleteSelection()
     {
+        if (SelectedNpc is not null) { DeleteSelectedNpc(); return; }
         if (!IsValidSelection(_selection)) return;
 
         PerformMutation(() =>
@@ -750,6 +756,7 @@ public sealed class EditorCanvas : Control
 
     public void ScaleSelection(float factor)
     {
+        if (SelectedNpc is { } npc) { SetSelectedNpcScale(npc.Scale * factor); return; }
         if (!IsValidSelection(_selection)) return;
 
         PerformMutation(() =>
@@ -784,6 +791,11 @@ public sealed class EditorCanvas : Control
                 if (interactable.InteractionHintPoint is { } interactionHintPoint)
                 {
                     ScalePointAround(interactionHintPoint, center, factor);
+                }
+                if (interactable.Npc is { } attachedNpc)
+                {
+                    ScalePointAround(attachedNpc, center, factor);
+                    attachedNpc.Scale = Math.Clamp(attachedNpc.Scale * factor, 0.1f, 5f);
                 }
             }
             else if (_selection.Kind == SceneLayerKind.StoryTrigger)
@@ -1670,6 +1682,7 @@ public sealed class EditorCanvas : Control
             _renderTimer.Dispose();
             _nodeContextMenu.Dispose();
             _worldPointContextMenu.Dispose();
+            DisposeNpcResources();
             _sceneImage?.Dispose();
             ClearForegroundCache();
             _zoomSettleTimer.Stop();
@@ -1733,6 +1746,7 @@ public sealed class EditorCanvas : Control
         DrawTeleportPoints(graphics);
         DrawEntryPoints(graphics);
         DrawItemPoints(graphics);
+        DrawNpcs(graphics);
         if (staticPass) DrawSpawn(graphics);
         if (livePass)
         {
@@ -2242,6 +2256,7 @@ public sealed class EditorCanvas : Control
     private void DrawSelectionHandles(Graphics graphics)
     {
         if (!IsValidSelection(_selection)) return;
+        if (SelectedNpc is not null) { DrawNpcSelection(graphics); return; }
         // Point layers draw their own selection marker and have no polygon vertices.
         if (_selection.Kind is SceneLayerKind.ItemPoint or SceneLayerKind.TeleportPoint or SceneLayerKind.EntryPoint) return;
 
@@ -2378,6 +2393,7 @@ public sealed class EditorCanvas : Control
 
         if (e.Button == MouseButtons.Right && _tool == EditorTool.Select)
         {
+            if (TryShowNpcContextMenu(e.Location, rawWorld)) return;
             if (TryShowWorldPointContextMenu(e.Location, rawWorld)) return;
             ShowNodeContextMenu(e.Location, rawWorld);
             return;
@@ -2474,6 +2490,7 @@ public sealed class EditorCanvas : Control
                 break;
 
             case EditorTool.Select:
+                if (e.Clicks >= 2 && TrySelectNpc(rawWorld)) { EditSelectedNpc(); break; }
                 BeginSelectDrag(
                     rawWorld,
                     ModifierKeys.HasFlag(Keys.Alt));
@@ -2652,6 +2669,8 @@ public sealed class EditorCanvas : Control
 
     private void BeginSelectDrag(PointF world, bool cycleOverlappingShapes = false)
     {
+        if (!cycleOverlappingShapes && TryBeginNpcDrag(world)) return;
+        if (_npcSelected) SelectLayer(_selection);
         if (
             !cycleOverlappingShapes &&
             TryHitInteractionPoint(world, out var interactionSelection, out var interactionPointIndex)
@@ -2714,6 +2733,7 @@ public sealed class EditorCanvas : Control
     private bool UpdateSelectionDrag(PointF world)
     {
         if (!IsValidSelection(_selection) || !IsFinite(world)) return false;
+        if (_dragMode is DragMode.NpcMove or DragMode.NpcResize) return UpdateNpcDrag(world);
 
         if (_dragMode == DragMode.InteractionPoint)
         {
@@ -2811,6 +2831,11 @@ public sealed class EditorCanvas : Control
             {
                 interactionHintPoint.X += deltaX;
                 interactionHintPoint.Y += deltaY;
+            }
+            if (interactable.Npc is { } npc)
+            {
+                npc.X += deltaX;
+                npc.Y += deltaY;
             }
         }
         else if (_selection.Kind == SceneLayerKind.StoryTrigger)
@@ -3324,7 +3349,7 @@ public sealed class EditorCanvas : Control
         // This lets an interactable's Point commands remain available even when a guide or
         // another visually higher layer overlaps it. Changing layers stays an explicit action.
         var hit = ResolveContextSelection(world);
-        if (hit != _selection)
+        if (hit != _selection || _npcSelected)
         {
             SelectLayer(hit);
         }
@@ -3338,6 +3363,7 @@ public sealed class EditorCanvas : Control
         }
 
         var interactionSelected = _selection.Kind == SceneLayerKind.Interactable && IsValidSelection(_selection);
+        PrepareNpcParentMenu(interactionSelected);
         _interactionTypeContextItem.Visible = interactionSelected;
         _interactionPointContextItem.Visible = interactionSelected;
         _interactionPointContextItem.Text =
@@ -3805,6 +3831,7 @@ public sealed class EditorCanvas : Control
 
     private void NotifyDocumentReplaced()
     {
+        _npcSelected = false;
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         DocumentChanged?.Invoke(this, EventArgs.Empty);
         ViewChanged?.Invoke(this, EventArgs.Empty);

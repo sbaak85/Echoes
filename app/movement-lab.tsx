@@ -1,6 +1,8 @@
 "use client";
 import { createChapter02StartFlow, CHAPTER02_START_FLOW_ID } from "./chapter02-start-flow";
 import { getIdleSpriteSources, makeTransparentIdleSprite } from "./player-idle-sprites";
+import npcCatalogData from "../public/characters/npc-catalog.json";
+import { getSceneNpcRenderData, isSceneNpcVisible, normalizeNpcCatalog, sortSceneActors, type SceneNpc } from "./scene-npcs";
 import { getWalkFrameSources, makeTransparentWalkSprites, drawTransparentCharacterSprite, type TransparentCharacterSprite, type TransparentWalkSprite } from "./player-walk-sprites";
 import { useResponsiveConfirmation } from "./responsive-confirmation";
 import { createTouchJoystickView } from "./touch-joystick-view";
@@ -515,6 +517,7 @@ type InteractionPoint = Point & { facing?: Direction };
 type SceneInteractable = {
   id: string;
   label: string;
+  npc?: SceneNpc;
   shape?: "polygon";
   points?: Point[];
   position?: Point;
@@ -1530,6 +1533,21 @@ function buildSceneInteractables(
 }
 
 const SPRITE_SOURCES: Record<Direction, string> = getIdleSpriteSources();
+const NPC_CATALOG = normalizeNpcCatalog(npcCatalogData);
+const NPC_IMAGE_CACHE = new Map<string, HTMLImageElement>();
+const FAILED_NPC_IMAGES = new Set<string>();
+function getNpcImage(file: string) {
+  if (FAILED_NPC_IMAGES.has(file)) return null;
+  let image = NPC_IMAGE_CACHE.get(file);
+  if (!image) {
+    image = new Image();
+    image.decoding = "async";
+    image.onerror = () => { FAILED_NPC_IMAGES.add(file); };
+    image.src = resolveRuntimePublicAssetUrl(file);
+    NPC_IMAGE_CACHE.set(file, image);
+  }
+  return image;
+}
 
 const N_WALK_FRAME_SOURCES = getWalkFrameSources("N");
 const N_WALK_REFERENCE_FPS = 26;
@@ -9872,9 +9890,22 @@ export function MovementLab() {
       (questId, objectiveId, state) => questRuntimeManagerRef.current?.hasObjectiveReachedState(questId, objectiveId, state) ?? false,
     );
 
+    const isNpcPresent = (interactable: SceneInteractable) => {
+      if (interactable.npc == null) return true;
+      // Artwork failures must not disable an otherwise valid dialogue or quest target.
+      return isSceneNpcVisible(
+        normalizeInteractionUseRequirements(interactable.useRequirements, resolveItemId),
+        {
+          isQuestAtStage: (questId, stageId) => questRuntimeManagerRef.current?.isQuestAtStage(questId, stageId) ?? false,
+          hasQuestReachedStage: (questId, stageId) => questRuntimeManagerRef.current?.hasQuestReachedStage(questId, stageId) ?? false,
+          hasObjectiveReachedState: (questId, objectiveId, state) => questRuntimeManagerRef.current?.hasObjectiveReachedState(questId, objectiveId, state) ?? false,
+        },
+      );
+    };
+
     const isInteractableConditionActive = (
       interactable: SceneInteractable,
-    ) => shouldExposeInteraction(
+    ) => isNpcPresent(interactable) && shouldExposeInteraction(
       Boolean(getInteractionUseRequirementFailure(interactable, "prompt")),
       interactable.allowAttemptWhenRequirementsUnmet === true,
       isInteractableRetired(interactable),
@@ -9910,6 +9941,7 @@ export function MovementLab() {
       reason: "general" | "survival" = "general",
     ) => {
       if (isInteractableRetired(interactable)) return false;
+      if (!isNpcPresent(interactable)) return false;
       const failureStartedAt = window.performance.now();
       if (source === "pointer") pointerGestureConsumed = true;
       const questManager = questRuntimeManagerRef.current;
@@ -11898,6 +11930,8 @@ export function MovementLab() {
       onCompletionDialogueComplete?: () => void,
     ) => {
       if (isInteractableRetired(interactable)) return false;
+      // An accepted dialogue may advance a CurrentStageOnly gate before settlement.
+      // Explicit retirement still cancels it, but disappearing artwork does not undo success.
       settleNaturalSurvival();
       if (isInteractableLocked(interactable)) {
         return openInteractionFailureDialogue(interactable, source);
@@ -12506,6 +12540,7 @@ export function MovementLab() {
       source: PendingInteraction["source"],
     ) => {
       if (isInteractableRetired(interactable)) return false;
+      if (!isNpcPresent(interactable)) return false;
       settleNaturalSurvival();
       if (source === "pointer") pointerGestureConsumed = true;
       hideHotbarSelectionHint();
@@ -13566,6 +13601,42 @@ export function MovementLab() {
         );
         context.restore();
       }
+    };
+
+    // NPCs share the existing Interaction's input/quest rules; this only adds world art.
+    const drawSceneCharacters = (originScene: SceneFile | null) => {
+      type Actor = { id: string; kind: "npc" | "player"; footY: number; draw: () => void };
+      const actors: Actor[] = [{ id: "player", kind: "player", footY: player.y, draw: drawPlayer }];
+      const activeLayer = getSceneWorldLayout(SCENE_DATA).layer ?? 0;
+      const originLayout = originScene ? getSceneWorldLayout(originScene) : { x: 0, y: 0 };
+      for (const scene of SCENE_REGISTRY.values()) {
+        const layout = getSceneWorldLayout(scene);
+        if ((layout.layer ?? 0) !== activeLayer) continue;
+        const offset = { x: layout.x - originLayout.x, y: layout.y - originLayout.y };
+        const interactables = scene.sceneId === SCENE_DATA.sceneId
+          ? sceneInteractablesRef.current : scene.interactables ?? [];
+        for (const interactable of interactables) {
+          if (!interactable.npc || !isNpcPresent(interactable)) continue;
+          const render = getSceneNpcRenderData(interactable.npc, NPC_CATALOG);
+          if (!render) continue;
+          const image = getNpcImage(render.sprite.file);
+          if (!image?.complete || image.naturalWidth !== render.sprite.width || image.naturalHeight !== render.sprite.height) continue;
+          const x = render.npc.x + offset.x, y = render.npc.y + offset.y;
+          actors.push({
+            id: `${scene.sceneId}:${interactable.id}`, kind: "npc", footY: y,
+            draw: () => {
+              context.save();
+              context.fillStyle = "rgba(3, 9, 12, 0.24)";
+              context.beginPath();
+              context.ellipse(x, y - render.bodyHeight * 0.012, render.bodyHeight * 0.12, render.bodyHeight * 0.035, 0, 0, Math.PI * 2);
+              context.fill();
+              context.drawImage(image, render.left + offset.x, render.top + offset.y, render.width, render.height);
+              context.restore();
+            },
+          });
+        }
+      }
+      sortSceneActors(actors).forEach(actor => actor.draw());
     };
 
     const drawStreamedSceneImages = (originScene: SceneFile | null) => {
@@ -17100,7 +17171,7 @@ export function MovementLab() {
           (sceneStreamTransition.targetPlayerGlobal.y -
             sceneStreamTransition.sourcePlayerGlobal.y) *
             easedProgress;
-        drawPlayer();
+        drawSceneCharacters(null);
         player.x = previousPlayerX;
         player.y = previousPlayerY;
       } else {
@@ -17110,7 +17181,7 @@ export function MovementLab() {
         drawMap();
         drawWorldItemPickups(time);
         drawSceneCollision();
-        drawPlayer();
+        drawSceneCharacters(SCENE_DATA);
         drawSceneForegroundLayers();
         sceneHullStreams.draw(context, SCENE_DATA.hullStreams, "front", time, SCENE_DATA.backdrop?.mode);
         drawWorldItemLabels();

@@ -16,6 +16,11 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--npc-self-test")
+        {
+            ConfigureWindowsForms();
+            return NpcSelfTest.Run(args.Skip(1).FirstOrDefault() ?? ProjectPaths.FindProjectRoot(AppContext.BaseDirectory)!);
+        }
         if (args.Length > 0 && args[0] == "--foreground-self-test")
         {
             ConfigureWindowsForms();

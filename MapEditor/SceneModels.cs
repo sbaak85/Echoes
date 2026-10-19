@@ -205,6 +205,9 @@ public sealed class SceneInteractable : ITriggerConfiguration
     public string Shape { get; set; } = "polygon";
     public List<ScenePoint> Points { get; set; } = new();
     public string Type { get; set; } = "dialogue";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SceneNpc? Npc { get; set; }
     public string Verb { get; set; } = "對話";
     public SurvivalRequirements SurvivalRequirements { get; set; } = new();
     public SurvivalEffects SurvivalEffects { get; set; } = new();
@@ -1106,6 +1109,14 @@ public static class SceneJson
             }
 
             interactable.NormalizeInteractionPoints();
+            if (interactable.Npc is { } npc)
+            {
+                if (string.IsNullOrWhiteSpace(npc.CharacterId) || !float.IsFinite(npc.X) ||
+                    !float.IsFinite(npc.Y) || !float.IsFinite(npc.Scale) || npc.Scale <= 0 ||
+                    !NpcCatalog.Directions.Contains(npc.Facing))
+                    throw new InvalidDataException($"互動區 {interactable.Id} 的 NPC 角色、位置、方向或縮放無效。");
+                npc.CharacterId = npc.CharacterId.Trim();
+            }
             interactable.SurvivalRequirements ??= new SurvivalRequirements();
             interactable.SurvivalEffects ??= new SurvivalEffects();
             interactable.SurvivalRequirements.Mode =

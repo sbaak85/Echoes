@@ -5,7 +5,7 @@ using Echoes.AudioEventTools;
 
 namespace Echoes.MapEditor;
 
-public sealed class MainForm : Form
+public sealed partial class MainForm : Form
 {
     private const int WmSetRedraw = 0x000B;
     private const int SidebarPanelWidth = 390;
@@ -182,6 +182,7 @@ public sealed class MainForm : Form
     public MainForm()
     {
         _projectRoot = ProjectPaths.FindProjectRoot(AppContext.BaseDirectory);
+        if (_projectRoot is not null) _canvas.LoadNpcCatalog(_projectRoot);
         Text = "Echoes Map Editor";
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(1080, 720);
@@ -612,6 +613,7 @@ public sealed class MainForm : Form
         _deleteNodeButton.Click += (_, _) => _canvas.DeleteSelectedNode();
         layersGroup.Controls.Add(_deleteNodeButton);
         sidebar.Controls.Add(layersGroup);
+        AddNpcSidebar(sidebar);
 
         _teleportBlackoutCheck.SetBounds(10, 25, SidebarContentWidth, 24);
         _teleportBlackoutCheck.CheckedChanged += (_, _) =>
@@ -1650,6 +1652,7 @@ public sealed class MainForm : Form
         {
             _copyLayerIdButton.Visible = false;
             _selectionInfoLabel.Width = SidebarContentWidth;
+            RefreshNpcSidebar();
             var selectedItem = _layersList.Items
                 .Cast<LayerListItem>()
                 .FirstOrDefault(item => item.Selection == _canvas.Selection);
