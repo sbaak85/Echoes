@@ -1910,6 +1910,7 @@
       },
       "showOnMinimap": true,
       "activationDistance": 52,
+      "skipSuccessDialogue": true,
       "dialogue": {
         "characterDelaySeconds": 0.02,
         "speakers": [
@@ -1918,7 +1919,7 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "shipinterior-interaction-012-line-001",
             "speaker": "Sbaak",
             "text": "..."
           }
@@ -1932,7 +1933,7 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "shipinterior-interaction-012-failure-line-001",
             "speaker": "Sbaak",
             "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
@@ -2012,6 +2013,8 @@
       },
       "showOnMinimap": true,
       "activationDistance": 52,
+      "skipSuccessDialogue": false,
+      "storyDialogueId": "chapter02-section-3",
       "dialogue": {
         "characterDelaySeconds": 0.02,
         "speakers": [
@@ -2020,7 +2023,7 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "shipinterior-interaction-013-line-001",
             "speaker": "Sbaak",
             "text": "..."
           }
@@ -2034,7 +2037,7 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "shipinterior-interaction-013-failure-line-001",
             "speaker": "Sbaak",
             "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
@@ -2114,6 +2117,7 @@
       },
       "showOnMinimap": true,
       "activationDistance": 52,
+      "skipSuccessDialogue": true,
       "dialogue": {
         "characterDelaySeconds": 0.02,
         "speakers": [
@@ -2122,7 +2126,7 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "shipinterior-interaction-014-line-001",
             "speaker": "Sbaak",
             "text": "..."
           }
@@ -2136,7 +2140,7 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "shipinterior-interaction-014-failure-line-001",
             "speaker": "Sbaak",
             "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }

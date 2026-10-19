@@ -6,6 +6,7 @@
   <title>伊薩卡號 · 匯流排維護</title>
   <link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="drag.css"><link rel="stylesheet" href="hardware.css"><link rel="stylesheet" href="portrait.css">
   <link rel="stylesheet" href="embedded.css">
+  <link rel="stylesheet" href="completion.css">
 </head>
 <body data-owner="mouse">
   <main class="console">
@@ -22,6 +23,8 @@
           <defs>
             <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#8eaab8" stroke-opacity=".06"/></pattern>
             <filter id="glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4"/></filter>
+            <filter id="plasma-bloom" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.4"/></filter>
+            <filter id="plasma-soft" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="1.6"/></filter>
             <linearGradient id="terminal-metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#bdc4b8"/><stop offset=".4" stop-color="#606f6a"/><stop offset=".6" stop-color="#273b39"/><stop offset="1" stop-color="#9ea793"/></linearGradient>
           </defs>
           <rect width="490" height="430" fill="url(#grid)"/>
@@ -47,6 +50,7 @@
     </div>
     <footer><span id="input-help">拖入插卡 · 拖出拔卡 · 拖到已插卡交換 · Esc 取消</span><span class="footer-note">伊薩卡號 / 維護終端 02</span></footer>
   </main>
+  <div id="success-message" class="success-message" role="status" aria-live="polite" hidden><p></p></div>
   <script type="module" src="app.mjs"></script>
 </body>
 </html>

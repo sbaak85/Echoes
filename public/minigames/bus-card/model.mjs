@@ -4,14 +4,14 @@ export const CARDS = [
   { id: 'C', name: '長距匯流排', span: 3, color: '#b9a0ff', rgb: '185,160,255' },
 ];
 export const SLOTS = [
-  { id: '01', source: 0 }, { id: '02', source: 3 },
-  { id: '03', source: 1 }, { id: '04', source: 4 },
+  { id: '01', source: 0, direction: 1 }, { id: '02', source: 3, direction: 1 },
+  { id: '03', source: 7, direction: -1 }, { id: '04', source: 4, direction: 1 },
 ];
 export const EMPTY = () => [null, null, null, null];
 export const routeFor = (slotIndex, cardId) => {
   const card = CARDS.find(item => item.id === cardId);
   const slot = SLOTS[slotIndex];
-  return card && slot ? { slot: slotIndex, card: cardId, from: slot.source, to: slot.source + card.span } : null;
+  return card && slot ? { slot: slotIndex, card: cardId, from: slot.source, to: slot.source + slot.direction * card.span } : null;
 };
 export function insertCard(slots, slotIndex, cardId) {
   if (!SLOTS[slotIndex] || slots[slotIndex] || slots.includes(cardId) || !CARDS.some(card => card.id === cardId)) return slots;

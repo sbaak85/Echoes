@@ -1,10 +1,10 @@
 import { hostPad } from './host.mjs';
-export function installInput({ cancel, onOwnerChange, initialOwner = 'mouse' }) {
+export function installInput({ cancel, onOwnerChange, initialOwner = 'mouse', isLocked = () => false }) {
   let owner = initialOwner, target = document.querySelector('#card-A');
   document.body.dataset.owner = owner;
   let lastPointer = null, touchUntil = 0, previousDirection = '', nextRepeat = 0;
   let previousA = false, previousB = false, armed = false, focused = true;
-  const buttons = () => [...document.querySelectorAll('button')].filter(button => !button.disabled && button.offsetParent !== null);
+  const buttons = () => isLocked() ? [] : [...document.querySelectorAll('button')].filter(button => !button.disabled && button.offsetParent !== null);
   const clear = () => document.querySelectorAll('[data-nav]').forEach(button => button.removeAttribute('data-nav'));
   const paint = () => {
     clear();
@@ -64,6 +64,7 @@ export function installInput({ cancel, onOwnerChange, initialOwner = 'mouse' }) 
     const directions = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
     if (![...Object.keys(directions), 'Tab', 'Enter', ' ', 'Escape'].includes(event.key)) return;
     event.preventDefault();
+    if (isLocked()) { clear(); return; }
     if (event.repeat && owner !== 'keyboard') return;
     const interrupted = takeover('keyboard');
     if (directions[event.key]) move(directions[event.key]);
@@ -81,6 +82,10 @@ export function installInput({ cancel, onOwnerChange, initialOwner = 'mouse' }) 
   window.addEventListener('gamepaddisconnected', () => { clear(); armed = false; previousDirection = ''; previousA = previousB = false; });
   document.addEventListener('pointercancel', () => { lastPointer = null; clear(); });
   function poll(now) {
+    if (isLocked()) {
+      armed = false; previousDirection = ''; previousA = previousB = false; clear();
+      requestAnimationFrame(poll); return;
+    }
     const pad = hostPad();
     if (!pad) {
       armed = false; previousDirection = ''; previousA = previousB = false;

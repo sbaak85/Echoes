@@ -19,3 +19,53 @@ footer{margin-top:12px;padding-top:10px;line-height:1.5;font-size:10px}
 /* Reserve two hint lines, including their spacing, before any hint is revealed. */
 .hint-copy{font-size:10px;line-height:1.8;min-height:calc(3.6em + 18px);padding:9px 0}
 .hint-copy p{margin:0}
+
+/* 電流寫實化（2026-10-17）：導管內電漿分層發光。顏色取自卡片 --card-color／--card-rgb。
+   route-reveal 是充能進度遮罩；其餘層的 stroke-dasharray 用於流動亮紋。 */
+.route-reveal{fill:none;stroke:#fff;stroke-width:26;stroke-linecap:butt;stroke-linejoin:round}
+.route-bloom{fill:none;stroke:var(--card-color);stroke-width:13;stroke-linecap:round;stroke-linejoin:round;filter:url(#plasma-bloom);opacity:.5;mix-blend-mode:screen}
+.route-glass{fill:none;stroke:rgba(var(--card-rgb),.26);stroke-width:7.6;stroke-linecap:round;stroke-linejoin:round}
+.route-energy .route-fill{stroke:rgba(var(--card-rgb),.88);stroke-width:3.6;filter:url(#plasma-soft)}
+.route-surge{fill:none;stroke:color-mix(in srgb,var(--card-color) 55%,#fff);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:34 21 9 30 52 17 6 41 22 33;opacity:.5;filter:url(#plasma-soft);mix-blend-mode:screen}
+.route-ripple{fill:none;stroke:#fff;stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:4 37 2 58 7 44 2.5 33;opacity:.72;mix-blend-mode:screen}
+.route-wave{fill:none;stroke:color-mix(in srgb,var(--card-color) 70%,#fff);stroke-width:7;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:90 140 55 175 120 160;opacity:.22;filter:url(#plasma-bloom);mix-blend-mode:screen}
+.route-core{fill:none;stroke:color-mix(in srgb,var(--card-color) 35%,#fff);stroke-width:.95;stroke-linecap:round;stroke-linejoin:round;opacity:.86}
+.route-filament{fill:none;stroke:#fff;stroke-width:.85;stroke-linejoin:round;stroke-linecap:round;filter:drop-shadow(0 0 2px var(--card-color));mix-blend-mode:screen}
+.route-mote{stroke:color-mix(in srgb,var(--card-color) 30%,#fff);stroke-width:1.4;stroke-linecap:round;mix-blend-mode:screen}
+.route-spark-line{stroke:color-mix(in srgb,var(--card-color) 35%,#fff);stroke-width:1.1;stroke-linecap:round;mix-blend-mode:screen}
+.route-head-halo{fill:var(--card-color);opacity:.55;filter:url(#plasma-bloom);mix-blend-mode:screen}
+.route-head-core{fill:#fff;filter:drop-shadow(0 0 3px var(--card-color))}
+.route-flash{fill:none;stroke:color-mix(in srgb,var(--card-color) 40%,#fff);stroke-width:1.8;filter:drop-shadow(0 0 4px var(--card-color));mix-blend-mode:screen}
+/* 一體式管線網路（2026-10-19）：所有管段合成同一條路徑，由 app.mjs 依插槽與卡片長度計算 */
+.pipe-shadow,.pipe-shell,.pipe-wall,.pipe-bore{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.pipe-shadow{stroke:#020809;stroke-width:14;opacity:.5;filter:url(#plasma-soft)}
+.pipe-shell{stroke:#0a171d;stroke-width:12}
+.pipe-wall{stroke:#5b767e;stroke-width:8.4}
+.pipe-bore{stroke:#0c1d24;stroke-width:4.2}
+/* 接頭框在管線與電流上方、節點下方；中央視窗的亮色由 app.mjs 依通過的電流設定 */
+.pipe-flange{pointer-events:none}
+.flange-body{fill:#15282f;stroke:#6f8d95;stroke-width:1.1;filter:drop-shadow(1px 2px 1.5px #000c)}
+.flange-window{fill:#06121a;stroke:#3d5961;stroke-width:.8}
+.flange-bolt{fill:#86a1a8;opacity:.75}
+.flange-halo{filter:url(#glow);mix-blend-mode:screen}
+.flange-fill{filter:url(#plasma-soft)}
+.flange-light{filter:drop-shadow(0 0 2.5px #fff)}
+/* 每股電流的管殼已併入管線網路，這條只保留給長度計算與座標取點 */
+#energy .route-tube{stroke:none}
+/* 電流填色場：每段管子的 stroke 是 app.mjs 每幀更新的 linearGradient；
+   整組先以不透明色合成，再套群組透明度，相鄰管段之間不會疊出接縫 */
+.field-layer path{fill:none;stroke-linecap:butt;stroke-linejoin:round}
+.field-glass{opacity:.32}.field-glass path{stroke-width:7.6}
+.field-bloom{filter:url(#plasma-bloom);mix-blend-mode:screen}.field-bloom path{stroke-width:13}
+.field-fill{filter:url(#plasma-soft);opacity:.9}.field-fill path{stroke-width:3.6}
+/* 節點通電光暈：fill／stroke 顏色與 opacity 由 app.mjs 依最近的電流即時設定 */
+.node-halo{filter:url(#glow);mix-blend-mode:screen;pointer-events:none}
+.node-frame-glow{fill:none;stroke-width:2.2;pointer-events:none}
+.node-ring{fill:none;stroke-width:3.6;filter:url(#plasma-soft);mix-blend-mode:screen;pointer-events:none}
+/* 原本的「已串接」淡金色會把電流顏色洗白，通電節點改由上面幾層負責上色 */
+.node-lit .node-inner{fill:#eef3ea;filter:none}
+.node-core{filter:drop-shadow(0 0 2.5px #fff);pointer-events:none}
+/* 各股電流自己的亮紋改成白色疊加，顏色由底下的填色場決定，融合處的漸層不會被蓋掉 */
+.route-surge{stroke:#fff;opacity:.3}
+.route-wave{stroke:#fff;opacity:.12}
+.route-core{stroke:#fff;mix-blend-mode:screen}

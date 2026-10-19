@@ -1,4 +1,4 @@
-const embedded = window.parent !== window;
+export const embedded = window.parent !== window;
 export const initialOwner = ['mouse','keyboard','gamepad','touch'].includes(new URLSearchParams(location.search).get('owner'))
   ? new URLSearchParams(location.search).get('owner') : 'mouse';
 let pad = null;
