@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "note": "NPC 角色名冊：idle 目錄底下每個角色資料夾對應一個英文 ID。新增角色時，把 8 方向站立圖放進 characters/idle/<資料夾>/，在這裡加一行，再執行 node scripts/build-npc-catalog.mjs。資料夾名稱若本身就是小寫英文 ID，可以不寫在名冊裡。",
+  "characters": [
+    { "folder": "艦長", "id": "captain", "name": "艦長" },
+    { "folder": "伊恩", "id": "ian", "name": "伊恩" },
+    { "folder": "蕾娜", "id": "rena", "name": "蕾娜" },
+    { "folder": "歐文", "id": "owen", "name": "歐文" }
+  ]
+}

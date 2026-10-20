@@ -226,6 +226,7 @@ public sealed partial class MainForm : Form
 
         Controls.Add(split);
         Controls.Add(status);
+        Controls.Add(BuildVisibilityBar());
         Controls.Add(toolbar);
         Controls.Add(menu);
         MainMenuStrip = menu;
@@ -423,6 +424,7 @@ public sealed partial class MainForm : Form
         AddToolButton(toolbar, "傳送點", EditorTool.TeleportPoint, "點擊新增可由任務指定的傳送 Point");
         AddToolButton(toolbar, "Entry Point", EditorTool.EntryPoint, "在 NavMesh 內新增可複數使用的地圖進入落點");
         AddToolButton(toolbar, "出入口多邊形", EditorTool.SceneExitPolygon, "圈出切換地圖的觸發範圍，完成後設定目標地圖與 Entry Point");
+        AddToolButton(toolbar, "遮擋片段", EditorTool.OccluderPolygon, "在前景牆面圖上圈出一段牆；依牆腳線判斷角色在牆前或牆後");
         toolbar.Items.Add(new ToolStripSeparator());
 
         _undoButton.ToolTipText = "復原 Ctrl+Z";
@@ -614,6 +616,7 @@ public sealed partial class MainForm : Form
         layersGroup.Controls.Add(_deleteNodeButton);
         sidebar.Controls.Add(layersGroup);
         AddNpcSidebar(sidebar);
+        AddOccluderSidebar(sidebar);
 
         _teleportBlackoutCheck.SetBounds(10, 25, SidebarContentWidth, 24);
         _teleportBlackoutCheck.CheckedChanged += (_, _) =>
@@ -1559,8 +1562,29 @@ public sealed partial class MainForm : Form
                 var interactable = _canvas.Document.Interactables[index];
                 _layersList.Items.Add(new LayerListItem(
                     new LayerSelection(SceneLayerKind.Interactable, index),
-                    $"[互動/{interactable.Verb}] {interactable.Label} · ID {interactable.Id}  ({interactable.Points.Count}點)",
+                    $"[互動/{interactable.Verb}] {interactable.Label} · ID {interactable.Id}  ({interactable.Points.Count}點)" +
+                        (_canvas.FindNpc(interactable.NpcId) is { } talkTarget ? $" · 對象 {talkTarget.Label}" : ""),
                     interactable.Label));
+            }
+
+            for (var index = 0; index < _canvas.Document.OccluderList.Count; index++)
+            {
+                var occluder = _canvas.Document.OccluderList[index];
+                var layerLabel = _canvas.Document.ForegroundLayers.FirstOrDefault(layer => layer.Id == occluder.LayerId)?.Label ?? "?";
+                _layersList.Items.Add(new LayerListItem(
+                    new LayerSelection(SceneLayerKind.Occluder, index),
+                    $"[遮擋片段/{layerLabel}] {occluder.Label} · ID {occluder.Id}  ({occluder.Points.Count}點)",
+                    occluder.Label));
+            }
+
+            for (var index = 0; index < _canvas.Document.NpcList.Count; index++)
+            {
+                var npc = _canvas.Document.NpcList[index];
+                var references = _canvas.InteractionsUsingNpc(npc).Count;
+                _layersList.Items.Add(new LayerListItem(
+                    new LayerSelection(SceneLayerKind.Npc, index),
+                    $"[NPC/{_canvas.NpcCharacterName(npc)}/{npc.Facing}] {npc.Label} · ID {npc.Id}  (對話 {references} 段 · {EditorCanvas.DescribeNpcPresence(npc)})",
+                    npc.Label));
             }
 
             for (var index = 0; index < _canvas.Document.StoryTriggers.Count; index++)
@@ -1653,6 +1677,7 @@ public sealed partial class MainForm : Form
             _copyLayerIdButton.Visible = false;
             _selectionInfoLabel.Width = SidebarContentWidth;
             RefreshNpcSidebar();
+            RefreshOccluderSidebar();
             var selectedItem = _layersList.Items
                 .Cast<LayerListItem>()
                 .FirstOrDefault(item => item.Selection == _canvas.Selection);
@@ -1822,6 +1847,17 @@ public sealed partial class MainForm : Form
                 SelectConnectionOption(_connectionTransferModeCombo, connection.TransferMode);
                 SelectConnectionOption(_connectionCameraFocusCombo, connection.CameraFocus);
             }
+            else if (_canvas.SelectedOccluder is { } occluder)
+            {
+                var node = _canvas.SelectedVertexIndex >= 0 ? $" · Node {_canvas.SelectedVertexIndex + 1}" : "";
+                _selectionInfoLabel.Text = $"遮擋片段 ID：{occluder.Id}{node}";
+                _selectionNameText.Text = occluder.Label;
+            }
+            else if (_canvas.SelectedNpc is { } npc)
+            {
+                _selectionInfoLabel.Text = $"NPC ID：{npc.Id}";
+                _selectionNameText.Text = npc.Label;
+            }
             else
             {
                 _selectionInfoLabel.Text = "尚未選取圖形";
@@ -1874,6 +1910,10 @@ public sealed partial class MainForm : Form
                 _canvas.Document.Connections[selection.Index].Id?.Trim() ?? "",
             SceneLayerKind.ItemPoint when selection.Index < _canvas.Document.ItemPoints.Count =>
                 _canvas.Document.ItemPoints[selection.Index].Id?.Trim() ?? "",
+            SceneLayerKind.Npc when selection.Index < _canvas.Document.NpcList.Count =>
+                _canvas.Document.NpcList[selection.Index].Id?.Trim() ?? "",
+            SceneLayerKind.Occluder when selection.Index < _canvas.Document.OccluderList.Count =>
+                _canvas.Document.OccluderList[selection.Index].Id?.Trim() ?? "",
             _ => "",
         };
     }
@@ -2299,6 +2339,8 @@ public sealed partial class MainForm : Form
         SceneLayerKind.EntryPoint => _canvas.Document.EntryPoints[selection.Index].Label,
         SceneLayerKind.SceneConnection => _canvas.Document.Connections[selection.Index].Label,
         SceneLayerKind.ItemPoint => _canvas.Document.ItemPoints[selection.Index].Label,
+        SceneLayerKind.Npc => _canvas.Document.NpcList[selection.Index].Label,
+        SceneLayerKind.Occluder => _canvas.Document.OccluderList[selection.Index].Label,
         _ => "",
     };
 
@@ -2590,6 +2632,7 @@ public sealed partial class MainForm : Form
             EditorTool.TeleportPoint => "傳送點：在 NavMesh 內點擊新增；選取後可設定面向與名稱",
             EditorTool.EntryPoint => "Entry Point：在 NavMesh 內新增地圖進入落點；可設定 Point ID 與朝向",
             EditorTool.SceneExitPolygon => "出入口多邊形：圈出切換觸發範圍；完成後在右側指定目標地圖與 Entry Point",
+            EditorTool.OccluderPolygon => "遮擋片段：沿前景牆面圖逐點圈出一段牆；完成後拖曳橘色牆腳線端點對齊牆貼地的位置",
             _ => "準備就緒",
         };
     }

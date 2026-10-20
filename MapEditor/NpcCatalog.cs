@@ -1,15 +1,14 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Drawing.Drawing2D;
 
 namespace Echoes.MapEditor;
 
-public sealed class SceneNpc : ScenePoint
+internal sealed class NpcReference
 {
-    public string CharacterId { get; set; } = "";
-    public string Facing { get; set; } = "S";
-    public float Scale { get; set; } = 1;
-    public SceneNpc Copy() => new() { CharacterId = CharacterId, Facing = Facing, X = X, Y = Y, Scale = Scale };
+    public float Size { get; set; }
+    public Dictionary<string, float> BodyRatio { get; set; } = new();
 }
 
 internal sealed class NpcCharacter
@@ -42,9 +41,11 @@ internal sealed class NpcBodyBounds
 // authority for characters, PNG paths, visible height, and foot anchors.
 internal sealed class NpcCatalog : IDisposable
 {
-    public static readonly string[] Directions = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
+    public static IReadOnlyList<string> Directions => SceneNpc.Directions;
     public int Version { get; set; }
     public float DefaultHeight { get; set; }
+    /// <summary>主角站立圖「可見身高／裁切框高度」（版本 2）：NPC 100% 時與主角同高</summary>
+    public NpcReference? Reference { get; set; }
     public List<NpcCharacter> Characters { get; set; } = new();
     private string _publicRoot = "";
     private readonly Dictionary<string, Bitmap> _images = new(StringComparer.OrdinalIgnoreCase);
@@ -56,7 +57,7 @@ internal sealed class NpcCatalog : IDisposable
             System.IO.File.ReadAllText(Path.Combine(publicRoot, "characters", "npc-catalog.json")), SceneJson.Options)
             ?? throw new InvalidDataException("NPC 角色目錄沒有有效內容。");
         catalog._publicRoot = publicRoot;
-        if (catalog.Version != 1 || !float.IsFinite(catalog.DefaultHeight) || catalog.DefaultHeight <= 0 ||
+        if (catalog.Version is not (1 or 2) || !float.IsFinite(catalog.DefaultHeight) || catalog.DefaultHeight <= 0 ||
             catalog.Characters.Count == 0 || catalog.Characters.Select(c => c.Id).Distinct().Count() != catalog.Characters.Count)
             throw new InvalidDataException("NPC 角色目錄版本或內容無效。");
         foreach (var character in catalog.Characters)
@@ -73,7 +74,17 @@ internal sealed class NpcCatalog : IDisposable
 
     public NpcCharacter? Find(string id) => Characters.FirstOrDefault(c => c.Id == id);
     public NpcSprite? Sprite(SceneNpc npc) => Find(npc.CharacterId)?.Sprites.GetValueOrDefault(npc.Facing);
-    public float Factor(SceneNpc npc, NpcSprite sprite) => DefaultHeight / sprite.BodyHeight * npc.Scale;
+    public string? Name(string characterId) => Find(characterId)?.Name;
+
+    /// <summary>可見身高（世界像素）：100% 與主角同方向的可見身高一致（與遊戲 getNpcBodyHeight 相同）</summary>
+    public float BodyHeight(SceneNpc npc)
+    {
+        var ratio = Reference?.BodyRatio.GetValueOrDefault(npc.Facing) ?? 1f;
+        if (!float.IsFinite(ratio) || ratio <= 0.5f || ratio > 1f) ratio = 1f;
+        return DefaultHeight * ratio * npc.Scale;
+    }
+
+    public float Factor(SceneNpc npc, NpcSprite sprite) => BodyHeight(npc) / sprite.BodyHeight;
 
     public RectangleF ImageRectangle(SceneNpc npc, NpcSprite sprite)
     {

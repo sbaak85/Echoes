@@ -31,7 +31,19 @@ Included in version 1:
   儲存／另存／匯出會將前景圖片複製到場景 JSON 旁並寫入相對檔名；
   目的地同名異內容的檔案會阻止儲存，不會直接覆寫。
   移除圖層只移除參照，不刪除圖片。舊場景未設定此欄位時視為無前景。
-  此功能目前限編輯器；遊戲繪製、角色前後判定與局部防遮擋尚未接線。
+  遊戲中前景圖畫在所有角色上方，被「遮擋片段」切出的部分除外。
+- 工具列第二排「顯示」：NavMesh、碰撞、互動、劇情觸發區、強制引導線、傳送點、Entry Point、
+  出入口、遮擋片段、ItemPoint、NPC、出生點各有一個勾選開關，取消勾選就暫時不畫、也不能在畫布上點選；
+  「全部顯示」一次打開。只影響編輯畫面，不寫入場景；從圖層清單選取被隱藏的項目會自動重新顯示該類。
+- 「遮擋片段」工具：在前景牆面圖上逐點圈出一段牆（雙擊／右鍵／Enter 完成），
+  完成後自動把最下方的邊設為橘紅色「牆腳線」，中點的小箭頭指向牆前。
+  - 遊戲規則：角色腳底在牆腳線下方（牆前）時角色蓋住這段牆；在上方（牆後）時這段牆擋住角色。
+    牆腳線會往兩端延伸比較，斜牆、長牆都適用；沒被切到的前景照舊永遠在最上層，可以只處理有問題的牆。
+  - 牆腳線要畫在牆真正貼地的位置。端點和 Node 重疊時，拖 Node 會一起帶動牆腳線；
+    不在 Node 上的端點可以單獨拖曳。側欄可「牆腳線設為最下方的邊」「對調端點」、切換所屬前景圖層。
+  - L 型轉角請拆成兩段，每段一條直線；片段之間不要互相重疊。
+  - 片段可像其他多邊形一樣移動、縮放（牆腳線一起動）、編輯 Node、復原／重做；
+    移除前景圖層時切自它的片段一起移除。資料存在場景 JSON 的 `occluders`，沒有片段的場景不多出欄位。
 
 - NavMesh polygon drawing.
 - Polygon, rectangle, and circle collision drawing.
@@ -70,25 +82,26 @@ Included in version 1:
   selected interaction polygon to add another Point and choose its facing.
   With the Select tool, left-click and drag a yellow interaction Point to move
   it directly; it remains constrained to its parent interaction polygon.
-- 在互動多邊形內按右鍵，選「新增 NPC」可指定艦長、伊恩、蕾娜、歐文與
-  N／NE／E／SE／S／SW／W／NW 面向；「角色與方向預覽…」提供四角色縮圖、
-  八方向即時預覽和精確大小百分比。每個互動區最多附掛一名 NPC。
-  在選取工具下可直接拖曳角色；NPC 能站在互動區旁，拖曳不會改動互動區
-  或玩家互動 Point。選取後的青色右上角把手可等比縮放，腳底位置保持固定。
-  雙擊或右鍵角色可修改角色、方向與大小（10–500%）；即使站在多邊形外也可操作。
-  在 NPC 身上按右鍵時，若游標下方有互動多邊形，會穿透至該互動區的選單，
-  可直接「新增互動提示點／移動互動提示點至此」；重疊時優先保留目前選取的互動區。
-  角色超出多邊形的部位仍可透過 NPC 選單移動所屬互動區的提示點。
-  提示點使用右鍵當下的游標位置，不會移動 NPC 或玩家互動 Point。
-  右側 NPC 設定區也可輸入精確百分比後「套用大小」，或開啟「編輯 NPC…」。
-  選取 NPC 時 Delete／刪除只移除 NPC。右鍵「選取所屬互動區」或右側圖層清單
-  可回到父互動區；移動／縮放整個互動區時，附掛的 NPC 會一起變動。
-  NPC 編輯支援復原、重做與場景存檔，沿用父互動區的任務 Stage 等條件；
-  不會額外建立碰撞區、互動 Point 或另一套任務條件。
-- NPC 圖片與腳底對齊資料直接讀取 `../public/characters/npc-catalog.json`。
-  100% 對應目錄的 `defaultHeight`（目前 152 世界像素的可見身高）。場景只保存
-  `npc: { characterId, x, y, facing, scale }`，不複製角色圖片到 maps 目錄；
-  `x/y` 是腳底世界座標。未設定 NPC 的舊場景維持原格式。
+- NPC 是獨立圖層（圖層清單顯示為 `[NPC/角色/方向]`），不附屬任何互動區：
+  - 新增：在可走區域按右鍵「在此新增 NPC ▸ 角色 ▸ 面向」；或在互動區右鍵
+    「NPC ▸ 在此新增 NPC 並設為對話對象」（也可用「角色與方向預覽…」挑選）。
+  - 對話對象：互動區右鍵「NPC ▸ 對話對象」或右側「NPC 對話對象」下拉選單指定。
+    多段對話可以共用同一個 NPC（例如歐文的三段對話），畫面上只會有一個角色。
+    選取互動區時，畫面會以虛線連到它的對話對象。
+  - 選取工具下直接拖曳角色移動；青色右上角把手等比縮放，腳底位置固定。
+    移動或縮放互動區不會帶動 NPC。雙擊角色可修改角色、方向與大小（10–500%）。
+  - 角色右鍵選單：編輯、變更面向、出場條件、對話時轉向主角、待機呼吸、移除 NPC、
+    選取引用此 NPC 的對話；角色蓋住互動區時可用「開啟下方互動區選單」編輯提示點等。
+  - 右側 NPC 設定區：精確大小、編輯 NPC…、出場條件…（沿用任務階段／目標條件視窗；
+    沒有設定＝一直在場，關閉或移除條件成立時離場）、清除條件、兩個表現選項，
+    以及引用此 NPC 的對話清單。
+  - Delete 只移除 NPC，並清除所有引用它的對話對象設定；復原會一起還原。
+  - 舊格式（互動區內嵌 `npc`）讀檔時自動轉成 `npc-<互動區ID>`，存檔後改用新格式。
+  - NPC 不建立碰撞區或互動 Point。
+- NPC 圖片、腳底錨點、身體範圍與雙腳接地點讀取 `../public/characters/npc-catalog.json`
+  （`node scripts/build-npc-catalog.mjs` 產生；新增角色見 `docs/scene-format.md` 的 `npcs`）。
+  100% 與主角同方向的可見身高一致。場景保存 `npcs` 清單與互動區的 `npcId`，
+  不複製角色圖片到 maps 目錄；沒有 NPC 的場景不會多出任何欄位。
 - One optional interaction hint Point per interaction polygon. Right-click
   inside the selected polygon to add or move the translucent white in-game
   prompt dot, or remove it from the same context menu.

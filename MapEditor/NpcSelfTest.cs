@@ -26,22 +26,25 @@ internal static class NpcSelfTest
         try
         {
             using var catalog = NpcCatalog.Load(root);
-            Require(catalog.Characters.Count == 4, "Expected four characters in shared catalog.");
+            Require(catalog.Characters.Count >= 1 && catalog.Reference is not null, "Shared catalog has no characters or player reference.");
             foreach (var character in catalog.Characters)
             foreach (var direction in NpcCatalog.Directions)
             {
                 var sprite = character.Sprites[direction];
                 var image = catalog.Image(sprite);
                 Require(image.Width == sprite.Width && image.Height == sprite.Height, $"Wrong image dimensions: {character.Id}/{direction}");
-                Require(Math.Abs(catalog.BodyRectangle(new SceneNpc { CharacterId = character.Id, Facing = direction }).Height - catalog.DefaultHeight) < 0.001f,
+                var npc = new SceneNpc { CharacterId = character.Id, Facing = direction };
+                Require(Math.Abs(catalog.BodyRectangle(npc).Height - catalog.BodyHeight(npc)) < 0.001f,
                     $"Visible body height mismatch: {character.Id}/{direction}");
+                Require(catalog.BodyHeight(npc) < catalog.DefaultHeight && catalog.BodyHeight(npc) > catalog.DefaultHeight * 0.9f,
+                    $"100% body height is not the player's visible height: {character.Id}/{direction}");
             }
-            checks.Add("PASS: all four shared-catalog characters × eight directions load and normalize to catalog.defaultHeight.");
-            using (var dialog = new NpcEditorForm(catalog, new SceneNpc { CharacterId = catalog.Characters[0].Id, X = 500, Y = 300 }))
+            checks.Add($"PASS: {catalog.Characters.Count} shared-catalog characters × eight directions load; 100% matches the player's visible body height.");
+            using (var dialog = new NpcEditorForm(catalog, new SceneNpc { Id = "npc-keep", Label = "保留", CharacterId = catalog.Characters[0].Id, X = 500, Y = 300 }))
             {
                 dialog.StartPosition = FormStartPosition.Manual; dialog.Location = new Point(-20000, -20000); dialog.ShowInTaskbar = false;
                 dialog.Show(); Application.DoEvents();
-                Require(dialog.CharacterChoiceCount == 4 && dialog.DirectionChoiceCount == 8, "Selector choices missing.");
+                Require(dialog.CharacterChoiceCount == catalog.Characters.Count && dialog.DirectionChoiceCount == 8, "Selector choices missing.");
                 foreach (var character in catalog.Characters)
                 foreach (var facing in NpcCatalog.Directions)
                 {
@@ -50,10 +53,20 @@ internal static class NpcSelfTest
                 }
                 dialog.SetPercent(137.5m);
                 Require(Math.Abs(dialog.Result.Scale - 1.375f) < 0.0001f, "Precise percentage failed.");
-                Require(dialog.Result.X == 500 && dialog.Result.Y == 300, "Preview changes moved foot anchor.");
+                Require(dialog.Result.X == 500 && dialog.Result.Y == 300 && dialog.Result.Id == "npc-keep", "Preview changes moved foot anchor or lost identity.");
                 Screenshot(dialog, Path.Combine(output, "npc-selector.png")); dialog.Close();
             }
-            checks.Add("PASS: four-thumbnail selector, all 32 character/facing combinations, precise 137.5% scale, fixed foot coordinates.");
+            checks.Add("PASS: character selector covers every character/facing, precise 137.5% scale, fixed foot coordinates and identity.");
+            RunLegacyMigrationChecks(checks);
+            // 正式場景：讀入後原樣存出必須逐字相同（只在記憶體比對，不寫回檔案）
+            var shipPath = Path.Combine(root, "public", "maps", "ship_interior.scene.json");
+            var shipText = File.ReadAllText(shipPath);
+            var ship = SceneJson.Deserialize(shipText);
+            SceneJson.Validate(ship);
+            Require(SceneJson.Serialize(ship) == shipText, "ship_interior.scene.json does not roundtrip byte-identically.");
+            Require(ship.NpcList.Count > 0 && ship.Interactables.Where(item => item.NpcId is not null)
+                .All(item => ship.NpcList.Any(npc => npc.Id == item.NpcId)), "ship_interior NPC bindings are invalid.");
+            checks.Add($"PASS: ship_interior loads {ship.NpcList.Count} NPCs / {ship.Interactables.Count(item => item.NpcId is not null)} bound dialogues and re-saves byte-identically.");
             using var host = new Form { ClientSize = new Size(1080, 760), ShowInTaskbar = false,
                 StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000), Text = "NPC editor self-test" };
             using var canvas = new EditorCanvas { Dock = DockStyle.Fill };
@@ -67,13 +80,14 @@ internal static class NpcSelfTest
             checks.Add("PASS: invalid shared catalog is handled without preventing the editor from opening.");
             canvas.RunNpcCanvasSelfTest(output, checks);
             canvas.RunNpcContextMenuSelfTest(output, checks);
+            canvas.RunOccluderSelfTest(output, checks);
             host.Close();
             using (var mainForm = new MainForm { ShowInTaskbar = false, SuppressUnsavedPrompt = true,
                 StartPosition = FormStartPosition.Manual, Location = new Point(-20000, -20000) })
             {
                 mainForm.Show(); Application.DoEvents(); mainForm.RunNpcSidebarSelfTest(output); mainForm.Close();
             }
-            checks.Add("PASS: actual MainForm sidebar preserves NPC selection, applies precise size, deletes only NPC, and supports undo.");
+            checks.Add("PASS: MainForm lists NPC layers; sidebar edits size, options and presence; interaction sidebar binds/clears the talk target; deleting an NPC clears its talk targets and undo restores them.");
             File.WriteAllLines(Path.Combine(output, "result.txt"), checks.Append($"PASS: {checks.Count} verification groups completed."));
             return 0;
         }
@@ -82,6 +96,57 @@ internal static class NpcSelfTest
             File.WriteAllText(Path.Combine(output, "result.txt"), string.Join(Environment.NewLine, checks) + Environment.NewLine + "FAIL: " + exception);
             return 1;
         }
+    }
+
+    private static void RunLegacyMigrationChecks(List<string> checks)
+    {
+        // 舊格式：互動區內嵌 npc。讀檔後轉成獨立 NPC，出場條件沿用啟用／移除、不帶「關閉」。
+        var legacy = SceneDocument.CreateForImage("legacy.png", 800, 600);
+        legacy.Interactables.Add(new SceneInteractable
+        {
+            Id = "legacy-talk", Label = "舊對話",
+            Points = new() { new(10, 10), new(100, 10), new(100, 100) },
+            Npc = new SceneNpc { CharacterId = "owen", Facing = "NE", X = 50, Y = 60, Scale = 1.1f },
+            UseRequirements = new()
+            {
+                new InteractionUseRequirement { Kind = "questStage", Scope = "both", QuestId = "Q", StageId = "Q_STAGE_01",
+                    StageMode = "UnlockUntilCondition", DisableQuestId = "Q", DisableStageId = "Q_STAGE_01",
+                    RemoveQuestId = "Q", RemoveStageId = "Q_STAGE_03" },
+            },
+        });
+        legacy.Interactables.Add(new SceneInteractable
+        {
+            Id = "legacy-free", Label = "只限互動",
+            Points = new() { new(10, 10), new(100, 10), new(100, 100) },
+            Npc = new SceneNpc { CharacterId = "rena", Facing = "S", X = 70, Y = 80, Scale = 1 },
+            UseRequirements = new() { new InteractionUseRequirement { Kind = "questStage", Scope = "interaction", QuestId = "Q", StageId = "Q_STAGE_01" } },
+        });
+        // 直接序列化會保留 npc（模擬舊檔），讀回時才轉換
+        var json = SceneJson.Serialize(legacy);
+        Require(json.Contains("\"npc\":", StringComparison.Ordinal), "Legacy fixture lost inline npc.");
+        var migrated = SceneJson.Deserialize(json);
+        Require(migrated.NpcList.Count == 2 && migrated.Interactables.All(item => item.Npc is null), "Legacy NPCs were not converted.");
+        var owen = migrated.NpcList.Single(npc => npc.Id == "npc-legacy-talk");
+        Require(owen is { CharacterId: "owen", Facing: "NE", X: 50, Y: 60, Label: "舊對話" } && Math.Abs(owen.Scale - 1.1f) < 0.0001f,
+            "Legacy NPC body was not preserved.");
+        Require(owen.Presence is { StageMode: "UnlockFromStage", DisableStageId: "", RemoveStageId: "Q_STAGE_03" },
+            "Legacy presence should keep activation/removal and drop closing.");
+        Require(migrated.NpcList.Single(npc => npc.Id == "npc-legacy-free").Presence is null,
+            "Interaction-only gate should leave the NPC always present.");
+        Require(migrated.Interactables[0].NpcId == "npc-legacy-talk" && migrated.Interactables[1].NpcId == "npc-legacy-free",
+            "Legacy interactions were not bound to their NPCs.");
+        var saved = SceneJson.Serialize(migrated);
+        Require(!saved.Contains("\"npc\":", StringComparison.Ordinal) && saved.Contains("\"npcs\":", StringComparison.Ordinal) &&
+            saved.Contains("\"npcId\": \"npc-legacy-talk\"", StringComparison.Ordinal), "Migrated scene did not save in the new format.");
+        var plain = SceneJson.Serialize(SceneDocument.CreateForImage("plain.png", 100, 100));
+        Require(!plain.Contains("\"npcs\"", StringComparison.Ordinal) && !plain.Contains("\"npcId\"", StringComparison.Ordinal),
+            "Scenes without NPCs acquired NPC fields.");
+        var dangling = SceneJson.Deserialize(saved);
+        dangling.Interactables[0].NpcId = "missing";
+        var rejected = false;
+        try { SceneJson.Validate(dangling); } catch (InvalidDataException) { rejected = true; }
+        Require(rejected, "Validation accepted a talk target that does not exist.");
+        checks.Add("PASS: legacy inline npc converts to independent NPCs (activation/removal kept, closing dropped, interaction-only = always present); new format saves; NPC-free scenes unchanged; dangling npcId rejected.");
     }
 }
 
@@ -99,83 +164,58 @@ public sealed partial class EditorCanvas
             Application.DoEvents();
             return ClampToWorld(ScreenToWorld(screen));
         }
-        bool HintAt(int index, PointF point) => _document.Interactables[index].InteractionHintPoint is { } hint &&
-            Math.Abs(hint.X - point.X) < 0.01f && Math.Abs(hint.Y - point.Y) < 0.01f;
 
         var document = SceneDocument.CreateForImage("npc-context-test.png", 1000, 680);
         document.Grid.Snap = true;
         document.Interactables.Add(new SceneInteractable
         {
-            Id = "npc-context-owner", Label = "NPC 所屬互動區",
+            Id = "npc-context-owner", Label = "NPC 對話區",
             Points = new() { new(160, 180), new(480, 180), new(480, 500), new(160, 500) },
             InteractionHintPoint = new(200, 440),
             InteractionPoints = new() { new() { X = 260, Y = 470, Facing = "NE" } },
-            Npc = new() { CharacterId = "captain", Facing = "SE", X = 320, Y = 420, Scale = 1 }
+            NpcId = "npc-captain",
         });
+        document.NpcList.Add(new SceneNpc { Id = "npc-captain", Label = "艦長", CharacterId = "captain", Facing = "SE", X = 320, Y = 420 });
         SetScene(document, new Bitmap(1000, 680)); FitToView();
-        var bounds = NpcBodyRectangle(_document.Interactables[0].Npc!);
+        var bounds = NpcBodyRectangle(_document.NpcList[0]);
         var body = new PointF(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);
-        SelectNpc(0);
+
+        RightClick(body);
+        Check(_npcContextMenu.Visible && SelectedNpc == _document.NpcList[0], "Right-clicking an NPC did not open its own menu.");
+        Check(_npcUnderlyingMenuItem.Visible && _npcBoundInteractionsMenu.DropDownItems.Count == 1 &&
+            _npcPresenceItem.Text.Contains("一直在場", StringComparison.Ordinal), "NPC menu lacks underlying/bound/presence entries.");
+        NpcSelfTest.Screenshot(_npcContextMenu, Path.Combine(output, "npc-context-menu.png"));
+        var presenceRequested = false;
+        NpcPresenceEditRequested += (_, _) => presenceRequested = true;
+        _npcPresenceItem.PerformClick();
+        Check(presenceRequested, "Presence menu did not request the presence editor.");
+        _npcContextMenu.Close();
+
         var before = SceneJson.Serialize(_document);
+        ((ToolStripMenuItem)_npcFacingMenu.DropDownItems[0]).PerformClick();
+        Check(_document.NpcList[0].Facing == "N", "Facing submenu failed.");
+        _npcFacePlayerItem.PerformClick();
+        Check(!_document.NpcList[0].FacePlayer, "Face-player toggle failed.");
+        Undo(); Undo();
+        Check(SceneJson.Serialize(_document) == before, "NPC menu edits did not undo exactly.");
+
+        // 角色蓋住互動區時，可以從 NPC 選單切到下方互動區的完整選單（提示點仍用原本點擊位置）
         var clicked = RightClick(body);
-        Check(_nodeContextMenu.Visible && !_npcContextMenu.Visible && SelectedNpc is null &&
-            _selection == new LayerSelection(SceneLayerKind.Interactable, 0),
-            "Right-clicking NPC did not pass through to its underlying Interaction polygon.");
-        Check(_interactionHintPointContextItem.Visible && _interactionHintPointContextItem.Text == "移動互動提示點至此" &&
-            _interactionPointContextItem.Visible && _npcParentMenu.Visible,
-            "NPC-covered polygon lost hint/Point/NPC authoring commands.");
-        NpcSelfTest.Screenshot(_nodeContextMenu, Path.Combine(output, "npc-polygon-context-menu.png"));
+        _npcContextMenu.Close();
+        _npcUnderlyingMenuItem.PerformClick();
+        Check(_nodeContextMenu.Visible && _selection == new LayerSelection(SceneLayerKind.Interactable, 0) && _npcParentMenu.Visible,
+            "Underlying interaction menu did not open.");
+        Check(_npcParentMenu.Text.Contains("艦長", StringComparison.Ordinal) && ((ToolStripMenuItem)_npcBindMenu.DropDownItems[1]).Checked,
+            "Interaction menu does not show the bound talk target.");
+        NpcSelfTest.Screenshot(_nodeContextMenu, Path.Combine(output, "npc-interaction-context-menu.png"));
         _nodeContextMenu.Close();
-        // Choosing a menu action after moving the pointer must retain the original click.
-        var elsewhere = Screen(new PointF(700, 550));
-        OnMouseMove(new MouseEventArgs(MouseButtons.None, 0, elsewhere.X, elsewhere.Y, 0));
         _interactionHintPointContextItem.PerformClick();
-        Check(HintAt(0, clicked), "Hint did not use original raw right-click world coordinates.");
-        var parent = _document.Interactables[0];
-        Check(parent.Npc is { X: 320, Y: 420, Scale: 1, Facing: "SE" } &&
-            parent.EffectiveInteractionPoints[0] is { X: 260, Y: 470, Facing: "NE" } &&
-            parent.Points[0] is { X: 160, Y: 180 }, "Moving hint changed NPC or walking Point/polygon.");
-        Undo(); Check(SceneJson.Serialize(_document) == before, "NPC-covered hint move did not undo exactly.");
-        Redo(); Check(HintAt(0, clicked), "NPC-covered hint move did not redo.");
-
-        _document.Interactables.Add(new SceneInteractable
-        {
-            Id = "npc-context-overlap", Label = "另一個互動區",
-            Points = _document.Interactables[0].Points.Select(point => point.Clone()).ToList(),
-            InteractionHintPoint = new(400, 450)
-        });
-        SelectLayer(new(SceneLayerKind.Interactable, 1));
-        var ownerHint = _document.Interactables[0].InteractionHintPoint!.Clone();
-        clicked = RightClick(new PointF(body.X + 5, body.Y + 5));
-        Check(_nodeContextMenu.Visible && _selection.Index == 1 &&
-            _overlapSelectionContextItem.DropDownItems.Count == 2,
-            "NPC hijacked explicitly selected overlapping Interaction.");
-        _nodeContextMenu.Close(); _interactionHintPointContextItem.PerformClick();
-        Check(HintAt(1, clicked) && HintAt(0, new PointF(ownerHint.X, ownerHint.Y)),
-            "Overlapping Interaction hint edited the NPC owner instead of the selected polygon.");
-        checks.Add("PASS: actual NPC right-click reaches underlying/selected overlapping Interaction; hint uses click coordinates with snap enabled; NPC and walk Point stay fixed; Undo/Redo.");
-
-        // The head is now outside both polygons, but the attached hint remains editable.
-        _document.Interactables[0].Npc!.X = 750;
-        _document.Interactables[0].InteractionHintPoint = null;
-        bounds = NpcBodyRectangle(_document.Interactables[0].Npc!);
-        body = new PointF(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);
-        clicked = RightClick(body);
-        Check(_npcContextMenu.Visible && SelectedNpc is not null && _npcHintPointContextItem.Text == "新增互動提示點",
-            "Outside-polygon NPC menu lost new hint command.");
-        _npcContextMenu.Close(); _npcHintPointContextItem.PerformClick();
-        Check(HintAt(0, clicked), "Outside-polygon NPC hint targeted wrong Interaction or position.");
-        clicked = RightClick(new PointF(body.X + 3, body.Y + 3));
-        Check(_npcHintPointContextItem.Text == "移動互動提示點至此", "Existing NPC hint not offered for moving.");
-        _npcContextMenu.Close(); _npcHintPointContextItem.PerformClick();
-        Check(HintAt(0, clicked) && _document.Interactables[0].Npc!.X == 750,
-            "Outside-polygon hint move moved the NPC.");
-        SceneJson.Save(Path.Combine(output, "npc-context-roundtrip.scene.json"), _document);
-        var reloaded = SceneJson.Load(Path.Combine(output, "npc-context-roundtrip.scene.json"));
-        Check(Math.Abs(reloaded.Interactables[0].InteractionHintPoint!.X - clicked.X) < 0.01f &&
-            Math.Abs(reloaded.Interactables[0].InteractionHintPoint!.Y - clicked.Y) < 0.01f,
-            "NPC hint click coordinates did not survive save/reload.");
-        checks.Add("PASS: outside-polygon NPC retains edit menu, adds/moves parent hint at body click, and saves/reloads coordinates.");
+        var hint = _document.Interactables[0].InteractionHintPoint!;
+        Check(Math.Abs(hint.X - clicked.X) < 0.01f && Math.Abs(hint.Y - clicked.Y) < 0.01f && _document.NpcList[0].X == 320,
+            "Hint did not use the NPC click position or moved the NPC.");
+        ((ToolStripMenuItem)_npcBindMenu.DropDownItems[0]).PerformClick();
+        Check(_document.Interactables[0].NpcId is null, "Talk target could not be cleared from the interaction menu.");
+        checks.Add("PASS: NPC right-click opens its own menu (facing, options, presence request, bound dialogues) and can hand over to the covered interaction menu; talk target binds/clears; hint keeps click coordinates; Undo exact.");
     }
 
     internal void RunNpcCanvasSelfTest(string output, List<string> checks)
@@ -195,19 +235,24 @@ public sealed partial class EditorCanvas
         }
         var document = SceneDocument.CreateForImage("npc-test.png", 1000, 680);
         document.Grid.Snap = false; document.Grid.Visible = true;
-        document.Interactables.Add(new SceneInteractable { Id = "npc-test-interaction", Label = "NPC 所屬互動區",
+        document.Interactables.Add(new SceneInteractable { Id = "npc-test-interaction", Label = "第一段對話",
             Points = new() { new(80, 410), new(280, 410), new(280, 550), new(80, 550) },
             InteractionPoints = new() { new() { X = 180, Y = 470, Facing = "N" } } });
-        Check(!SceneJson.Serialize(document).Contains("\"npc\""), "Legacy scenes acquired NPC fields.");
+        document.Interactables.Add(new SceneInteractable { Id = "npc-test-second", Label = "第二段對話",
+            Points = new() { new(600, 410), new(800, 410), new(800, 550), new(600, 550) } });
+        var plainJson = SceneJson.Serialize(document);
+        Check(!plainJson.Contains("\"npcs\"", StringComparison.Ordinal) && !plainJson.Contains("\"npcId\"", StringComparison.Ordinal),
+            "Scenes without NPCs acquired NPC fields.");
         var background = new Bitmap(1000, 680);
         using (var g = Graphics.FromImage(background)) g.Clear(Color.FromArgb(37, 43, 52));
         SetScene(document, background); Application.DoEvents(); FitToView();
+        Check(_addNpcWorldContextItem.DropDownItems.Count == _npcCatalog!.Characters.Count &&
+            ((ToolStripMenuItem)_addNpcWorldContextItem.DropDownItems[0]).DropDownItems.Count == 8, "World NPC menu missing characters/directions.");
+        // 互動區右鍵「在此新增 NPC 並設為對話對象」
         _contextSelection = new(SceneLayerKind.Interactable, 0); _contextInteractionPoint = new PointF(500, 300);
-        Check(_npcParentMenu.DropDownItems.Count == _npcCatalog!.Characters.Count + 2, "NPC submenu missing characters.");
-        var characterMenu = (ToolStripMenuItem)_npcParentMenu.DropDownItems[2];
-        Check(characterMenu.DropDownItems.Count == 8, "NPC submenu missing directions.");
-        ((ToolStripMenuItem)characterMenu.DropDownItems[3]).PerformClick();
-        Check(SelectedNpc is { Facing: "SE" }, "Context add did not select NPC.");
+        ((ToolStripMenuItem)((ToolStripMenuItem)_npcCreateBoundMenu.DropDownItems[0]).DropDownItems[3]).PerformClick();
+        Check(SelectedNpc is { Facing: "SE" } && _document.Interactables[0].NpcId == SelectedNpc.Id &&
+            SelectedNpc.Id == $"npc-{_npcCatalog.Characters[0].Id}", "Bound NPC creation failed.");
         using (var layerTest = new Bitmap(1000, 680))
         using (var graphics = Graphics.FromImage(layerTest))
         {
@@ -230,54 +275,47 @@ public sealed partial class EditorCanvas
         var center = new PointF(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);
         MouseDrag(center, new PointF(center.X + 90, center.Y + 40));
         var npc = SelectedNpc!;
-        Check(Near(npc.X, 590) && Near(npc.Y, 340), "Actual pointer drag failed to move independent NPC anchor.");
-        Check(_document.Interactables[0].Points.Zip(originalPolygon).All(p => p.First.X == p.Second.X && p.First.Y == p.Second.Y), "NPC drag moved parent polygon.");
-        Check(_document.Interactables[0].EffectiveInteractionPoints[0].X == originalPoint.X && _document.Interactables[0].EffectiveInteractionPoints[0].Y == originalPoint.Y, "NPC drag moved interaction Point.");
-        Check(!PointInPolygon(new PointF(npc.X, npc.Y), _document.Interactables[0].Points), "Outside-polygon fixture invalid.");
+        Check(Near(npc.X, 590) && Near(npc.Y, 340), "Actual pointer drag failed to move the NPC.");
+        Check(_document.Interactables[0].Points.Zip(originalPolygon).All(p => p.First.X == p.Second.X && p.First.Y == p.Second.Y), "NPC drag moved an interaction polygon.");
+        Check(_document.Interactables[0].EffectiveInteractionPoints[0].X == originalPoint.X, "NPC drag moved the interaction Point.");
         var foot = new PointF(npc.X, npc.Y);
         var handle = NpcResizeHandle(npc);
         MouseDrag(handle, new PointF(foot.X + (handle.X - foot.X) * 1.4f, foot.Y + (handle.Y - foot.Y) * 1.4f));
         Check(Math.Abs(SelectedNpc!.Scale - 1.4f) < 0.02f && SelectedNpc.X == foot.X && SelectedNpc.Y == foot.Y, "Resize did not preserve foot anchor.");
         var resized = SelectedNpc.Scale;
-        Undo(); Check(Math.Abs(_document.Interactables[0].Npc!.Scale - 1) < 0.001f, "Resize undo failed.");
-        Redo(); Check(_document.Interactables[0].Npc!.Scale == resized, "Resize redo failed.");
-        checks.Add("PASS: actual canvas pointer drag outside polygon leaves parent and interaction Point fixed; resize keeps foot fixed; resize Undo/Redo.");
-        npc = _document.Interactables[0].Npc!; bounds = NpcBodyRectangle(npc);
-        center = new PointF(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);
-        Check(TryShowNpcContextMenu(Screen(center), center) && SelectedNpc == npc, "Cannot right-click NPC outside polygon.");
-        _npcContextMenu.Close();
-        ShowNodeContextMenu(Screen(new PointF(110, 525)), new PointF(110, 525));
-        _nodeContextMenu.Close();
-        Check(SelectedNpc is null && _selection == new LayerSelection(SceneLayerKind.Interactable, 0), "Right-clicking same parent did not clear NPC sub-selection.");
-        SelectAttachedNpc();
-        DeleteSelectedNodeOrShape();
-        Check(_document.Interactables.Count == 1 && _document.Interactables[0].Npc is null && _document.Interactables[0].Points.Count == 4, "Delete removed parent or node instead of NPC.");
-        Undo(); Check(_document.Interactables[0].Npc is not null, "NPC removal undo failed.");
-        checks.Add("PASS: right-click outside parent polygon and return to same parent; Delete removes only NPC; undo restores it; static/live drag layers do not duplicate NPC.");
-        npc = _document.Interactables[0].Npc!; var beforeParentMove = npc.Copy();
+        Undo(); Check(Math.Abs(_document.NpcList[0].Scale - 1) < 0.001f, "Resize undo failed.");
+        Redo(); Check(_document.NpcList[0].Scale == resized, "Resize redo failed.");
+        checks.Add("PASS: interaction menu creates + binds an NPC; static/live drag layers do not duplicate it; pointer drag and foot-anchored resize; Undo/Redo.");
+
+        // 獨立：移動互動區不會帶動 NPC；第二段對話可以共用同一個 NPC
+        npc = _document.NpcList[0]; var beforeParentMove = npc.Copy();
         SelectLayer(new(SceneLayerKind.Interactable, 0));
         MouseDrag(new PointF(110, 525), new PointF(130, 545));
-        Check(Near(npc.X, beforeParentMove.X + 20) && Near(npc.Y, beforeParentMove.Y + 20), "Parent move did not carry NPC anchor.");
-        var parentCenter = new PointF(_document.Interactables[0].Points.Average(p => p.X), _document.Interactables[0].Points.Average(p => p.Y));
-        var beforeParentScale = npc.Copy(); ScaleSelection(1.1f);
-        Check(Near(npc.X, parentCenter.X + (beforeParentScale.X - parentCenter.X) * 1.1f) && Near(npc.Y, parentCenter.Y + (beforeParentScale.Y - parentCenter.Y) * 1.1f), "Parent scale did not carry NPC anchor.");
+        Check(npc.X == beforeParentMove.X && npc.Y == beforeParentMove.Y, "Moving an interaction moved its NPC.");
+        BindInteractionNpc(1, npc.Id);
+        Check(InteractionsUsingNpc(npc).Count == 2, "Two dialogues could not share one NPC.");
+        SelectNpc(0);
+        DeleteSelectedNodeOrShape();
+        Check(_document.NpcList.Count == 0 && _document.Interactables.Count == 2 &&
+            _document.Interactables.All(item => item.NpcId is null), "Deleting the NPC left dangling talk targets or removed dialogues.");
+        Undo(); Check(_document.NpcList.Count == 1 && InteractionsUsingNpc(_document.NpcList[0]).Count == 2, "NPC removal undo failed.");
         SceneJson.Save(Path.Combine(output, "npc-roundtrip.scene.json"), _document);
         var roundtrip = SceneJson.Load(Path.Combine(output, "npc-roundtrip.scene.json"));
-        Check(roundtrip.Interactables[0].Npc!.CharacterId == npc.CharacterId && roundtrip.Interactables[0].Npc!.Scale == npc.Scale, "NPC JSON roundtrip failed.");
-        checks.Add("PASS: parent move/scale carries attached NPC; saved JSON reload retains identity, position, facing, scale; legacy scene omits npc.");
-        // Render a reviewable four-character arrangement using the same shared assets.
-        _document.Interactables.Clear();
+        Check(roundtrip.NpcList.Count == 1 && roundtrip.NpcList[0].Id == npc.Id && roundtrip.NpcList[0].Scale == _document.NpcList[0].Scale &&
+            roundtrip.Interactables.All(item => item.NpcId == npc.Id), "NPC JSON roundtrip failed.");
+        checks.Add("PASS: NPC is independent of interaction move; two dialogues share one NPC; delete clears both talk targets; undo restores; save/reload keeps identity and bindings.");
+
+        // Render a reviewable arrangement of every character using the same shared assets.
+        _document.Interactables.Clear(); _document.NpcList.Clear();
         var index = 0;
         foreach (var character in _npcCatalog.Characters)
         {
             var x = 140 + index * 235;
-            _document.Interactables.Add(new SceneInteractable { Id = "npc-preview-" + character.Id, Label = character.Name,
-                Points = new() { new(x - 75, 460), new(x + 75, 460), new(x + 75, 575), new(x - 75, 575) },
-                InteractionPoints = new() { new() { X = x, Y = 520, Facing = "N" } },
-                Npc = new() { CharacterId = character.Id, Facing = new[] { "SE", "S", "W", "NW" }[index], X = x, Y = 420, Scale = 1.35f } });
+            _document.NpcList.Add(new SceneNpc { Id = "npc-preview-" + character.Id, Label = character.Name, CharacterId = character.Id,
+                Facing = new[] { "SE", "S", "W", "NW" }[index % 4], X = x, Y = 420, Scale = 1.35f });
             index++;
         }
-        SelectNpc(2); DisposeViewCache();
+        SelectNpc(Math.Min(2, _document.NpcList.Count - 1)); DisposeViewCache();
         NpcSelfTest.Screenshot(this, Path.Combine(output, "npc-canvas.png"));
         checks.Add("PASS: native canvas and selector screenshots generated from live controls.");
     }

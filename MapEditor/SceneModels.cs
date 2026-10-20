@@ -15,6 +15,21 @@ public sealed class SceneDocument
     /// <summary>船身流動光痕的流動帶。編輯器目前不提供介面，只在讀寫時保留，避免存檔遺失手動設定。</summary>
     public List<HullStreamLane>? HullStreams { get; set; }
     public List<ForegroundImageLayer> ForegroundLayers { get; set; } = new();
+
+    private List<SceneOccluder>? _occluders;
+    /// <summary>
+    /// 牆面遮擋片段：把前景圖的一部分切出來，依「牆腳基準線」和角色一起排序繪製。
+    /// 沒有片段的場景不寫出 occluders 欄位，舊場景格式維持不變。
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<SceneOccluder>? Occluders
+    {
+        get => _occluders is { Count: > 0 } ? _occluders : null;
+        set => _occluders = value;
+    }
+    /// <summary>編輯器使用的遮擋片段清單（永遠不為 null）</summary>
+    [JsonIgnore]
+    public List<SceneOccluder> OccluderList => _occluders ??= new();
     public SceneWorld World { get; set; } = new();
     public GridSettings Grid { get; set; } = new();
     public PlayerSpawn PlayerSpawn { get; set; } = new();
@@ -23,6 +38,18 @@ public sealed class SceneDocument
     public List<NavMeshRegion> NavMesh { get; set; } = new();
     public List<CollisionShape> Collisions { get; set; } = new();
     public List<SceneInteractable> Interactables { get; set; } = new();
+
+    private List<SceneNpc>? _npcs;
+    /// <summary>場景中的獨立 NPC。沒有 NPC 的場景不寫出 npcs 欄位，舊場景格式維持不變。</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<SceneNpc>? Npcs
+    {
+        get => _npcs is { Count: > 0 } ? _npcs : null;
+        set => _npcs = value;
+    }
+    /// <summary>編輯器使用的 NPC 清單（永遠不為 null）</summary>
+    [JsonIgnore]
+    public List<SceneNpc> NpcList => _npcs ??= new();
     public List<MovementGuide> MovementGuides { get; set; } = new();
     public List<StoryTriggerZone> StoryTriggers { get; set; } = new();
     public List<SceneItemPoint> ItemPoints { get; set; } = new();
@@ -50,6 +77,84 @@ public sealed class SceneDocument
                 Facing = "S",
             },
         };
+    }
+}
+
+/// <summary>
+/// 場景中的獨立 NPC（場景 JSON 的 npcs）。對話互動區以 NpcId 引用，同一個角色可被多段對話共用；
+/// X/Y 是腳底世界座標。Presence 是出場條件（questStage 需求），null＝一直在場。
+/// 放在共用的 SceneModels.cs，讓只引用場景模型的 ChapterScriptEditor 也能編譯。
+/// </summary>
+public sealed class SceneNpc : ScenePoint
+{
+    public static readonly string[] Directions = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
+    public string Id { get; set; } = "";
+    public string Label { get; set; } = "";
+    public string CharacterId { get; set; } = "";
+    public string Facing { get; set; } = "S";
+    public float Scale { get; set; } = 1;
+    /// <summary>對話時轉向主角，結束後轉回原本面向</summary>
+    public bool FacePlayer { get; set; } = true;
+    /// <summary>待機時輕微呼吸</summary>
+    public bool Breathing { get; set; } = true;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public InteractionUseRequirement? Presence { get; set; }
+    public SceneNpc Copy() => new()
+    {
+        Id = Id, Label = Label, CharacterId = CharacterId, Facing = Facing, X = X, Y = Y, Scale = Scale,
+        FacePlayer = FacePlayer, Breathing = Breathing, Presence = Presence?.Clone(),
+    };
+}
+
+/// <summary>
+/// 牆面遮擋片段：Points 是前景圖上要切出的範圍（世界座標），BaselineStart／BaselineEnd 是這段牆的牆腳線。
+/// 遊戲中角色腳底在牆腳線南側（畫面下方）時角色蓋住這段牆，在北側時這段牆蓋住角色；
+/// 沒被任何片段切到的前景圖照舊永遠畫在最上層。
+/// </summary>
+public sealed class SceneOccluder
+{
+    public string Id { get; set; } = "";
+    public string Label { get; set; } = "";
+    /// <summary>所屬前景圖層的 Id</summary>
+    public string LayerId { get; set; } = "";
+    public List<ScenePoint> Points { get; set; } = new();
+    public ScenePoint BaselineStart { get; set; } = new();
+    public ScenePoint BaselineEnd { get; set; } = new();
+
+    public SceneOccluder Copy() => new()
+    {
+        Id = Id, Label = Label, LayerId = LayerId,
+        Points = Points.Select(point => point.Clone()).ToList(),
+        BaselineStart = BaselineStart.Clone(), BaselineEnd = BaselineEnd.Clone(),
+    };
+
+    /// <summary>
+    /// 預設牆腳線：多邊形最下方的那條邊，左端為起點。
+    /// 只在比 45° 平緩的邊裡挑（等角視角的牆腳線是水平或 ±0.5 斜率），避免斜牆時挑到垂直的側邊；
+    /// 沒有平緩的邊時才退回所有邊。
+    /// </summary>
+    public void ResetBaselineToBottomEdge()
+    {
+        if (Points.Count < 2) return;
+        var best = -1;
+        var bestY = float.MinValue;
+        foreach (var flatOnly in new[] { true, false })
+        {
+            for (var index = 0; index < Points.Count; index++)
+            {
+                var next = Points[(index + 1) % Points.Count];
+                var dx = Math.Abs(next.X - Points[index].X);
+                var dy = Math.Abs(next.Y - Points[index].Y);
+                if (dx + dy < 0.5f || (flatOnly && dy > dx)) continue;
+                var averageY = (Points[index].Y + next.Y) / 2;
+                if (averageY > bestY) { bestY = averageY; best = index; }
+            }
+            if (best >= 0) break;
+        }
+        if (best < 0) return;
+        var a = Points[best];
+        var b = Points[(best + 1) % Points.Count];
+        (BaselineStart, BaselineEnd) = a.X <= b.X ? (a.Clone(), b.Clone()) : (b.Clone(), a.Clone());
     }
 }
 
@@ -206,8 +311,13 @@ public sealed class SceneInteractable : ITriggerConfiguration
     public List<ScenePoint> Points { get; set; } = new();
     public string Type { get; set; } = "dialogue";
 
+    /// <summary>舊格式：互動區內嵌 NPC。讀檔時會轉成場景 npcs 並改用 NpcId，存檔後不再出現。</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SceneNpc? Npc { get; set; }
+
+    /// <summary>對話對象：引用場景 npcs 的 Id；多段對話可以共用同一個 NPC。</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? NpcId { get; set; }
     public string Verb { get; set; } = "對話";
     public SurvivalRequirements SurvivalRequirements { get; set; } = new();
     public SurvivalEffects SurvivalEffects { get; set; } = new();
@@ -1016,8 +1126,59 @@ public static class SceneJson
 
     public static SceneDocument Deserialize(string json)
     {
-        return JsonSerializer.Deserialize<SceneDocument>(json, Options)
+        var document = JsonSerializer.Deserialize<SceneDocument>(json, Options)
             ?? throw new InvalidDataException("場景 JSON 沒有有效內容。");
+        MigrateLegacyNpcs(document);
+        return document;
+    }
+
+    /// <summary>
+    /// 舊格式（互動區內嵌 npc）轉成獨立 NPC：Id 為 npc-&lt;互動區 ID&gt;，互動區改用 NpcId 引用。
+    /// 出場條件沿用原本互動區的任務階段啟用／移除條件（舊版「關閉」不會讓角色離場，所以不帶過來）。
+    /// 回傳轉換了幾個 NPC。
+    /// </summary>
+    public static int MigrateLegacyNpcs(SceneDocument document)
+    {
+        var migrated = 0;
+        foreach (var interactable in document.Interactables)
+        {
+            if (interactable.Npc is not { } legacy) continue;
+            interactable.Npc = null;
+            if (!string.IsNullOrWhiteSpace(interactable.NpcId)) continue;
+            var id = UniqueNpcId(document, $"npc-{interactable.Id}".Trim());
+            var npc = legacy.Copy();
+            npc.Id = id;
+            npc.Label = string.IsNullOrWhiteSpace(interactable.Label) ? id : interactable.Label.Trim();
+            npc.Presence = LegacyPresence(interactable);
+            document.NpcList.Add(npc);
+            interactable.NpcId = id;
+            migrated++;
+        }
+        return migrated;
+    }
+
+    private static InteractionUseRequirement? LegacyPresence(SceneInteractable interactable)
+    {
+        var stage = interactable.UseRequirements?.FirstOrDefault(requirement =>
+            requirement.Kind.Equals("questStage", StringComparison.OrdinalIgnoreCase));
+        // 沒有任務條件，或條件只限制「互動成功」：舊版角色一直在場
+        if (stage is null || "interaction".Equals(stage.Scope, StringComparison.OrdinalIgnoreCase)) return null;
+        var presence = stage.Clone();
+        presence.DisableQuestId = "";
+        presence.DisableStageId = "";
+        presence.DisableObjectiveId = null;
+        presence.DisableObjectiveState = null;
+        if (presence.StageMode == "UnlockUntilCondition") presence.StageMode = "UnlockFromStage";
+        return presence;
+    }
+
+    public static string UniqueNpcId(SceneDocument document, string baseId)
+    {
+        var id = string.IsNullOrWhiteSpace(baseId) ? "npc" : baseId;
+        var candidate = id;
+        for (var suffix = 2; document.NpcList.Any(npc => npc.Id.Equals(candidate, StringComparison.OrdinalIgnoreCase)); suffix++)
+            candidate = $"{id}-{suffix}";
+        return candidate;
     }
 
     public static string Serialize(SceneDocument document)
@@ -1058,6 +1219,24 @@ public static class SceneJson
                 !float.IsFinite(layer.Opacity) || layer.Opacity < 0 || layer.Opacity > 1)
                 throw new InvalidDataException("前景圖層的 ID、圖片、位置、縮放或透明度無效。");
         }
+        var occluderIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var occluder in document.OccluderList)
+        {
+            if (occluder is null || string.IsNullOrWhiteSpace(occluder.Id) || !occluderIds.Add(occluder.Id.Trim()))
+                throw new InvalidDataException("遮擋片段的 ID 不可空白或重複。");
+            occluder.Id = occluder.Id.Trim();
+            occluder.Label = string.IsNullOrWhiteSpace(occluder.Label) ? occluder.Id : occluder.Label.Trim();
+            if (!document.ForegroundLayers.Any(layer => layer.Id.Equals(occluder.LayerId, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidDataException($"遮擋片段 {occluder.Id} 所屬的前景圖層不存在。");
+            if (occluder.Points is null || occluder.Points.Count < 3 ||
+                occluder.Points.Any(point => point is null || !float.IsFinite(point.X) || !float.IsFinite(point.Y)))
+                throw new InvalidDataException($"遮擋片段 {occluder.Id} 至少需要 3 個有效的 Node。");
+            if (occluder.BaselineStart is null || occluder.BaselineEnd is null ||
+                !float.IsFinite(occluder.BaselineStart.X) || !float.IsFinite(occluder.BaselineStart.Y) ||
+                !float.IsFinite(occluder.BaselineEnd.X) || !float.IsFinite(occluder.BaselineEnd.Y) ||
+                Math.Abs(occluder.BaselineStart.X - occluder.BaselineEnd.X) + Math.Abs(occluder.BaselineStart.Y - occluder.BaselineEnd.Y) < 1)
+                throw new InvalidDataException($"遮擋片段 {occluder.Id} 的牆腳線需要兩個不同的端點。");
+        }
         document.EntryPoints ??= new List<SceneEntryPoint>();
         document.Connections ??= new List<SceneConnection>();
 
@@ -1086,6 +1265,25 @@ public static class SceneJson
             }
         }
 
+        MigrateLegacyNpcs(document);
+        var npcIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var npc in document.NpcList)
+        {
+            if (npc is null || string.IsNullOrWhiteSpace(npc.Id) || !npcIds.Add(npc.Id.Trim()))
+                throw new InvalidDataException("NPC 的 ID 不可空白或重複。");
+            npc.Id = npc.Id.Trim();
+            npc.Label = string.IsNullOrWhiteSpace(npc.Label) ? npc.Id : npc.Label.Trim();
+            if (string.IsNullOrWhiteSpace(npc.CharacterId) || !float.IsFinite(npc.X) ||
+                !float.IsFinite(npc.Y) || !float.IsFinite(npc.Scale) || npc.Scale <= 0 ||
+                !SceneNpc.Directions.Contains(npc.Facing))
+                throw new InvalidDataException($"NPC {npc.Id} 的角色、位置、方向或縮放無效。");
+            npc.CharacterId = npc.CharacterId.Trim();
+            if (npc.Presence is { } presence &&
+                (!presence.Kind.Equals("questStage", StringComparison.OrdinalIgnoreCase) ||
+                 string.IsNullOrWhiteSpace(presence.QuestId) || string.IsNullOrWhiteSpace(presence.StageId)))
+                throw new InvalidDataException($"NPC {npc.Id} 的出場條件需要指定任務與階段。");
+        }
+
         var duplicateInteractionId = document.Interactables
             .Where(interactable => !string.IsNullOrWhiteSpace(interactable.Id))
             .GroupBy(interactable => interactable.Id.Trim(), StringComparer.OrdinalIgnoreCase)
@@ -1109,14 +1307,13 @@ public static class SceneJson
             }
 
             interactable.NormalizeInteractionPoints();
-            if (interactable.Npc is { } npc)
+            if (!string.IsNullOrWhiteSpace(interactable.NpcId))
             {
-                if (string.IsNullOrWhiteSpace(npc.CharacterId) || !float.IsFinite(npc.X) ||
-                    !float.IsFinite(npc.Y) || !float.IsFinite(npc.Scale) || npc.Scale <= 0 ||
-                    !NpcCatalog.Directions.Contains(npc.Facing))
-                    throw new InvalidDataException($"互動區 {interactable.Id} 的 NPC 角色、位置、方向或縮放無效。");
-                npc.CharacterId = npc.CharacterId.Trim();
+                interactable.NpcId = interactable.NpcId.Trim();
+                if (!document.NpcList.Any(npc => npc.Id.Equals(interactable.NpcId, StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidDataException($"互動區 {interactable.Id} 的對話對象 NPC「{interactable.NpcId}」不存在。");
             }
+            else interactable.NpcId = null;
             interactable.SurvivalRequirements ??= new SurvivalRequirements();
             interactable.SurvivalEffects ??= new SurvivalEffects();
             interactable.SurvivalRequirements.Mode =

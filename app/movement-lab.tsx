@@ -2,7 +2,13 @@
 import { createChapter02StartFlow, CHAPTER02_START_FLOW_ID } from "./chapter02-start-flow";
 import { getIdleSpriteSources, makeTransparentIdleSprite } from "./player-idle-sprites";
 import npcCatalogData from "../public/characters/npc-catalog.json";
-import { getSceneNpcRenderData, isSceneNpcVisible, normalizeNpcCatalog, sortSceneActors, type SceneNpc } from "./scene-npcs";
+import {
+  collectSceneNpcs, facingToward, getBreathingScale, getSceneNpcRenderData, isPointOnNpcBody, isSceneNpcPresent,
+  isSceneNpcVisible, normalizeNpcCatalog, stepFacing,
+  type NpcDirection, type SceneNpc, type SceneNpcDefinition,
+} from "./scene-npcs";
+import { drawCharacterGroundShadow } from "./character-ground-shadow";
+import { normalizeSceneOccluders, occluderFoot, sortSceneDrawables, type SceneDrawable, type SceneOccluder } from "./scene-occluders";
 import { getWalkFrameSources, makeTransparentWalkSprites, drawTransparentCharacterSprite, type TransparentCharacterSprite, type TransparentWalkSprite } from "./player-walk-sprites";
 import { useResponsiveConfirmation } from "./responsive-confirmation";
 import { createTouchJoystickView } from "./touch-joystick-view";
@@ -517,7 +523,10 @@ type InteractionPoint = Point & { facing?: Direction };
 type SceneInteractable = {
   id: string;
   label: string;
+  /** 舊格式：互動區內嵌 NPC（讀取時轉成場景 npcs 的 npc-<互動區ID>） */
   npc?: SceneNpc;
+  /** 對話對象：引用場景 npcs 的 id；同一個角色可被多段對話共用 */
+  npcId?: string;
   shape?: "polygon";
   points?: Point[];
   position?: Point;
@@ -793,6 +802,10 @@ type SceneFile = {
     radius?: number;
   }>;
   interactables?: SceneInteractable[];
+  /** 場景中的獨立 NPC（角色、腳底位置、面向、大小、出場條件）；格式見 docs/scene-format.md */
+  npcs?: unknown[];
+  /** 牆面遮擋片段（MapEditor「遮擋片段」）：前景圖切出的一段牆＋牆腳線；格式見 docs/scene-format.md */
+  occluders?: unknown[];
   movementGuides?: MovementGuide[];
   storyTriggers?: StoryTriggerZone[];
   itemPoints?: SceneItemPoint[];
@@ -864,6 +877,18 @@ function getSceneImageSource(scene: SceneFile) {
 
 // 前景圖層圖片快取（以檔名為鍵，第一次用到時載入）
 const SCENE_FOREGROUND_IMAGE_CACHE = new Map<string, HTMLImageElement>();
+// 每個場景的遮擋片段（依所屬前景圖層分組）
+const SCENE_OCCLUDER_CACHE = new WeakMap<SceneFile, SceneOccluder[]>();
+function getSceneOccluders(scene: SceneFile) {
+  let occluders = SCENE_OCCLUDER_CACHE.get(scene);
+  if (!occluders) {
+    const layerIds = new Set((scene.foregroundLayers ?? []).flatMap(layer => layer.id ? [layer.id] : []));
+    occluders = normalizeSceneOccluders(scene.occluders, layerIds);
+    SCENE_OCCLUDER_CACHE.set(scene, occluders);
+  }
+  return occluders;
+}
+
 function getSceneForegroundImage(file: string) {
   if (typeof Image === "undefined") return null;
   let image = SCENE_FOREGROUND_IMAGE_CACHE.get(file);
@@ -1547,6 +1572,40 @@ function getNpcImage(file: string) {
     NPC_IMAGE_CACHE.set(file, image);
   }
   return image;
+}
+// 每個場景的 NPC（新格式 npcs＋互動區 npcId 綁定；舊格式互動區內嵌 npc 會自動轉換）
+const SCENE_NPC_CACHE = new Map<string, ReturnType<typeof collectSceneNpcs>>();
+function getSceneNpcs(scene: SceneFile) {
+  let entry = SCENE_NPC_CACHE.get(scene.sceneId);
+  if (!entry) {
+    entry = collectSceneNpcs(scene);
+    SCENE_NPC_CACHE.set(scene.sceneId, entry);
+  }
+  return entry;
+}
+/**
+ * 預先載入場景 NPC 圖片。`facing`：只載入各角色擺放時的面向（載入畫面要等的部分）；
+ * `all`：8 個方向全部（對話時轉向主角會用到，背景載入即可）。
+ */
+function preloadSceneNpcImages(scene: SceneFile, mode: "facing" | "all") {
+  const files = new Set<string>();
+  for (const npc of getSceneNpcs(scene).npcs.values()) {
+    const sprites = NPC_CATALOG.characters[npc.characterId]?.sprites;
+    if (!sprites) continue;
+    for (const sprite of mode === "all" ? Object.values(sprites) : [sprites[npc.facing]]) {
+      if (sprite) files.add(sprite.file);
+    }
+  }
+  return Promise.all([...files].map(async file => {
+    const image = getNpcImage(file);
+    // 圖片失敗不影響進場與對話，只是不畫角色
+    try { await image?.decode(); } catch { /* handled by getNpcImage onerror */ }
+  }));
+}
+if (typeof window !== "undefined") {
+  for (const scene of SCENE_REGISTRY.values()) {
+    void preloadSceneNpcImages(scene, "facing").then(() => preloadSceneNpcImages(scene, "all"));
+  }
 }
 
 const N_WALK_FRAME_SOURCES = getWalkFrameSources("N");
@@ -2839,6 +2898,8 @@ function findInteractableAt(
   interactables: readonly SceneInteractable[],
   collectedWorldItems?: ReadonlySet<string>,
   isSelectable: (interactable: SceneInteractable) => boolean = () => true,
+  /** 額外的點擊範圍，例如對話綁定的 NPC 身體 */
+  isPointOnActor: (point: Point, interactable: SceneInteractable) => boolean = () => false,
 ): SceneInteractable | null {
   const candidates: Array<{
     interactable: SceneInteractable;
@@ -2856,7 +2917,7 @@ function findInteractableAt(
       return;
     }
     if (interactable.points && interactable.points.length >= 3) {
-      if (pointInPolygon(point, interactable.points)) {
+      if (pointInPolygon(point, interactable.points) || isPointOnActor(point, interactable)) {
         candidates.push({ interactable, distance: 0, sourceIndex });
       }
       return;
@@ -3695,13 +3756,14 @@ export async function prepareChapterStart(chapter: 2 | 3) {
     await image.decode();
     return image;
   };
-  // Wait for the map and every visible foreground before clearing the loading screen.
+  // Wait for the map, every visible foreground and the scene's NPCs before clearing the loading screen.
   const [background, ...foregrounds] = await Promise.all([
     loadImage(scene.image.file),
     ...(scene.foregroundLayers ?? []).filter(layer => layer.visible !== false).map(async layer => ({
       file: layer.file, image: await loadImage(layer.file),
     })),
   ]);
+  await preloadSceneNpcImages(scene, "facing");
   SCENE_IMAGE_CACHE.set(scene.sceneId, background as HTMLImageElement);
   for (const layer of foregrounds as { file: string; image: HTMLImageElement }[]) {
     SCENE_FOREGROUND_IMAGE_CACHE.set(layer.file, layer.image);
@@ -9890,17 +9952,47 @@ export function MovementLab() {
       (questId, objectiveId, state) => questRuntimeManagerRef.current?.hasObjectiveReachedState(questId, objectiveId, state) ?? false,
     );
 
+    const npcStageQuery = {
+      isQuestAtStage: (questId: string, stageId: string) => questRuntimeManagerRef.current?.isQuestAtStage(questId, stageId) ?? false,
+      hasQuestReachedStage: (questId: string, stageId: string) => questRuntimeManagerRef.current?.hasQuestReachedStage(questId, stageId) ?? false,
+      hasObjectiveReachedState: (questId: string, objectiveId: string, state: "unlocked" | "completed") =>
+        questRuntimeManagerRef.current?.hasObjectiveReachedState(questId, objectiveId, state) ?? false,
+    };
+    const npcPresenceRequirements = new WeakMap<SceneNpcDefinition, ReturnType<typeof normalizeInteractionUseRequirements>>();
+    // 執行中的 NPC 面向（對話時轉向主角，一次轉 45°）；key 為 `${sceneId}:${npcId}`
+    const npcRuntimeFacing = new Map<string, { facing: NpcDirection; lastStepAt: number }>();
+    // NPC 自己的出場條件（與對話條件無關）；舊格式沿用原本所屬互動區的條件
+    const isSceneNpcOnStage = (npc: SceneNpcDefinition) => {
+      let requirements = npcPresenceRequirements.get(npc);
+      if (!requirements) {
+        requirements = normalizeInteractionUseRequirements(
+          npc.legacyRequirements !== undefined ? npc.legacyRequirements : npc.presence ? [npc.presence] : [],
+          resolveItemId,
+        );
+        npcPresenceRequirements.set(npc, requirements);
+      }
+      return npc.legacyRequirements !== undefined
+        ? isSceneNpcVisible(requirements, npcStageQuery)
+        : isSceneNpcPresent(requirements, npcStageQuery);
+    };
+    const getBoundSceneNpc = (interactable: SceneInteractable) => {
+      const { npcs, bindings } = getSceneNpcs(SCENE_DATA);
+      const npcId = bindings.get(interactable.id);
+      return npcId ? npcs.get(npcId) ?? null : null;
+    };
+    // 對話對象不在場時，這段對話也不能互動（角色圖片載入失敗不影響，只看出場條件）
     const isNpcPresent = (interactable: SceneInteractable) => {
-      if (interactable.npc == null) return true;
-      // Artwork failures must not disable an otherwise valid dialogue or quest target.
-      return isSceneNpcVisible(
-        normalizeInteractionUseRequirements(interactable.useRequirements, resolveItemId),
-        {
-          isQuestAtStage: (questId, stageId) => questRuntimeManagerRef.current?.isQuestAtStage(questId, stageId) ?? false,
-          hasQuestReachedStage: (questId, stageId) => questRuntimeManagerRef.current?.hasQuestReachedStage(questId, stageId) ?? false,
-          hasObjectiveReachedState: (questId, objectiveId, state) => questRuntimeManagerRef.current?.hasObjectiveReachedState(questId, objectiveId, state) ?? false,
-        },
-      );
+      const npc = getBoundSceneNpc(interactable);
+      return !npc || isSceneNpcOnStage(npc);
+    };
+    // 點擊判定：點到在場 NPC 的身體也算點到綁定它的對話（實際觸發哪一段仍由對話條件決定）
+    const isPointOnBoundNpcBody = (point: Point, interactable: SceneInteractable) => {
+      const npc = getBoundSceneNpc(interactable);
+      if (!npc || !isSceneNpcOnStage(npc)) return false;
+      const facing = npcRuntimeFacing.get(`${SCENE_DATA.sceneId}:${npc.id}`)?.facing ?? npc.facing;
+      const render = getSceneNpcRenderData({ ...npc, facing },
+        NPC_CATALOG, sizeRef.current);
+      return Boolean(render && isPointOnNpcBody(point, render.body));
     };
 
     const isInteractableConditionActive = (
@@ -12776,6 +12868,7 @@ export function MovementLab() {
             sceneInteractablesRef.current,
             collectedWorldItemIdsRef.current,
             isInteractableConditionActive,
+            isPointOnBoundNpcBody,
           )
         : null;
       const interactable =
@@ -12956,6 +13049,7 @@ export function MovementLab() {
               sceneInteractablesRef.current,
               collectedWorldItemIdsRef.current,
               isInteractableSelectable,
+              isPointOnBoundNpcBody,
             )
         : null;
       const playerTarget = findInteractableTouching(
@@ -13173,6 +13267,7 @@ export function MovementLab() {
             sceneInteractablesRef.current,
             collectedWorldItemIdsRef.current,
             isInteractableConditionActive,
+            isPointOnBoundNpcBody,
           )
         : null;
       assignWorldAction(
@@ -13579,64 +13674,142 @@ export function MovementLab() {
     canvas.addEventListener("lostpointercapture", onPointerCancel);
     requestBgmPlayback();
 
-    // 場景前景圖層（牆面等）：畫在角色上方。尚未做角色前後判定與局部防遮擋（見 MapEditor README）
+    // 場景前景圖層（牆面等）：畫在角色上方。被「遮擋片段」切走的部分不在這裡畫，
+    // 改由 drawSceneCharacters 依牆腳線和角色一起排序（見 app/scene-occluders.ts）
     const sceneStarfield = createSceneStarfield();
     const sceneHullStreams = createHullStreams();
+    type ForegroundLayer = NonNullable<SceneFile["foregroundLayers"]>[number];
+    const drawForegroundLayerImage = (layer: ForegroundLayer, clip?: (path: Path2D) => void, fillRule?: CanvasFillRule) => {
+      if (layer.visible === false || !layer.file) return;
+      const image = getSceneForegroundImage(layer.file);
+      if (!image?.complete || image.naturalWidth <= 0) return;
+      const scale = layer.scale ?? 1;
+      const x = layer.x ?? 0, y = layer.y ?? 0, width = image.naturalWidth * scale, height = image.naturalHeight * scale;
+      context.save();
+      if (clip) {
+        const path = new Path2D();
+        clip(path);
+        context.clip(path, fillRule);
+      }
+      context.globalAlpha = clamp(layer.opacity ?? 1, 0, 1);
+      context.drawImage(image, x, y, width, height);
+      context.restore();
+    };
+    const tracePolygonPath = (path: Path2D, points: readonly { x: number; y: number }[]) => {
+      points.forEach((point, index) => index ? path.lineTo(point.x, point.y) : path.moveTo(point.x, point.y));
+      path.closePath();
+    };
     const drawSceneForegroundLayers = () => {
       const layers = SCENE_DATA.foregroundLayers;
       if (!layers?.length) return;
+      const occluders = getSceneOccluders(SCENE_DATA);
       for (const layer of layers) {
-        if (layer.visible === false || !layer.file) continue;
-        const image = getSceneForegroundImage(layer.file);
-        if (!image?.complete || image.naturalWidth <= 0) continue;
-        const scale = layer.scale ?? 1;
-        context.save();
-        context.globalAlpha = clamp(layer.opacity ?? 1, 0, 1);
-        context.drawImage(
-          image,
-          layer.x ?? 0,
-          layer.y ?? 0,
-          image.naturalWidth * scale,
-          image.naturalHeight * scale,
-        );
-        context.restore();
+        const cut = occluders.filter(occluder => occluder.layerId === layer.id);
+        if (!cut.length) { drawForegroundLayerImage(layer); continue; }
+        // 整張圖的範圍減去所有片段（evenodd）：片段之外的牆照舊永遠在最上層
+        drawForegroundLayerImage(layer, path => {
+          path.rect(-1e5, -1e5, 2e5, 2e5);
+          for (const occluder of cut) tracePolygonPath(path, occluder.points);
+        }, "evenodd");
       }
     };
 
-    // NPCs share the existing Interaction's input/quest rules; this only adds world art.
+    // 場景 NPC：獨立於對話互動區，依出場條件顯示；與主角依腳底 y 排序前後遮擋、共用腳底影子。
+    // 對話中轉向主角（一次轉 45°，結束後轉回原本面向），待機時輕微呼吸。
+    const NPC_TURN_STEP_MILLISECONDS = 70;
     const drawSceneCharacters = (originScene: SceneFile | null) => {
-      type Actor = { id: string; kind: "npc" | "player"; footY: number; draw: () => void };
-      const actors: Actor[] = [{ id: "player", kind: "player", footY: player.y, draw: drawPlayer }];
+      type Actor = SceneDrawable & { draw: () => void };
+      const playerSize = sizeRef.current;
+      const actors: Actor[] = [{
+        id: "player", kind: "player", footX: player.x, footY: player.y, draw: drawPlayer,
+        bounds: { left: player.x - playerSize * 0.4, right: player.x + playerSize * 0.4, top: player.y - playerSize * 1.08, bottom: player.y + playerSize * 0.05 },
+      }];
+      // 牆面遮擋片段：只在一般繪製（非地圖串流轉場）時和角色一起排序；前景圖本身已扣掉這些範圍
+      if (originScene === SCENE_DATA) {
+        const layers = SCENE_DATA.foregroundLayers ?? [];
+        for (const occluder of getSceneOccluders(SCENE_DATA)) {
+          const layer = layers.find(item => item.id === occluder.layerId);
+          if (!layer) continue;
+          const foot = occluderFoot(occluder);
+          actors.push({
+            id: `occluder:${occluder.id}`, kind: "occluder", footX: foot.x, footY: foot.y, bounds: occluder.bounds, occluder,
+            draw: () => drawForegroundLayerImage(layer, path => tracePolygonPath(path, occluder.points)),
+          });
+        }
+      }
       const activeLayer = getSceneWorldLayout(SCENE_DATA).layer ?? 0;
       const originLayout = originScene ? getSceneWorldLayout(originScene) : { x: 0, y: 0 };
+      const now = window.performance.now();
+      const talkingTo = dialoguePlaybackRef.current
+        ? getSceneNpcs(SCENE_DATA).bindings.get(dialoguePlaybackRef.current.interactable.id) ?? null
+        : null;
+      const isImageReady = (file: string) => {
+        const image = getNpcImage(file);
+        return Boolean(image?.complete && image.naturalWidth > 0);
+      };
       for (const scene of SCENE_REGISTRY.values()) {
         const layout = getSceneWorldLayout(scene);
         if ((layout.layer ?? 0) !== activeLayer) continue;
         const offset = { x: layout.x - originLayout.x, y: layout.y - originLayout.y };
-        const interactables = scene.sceneId === SCENE_DATA.sceneId
-          ? sceneInteractablesRef.current : scene.interactables ?? [];
-        for (const interactable of interactables) {
-          if (!interactable.npc || !isNpcPresent(interactable)) continue;
-          const render = getSceneNpcRenderData(interactable.npc, NPC_CATALOG);
+        for (const npc of getSceneNpcs(scene).npcs.values()) {
+          if (!isSceneNpcOnStage(npc)) continue;
+          const sprites = NPC_CATALOG.characters[npc.characterId]?.sprites;
+          if (!sprites) continue;
+          const x = npc.x + offset.x, y = npc.y + offset.y;
+          const key = `${scene.sceneId}:${npc.id}`;
+          const state = npcRuntimeFacing.get(key) ?? { facing: npc.facing, lastStepAt: 0 };
+          npcRuntimeFacing.set(key, state);
+          const talking = npc.facePlayer && scene.sceneId === SCENE_DATA.sceneId && talkingTo === npc.id;
+          const desired = talking ? facingToward({ x, y }, player, npc.facing) : npc.facing;
+          if (state.facing !== desired && now - state.lastStepAt >= NPC_TURN_STEP_MILLISECONDS) {
+            const next = stepFacing(state.facing, desired);
+            // 下一個方向的圖還沒載好就先停在目前方向，避免角色閃一下消失
+            const nextSprite = sprites[next];
+            if (nextSprite && isImageReady(nextSprite.file)) {
+              state.facing = next;
+              state.lastStepAt = now;
+            }
+          }
+          const render = getSceneNpcRenderData({ ...npc, facing: state.facing }, NPC_CATALOG, sizeRef.current);
           if (!render) continue;
           const image = getNpcImage(render.sprite.file);
           if (!image?.complete || image.naturalWidth !== render.sprite.width || image.naturalHeight !== render.sprite.height) continue;
-          const x = render.npc.x + offset.x, y = render.npc.y + offset.y;
+          const pad = 8;
           actors.push({
-            id: `${scene.sceneId}:${interactable.id}`, kind: "npc", footY: y,
+            id: key, kind: "npc", footX: x, footY: y,
+            bounds: {
+              left: render.body.left + offset.x - pad, right: render.body.left + offset.x + render.body.width + pad,
+              top: render.body.top + offset.y - pad, bottom: y + render.bodyHeight * 0.05,
+            },
             draw: () => {
+              drawCharacterGroundShadow(context, {
+                footX: x,
+                footY: y,
+                size: render.bodyHeight,
+                box: {
+                  left: render.body.left + offset.x,
+                  top: render.body.top + offset.y,
+                  width: render.body.width,
+                  height: render.body.height,
+                },
+                tuning: playerShadowTuningRef.current[state.facing],
+                bootAnchors: render.sprite.bootAnchors,
+              });
               context.save();
-              context.fillStyle = "rgba(3, 9, 12, 0.24)";
-              context.beginPath();
-              context.ellipse(x, y - render.bodyHeight * 0.012, render.bodyHeight * 0.12, render.bodyHeight * 0.035, 0, 0, Math.PI * 2);
-              context.fill();
+              if (npc.breathing) {
+                // 以腳底為基準縮放，腳不會離地
+                const breathing = getBreathingScale(key, now);
+                context.translate(x, y);
+                context.scale(breathing.x, breathing.y);
+                context.translate(-x, -y);
+              }
               context.drawImage(image, render.left + offset.x, render.top + offset.y, render.width, render.height);
               context.restore();
             },
           });
         }
       }
-      sortSceneActors(actors).forEach(actor => actor.draw());
+      sortSceneDrawables(actors).forEach(actor => actor.draw());
     };
 
     const drawStreamedSceneImages = (originScene: SceneFile | null) => {
@@ -14431,75 +14604,20 @@ export function MovementLab() {
       const trackedBootAnchors = walkSprite
         ? walkBootShadowFrames[currentFacing]?.[walkFrame] ?? null
         : idleBootShadowFrames.get(currentFacing) ?? null;
-      const shadowCenterY = player.y - renderedHeight * 0.012;
-      const shadowTuning = playerShadowTuningRef.current[currentFacing];
-      const shadowWidthScale = shadowTuning.widthPercent / 100;
-      const shadowHeightScale = shadowTuning.heightPercent / 100;
-
-      const drawSoftShadowEllipse = (
-        x: number,
-        y: number,
-        radiusX: number,
-        radiusY: number,
-        centerAlpha: number,
-        fadeStart: number,
-      ) => {
-        context.save();
-        context.translate(x, y);
-        context.scale(1, radiusY / Math.max(radiusX, Number.EPSILON));
-        const gradient = context.createRadialGradient(0, 0, 0, 0, 0, radiusX);
-        gradient.addColorStop(0, `rgba(3, 9, 12, ${centerAlpha})`);
-        gradient.addColorStop(
-          fadeStart,
-          `rgba(3, 9, 12, ${centerAlpha * 0.58})`,
-        );
-        gradient.addColorStop(1, "rgba(3, 9, 12, 0)");
-        context.fillStyle = gradient;
-        context.beginPath();
-        context.arc(0, 0, radiusX, 0, Math.PI * 2);
-        context.fill();
-        context.restore();
-      };
-
-      // The broad layer grounds the whole body without looking like a fixed black disc.
-      drawSoftShadowEllipse(
-        player.x + shadowTuning.ambientOffsetX,
-        shadowCenterY + shadowTuning.ambientOffsetY,
-        renderedHeight * 0.155 * shadowWidthScale,
-        renderedHeight * 0.047 * shadowHeightScale,
-        0.7,
-        0.48,
-      );
-
-      // 靴底影直接讀取當前角色影格中的腳底像素，不再用相反方向的正弦位移猜腳步。
-      const drawBootContactShadow = (anchor: BootShadowAnchor) => {
-        const contact = anchor.contact;
-        const liftScale = 0.67 + contact * 0.33;
-        const footX =
-          player.x - renderedWidth / 2 +
-          anchor.xRatio * renderedWidth +
-          shadowTuning.bootOffsetX;
-        const footY =
-          player.y - renderedHeight +
-          anchor.yRatio * renderedHeight +
-          shadowTuning.bootOffsetY +
-          renderedHeight * 0.006;
-        drawSoftShadowEllipse(
-          footX,
-          footY,
-          renderedHeight * 0.056 * shadowWidthScale * liftScale,
-          renderedHeight * 0.019 * shadowHeightScale * liftScale,
-          0.31 + contact * 0.25,
-          0.62,
-        );
-      };
-      const bootAnchors =
-        trackedBootAnchors ??
-        ([
-          { xRatio: 0.3, yRatio: 0.985, contact: 1 },
-          { xRatio: 0.7, yRatio: 0.985, contact: 1 },
-        ] as [BootShadowAnchor, BootShadowAnchor]);
-      bootAnchors.forEach(drawBootContactShadow);
+      // 腳底影子與 NPC 共用同一套繪製（drawSceneCharacters 也用這個函式）
+      drawCharacterGroundShadow(context, {
+        footX: player.x,
+        footY: player.y,
+        size: renderedHeight,
+        box: {
+          left: player.x - renderedWidth / 2,
+          top: player.y - renderedHeight,
+          width: renderedWidth,
+          height: renderedHeight,
+        },
+        tuning: playerShadowTuningRef.current[currentFacing],
+        bootAnchors: trackedBootAnchors,
+      });
 
       if (sprite) {
         drawTransparentCharacterSprite(context, sprite,
@@ -14914,6 +15032,7 @@ export function MovementLab() {
             sceneInteractablesRef.current,
             collectedWorldItemIdsRef.current,
             isInteractableSelectable,
+            isPointOnBoundNpcBody,
           )
         : null;
       const playerTarget = foundPlayerTarget && !isInteractableLocked(foundPlayerTarget)

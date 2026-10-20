@@ -92,7 +92,7 @@ internal sealed class NpcEditorForm : Form
     {
         foreach (var (id, button) in _characters) button.BackColor = id == _draft.CharacterId ? Color.FromArgb(49, 92, 111) : Color.FromArgb(43, 48, 57);
         foreach (var (facing, button) in _directions) button.BackColor = facing == _draft.Facing ? Color.FromArgb(49, 112, 137) : Color.FromArgb(43, 48, 57);
-        _previewCaption.Text = $"{_catalog.Find(_draft.CharacterId)?.Name} · {_draft.Facing} · 高 {_catalog.DefaultHeight * _draft.Scale:0.#} px";
+        _previewCaption.Text = $"{_catalog.Find(_draft.CharacterId)?.Name} · {_draft.Facing} · 可見身高 {_catalog.BodyHeight(_draft):0.#} px（100% 與主角同高）";
         _preview.Invalidate();
     }
     protected override void Dispose(bool disposing)

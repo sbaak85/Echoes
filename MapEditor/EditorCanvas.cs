@@ -20,6 +20,7 @@ public enum EditorTool
     TeleportPoint,
     EntryPoint,
     SceneExitPolygon,
+    OccluderPolygon,
 }
 
 public enum SceneLayerKind
@@ -34,6 +35,8 @@ public enum SceneLayerKind
     EntryPoint,
     SceneConnection,
     ItemPoint,
+    Npc,
+    Occluder,
 }
 
 public readonly record struct LayerSelection(SceneLayerKind Kind, int Index)
@@ -57,6 +60,7 @@ internal enum DragMode
     InteractionPoint,
     NpcMove,
     NpcResize,
+    OccluderBaseline,
 }
 
 public sealed partial class EditorCanvas : Control
@@ -99,7 +103,13 @@ public sealed partial class EditorCanvas : Control
     public void UpdateForegroundLayers(IEnumerable<ForegroundImageLayer> layers)
     {
         var copy = layers.Select(layer => layer.Copy()).ToList();
-        PerformMutation(() => _document.ForegroundLayers = copy);
+        PerformMutation(() =>
+        {
+            _document.ForegroundLayers = copy;
+            // 前景圖層被移除時，切自它的遮擋片段一起移除
+            _document.OccluderList.RemoveAll(occluder => !copy.Any(layer => layer.Id.Equals(occluder.LayerId, StringComparison.OrdinalIgnoreCase)));
+            if (!IsValidSelection(_selection)) _selection = LayerSelection.None;
+        });
     }
 
     private void ClearForegroundCache()
@@ -254,6 +264,7 @@ public sealed partial class EditorCanvas : Control
             _assignItemPointItemContextItem,
             _deleteItemPointContextItem,
         });
+        InitializeNpcWorldMenu();
         _worldPointContextMenu.BackColor = Color.FromArgb(35, 39, 47);
         _worldPointContextMenu.ForeColor = Color.WhiteSmoke;
         UpdateCursor();
@@ -327,7 +338,6 @@ public sealed partial class EditorCanvas : Control
         ClearForegroundCache();
         _sceneImage = image;
         _document = document;
-        _npcSelected = false;
         _selection = LayerSelection.None;
         _selectedVertex = -1;
         _selectedInteractionPoint = -1;
@@ -581,6 +591,10 @@ public sealed partial class EditorCanvas : Control
                     _document.EntryPoints[_selection.Index].Label = label;
                 else if (_selection.Kind == SceneLayerKind.SceneConnection)
                     _document.Connections[_selection.Index].Label = label;
+                else if (_selection.Kind == SceneLayerKind.Npc)
+                    _document.NpcList[_selection.Index].Label = label;
+                else if (_selection.Kind == SceneLayerKind.Occluder)
+                    _document.OccluderList[_selection.Index].Label = label;
                 else
                     _document.ItemPoints[_selection.Index].Label = label;
             }
@@ -590,8 +604,8 @@ public sealed partial class EditorCanvas : Control
     public void SelectLayer(LayerSelection selection)
     {
         if (!IsValidSelection(selection)) selection = LayerSelection.None;
-        if (_selection == selection && !_npcSelected) return;
-        _npcSelected = false;
+        EnsureSelectionVisible(selection);
+        if (_selection == selection) return;
         _selection = selection;
         _selectedVertex = -1;
         _selectedInteractionPoint = -1;
@@ -641,6 +655,10 @@ public sealed partial class EditorCanvas : Control
             else if (_selection.Kind == SceneLayerKind.SceneConnection)
             {
                 _document.Connections.RemoveAt(_selection.Index);
+            }
+            else if (_selection.Kind == SceneLayerKind.Occluder)
+            {
+                _document.OccluderList.RemoveAt(_selection.Index);
             }
 
             _selection = LayerSelection.None;
@@ -792,15 +810,14 @@ public sealed partial class EditorCanvas : Control
                 {
                     ScalePointAround(interactionHintPoint, center, factor);
                 }
-                if (interactable.Npc is { } attachedNpc)
-                {
-                    ScalePointAround(attachedNpc, center, factor);
-                    attachedNpc.Scale = Math.Clamp(attachedNpc.Scale * factor, 0.1f, 5f);
-                }
             }
             else if (_selection.Kind == SceneLayerKind.StoryTrigger)
             {
                 ScalePoints(_document.StoryTriggers[_selection.Index].Points, factor);
+            }
+            else if (_selection.Kind == SceneLayerKind.Occluder)
+            {
+                ScaleOccluder(_document.OccluderList[_selection.Index], factor);
             }
             else if (_selection.Kind == SceneLayerKind.MovementGuide)
             {
@@ -1737,17 +1754,18 @@ public sealed partial class EditorCanvas : Control
             DrawForegroundImages(graphics);
             DrawGrid(graphics);
         }
-        DrawNavMesh(graphics);
-        DrawCollisions(graphics);
-        DrawInteractables(graphics);
-        DrawStoryTriggers(graphics);
-        DrawSceneConnections(graphics);
-        DrawMovementGuides(graphics);
-        DrawTeleportPoints(graphics);
-        DrawEntryPoints(graphics);
-        DrawItemPoints(graphics);
-        DrawNpcs(graphics);
-        if (staticPass) DrawSpawn(graphics);
+        if (IsKindVisible(SceneLayerKind.NavMesh)) DrawNavMesh(graphics);
+        if (IsKindVisible(SceneLayerKind.Collision)) DrawCollisions(graphics);
+        if (IsKindVisible(SceneLayerKind.Interactable)) DrawInteractables(graphics);
+        if (IsKindVisible(SceneLayerKind.StoryTrigger)) DrawStoryTriggers(graphics);
+        if (IsKindVisible(SceneLayerKind.Occluder)) DrawOccluders(graphics);
+        if (IsKindVisible(SceneLayerKind.SceneConnection)) DrawSceneConnections(graphics);
+        if (IsKindVisible(SceneLayerKind.MovementGuide)) DrawMovementGuides(graphics);
+        if (IsKindVisible(SceneLayerKind.TeleportPoint)) DrawTeleportPoints(graphics);
+        if (IsKindVisible(SceneLayerKind.EntryPoint)) DrawEntryPoints(graphics);
+        if (IsKindVisible(SceneLayerKind.ItemPoint)) DrawItemPoints(graphics);
+        if (IsKindVisible(SceneLayerKind.Npc)) DrawNpcs(graphics);
+        if (staticPass && SpawnVisible) DrawSpawn(graphics);
         if (livePass)
         {
             DrawDraft(graphics);
@@ -2293,6 +2311,7 @@ public sealed partial class EditorCanvas : Control
                 SceneLayerKind.NavMesh => _document.NavMesh[_selection.Index].Points,
                 SceneLayerKind.Interactable => _document.Interactables[_selection.Index].Points,
                 SceneLayerKind.StoryTrigger => _document.StoryTriggers[_selection.Index].Points,
+                SceneLayerKind.Occluder => _document.OccluderList[_selection.Index].Points,
                 SceneLayerKind.MovementGuide => _document.MovementGuides[_selection.Index].Points,
                 SceneLayerKind.SceneConnection => _document.Connections[_selection.Index].Area,
                 _ => null,
@@ -2407,6 +2426,7 @@ public sealed partial class EditorCanvas : Control
             case EditorTool.CollisionPolygon:
             case EditorTool.InteractionPolygon:
             case EditorTool.StoryTriggerPolygon:
+            case EditorTool.OccluderPolygon:
             case EditorTool.SceneExitPolygon:
             case EditorTool.MovementGuide:
                 if (e.Clicks >= 2)
@@ -2670,7 +2690,7 @@ public sealed partial class EditorCanvas : Control
     private void BeginSelectDrag(PointF world, bool cycleOverlappingShapes = false)
     {
         if (!cycleOverlappingShapes && TryBeginNpcDrag(world)) return;
-        if (_npcSelected) SelectLayer(_selection);
+        if (!cycleOverlappingShapes && TryBeginOccluderBaselineDrag(world)) return;
         if (
             !cycleOverlappingShapes &&
             TryHitInteractionPoint(world, out var interactionSelection, out var interactionPointIndex)
@@ -2734,6 +2754,7 @@ public sealed partial class EditorCanvas : Control
     {
         if (!IsValidSelection(_selection) || !IsFinite(world)) return false;
         if (_dragMode is DragMode.NpcMove or DragMode.NpcResize) return UpdateNpcDrag(world);
+        if (_dragMode == DragMode.OccluderBaseline) return UpdateOccluderBaselineDrag(world);
 
         if (_dragMode == DragMode.InteractionPoint)
         {
@@ -2789,8 +2810,10 @@ public sealed partial class EditorCanvas : Control
                     return false;
                 }
 
+                var before = points[_activeHandle].Clone();
                 points[_activeHandle].X = world.X;
                 points[_activeHandle].Y = world.Y;
+                SyncOccluderBaselineWithVertex(before, points[_activeHandle]);
                 return true;
             }
             return false;
@@ -2832,15 +2855,14 @@ public sealed partial class EditorCanvas : Control
                 interactionHintPoint.X += deltaX;
                 interactionHintPoint.Y += deltaY;
             }
-            if (interactable.Npc is { } npc)
-            {
-                npc.X += deltaX;
-                npc.Y += deltaY;
-            }
         }
         else if (_selection.Kind == SceneLayerKind.StoryTrigger)
         {
             MovePoints(_document.StoryTriggers[_selection.Index].Points, deltaX, deltaY);
+        }
+        else if (_selection.Kind == SceneLayerKind.Occluder)
+        {
+            MoveOccluder(_document.OccluderList[_selection.Index], deltaX, deltaY);
         }
         else if (_selection.Kind == SceneLayerKind.MovementGuide)
         {
@@ -2955,6 +2977,10 @@ public sealed partial class EditorCanvas : Control
                 });
                 _selection = new LayerSelection(SceneLayerKind.StoryTrigger, index);
                 _selectedVertex = -1;
+            }
+            else if (_tool == EditorTool.OccluderPolygon)
+            {
+                AddOccluderFromDraft(points);
             }
             else if (_tool == EditorTool.SceneExitPolygon)
             {
@@ -3119,6 +3145,14 @@ public sealed partial class EditorCanvas : Control
             }
         }
 
+        for (var index = _document.OccluderList.Count - 1; index >= 0; index--)
+        {
+            if (PointInPolygon(point, _document.OccluderList[index].Points))
+            {
+                candidates.Add(new LayerSelection(SceneLayerKind.Occluder, index));
+            }
+        }
+
         for (var index = _document.Connections.Count - 1; index >= 0; index--)
         {
             if (PointInPolygon(point, _document.Connections[index].Area))
@@ -3152,6 +3186,8 @@ public sealed partial class EditorCanvas : Control
             }
         }
 
+        // 被「顯示」開關隱藏的種類不能在畫布上點選
+        candidates.RemoveAll(candidate => !IsKindVisible(candidate.Kind));
         return candidates;
     }
 
@@ -3194,6 +3230,7 @@ public sealed partial class EditorCanvas : Control
             PopulateItemPointItemMenu(itemPoint);
             _moveSpawnContextItem.Visible = false;
             _addItemPointContextItem.Visible = false;
+            _addNpcWorldContextItem.Visible = false;
             _assignItemPointItemContextItem.Visible = true;
             _deleteItemPointContextItem.Visible = true;
             _worldPointContextMenu.Show(this, screenLocation);
@@ -3203,7 +3240,9 @@ public sealed partial class EditorCanvas : Control
         // NavMesh is drawn beneath collision, interaction, story-trigger and guide layers.
         // Its world menu must not intercept a right-click that visually belongs to one of
         // those upper layers.
-        if (topmostHit.Kind != SceneLayerKind.NavMesh) return false;
+        // NavMesh 被隱藏時，點在可走範圍內仍可開啟這個選單（新增 ItemPoint／NPC、移動出生點）
+        if (topmostHit.Kind != SceneLayerKind.NavMesh &&
+            !(topmostHit.Kind == SceneLayerKind.None && !IsKindVisible(SceneLayerKind.NavMesh) && IsPointInsideNavMesh(_contextWorldPoint))) return false;
 
         if (
             _selection.Kind == SceneLayerKind.NavMesh &&
@@ -3218,6 +3257,7 @@ public sealed partial class EditorCanvas : Control
         _moveSpawnContextItem.Text = "移動出生點至此";
         _moveSpawnContextItem.Visible = true;
         _addItemPointContextItem.Visible = true;
+        _addNpcWorldContextItem.Visible = _npcCatalog is not null;
         _assignItemPointItemContextItem.Visible = false;
         _deleteItemPointContextItem.Visible = false;
         _worldPointContextMenu.Show(this, screenLocation);
@@ -3349,7 +3389,7 @@ public sealed partial class EditorCanvas : Control
         // This lets an interactable's Point commands remain available even when a guide or
         // another visually higher layer overlaps it. Changing layers stays an explicit action.
         var hit = ResolveContextSelection(world);
-        if (hit != _selection || _npcSelected)
+        if (hit != _selection)
         {
             SelectLayer(hit);
         }
@@ -3426,6 +3466,8 @@ public sealed partial class EditorCanvas : Control
             SceneLayerKind.TeleportPoint => $"傳送 Point · {_document.TeleportPoints[selection.Index].Label}",
             SceneLayerKind.EntryPoint => $"地圖 Entry Point · {_document.EntryPoints[selection.Index].Label}",
             SceneLayerKind.SceneConnection => $"地圖出入口 · {_document.Connections[selection.Index].Label}",
+            SceneLayerKind.Npc => $"NPC · {_document.NpcList[selection.Index].Label}",
+            SceneLayerKind.Occluder => $"遮擋片段 · {_document.OccluderList[selection.Index].Label}",
             _ => "無",
         };
     }
@@ -3620,6 +3662,9 @@ public sealed partial class EditorCanvas : Control
         out LayerSelection selection,
         out int interactionPointIndex)
     {
+        selection = LayerSelection.None;
+        interactionPointIndex = -1;
+        if (!IsKindVisible(SceneLayerKind.Interactable)) return false;
         var threshold = 13f / _zoom;
         for (var interactableIndex = _document.Interactables.Count - 1;
              interactableIndex >= 0;
@@ -3720,6 +3765,7 @@ public sealed partial class EditorCanvas : Control
             SceneLayerKind.Collision when IsValidSelection(_selection) => _document.Collisions[_selection.Index].Points,
             SceneLayerKind.Interactable when IsValidSelection(_selection) => _document.Interactables[_selection.Index].Points,
             SceneLayerKind.StoryTrigger when IsValidSelection(_selection) => _document.StoryTriggers[_selection.Index].Points,
+            SceneLayerKind.Occluder when IsValidSelection(_selection) => _document.OccluderList[_selection.Index].Points,
             SceneLayerKind.MovementGuide when IsValidSelection(_selection) => _document.MovementGuides[_selection.Index].Points,
             SceneLayerKind.SceneConnection when IsValidSelection(_selection) => _document.Connections[_selection.Index].Area,
             _ => null,
@@ -3742,6 +3788,11 @@ public sealed partial class EditorCanvas : Control
         if (_selection.Kind == SceneLayerKind.StoryTrigger)
         {
             return _document.StoryTriggers[_selection.Index].Points;
+        }
+
+        if (_selection.Kind == SceneLayerKind.Occluder)
+        {
+            return _document.OccluderList[_selection.Index].Points;
         }
 
         if (_selection.Kind == SceneLayerKind.MovementGuide)
@@ -3797,6 +3848,8 @@ public sealed partial class EditorCanvas : Control
             SceneLayerKind.TeleportPoint => selection.Index >= 0 && selection.Index < _document.TeleportPoints.Count,
             SceneLayerKind.EntryPoint => selection.Index >= 0 && selection.Index < _document.EntryPoints.Count,
             SceneLayerKind.SceneConnection => selection.Index >= 0 && selection.Index < _document.Connections.Count,
+            SceneLayerKind.Npc => selection.Index >= 0 && selection.Index < _document.NpcList.Count,
+            SceneLayerKind.Occluder => selection.Index >= 0 && selection.Index < _document.OccluderList.Count,
             _ => false,
         };
     }
@@ -3831,7 +3884,6 @@ public sealed partial class EditorCanvas : Control
 
     private void NotifyDocumentReplaced()
     {
-        _npcSelected = false;
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         DocumentChanged?.Invoke(this, EventArgs.Empty);
         ViewChanged?.Invoke(this, EventArgs.Empty);
@@ -3951,7 +4003,7 @@ public sealed partial class EditorCanvas : Control
 
     private static bool IsPolygonTool(EditorTool tool)
     {
-        return tool is EditorTool.NavMeshPolygon or EditorTool.CollisionPolygon or EditorTool.InteractionPolygon or EditorTool.StoryTriggerPolygon or EditorTool.SceneExitPolygon or EditorTool.MovementGuide;
+        return tool is EditorTool.NavMeshPolygon or EditorTool.CollisionPolygon or EditorTool.InteractionPolygon or EditorTool.StoryTriggerPolygon or EditorTool.OccluderPolygon or EditorTool.SceneExitPolygon or EditorTool.MovementGuide;
     }
 
     private static void ScalePoints(List<ScenePoint>? points, float factor)

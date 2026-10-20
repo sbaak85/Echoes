@@ -55,12 +55,385 @@
       "visible": true
     }
   ],
+  "occluders": [
+    {
+      "id": "occluder-001",
+      "label": "\u906E\u64CB\u7247\u6BB5 1",
+      "layerId": "113b3e343a4c4bc0aee7f35ca655a916",
+      "points": [
+        {
+          "x": 466,
+          "y": 904
+        },
+        {
+          "x": 1016,
+          "y": 574
+        },
+        {
+          "x": 1050,
+          "y": 596
+        },
+        {
+          "x": 1048,
+          "y": 662
+        },
+        {
+          "x": 1032,
+          "y": 672
+        },
+        {
+          "x": 1032,
+          "y": 796
+        },
+        {
+          "x": 990,
+          "y": 768
+        },
+        {
+          "x": 608,
+          "y": 1008
+        }
+      ],
+      "baselineStart": {
+        "x": 608,
+        "y": 1008
+      },
+      "baselineEnd": {
+        "x": 990,
+        "y": 768
+      }
+    },
+    {
+      "id": "occluder-002",
+      "label": "\u906E\u64CB\u7247\u6BB5 2",
+      "layerId": "113b3e343a4c4bc0aee7f35ca655a916",
+      "points": [
+        {
+          "x": 1480,
+          "y": 1320
+        },
+        {
+          "x": 1078,
+          "y": 1032
+        },
+        {
+          "x": 1080,
+          "y": 874
+        },
+        {
+          "x": 1080,
+          "y": 858
+        },
+        {
+          "x": 1518,
+          "y": 1170
+        },
+        {
+          "x": 1516,
+          "y": 1300
+        }
+      ],
+      "baselineStart": {
+        "x": 1078,
+        "y": 1032
+      },
+      "baselineEnd": {
+        "x": 1480,
+        "y": 1320
+      }
+    },
+    {
+      "id": "occluder-003",
+      "label": "\u906E\u64CB\u7247\u6BB5 3",
+      "layerId": "113b3e343a4c4bc0aee7f35ca655a916",
+      "points": [
+        {
+          "x": 1306,
+          "y": 716
+        },
+        {
+          "x": 1080,
+          "y": 858
+        },
+        {
+          "x": 1226,
+          "y": 964
+        },
+        {
+          "x": 1302,
+          "y": 918
+        },
+        {
+          "x": 1302,
+          "y": 894
+        },
+        {
+          "x": 1352,
+          "y": 864
+        },
+        {
+          "x": 1354,
+          "y": 750
+        }
+      ],
+      "baselineStart": {
+        "x": 1226,
+        "y": 964
+      },
+      "baselineEnd": {
+        "x": 1302,
+        "y": 918
+      }
+    },
+    {
+      "id": "occluder-004",
+      "label": "\u906E\u64CB\u7247\u6BB5 4",
+      "layerId": "113b3e343a4c4bc0aee7f35ca655a916",
+      "points": [
+        {
+          "x": 1078,
+          "y": 1032
+        },
+        {
+          "x": 1064,
+          "y": 1042
+        },
+        {
+          "x": 930,
+          "y": 950
+        },
+        {
+          "x": 1080,
+          "y": 858
+        }
+      ],
+      "baselineStart": {
+        "x": 1064,
+        "y": 1042
+      },
+      "baselineEnd": {
+        "x": 1078,
+        "y": 1032
+      }
+    },
+    {
+      "id": "occluder-005",
+      "label": "\u906E\u64CB\u7247\u6BB5 5",
+      "layerId": "113b3e343a4c4bc0aee7f35ca655a916",
+      "points": [
+        {
+          "x": 954,
+          "y": 966
+        },
+        {
+          "x": 1126,
+          "y": 1090
+        },
+        {
+          "x": 982,
+          "y": 1178
+        },
+        {
+          "x": 944,
+          "y": 1150
+        },
+        {
+          "x": 944,
+          "y": 1104
+        },
+        {
+          "x": 930,
+          "y": 1094
+        },
+        {
+          "x": 928,
+          "y": 984
+        }
+      ],
+      "baselineStart": {
+        "x": 944,
+        "y": 1150
+      },
+      "baselineEnd": {
+        "x": 982,
+        "y": 1178
+      }
+    },
+    {
+      "id": "occluder-006",
+      "label": "\u906E\u64CB\u7247\u6BB5 6",
+      "layerId": "113b3e343a4c4bc0aee7f35ca655a916",
+      "points": [
+        {
+          "x": 932,
+          "y": 950
+        },
+        {
+          "x": 956,
+          "y": 966
+        },
+        {
+          "x": 928,
+          "y": 984
+        },
+        {
+          "x": 930,
+          "y": 1094
+        },
+        {
+          "x": 944,
+          "y": 1108
+        },
+        {
+          "x": 944,
+          "y": 1150
+        },
+        {
+          "x": 872,
+          "y": 1196
+        },
+        {
+          "x": 874,
+          "y": 1128
+        },
+        {
+          "x": 768,
+          "y": 1052
+        }
+      ],
+      "baselineStart": {
+        "x": 872,
+        "y": 1196
+      },
+      "baselineEnd": {
+        "x": 944,
+        "y": 1150
+      }
+    },
+    {
+      "id": "occluder-007",
+      "label": "\u906E\u64CB\u7247\u6BB5 7",
+      "layerId": "113b3e343a4c4bc0aee7f35ca655a916",
+      "points": [
+        {
+          "x": 874,
+          "y": 1128
+        },
+        {
+          "x": 872,
+          "y": 1242
+        },
+        {
+          "x": 782,
+          "y": 1298
+        },
+        {
+          "x": 712,
+          "y": 1248
+        },
+        {
+          "x": 712,
+          "y": 1086
+        },
+        {
+          "x": 768,
+          "y": 1052
+        }
+      ],
+      "baselineStart": {
+        "x": 782,
+        "y": 1298
+      },
+      "baselineEnd": {
+        "x": 872,
+        "y": 1242
+      }
+    },
+    {
+      "id": "occluder-008",
+      "label": "\u906E\u64CB\u7247\u6BB5 8",
+      "layerId": "113b3e343a4c4bc0aee7f35ca655a916",
+      "points": [
+        {
+          "x": 1160,
+          "y": 1156
+        },
+        {
+          "x": 1162,
+          "y": 1312
+        },
+        {
+          "x": 956,
+          "y": 1440
+        },
+        {
+          "x": 882,
+          "y": 1386
+        },
+        {
+          "x": 882,
+          "y": 1238
+        },
+        {
+          "x": 1096,
+          "y": 1108
+        }
+      ],
+      "baselineStart": {
+        "x": 956,
+        "y": 1440
+      },
+      "baselineEnd": {
+        "x": 1162,
+        "y": 1312
+      }
+    },
+    {
+      "id": "occluder-009",
+      "label": "\u906E\u64CB\u7247\u6BB5 9",
+      "layerId": "113b3e343a4c4bc0aee7f35ca655a916",
+      "points": [
+        {
+          "x": 1160,
+          "y": 1158
+        },
+        {
+          "x": 1162,
+          "y": 1298
+        },
+        {
+          "x": 1226,
+          "y": 1346
+        },
+        {
+          "x": 1364,
+          "y": 1260
+        },
+        {
+          "x": 1126,
+          "y": 1090
+        },
+        {
+          "x": 1096,
+          "y": 1108
+        }
+      ],
+      "baselineStart": {
+        "x": 1162,
+        "y": 1298
+      },
+      "baselineEnd": {
+        "x": 1226,
+        "y": 1346
+      }
+    }
+  ],
   "world": {
     "width": 2477,
     "height": 2477
   },
   "grid": {
-    "size": 3,
+    "size": 2,
     "visible": false,
     "snap": true
   },
@@ -1729,13 +2102,7 @@
         }
       ],
       "type": "dialogue",
-      "npc": {
-        "characterId": "owen",
-        "facing": "NE",
-        "scale": 1,
-        "x": 1357.012,
-        "y": 1546.5896
-      },
+      "npcId": "npc-owen",
       "verb": "\u5C0D\u8A71",
       "survivalRequirements": {
         "mode": "all"
@@ -1887,13 +2254,7 @@
         }
       ],
       "type": "dialogue",
-      "npc": {
-        "characterId": "captain",
-        "facing": "S",
-        "scale": 1,
-        "x": 700.3996,
-        "y": 750.6889
-      },
+      "npcId": "npc-captain",
       "verb": "\u5C0D\u8A71",
       "survivalRequirements": {
         "mode": "all"
@@ -1998,13 +2359,7 @@
         }
       ],
       "type": "dialogue",
-      "npc": {
-        "characterId": "rena",
-        "facing": "SE",
-        "scale": 1.05,
-        "x": 648.5177,
-        "y": 1032.793
-      },
+      "npcId": "npc-rena",
       "verb": "\u5C0D\u8A71",
       "survivalRequirements": {
         "mode": "all"
@@ -2110,13 +2465,7 @@
         }
       ],
       "type": "dialogue",
-      "npc": {
-        "characterId": "ian",
-        "facing": "NE",
-        "scale": 0.95,
-        "x": 953.1604,
-        "y": 842.74756
-      },
+      "npcId": "npc-ian",
       "verb": "\u5C0D\u8A71",
       "survivalRequirements": {
         "mode": "all"
@@ -2209,6 +2558,7 @@
         }
       ],
       "type": "dialogue",
+      "npcId": "npc-owen",
       "verb": "\u5C0D\u8A71",
       "survivalRequirements": {
         "mode": "all"
@@ -2434,6 +2784,7 @@
         }
       ],
       "type": "dialogue",
+      "npcId": "npc-owen",
       "verb": "\u5C0D\u8A71",
       "survivalRequirements": {
         "mode": "all"
@@ -2505,6 +2856,52 @@
           }
         ]
       }
+    }
+  ],
+  "npcs": [
+    {
+      "id": "npc-captain",
+      "label": "\u8266\u9577",
+      "characterId": "captain",
+      "facing": "S",
+      "scale": 1,
+      "facePlayer": true,
+      "breathing": true,
+      "x": 700.3996,
+      "y": 746.6889
+    },
+    {
+      "id": "npc-ian",
+      "label": "\u4F0A\u6069",
+      "characterId": "ian",
+      "facing": "NE",
+      "scale": 0.95,
+      "facePlayer": true,
+      "breathing": true,
+      "x": 953.1604,
+      "y": 842.74756
+    },
+    {
+      "id": "npc-rena",
+      "label": "\u857E\u5A1C",
+      "characterId": "rena",
+      "facing": "SE",
+      "scale": 1.05,
+      "facePlayer": true,
+      "breathing": true,
+      "x": 648.5177,
+      "y": 1032.793
+    },
+    {
+      "id": "npc-owen",
+      "label": "\u6B50\u6587",
+      "characterId": "owen",
+      "facing": "NE",
+      "scale": 1,
+      "facePlayer": true,
+      "breathing": true,
+      "x": 1383.012,
+      "y": 1534.5896
     }
   ],
   "movementGuides": [],

@@ -1,10 +1,24 @@
 {
-  "version": 1,
+  "version": 2,
   "defaultHeight": 152,
+  "reference": {
+    "size": 152,
+    "bodyRatio": {
+      "N": 0.98117,
+      "NE": 0.98221,
+      "E": 0.98145,
+      "SE": 0.98279,
+      "S": 0.9802,
+      "SW": 0.98286,
+      "W": 0.98294,
+      "NW": 0.98507
+    }
+  },
   "characters": [
     {
       "id": "captain",
       "name": "艦長",
+      "folder": "艦長",
       "sprites": {
         "N": {
           "file": "characters/idle/艦長/01_N_Back.png",
@@ -19,6 +33,18 @@
             "width": 175,
             "height": 521
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2006,
+              "yRatio": 0.9981,
+              "contact": 0.9872
+            },
+            {
+              "xRatio": 0.7886,
+              "yRatio": 1,
+              "contact": 1
+            }
+          ],
           "sha256": "220a7e924f8366124f2b5312705468f605c946090ba1b570098f310bd04b9529"
         },
         "NE": {
@@ -34,6 +60,18 @@
             "width": 156,
             "height": 497
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2955,
+              "yRatio": 0.9135,
+              "contact": 0.4232
+            },
+            {
+              "xRatio": 0.732,
+              "yRatio": 0.998,
+              "contact": 0.9866
+            }
+          ],
           "sha256": "6d32592fc1d5ab1427d4c06599db1080fd8dc9723aa458521e50b518e0f621a9"
         },
         "E": {
@@ -49,6 +87,18 @@
             "width": 112,
             "height": 529
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.3331,
+              "yRatio": 0.9943,
+              "contact": 0.9622
+            },
+            {
+              "xRatio": 0.7236,
+              "yRatio": 1,
+              "contact": 1
+            }
+          ],
           "sha256": "64d7a4ec1e495f8beb718110c8cf7c132f41dce66f5926d5d8cdaa27ad872e1c"
         },
         "SE": {
@@ -64,6 +114,18 @@
             "width": 168,
             "height": 514
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.297,
+              "yRatio": 1,
+              "contact": 1
+            },
+            {
+              "xRatio": 0.7778,
+              "yRatio": 0.928,
+              "contact": 0.5201
+            }
+          ],
           "sha256": "2e367833fcd5208bbb15aa5f67c907fc609c19101b57f822cfd9aca28726e0b1"
         },
         "S": {
@@ -79,6 +141,18 @@
             "width": 180,
             "height": 495
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.1915,
+              "yRatio": 1,
+              "contact": 1
+            },
+            {
+              "xRatio": 0.8072,
+              "yRatio": 1,
+              "contact": 1
+            }
+          ],
           "sha256": "73e379587579ffda6284377c314f81a4febcc70e8665f992565558086daa0846"
         },
         "SW": {
@@ -94,6 +168,18 @@
             "width": 164,
             "height": 516
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2224,
+              "yRatio": 0.9031,
+              "contact": 0.354
+            },
+            {
+              "xRatio": 0.7071,
+              "yRatio": 0.9981,
+              "contact": 0.9871
+            }
+          ],
           "sha256": "089012234c3027278af8a4c8d0543dfafde29d3a11e7dd722795a971f2bc84ed"
         },
         "W": {
@@ -109,6 +195,18 @@
             "width": 111,
             "height": 576
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2841,
+              "yRatio": 0.9983,
+              "contact": 0.9884
+            },
+            {
+              "xRatio": 0.7419,
+              "yRatio": 0.9896,
+              "contact": 0.9306
+            }
+          ],
           "sha256": "05f109e6a83fe26bbbe7b2207ec7fb5ff4f37c5bd29e357a0b4e4ca6adb1eecd"
         },
         "NW": {
@@ -124,6 +222,18 @@
             "width": 172,
             "height": 528
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2739,
+              "yRatio": 0.9981,
+              "contact": 0.9874
+            },
+            {
+              "xRatio": 0.8054,
+              "yRatio": 0.9318,
+              "contact": 0.5455
+            }
+          ],
           "sha256": "b0d9aca3c8d26c656124bc8b3cda992415c886f0fea6662647313ea9987e6e88"
         }
       }
@@ -131,6 +241,7 @@
     {
       "id": "ian",
       "name": "伊恩",
+      "folder": "伊恩",
       "sprites": {
         "N": {
           "file": "characters/idle/伊恩/01_N_Back.png",
@@ -145,6 +256,18 @@
             "width": 184,
             "height": 521
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2111,
+              "yRatio": 1,
+              "contact": 1
+            },
+            {
+              "xRatio": 0.7837,
+              "yRatio": 1,
+              "contact": 1
+            }
+          ],
           "sha256": "ac2baa1ea50f8b76340ea6f7c6848214ce04c294f968bc2bdece3963629e9b58"
         },
         "NE": {
@@ -160,6 +283,18 @@
             "width": 161,
             "height": 497
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.3394,
+              "yRatio": 0.9195,
+              "contact": 0.4634
+            },
+            {
+              "xRatio": 0.7476,
+              "yRatio": 0.998,
+              "contact": 0.9866
+            }
+          ],
           "sha256": "1a97bfe945f5c6776c889b1e756e98c654e140290db4228f18784320c63ebf60"
         },
         "E": {
@@ -175,6 +310,18 @@
             "width": 109,
             "height": 529
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.3223,
+              "yRatio": 0.9905,
+              "contact": 0.937
+            },
+            {
+              "xRatio": 0.7252,
+              "yRatio": 0.9981,
+              "contact": 0.9874
+            }
+          ],
           "sha256": "b3ea6d82eb50d830754b8761e6882c3276831e949a73bebdc38e884059bdd0ec"
         },
         "SE": {
@@ -190,6 +337,18 @@
             "width": 164,
             "height": 514
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2955,
+              "yRatio": 0.9981,
+              "contact": 0.987
+            },
+            {
+              "xRatio": 0.7784,
+              "yRatio": 0.9222,
+              "contact": 0.4812
+            }
+          ],
           "sha256": "9aeaf7195375eea7b1a41307c476277d860346514ec4e5b97ef8e27a509715f8"
         },
         "S": {
@@ -205,6 +364,18 @@
             "width": 182,
             "height": 495
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2284,
+              "yRatio": 0.998,
+              "contact": 0.9865
+            },
+            {
+              "xRatio": 0.7825,
+              "yRatio": 1,
+              "contact": 1
+            }
+          ],
           "sha256": "ef6852bc93214200178d7ed1955b506756a1568b0d5f7134abea7c864fdd3a90"
         },
         "SW": {
@@ -220,6 +391,18 @@
             "width": 168,
             "height": 516
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2195,
+              "yRatio": 0.9109,
+              "contact": 0.4057
+            },
+            {
+              "xRatio": 0.709,
+              "yRatio": 0.9981,
+              "contact": 0.9871
+            }
+          ],
           "sha256": "a25f0153e973bd37c2976a0075bfa287259c6cdd8e835af11a8b26f77299df75"
         },
         "W": {
@@ -235,6 +418,18 @@
             "width": 118,
             "height": 576
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2495,
+              "yRatio": 1,
+              "contact": 1
+            },
+            {
+              "xRatio": 0.6769,
+              "yRatio": 0.9913,
+              "contact": 0.9421
+            }
+          ],
           "sha256": "242297666a3625adb2bc4c6b3659a57cd8397e20ea69c43107cbeb02611cc4b1"
         },
         "NW": {
@@ -250,6 +445,18 @@
             "width": 180,
             "height": 528
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2616,
+              "yRatio": 0.9981,
+              "contact": 0.9874
+            },
+            {
+              "xRatio": 0.7662,
+              "yRatio": 0.9318,
+              "contact": 0.5455
+            }
+          ],
           "sha256": "8382a6f2291ab60f3c9a02eb5ebd572072f71cbfc84d2d376d3d758ca6036199"
         }
       }
@@ -257,6 +464,7 @@
     {
       "id": "rena",
       "name": "蕾娜",
+      "folder": "蕾娜",
       "sprites": {
         "N": {
           "file": "characters/idle/蕾娜/01_N_Back.png",
@@ -271,6 +479,18 @@
             "width": 174,
             "height": 521
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2432,
+              "yRatio": 1,
+              "contact": 1
+            },
+            {
+              "xRatio": 0.7941,
+              "yRatio": 1,
+              "contact": 1
+            }
+          ],
           "sha256": "3369d34434a46316e3393bf22062d2687049c70c8cc66ee1466f366997298eb5"
         },
         "NE": {
@@ -286,6 +506,18 @@
             "width": 152,
             "height": 497
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2484,
+              "yRatio": 0.9155,
+              "contact": 0.4366
+            },
+            {
+              "xRatio": 0.7255,
+              "yRatio": 0.998,
+              "contact": 0.9866
+            }
+          ],
           "sha256": "5090c5ebff8110e637fa7082b4e5d4f9559bed6f3a4af34b8a81912851ec4def"
         },
         "E": {
@@ -301,6 +533,18 @@
             "width": 101,
             "height": 529
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.3613,
+              "yRatio": 0.9905,
+              "contact": 0.937
+            },
+            {
+              "xRatio": 0.7753,
+              "yRatio": 1,
+              "contact": 1
+            }
+          ],
           "sha256": "cf8125e81b1f970f99411d8e750db003b263b076705ef8d4bfcd5357a9744c48"
         },
         "SE": {
@@ -316,6 +560,18 @@
             "width": 160,
             "height": 514
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2729,
+              "yRatio": 0.9981,
+              "contact": 0.987
+            },
+            {
+              "xRatio": 0.7667,
+              "yRatio": 0.9202,
+              "contact": 0.4682
+            }
+          ],
           "sha256": "e372e3cee1c41075cac8f33afba01dcf1534631cf7f94b0226baa06d9c686602"
         },
         "S": {
@@ -331,6 +587,18 @@
             "width": 171,
             "height": 495
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2031,
+              "yRatio": 1,
+              "contact": 1
+            },
+            {
+              "xRatio": 0.7846,
+              "yRatio": 1,
+              "contact": 1
+            }
+          ],
           "sha256": "5e83a6ed56a9e8e2a16812f6423f03b6d621f406bcd448f202906c7a6679794c"
         },
         "SW": {
@@ -346,6 +614,18 @@
             "width": 163,
             "height": 516
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2415,
+              "yRatio": 0.9302,
+              "contact": 0.5349
+            },
+            {
+              "xRatio": 0.7657,
+              "yRatio": 1,
+              "contact": 1
+            }
+          ],
           "sha256": "9da56647a8cd7c6b289f8351f363cca14e044a28ea3d2270badb9d4d76aa16ff"
         },
         "W": {
@@ -361,6 +641,18 @@
             "width": 106,
             "height": 576
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2805,
+              "yRatio": 0.9983,
+              "contact": 0.9884
+            },
+            {
+              "xRatio": 0.7491,
+              "yRatio": 0.9878,
+              "contact": 0.919
+            }
+          ],
           "sha256": "ce4af2c5d842b688241e424732ad563ac1cd677529b946a01655a5d5ccd5ab11"
         },
         "NW": {
@@ -376,6 +668,18 @@
             "width": 157,
             "height": 528
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.3202,
+              "yRatio": 0.9962,
+              "contact": 0.9747
+            },
+            {
+              "xRatio": 0.8051,
+              "yRatio": 0.9205,
+              "contact": 0.4697
+            }
+          ],
           "sha256": "801b6ed279f197963cc83e3b350533d005c5e582aa84bac2f918d22d78be0cad"
         }
       }
@@ -383,6 +687,7 @@
     {
       "id": "owen",
       "name": "歐文",
+      "folder": "歐文",
       "sprites": {
         "N": {
           "file": "characters/idle/歐文/01_N_Back.png",
@@ -397,6 +702,18 @@
             "width": 195,
             "height": 521
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2428,
+              "yRatio": 1,
+              "contact": 1
+            },
+            {
+              "xRatio": 0.7644,
+              "yRatio": 1,
+              "contact": 1
+            }
+          ],
           "sha256": "ce06fb967713a4310c487417b2e5e3b51ba0e6629620e3a3fa644a44dd9dff0b"
         },
         "NE": {
@@ -412,6 +729,18 @@
             "width": 163,
             "height": 497
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2884,
+              "yRatio": 0.9256,
+              "contact": 0.5037
+            },
+            {
+              "xRatio": 0.7342,
+              "yRatio": 0.998,
+              "contact": 0.9866
+            }
+          ],
           "sha256": "640f614ab302f449fad4f2abd308aea2b88c3cec2c97fdc1ac38a7674c1c41f6"
         },
         "E": {
@@ -427,6 +756,18 @@
             "width": 109,
             "height": 529
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.286,
+              "yRatio": 0.9905,
+              "contact": 0.937
+            },
+            {
+              "xRatio": 0.6892,
+              "yRatio": 0.9981,
+              "contact": 0.9874
+            }
+          ],
           "sha256": "d4ea07f98a004ff1191a8b4093e33782a713b230ca11857023547ecef4938c6a"
         },
         "SE": {
@@ -442,6 +783,18 @@
             "width": 163,
             "height": 514
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.301,
+              "yRatio": 0.9981,
+              "contact": 0.987
+            },
+            {
+              "xRatio": 0.7801,
+              "yRatio": 0.9241,
+              "contact": 0.4942
+            }
+          ],
           "sha256": "934e50485d4955f1d4682f779d68761dd587b07f0b7b26e9edef240360575127"
         },
         "S": {
@@ -457,6 +810,18 @@
             "width": 184,
             "height": 495
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2103,
+              "yRatio": 0.998,
+              "contact": 0.9865
+            },
+            {
+              "xRatio": 0.7957,
+              "yRatio": 0.9939,
+              "contact": 0.9596
+            }
+          ],
           "sha256": "4581e8525c61ccc16f7da782a302c36cbd7e6aebf0c8f639e5307fed73407d1b"
         },
         "SW": {
@@ -472,6 +837,18 @@
             "width": 180,
             "height": 516
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.2293,
+              "yRatio": 0.9167,
+              "contact": 0.4444
+            },
+            {
+              "xRatio": 0.7613,
+              "yRatio": 1,
+              "contact": 1
+            }
+          ],
           "sha256": "67d7efa390fff23857db196127113066388791ebfdd86deefa3330a7a6d6f27b"
         },
         "W": {
@@ -487,6 +864,18 @@
             "width": 126,
             "height": 576
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.3488,
+              "yRatio": 1,
+              "contact": 1
+            },
+            {
+              "xRatio": 0.7556,
+              "yRatio": 0.9948,
+              "contact": 0.9653
+            }
+          ],
           "sha256": "2a6c61692f53bc2a44aea6913267adcb8f9fc99ee6e03ea4079590cf7dd0ef4e"
         },
         "NW": {
@@ -502,6 +891,18 @@
             "width": 179,
             "height": 528
           },
+          "bootAnchors": [
+            {
+              "xRatio": 0.3008,
+              "yRatio": 0.9981,
+              "contact": 0.9874
+            },
+            {
+              "xRatio": 0.7888,
+              "yRatio": 0.9337,
+              "contact": 0.5581
+            }
+          ],
           "sha256": "8b244fa00e252c304f84479bed34120d424a1315c3687b9f5a8700cf7ecf9b51"
         }
       }

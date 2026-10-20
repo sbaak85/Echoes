@@ -2,20 +2,41 @@ using System.Drawing.Drawing2D;
 
 namespace Echoes.MapEditor;
 
+// 場景 NPC（獨立圖層 SceneLayerKind.Npc）：
+//   - 角色、腳底位置、面向、大小、出場條件都屬於 NPC 自己，不跟著任何互動區移動或縮放；
+//   - 對話互動區以 NpcId 指定「對話對象」，同一個 NPC 可被多段對話共用；
+//   - 新增：可走區域右鍵「在此新增 NPC」，或互動區右鍵「NPC ▸ 在此新增並設為對話對象」。
 public sealed partial class EditorCanvas
 {
     private NpcCatalog? _npcCatalog;
     private string? _npcCatalogError;
-    private bool _npcSelected;
     private PointF _npcDragOffset;
     private PointF _npcResizeStartVector;
     private float _npcResizeStartScale;
-    private readonly ToolStripMenuItem _npcParentMenu = new("新增 NPC");
+    private PointF _npcContextWorld;
+    private Point _npcContextScreen;
+    private readonly ToolStripMenuItem _npcParentMenu = new("NPC");
+    private readonly ToolStripMenuItem _npcCreateBoundMenu = new("在此新增 NPC 並設為對話對象");
+    private readonly ToolStripMenuItem _npcBindMenu = new("對話對象");
+    private readonly ToolStripMenuItem _addNpcWorldContextItem = new("在此新增 NPC");
     private readonly ContextMenuStrip _npcContextMenu = new();
-    private readonly ToolStripMenuItem _npcHintPointContextItem = new("移動互動提示點至此");
-    public SceneNpc? SelectedNpc => _npcSelected ? SelectedInteractable?.Npc : null;
-    public string? AttachedNpcName => SelectedInteractable?.Npc is { } npc
-        ? _npcCatalog?.Find(npc.CharacterId)?.Name ?? npc.CharacterId : null;
+    private readonly ToolStripMenuItem _npcFacingMenu = new("變更面向");
+    private readonly ToolStripMenuItem _npcFacePlayerItem = new("對話時轉向主角") { CheckOnClick = false };
+    private readonly ToolStripMenuItem _npcBreathingItem = new("待機呼吸") { CheckOnClick = false };
+    private readonly ToolStripMenuItem _npcPresenceItem = new("出場條件…");
+    private readonly ToolStripMenuItem _npcBoundInteractionsMenu = new("選取引用此 NPC 的對話");
+    private readonly ToolStripMenuItem _npcUnderlyingMenuItem = new("開啟下方互動區選單");
+
+    /// <summary>要求編輯選取 NPC 的出場條件（MainForm 負責開啟任務條件視窗）</summary>
+    public event EventHandler? NpcPresenceEditRequested;
+
+    public SceneNpc? SelectedNpc => _selection.Kind == SceneLayerKind.Npc && IsValidSelection(_selection)
+        ? _document.NpcList[_selection.Index] : null;
+    public SceneNpc? FindNpc(string? id) => string.IsNullOrWhiteSpace(id) ? null
+        : _document.NpcList.FirstOrDefault(npc => npc.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+    public string NpcCharacterName(SceneNpc npc) => _npcCatalog?.Name(npc.CharacterId) ?? npc.CharacterId;
+    public IReadOnlyList<SceneInteractable> InteractionsUsingNpc(SceneNpc npc) => _document.Interactables
+        .Where(interactable => npc.Id.Equals(interactable.NpcId, StringComparison.OrdinalIgnoreCase)).ToList();
 
     public void LoadNpcCatalog(string projectRoot)
     {
@@ -24,136 +45,193 @@ public sealed partial class EditorCanvas
         try { _npcCatalog = NpcCatalog.Load(projectRoot); }
         catch (Exception exception) when (exception is System.IO.IOException or System.IO.InvalidDataException or System.Text.Json.JsonException or ArgumentException)
         { _npcCatalogError = exception.Message; }
-        RebuildNpcParentMenu();
+        RebuildNpcCharacterMenus();
         DisposeViewCache(); Invalidate();
     }
 
     private void InitializeNpcMenus()
     {
         _nodeContextMenu.Items.Insert(8, _npcParentMenu);
+        var preview = new ToolStripMenuItem("角色與方向預覽…（新增並設為對話對象）");
+        preview.Click += (_, _) => CreateNpcWithDialog(_contextInteractionPoint, _contextSelection);
+        _npcParentMenu.DropDownItems.AddRange(new ToolStripItem[] { _npcBindMenu, _npcCreateBoundMenu, preview });
+
         _npcContextMenu.BackColor = Color.FromArgb(35, 39, 47);
         _npcContextMenu.ForeColor = Color.WhiteSmoke;
         var edit = new ToolStripMenuItem("編輯 NPC 角色、方向與大小…");
         edit.Click += (_, _) => EditSelectedNpc();
-        var facing = new ToolStripMenuItem("變更 NPC 面向");
         foreach (var direction in NpcCatalog.Directions)
         {
             var item = new ToolStripMenuItem(direction) { Tag = direction };
-            item.Click += (_, _) =>
-            {
-                if (SelectedNpc is not { } npc) return;
-                PerformMutation(() => npc.Facing = direction);
-                SelectionChanged?.Invoke(this, EventArgs.Empty);
-            };
-            facing.DropDownItems.Add(item);
+            item.Click += (_, _) => SetSelectedNpcFacing(direction);
+            _npcFacingMenu.DropDownItems.Add(item);
         }
+        _npcFacePlayerItem.Click += (_, _) => { if (SelectedNpc is { } npc) SetSelectedNpcOptions(!npc.FacePlayer, npc.Breathing); };
+        _npcBreathingItem.Click += (_, _) => { if (SelectedNpc is { } npc) SetSelectedNpcOptions(npc.FacePlayer, !npc.Breathing); };
+        _npcPresenceItem.Click += (_, _) => NpcPresenceEditRequested?.Invoke(this, EventArgs.Empty);
         var remove = new ToolStripMenuItem("移除 NPC");
         remove.Click += (_, _) => DeleteSelectedNpc();
-        var parent = new ToolStripMenuItem("選取所屬互動區");
-        parent.Click += (_, _) => SelectLayer(_selection);
-        _npcHintPointContextItem.Click += (_, _) => SetInteractionHintPointAtContext();
-        _npcContextMenu.Items.AddRange(new ToolStripItem[] { edit, facing, remove, new ToolStripSeparator(),
-            _npcHintPointContextItem, parent });
-        _npcContextMenu.Opening += (_, _) =>
+        _npcUnderlyingMenuItem.Click += (_, _) =>
         {
-            foreach (ToolStripMenuItem item in facing.DropDownItems) item.Checked = (string)item.Tag! == SelectedNpc?.Facing;
+            var interaction = UnderlyingInteraction(_npcContextWorld);
+            if (interaction < 0) return;
+            SelectLayer(new LayerSelection(SceneLayerKind.Interactable, interaction));
+            ShowNodeContextMenu(_npcContextScreen, _npcContextWorld);
         };
-        RebuildNpcParentMenu();
+        _npcContextMenu.Items.AddRange(new ToolStripItem[] { edit, _npcFacingMenu, _npcPresenceItem,
+            _npcFacePlayerItem, _npcBreathingItem, remove, new ToolStripSeparator(), _npcBoundInteractionsMenu, _npcUnderlyingMenuItem });
+        _npcContextMenu.Opening += (_, _) => RefreshNpcContextMenu();
+        RebuildNpcCharacterMenus();
     }
 
-    private void RebuildNpcParentMenu()
+    private void InitializeNpcWorldMenu()
     {
-        while (_npcParentMenu.DropDownItems.Count > 0)
+        _worldPointContextMenu.Items.Insert(2, _addNpcWorldContextItem);
+        RebuildNpcCharacterMenus();
+    }
+
+    private void RebuildNpcCharacterMenus()
+    {
+        Populate(_npcCreateBoundMenu, (character, direction) => CreateNpc(character, direction, _contextInteractionPoint, _contextSelection));
+        Populate(_addNpcWorldContextItem, (character, direction) => CreateNpc(character, direction, _contextWorldPoint, LayerSelection.None));
+
+        void Populate(ToolStripMenuItem menu, Action<string, string> create)
         {
-            var item = _npcParentMenu.DropDownItems[0];
-            _npcParentMenu.DropDownItems.RemoveAt(0); item.Dispose();
-        }
-        var preview = new ToolStripMenuItem("角色與方向預覽…");
-        preview.Click += (_, _) => EditNpcAtContext();
-        _npcParentMenu.DropDownItems.Add(preview);
-        if (_npcCatalog is null) return;
-        _npcParentMenu.DropDownItems.Add(new ToolStripSeparator());
-        foreach (var character in _npcCatalog.Characters)
-        {
-            var characterItem = new ToolStripMenuItem(character.Name);
-            foreach (var direction in NpcCatalog.Directions)
+            while (menu.DropDownItems.Count > 0)
             {
-                var facing = new ToolStripMenuItem(direction);
-                facing.Click += (_, _) => SetNpcAtContext(character.Id, direction);
-                characterItem.DropDownItems.Add(facing);
+                var item = menu.DropDownItems[0];
+                menu.DropDownItems.RemoveAt(0); item.Dispose();
             }
-            _npcParentMenu.DropDownItems.Add(characterItem);
+            menu.Enabled = _npcCatalog is not null;
+            if (_npcCatalog is null) return;
+            foreach (var character in _npcCatalog.Characters)
+            {
+                var characterItem = new ToolStripMenuItem(character.Name);
+                foreach (var direction in NpcCatalog.Directions)
+                {
+                    var facing = new ToolStripMenuItem(direction);
+                    var characterId = character.Id;
+                    facing.Click += (_, _) => create(characterId, direction);
+                    characterItem.DropDownItems.Add(facing);
+                }
+                menu.DropDownItems.Add(characterItem);
+            }
         }
     }
 
-    private void PrepareNpcParentMenu(bool visible)
+    /// <summary>互動區右鍵選單：NPC ▸ 對話對象（單選）／在此新增</summary>
+    private void PrepareNpcParentMenu(bool interactionSelected)
     {
-        _npcParentMenu.Visible = visible;
-        _npcParentMenu.Text = SelectedInteractable?.Npc is null ? "新增 NPC" : "編輯 NPC";
+        _npcParentMenu.Visible = interactionSelected;
+        if (!interactionSelected) return;
+        var interactable = _document.Interactables[_selection.Index];
+        var bound = FindNpc(interactable.NpcId);
+        _npcParentMenu.Text = bound is null ? "NPC（未指定對話對象）" : $"NPC（對話對象：{bound.Label}）";
+        while (_npcBindMenu.DropDownItems.Count > 0)
+        {
+            var old = _npcBindMenu.DropDownItems[0];
+            _npcBindMenu.DropDownItems.RemoveAt(0); old.Dispose();
+        }
+        var interactionIndex = _selection.Index;
+        var none = new ToolStripMenuItem("（不指定）") { Checked = bound is null };
+        none.Click += (_, _) => BindInteractionNpc(interactionIndex, null);
+        _npcBindMenu.DropDownItems.Add(none);
+        foreach (var npc in _document.NpcList)
+        {
+            var npcId = npc.Id;
+            var item = new ToolStripMenuItem($"{npc.Label}（{NpcCharacterName(npc)}）") { Checked = npc == bound };
+            item.Click += (_, _) => BindInteractionNpc(interactionIndex, npcId);
+            _npcBindMenu.DropDownItems.Add(item);
+        }
     }
 
-    private void SetNpcAtContext(string characterId, string facing)
+    public void BindInteractionNpc(int interactionIndex, string? npcId)
     {
-        if (_contextSelection.Kind != SceneLayerKind.Interactable || !IsValidSelection(_contextSelection)) return;
-        var parent = _document.Interactables[_contextSelection.Index];
-        var npc = parent.Npc?.Copy() ?? new SceneNpc { X = _contextInteractionPoint.X, Y = _contextInteractionPoint.Y };
-        npc.CharacterId = characterId; npc.Facing = facing;
-        SetNpc(_contextSelection.Index, npc);
+        if (interactionIndex < 0 || interactionIndex >= _document.Interactables.Count) return;
+        if (npcId is not null && FindNpc(npcId) is null) return;
+        PerformMutation(() => _document.Interactables[interactionIndex].NpcId = npcId);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void SetNpc(int interactionIndex, SceneNpc npc)
+    /// <summary>新增一個 NPC；bindTo 為互動區時同時設成該互動區的對話對象。回傳新 NPC 的索引。</summary>
+    public int CreateNpc(string characterId, string facing, PointF position, LayerSelection bindTo, float scale = 1)
     {
-        if (_npcCatalog?.Sprite(npc) is null || interactionIndex < 0 || interactionIndex >= _document.Interactables.Count ||
+        if (_npcCatalog?.Find(characterId) is not { } character || !NpcCatalog.Directions.Contains(facing) ||
+            !IsFinite(position) || !float.IsFinite(scale) || scale <= 0) return -1;
+        var bindIndex = bindTo.Kind == SceneLayerKind.Interactable && IsValidSelection(bindTo) ? bindTo.Index : -1;
+        var index = -1;
+        PerformMutation(() =>
+        {
+            var npc = new SceneNpc
+            {
+                Id = SceneJson.UniqueNpcId(_document, $"npc-{characterId}"),
+                Label = character.Name, CharacterId = characterId, Facing = facing,
+                X = position.X, Y = position.Y, Scale = Math.Clamp(scale, 0.1f, 5f),
+            };
+            _document.NpcList.Add(npc);
+            index = _document.NpcList.Count - 1;
+            if (bindIndex >= 0) _document.Interactables[bindIndex].NpcId = npc.Id;
+        });
+        SelectNpc(index);
+        return index;
+    }
+
+    private void CreateNpcWithDialog(PointF position, LayerSelection bindTo)
+    {
+        if (_npcCatalog is null) { ShowCatalogError(); return; }
+        using var dialog = new NpcEditorForm(_npcCatalog, new SceneNpc { CharacterId = _npcCatalog.Characters[0].Id, X = position.X, Y = position.Y });
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+        var result = dialog.Result;
+        CreateNpc(result.CharacterId, result.Facing, position, bindTo, result.Scale);
+    }
+
+    /// <summary>以新的角色／方向／大小／位置取代指定 NPC（保留 ID、名稱、出場條件與表現選項）</summary>
+    public void SetNpc(int npcIndex, SceneNpc npc)
+    {
+        if (npcIndex < 0 || npcIndex >= _document.NpcList.Count || _npcCatalog?.Sprite(npc) is null ||
             !float.IsFinite(npc.X) || !float.IsFinite(npc.Y) || !float.IsFinite(npc.Scale) || npc.Scale <= 0) return;
-        var copy = npc.Copy(); copy.Scale = Math.Clamp(copy.Scale, 0.1f, 5f);
-        PerformMutation(() => _document.Interactables[interactionIndex].Npc = copy);
-        SelectNpc(interactionIndex);
-    }
-
-    private void EditNpcAtContext()
-    {
-        if (_contextSelection.Kind != SceneLayerKind.Interactable || !IsValidSelection(_contextSelection)) return;
-        EditNpc(_contextSelection.Index, _contextInteractionPoint);
+        PerformMutation(() =>
+        {
+            var target = _document.NpcList[npcIndex];
+            target.CharacterId = npc.CharacterId; target.Facing = npc.Facing;
+            target.X = npc.X; target.Y = npc.Y; target.Scale = Math.Clamp(npc.Scale, 0.1f, 5f);
+        });
+        SelectNpc(npcIndex);
     }
 
     public void EditSelectedNpc()
     {
-        if (SelectedInteractable?.Npc is not { } npc) return;
-        EditNpc(_selection.Index, new PointF(npc.X, npc.Y));
-    }
-
-    public void SelectAttachedNpc()
-    {
-        if (SelectedInteractable?.Npc is not null) SelectNpc(_selection.Index);
-    }
-
-    private void EditNpc(int index, PointF position)
-    {
-        if (_npcCatalog is null)
-        {
-            MessageBox.Show(this, "無法讀取共用 NPC 角色目錄。\n" + _npcCatalogError, "NPC", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
-        var draft = _document.Interactables[index].Npc?.Copy() ?? new SceneNpc
-        { CharacterId = _npcCatalog.Characters[0].Id, X = position.X, Y = position.Y };
-        using var dialog = new NpcEditorForm(_npcCatalog, draft);
+        if (SelectedNpc is not { } npc) return;
+        if (_npcCatalog is null) { ShowCatalogError(); return; }
+        var index = _selection.Index;
+        using var dialog = new NpcEditorForm(_npcCatalog, npc);
         if (dialog.ShowDialog(this) == DialogResult.OK) SetNpc(index, dialog.Result);
     }
 
-    private void SelectNpc(int index)
+    private void ShowCatalogError() => MessageBox.Show(this, "無法讀取共用 NPC 角色目錄。\n" + _npcCatalogError, "NPC",
+        MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+    public void SelectNpc(int index)
     {
-        _selection = new LayerSelection(SceneLayerKind.Interactable, index);
-        _npcSelected = true; _selectedVertex = -1; _selectedInteractionPoint = -1;
+        if (index < 0 || index >= _document.NpcList.Count) return;
+        _selection = new LayerSelection(SceneLayerKind.Npc, index);
+        _selectedVertex = -1; _selectedInteractionPoint = -1;
         SelectionChanged?.Invoke(this, EventArgs.Empty);
-        StatusChanged?.Invoke(this, "已選取 NPC；拖曳移動，右上角把手縮放，雙擊或右鍵可設定角色／方向／大小，Delete 移除 NPC。");
+        StatusChanged?.Invoke(this, "已選取 NPC；拖曳移動，右上角把手縮放，雙擊或右鍵設定角色／方向／大小／出場條件，Delete 移除。");
         Invalidate();
     }
 
+    /// <summary>移除 NPC，並清除所有引用它的對話對象設定</summary>
     public void DeleteSelectedNpc()
     {
-        if (SelectedNpc is null) return;
-        PerformMutation(() => SelectedInteractable!.Npc = null);
-        _npcSelected = false;
+        if (SelectedNpc is not { } npc) return;
+        PerformMutation(() =>
+        {
+            _document.NpcList.Remove(npc);
+            foreach (var interactable in _document.Interactables)
+                if (npc.Id.Equals(interactable.NpcId, StringComparison.OrdinalIgnoreCase)) interactable.NpcId = null;
+            _selection = LayerSelection.None;
+        });
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -164,16 +242,59 @@ public sealed partial class EditorCanvas
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    public void SetSelectedNpcFacing(string facing)
+    {
+        if (SelectedNpc is not { } npc || !NpcCatalog.Directions.Contains(facing)) return;
+        PerformMutation(() => npc.Facing = facing);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetSelectedNpcOptions(bool facePlayer, bool breathing)
+    {
+        if (SelectedNpc is not { } npc) return;
+        PerformMutation(() => { npc.FacePlayer = facePlayer; npc.Breathing = breathing; });
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>設定出場條件；null＝一直在場</summary>
+    public void SetSelectedNpcPresence(InteractionUseRequirement? presence)
+    {
+        if (SelectedNpc is not { } npc) return;
+        PerformMutation(() => npc.Presence = presence?.Clone());
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public static string DescribeNpcPresence(SceneNpc npc)
+    {
+        if (npc.Presence is not { } presence) return "一直在場";
+        var mode = presence.StageMode switch
+        {
+            "CurrentStageOnly" => "只在",
+            "UnlockUntilCondition" => "從",
+            _ => "從",
+        };
+        var text = $"{mode} {ShortId(presence.StageId)}{(presence.StageMode == "CurrentStageOnly" ? " 期間" : " 起")}";
+        if (!string.IsNullOrWhiteSpace(presence.ObjectiveId)) text += $"（{ShortId(presence.ObjectiveId)}）";
+        if (presence.StageMode == "UnlockUntilCondition" && !string.IsNullOrWhiteSpace(presence.DisableStageId))
+            text += $"，到 {ShortId(presence.DisableStageId)} 離場";
+        if (!string.IsNullOrWhiteSpace(presence.RemoveStageId)) text += $"，{ShortId(presence.RemoveStageId)} 移除";
+        return text;
+
+        static string ShortId(string? id) => string.IsNullOrWhiteSpace(id) ? "" :
+            id.Replace("QUEST_", "").Replace("_STAGE_", " S").Replace("_OBJ_", " O");
+    }
+
     private RectangleF NpcBodyRectangle(SceneNpc npc) => _npcCatalog?.BodyRectangle(npc) ??
         new RectangleF(npc.X - 24 * npc.Scale, npc.Y - 152 * npc.Scale, 48 * npc.Scale, 152 * npc.Scale);
 
     private int HitNpc(PointF world)
     {
-        // Match rendering order: the closest foot is drawn and picked last.
-        foreach (var item in _document.Interactables.Select((parent, index) => (parent.Npc, index))
-                     .Where(item => item.Npc is not null).OrderByDescending(item => item.Npc!.Y).ThenByDescending(item => item.index))
+        if (!IsKindVisible(SceneLayerKind.Npc)) return -1;
+        // 與繪製順序一致：腳底越靠下（越前面）越先被點到
+        foreach (var item in _document.NpcList.Select((npc, index) => (npc, index))
+                     .OrderByDescending(item => item.npc.Y).ThenByDescending(item => item.index))
         {
-            var bounds = NpcBodyRectangle(item.Npc!); bounds.Inflate(3 / _zoom, 3 / _zoom);
+            var bounds = NpcBodyRectangle(item.npc); bounds.Inflate(3 / _zoom, 3 / _zoom);
             if (bounds.Contains(world)) return item.index;
         }
         return -1;
@@ -185,31 +306,44 @@ public sealed partial class EditorCanvas
         SelectNpc(index); return true;
     }
 
+    private int UnderlyingInteraction(PointF world) => GetHitTestCandidates(world)
+        .Where(candidate => candidate.Kind == SceneLayerKind.Interactable).Select(candidate => candidate.Index)
+        .DefaultIfEmpty(-1).First();
+
     private bool TryShowNpcContextMenu(Point screen, PointF world)
     {
         var npcIndex = HitNpc(world);
         if (npcIndex < 0) return false;
-
-        // NPC artwork must not cover the polygon's authoring commands. Keep an
-        // explicitly selected overlapping Interaction, otherwise use the topmost one.
-        var interactions = GetHitTestCandidates(world)
-            .Where(candidate => candidate.Kind == SceneLayerKind.Interactable).ToList();
-        if (interactions.Count > 0)
-        {
-            SelectLayer(interactions.Contains(_selection) ? _selection : interactions[0]);
-            ShowNodeContextMenu(screen, world);
-            return true;
-        }
-
-        // A tall sprite can extend outside its polygon; its own menu still allows
-        // placing the parent's hint at the clicked body position (not the feet).
         SelectNpc(npcIndex);
-        _contextSelection = _selection;
-        _contextInteractionHintPoint = ClampToWorld(world);
-        _npcHintPointContextItem.Enabled = IsInsideWorld(world);
-        _npcHintPointContextItem.Text = SelectedInteractable!.InteractionHintPoint is null
-            ? "新增互動提示點" : "移動互動提示點至此";
-        _npcContextMenu.Show(this, screen); return true;
+        _npcContextWorld = ClampToWorld(world);
+        _npcContextScreen = screen;
+        _npcContextMenu.Show(this, screen);
+        return true;
+    }
+
+    private void RefreshNpcContextMenu()
+    {
+        if (SelectedNpc is not { } npc) return;
+        foreach (ToolStripMenuItem item in _npcFacingMenu.DropDownItems) item.Checked = (string)item.Tag! == npc.Facing;
+        _npcFacePlayerItem.Checked = npc.FacePlayer;
+        _npcBreathingItem.Checked = npc.Breathing;
+        _npcPresenceItem.Text = $"出場條件…（{DescribeNpcPresence(npc)}）";
+        while (_npcBoundInteractionsMenu.DropDownItems.Count > 0)
+        {
+            var old = _npcBoundInteractionsMenu.DropDownItems[0];
+            _npcBoundInteractionsMenu.DropDownItems.RemoveAt(0); old.Dispose();
+        }
+        var bound = InteractionsUsingNpc(npc);
+        _npcBoundInteractionsMenu.Enabled = bound.Count > 0;
+        _npcBoundInteractionsMenu.Text = bound.Count > 0 ? $"選取引用此 NPC 的對話（{bound.Count}）" : "沒有對話引用此 NPC";
+        foreach (var interactable in bound)
+        {
+            var index = _document.Interactables.IndexOf(interactable);
+            var item = new ToolStripMenuItem($"{interactable.Label} · {interactable.Id}");
+            item.Click += (_, _) => SelectLayer(new LayerSelection(SceneLayerKind.Interactable, index));
+            _npcBoundInteractionsMenu.DropDownItems.Add(item);
+        }
+        _npcUnderlyingMenuItem.Visible = UnderlyingInteraction(_npcContextWorld) >= 0;
     }
 
     private PointF NpcResizeHandle(SceneNpc npc)
@@ -255,11 +389,11 @@ public sealed partial class EditorCanvas
 
     private void DrawNpcs(Graphics graphics)
     {
-        foreach (var item in _document.Interactables.Select((parent, index) => (parent.Npc, index))
-                     .Where(item => item.Npc is not null).OrderBy(item => item.Npc!.Y))
+        var selectedInteraction = SelectedInteractable;
+        foreach (var item in _document.NpcList.Select((npc, index) => (npc, index)).OrderBy(item => item.npc.Y))
         {
-            if (SkipLayer(SceneLayerKind.Interactable, item.index)) continue;
-            var npc = item.Npc!;
+            if (SkipLayer(SceneLayerKind.Npc, item.index)) continue;
+            var npc = item.npc;
             var sprite = _npcCatalog?.Sprite(npc);
             if (sprite is not null)
                 graphics.DrawImage(_npcCatalog!.Image(sprite), _npcCatalog.ImageRectangle(npc, sprite));
@@ -272,12 +406,27 @@ public sealed partial class EditorCanvas
                 using var font = new Font("Segoe UI", 10 / _zoom);
                 graphics.DrawString("NPC: " + npc.CharacterId, font, Brushes.White, rectangle.Location);
             }
+            // 選取的互動區若以此 NPC 為對話對象，畫一條虛線連到角色腳底
+            if (selectedInteraction is not null && IsKindVisible(SceneLayerKind.Interactable) &&
+                npc.Id.Equals(selectedInteraction.NpcId, StringComparison.OrdinalIgnoreCase))
+                DrawNpcLink(graphics, npc, selectedInteraction);
         }
+    }
+
+    private void DrawNpcLink(Graphics graphics, SceneNpc npc, SceneInteractable interactable)
+    {
+        if (interactable.Points.Count == 0) return;
+        var center = new PointF(interactable.Points.Average(point => point.X), interactable.Points.Average(point => point.Y));
+        using var pen = new Pen(Color.FromArgb(210, 120, 230, 255), 1.6f / _zoom) { DashStyle = DashStyle.Dash };
+        graphics.DrawLine(pen, center, new PointF(npc.X, npc.Y));
+        graphics.FillEllipse(Brushes.DeepSkyBlue, npc.X - 3 / _zoom, npc.Y - 3 / _zoom, 6 / _zoom, 6 / _zoom);
     }
 
     private void DrawNpcSelection(Graphics graphics)
     {
         if (SelectedNpc is not { } npc) return;
+        if (IsKindVisible(SceneLayerKind.Interactable))
+            foreach (var interactable in InteractionsUsingNpc(npc)) DrawNpcLink(graphics, npc, interactable);
         var bounds = NpcBodyRectangle(npc);
         using var pen = new Pen(Color.FromArgb(100, 230, 255), 1.4f / _zoom) { DashStyle = DashStyle.Dash };
         graphics.DrawRectangle(pen, bounds.X, bounds.Y, bounds.Width, bounds.Height);
@@ -285,7 +434,7 @@ public sealed partial class EditorCanvas
         using var footPen = new Pen(Color.FromArgb(255, 215, 72), 2 / _zoom);
         graphics.DrawLine(footPen, npc.X - 8 / _zoom, npc.Y, npc.X + 8 / _zoom, npc.Y);
         graphics.DrawLine(footPen, npc.X, npc.Y - 5 / _zoom, npc.X, npc.Y + 5 / _zoom);
-        var title = $"NPC · {_npcCatalog?.Find(npc.CharacterId)?.Name ?? npc.CharacterId} · {npc.Facing} · {npc.Scale * 100:0.#}%";
+        var title = $"NPC · {npc.Label} · {NpcCharacterName(npc)} · {npc.Facing} · {npc.Scale * 100:0.#}% · {DescribeNpcPresence(npc)}";
         using var font = new Font("Microsoft JhengHei UI", 9 / _zoom, FontStyle.Bold);
         var size = graphics.MeasureString(title, font);
         using var background = new SolidBrush(Color.FromArgb(220, 26, 35, 44));
