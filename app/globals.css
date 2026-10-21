@@ -10375,6 +10375,22 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 }
 
 .star-cards-battle-layer {
+  /* 特效尺寸倍率，三種武器各自設定：
+     bullet＝子彈（光束寬、彈體、護盾半球、發射口、沿途粒子）；hit＝命中爆炸（光環與粒子飛散範圍）。
+     路徑長度與時間不受影響；平手撞擊環不套用。
+     數值為 2026-10-21 在 3065 星際牌特效測試頁調整定案。 */
+  --fx-laser-bullet-scale: 1.7;
+  --fx-laser-hit-scale: 2.4;
+  --fx-missile-bullet-scale: 1.75;
+  --fx-missile-hit-scale: 2.2;
+  --fx-shield-bullet-scale: 1.5;
+  --fx-shield-hit-scale: 2.4;
+  /* 飛彈尾隨彈的落點散布距離：0＝全部打同一點；每顆依自己的 -1～1 散布值乘上這個距離 */
+  --fx-missile-scatter: 2.8cqw;
+  /* 飛彈飛行速度倍率：1＝主飛彈 300ms 抵達；2＝150ms；0.5＝600ms。命中爆炸與沿途煙塵同步跟著調整 */
+  --fx-missile-speed: 0.7;
+  /* 齊射總時間：主飛彈發射到最後一顆尾隨彈發射的時間；0＝九顆同時發射 */
+  --fx-missile-salvo: 550ms;
   position: absolute;
   z-index: 82;
   inset: 0;
@@ -10394,7 +10410,6 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   width: 11%;
   height: 40%;
   transform: translateX(-50%);
-  filter: drop-shadow(0 0 10px currentColor);
   color: #ff5ed8;
 }
 
@@ -10449,8 +10464,13 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 .star-cards-score-popup.is-ai[data-lane="B"] { left: 49.8%; }
 .star-cards-score-popup.is-ai[data-lane="C"] { left: 72.7%; }
 
+.star-cards-attack-path,
 .star-cards-attack-core,
 .star-cards-attack-trail,
+.star-cards-escort-blast,
+.star-cards-attack-muzzle,
+.star-cards-attack-particles,
+.star-cards-attack-particle,
 .star-cards-impact,
 .star-cards-impact-particles,
 .star-cards-impact-particle {
@@ -10459,45 +10479,225 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   pointer-events: none;
 }
 
-.star-cards-attack-core {
-  top: 8%;
+/* ---- 攻擊路徑：原點在發射方牌面前緣、往上＝朝目標，沿 --battle-angle 傾斜 ----
+   玩家：由下往上；OWEN：同一條線轉 180°，所以子元素一律用「bottom＝路徑進度」排版。 */
+.star-cards-attack-path {
   bottom: 8%;
-  left: calc(50% + var(--battle-mid-x));
-  width: 6px;
-  border-radius: 999px;
-  background: linear-gradient(#ff52ca, #fff 44%, #ff52ca);
-  box-shadow: 0 0 7px 2px #fff, 0 0 18px 7px currentColor;
-  transform: translateX(-50%) rotate(var(--battle-angle)) scaleY(0);
-}
-
-.star-cards-battle-effect.is-player .star-cards-attack-core {
-  transform-origin: bottom;
-  animation: star-cards-laser-player 720ms ease-out both;
-}
-
-.star-cards-battle-effect.is-ai .star-cards-attack-core {
-  transform-origin: top;
-  animation: star-cards-laser-ai 720ms ease-out both;
-}
-
-.star-cards-battle-effect.is-player:not(.is-shield):not(.is-tie) .star-cards-attack-core {
   left: calc(50% + var(--battle-player-x));
+  width: 0;
+  height: 84%;
+  transform-origin: 50% 100%;
+  transform: rotate(var(--battle-angle));
 }
 
-.star-cards-battle-effect.is-ai:not(.is-shield):not(.is-tie) .star-cards-attack-core {
+.star-cards-battle-effect.is-ai .star-cards-attack-path {
+  bottom: 92%;
   left: calc(50% + var(--battle-ai-x));
+  transform: rotate(calc(180deg + var(--battle-angle)));
+}
+
+/* 平手的撞擊環畫在整個特效框中央 */
+.star-cards-battle-effect.is-tie .star-cards-attack-path {
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform: none;
+}
+
+.star-cards-attack-particles {
+  z-index: 1;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 100%;
+}
+
+.star-cards-attack-core { z-index: 3; }
+.star-cards-attack-trail { z-index: 2; }
+.star-cards-attack-muzzle { z-index: 4; }
+
+/* 沿途粒子共用：出現在路徑進度 --attack-progress，之後往側邊與前後漂移 */
+.star-cards-attack-particle {
+  --attack-progress: 0;
+  --attack-lateral: 0cqw;
+  --attack-drift-x: 0cqw;
+  --attack-drift-y: 0cqw;
+  --attack-size: 1;
+  --attack-delay: 0ms;
+  --attack-duration: 400ms;
+  --attack-w: 0.2cqw;
+  --attack-h: 0.2cqw;
+  bottom: calc(var(--attack-progress) * 100%);
+  left: 0;
+  width: calc(var(--attack-w) * var(--fx-projectile-scale));
+  height: calc(var(--attack-h) * var(--fx-projectile-scale));
+  margin: 0 0 calc(var(--attack-h) * var(--fx-projectile-scale) / -2) calc(var(--attack-w) * var(--fx-projectile-scale) / -2);
+  border-radius: 50%;
+  opacity: 0;
+  animation: star-cards-attack-drift var(--attack-duration) cubic-bezier(0.2, 0.7, 0.35, 1) var(--attack-delay) both;
+}
+
+/* ---- 命中爆炸：依贏家武器分成雷射／飛彈／護盾三種樣貌 ----
+   .star-cards-impact::before＝核心閃光、::after＝衝擊環；
+   .star-cards-impact-particles::before＝武器專屬的附加光效；粒子種類見 star-cards-game.ts 的配方。 */
+.star-cards-battle-effect {
+  --impact-hot: #fff3d6;
+  --impact-glow: rgba(255, 170, 60, 0.85);
+  --impact-flash-scale: 1;
+  --impact-ring-scale: 1.6;
+}
+
+/* 命中特效開始時間（與 STAR_CARDS_IMPACT_START_MS 一致）：飛彈與護盾 300ms 抵達爆炸，雷射在光束到達的 200ms 開始燒灼 */
+.star-cards-battle-effect { --impact-start: 300ms; }
+
+/* 依贏家武器選用各自的尺寸倍率；子元素一律讀 --fx-projectile-scale／--fx-impact-scale */
+.star-cards-battle-effect.is-laser {
+  --impact-start: 200ms;
+  --fx-projectile-scale: var(--fx-laser-bullet-scale, 1);
+  --fx-impact-scale: var(--fx-laser-hit-scale, 1);
+}
+
+.star-cards-battle-effect.is-missile {
+  /* 飛彈抵達時間跟著飛行速度；主爆炸在抵達時開始 */
+  --missile-arrive: calc(300ms / var(--fx-missile-speed, 1));
+  --impact-start: var(--missile-arrive);
+  --fx-projectile-scale: var(--fx-missile-bullet-scale, 1);
+  --fx-impact-scale: var(--fx-missile-hit-scale, 1);
+}
+
+.star-cards-battle-effect.is-shield {
+  --fx-projectile-scale: var(--fx-shield-bullet-scale, 1);
+  --fx-impact-scale: var(--fx-shield-hit-scale, 1);
+}
+
+.star-cards-battle-effect.is-laser {
+  --impact-hot: #ffe2f8;
+  --impact-glow: rgba(255, 70, 205, 0.88);
+  --impact-flash-scale: 0.82;
+  --impact-ring-scale: 1.35;
+}
+
+.star-cards-battle-effect.is-missile {
+  --impact-hot: #fff0b8;
+  --impact-glow: rgba(255, 118, 28, 0.92);
+  --impact-flash-scale: 1;
+  --impact-ring-scale: 2.1;
+}
+
+.star-cards-battle-effect.is-shield {
+  --impact-hot: #dcfdff;
+  --impact-glow: rgba(40, 220, 255, 0.88);
+  --impact-flash-scale: 0.9;
+  --impact-ring-scale: 1.55;
+}
+
+/* 命中尺寸倍率：transform-origin 設在 translateX(-50%) 之前的左緣中點，縮放後爆炸中心不會偏移；
+   粒子飛散距離也一起等比放大 */
+.star-cards-impact,
+.star-cards-impact-particles {
+  transform-origin: 0 50%;
+  scale: var(--fx-impact-scale);
 }
 
 .star-cards-impact {
   left: 50%;
   width: 42%;
   aspect-ratio: 1;
-  border: 3px solid currentColor;
-  border-radius: 50%;
-  box-shadow: 0 0 20px 8px currentColor, inset 0 0 14px #fff;
+  transform: translateX(-50%);
+}
+
+.star-cards-impact::before,
+.star-cards-impact::after,
+.star-cards-impact-particles::before {
+  position: absolute;
+  content: "";
   opacity: 0;
-  transform: translateX(-50%) scale(0.2);
-  animation: star-cards-impact-burst 620ms ease-out 300ms both;
+  pointer-events: none;
+}
+
+.star-cards-impact::before {
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 10%, var(--impact-hot) 24%, var(--impact-glow) 44%, transparent 70%);
+  mix-blend-mode: screen;
+  animation: star-cards-impact-flash 280ms ease-out var(--impact-start) both;
+}
+
+.star-cards-impact::after {
+  inset: 0;
+  border: max(1px, 0.12cqw) solid var(--impact-hot);
+  border-radius: 50%;
+  box-shadow: 0 0 0.6cqw var(--impact-glow), inset 0 0 0.4cqw var(--impact-glow);
+  animation: star-cards-impact-ring 440ms cubic-bezier(0.1, 0.8, 0.3, 1) var(--impact-start) both;
+}
+
+/* 飛彈：閃光邊緣放軟（不像平面圓盤），衝擊環較細但光暈較寬 */
+.star-cards-battle-effect.is-missile .star-cards-impact::before {
+  background: radial-gradient(circle, #fff 0 8%, var(--impact-hot) 18%, rgba(255, 150, 40, 0.75) 32%, rgba(255, 90, 20, 0.32) 50%, transparent 68%);
+}
+
+.star-cards-battle-effect.is-missile .star-cards-impact::after {
+  border-width: max(1px, 0.1cqw);
+  box-shadow: 0 0 1cqw var(--impact-glow), inset 0 0 0.6cqw rgba(255, 140, 40, 0.5);
+  animation-duration: 560ms;
+}
+
+/* 護盾：六角形的能量漣漪取代圓形衝擊環 */
+.star-cards-battle-effect.is-shield .star-cards-impact::after,
+.star-cards-battle-effect.is-shield .star-cards-impact-particles::before {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpolygon points='50,4 90,27 90,73 50,96 10,73 10,27' fill='rgba(80,230,255,0.10)' stroke='%23d4fcff' stroke-width='2.6'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 0 0.35cqw rgba(40, 220, 255, 0.95));
+}
+
+.star-cards-battle-effect.is-shield .star-cards-impact-particles::before {
+  inset: 0;
+  animation: star-cards-impact-ring 520ms cubic-bezier(0.1, 0.8, 0.3, 1) calc(var(--impact-start) + 90ms) both;
+}
+
+/* 雷射：光束持續照射的那段時間（約 200～620ms）持續燒灼——
+   命中點脈動發亮、熱浪環連續擴散三次、橫向光條閃爍，結束時收尾爆閃，最後留下慢慢冷卻的灼痕 */
+.star-cards-battle-effect.is-laser .star-cards-impact::before {
+  animation: star-cards-laser-burn-core 420ms linear var(--impact-start) both;
+}
+
+.star-cards-battle-effect.is-laser .star-cards-impact::after {
+  animation: star-cards-laser-burn-ring 140ms ease-out var(--impact-start) 3 both;
+}
+
+.star-cards-battle-effect.is-laser .star-cards-impact-particles::before {
+  top: 50%;
+  left: -90%;
+  width: 280%;
+  height: max(1px, 0.14cqw);
+  margin-top: calc(max(1px, 0.14cqw) / -2);
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--impact-glow) 30%, #fff 50%, var(--impact-glow) 70%, transparent);
+  box-shadow: 0 0 0.5cqw var(--impact-glow);
+  animation: star-cards-laser-burn-lens 420ms linear var(--impact-start) both;
+}
+
+/* 灼痕：燒灼期間逐漸變紅熱，光束熄滅後慢慢冷卻消失 */
+.star-cards-battle-effect.is-laser .star-cards-impact-particles::after {
+  position: absolute;
+  inset: 30%;
+  content: "";
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff6fb 0 12%, #ff8fd9 26%, rgba(255, 60, 150, 0.7) 45%, rgba(120, 20, 60, 0.35) 62%, transparent 72%);
+  opacity: 0;
+  pointer-events: none;
+  animation: star-cards-laser-scorch 980ms ease-out var(--impact-start) both;
+}
+
+/* 飛彈：火球散去後殘留的熱光 */
+.star-cards-battle-effect.is-missile .star-cards-impact-particles::before {
+  inset: -20%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 190, 90, 0.55) 0, rgba(255, 90, 20, 0.28) 38%, transparent 66%);
+  animation: star-cards-impact-afterglow 900ms ease-out calc(var(--impact-start) + 40ms) both;
 }
 
 .star-cards-battle-effect.is-player .star-cards-impact {
@@ -10526,103 +10726,401 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   left: calc(50% + var(--battle-player-x));
 }
 
+/* 粒子共用：以爆炸中心為原點，寬高由 --impact-particle-w／h 決定並置中 */
 .star-cards-impact-particle {
   --impact-particle-x: 0cqw;
-  --impact-particle-y: -4cqh;
+  --impact-particle-y: 0cqw;
+  --impact-particle-gravity: 0cqw;
   --impact-particle-angle: 0deg;
+  --impact-particle-spin: 0deg;
+  --impact-particle-size: 1;
   --impact-particle-delay: 0ms;
-  --impact-particle-duration: 690ms;
+  --impact-particle-duration: 600ms;
+  --impact-particle-w: 0.2cqw;
+  --impact-particle-h: 0.2cqw;
   top: 50%;
   left: 50%;
-  width: clamp(4px, 0.32cqw, 8px);
-  height: clamp(14px, 1.36cqh, 26px);
+  width: var(--impact-particle-w);
+  height: var(--impact-particle-h);
+  margin: calc(var(--impact-particle-h) / -2) 0 0 calc(var(--impact-particle-w) / -2);
   border-radius: 999px;
-  background: linear-gradient(180deg, #fffbd0 0%, #ffd84c 38%, #ff9d00 100%);
-  box-shadow:
-    0 0 4px 1px rgba(255, 250, 180, 0.95),
-    0 0 10px 3px rgba(255, 174, 28, 0.72);
   opacity: 0;
-  transform-origin: 50% 100%;
-  animation: star-cards-impact-gold-particle var(--impact-particle-duration)
-    cubic-bezier(0.12, 0.72, 0.24, 1) calc(300ms + var(--impact-particle-delay)) both;
+  animation: star-cards-impact-ballistic var(--impact-particle-duration) linear
+    calc(var(--impact-start) + var(--impact-particle-delay)) both;
 }
 
+/* 雷射：細針火花（高速、無重力、拖出光跡後縮短）＋粉紅熔滴（受重力下墜） */
+.star-cards-impact-particle.is-needle,
+.star-cards-impact-particle.is-spark,
+.star-cards-impact-particle.is-ion {
+  --impact-particle-w: max(1px, 0.09cqw);
+  --impact-particle-h: calc(1.5cqw * var(--impact-particle-size));
+  animation-name: star-cards-impact-streak;
+  animation-timing-function: cubic-bezier(0.05, 0.7, 0.2, 1);
+}
+
+.star-cards-impact-particle.is-needle {
+  background: linear-gradient(180deg, transparent 0%, #ff4fcf 22%, #ffd2f4 55%, #fff 100%);
+  box-shadow: 0 0 0.25cqw rgba(255, 90, 210, 0.9);
+}
+
+.star-cards-impact-particle.is-droplet {
+  --impact-particle-w: calc(0.2cqw * var(--impact-particle-size));
+  --impact-particle-h: calc(0.2cqw * var(--impact-particle-size));
+  background: radial-gradient(circle, #fff 0 30%, #ff9be6 55%, #ff2fae 100%);
+  box-shadow: 0 0 0.3cqw rgba(255, 60, 190, 0.85);
+  animation-name: star-cards-impact-ballistic, star-cards-impact-cool;
+  animation-duration: var(--impact-particle-duration), var(--impact-particle-duration);
+}
+
+/* 飛彈：火球、爆閃火花、受重力的餘燼、旋轉碎片、上升的煙 */
+.star-cards-impact-particle.is-fireball {
+  --impact-particle-w: calc(2cqw * var(--impact-particle-size));
+  --impact-particle-h: calc(2cqw * var(--impact-particle-size));
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff7d6 0 12%, #ffc94a 28%, #ff7a1e 48%, rgba(190, 40, 10, 0.55) 64%, transparent 72%);
+  mix-blend-mode: screen;
+  animation-name: star-cards-impact-fireball;
+  animation-timing-function: cubic-bezier(0.15, 0.75, 0.3, 1);
+}
+
+.star-cards-impact-particle.is-spark {
+  --impact-particle-h: calc(1.1cqw * var(--impact-particle-size));
+  background: linear-gradient(180deg, transparent 0%, #ff9a2a 25%, #ffe9a0 60%, #fff 100%);
+  box-shadow: 0 0 0.25cqw rgba(255, 170, 40, 0.9);
+}
+
+.star-cards-impact-particle.is-ember {
+  --impact-particle-w: calc(0.16cqw * var(--impact-particle-size));
+  --impact-particle-h: calc(0.42cqw * var(--impact-particle-size));
+  background: linear-gradient(180deg, #ff5a14 0%, #ffb52e 55%, #fff5c8 100%);
+  box-shadow: 0 0 0.3cqw rgba(255, 130, 30, 0.9);
+  animation-name: star-cards-impact-ballistic, star-cards-impact-cool;
+  animation-duration: var(--impact-particle-duration), var(--impact-particle-duration);
+}
+
+.star-cards-impact-particle.is-debris {
+  --impact-particle-w: calc(0.36cqw * var(--impact-particle-size));
+  --impact-particle-h: calc(0.28cqw * var(--impact-particle-size));
+  border-radius: 0;
+  clip-path: polygon(10% 18%, 62% 0, 100% 40%, 78% 100%, 22% 86%, 0 52%);
+  background: linear-gradient(135deg, #ffb45a 0%, #6b3a22 38%, #2a1a14 100%);
+}
+
+.star-cards-impact-particle.is-smoke {
+  z-index: -1;
+  --impact-particle-w: calc(2.3cqw * var(--impact-particle-size));
+  --impact-particle-h: calc(2.3cqw * var(--impact-particle-size));
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(96, 78, 70, 0.82) 0, rgba(66, 54, 50, 0.55) 40%, transparent 70%);
+  animation-name: star-cards-impact-smoke;
+  animation-timing-function: cubic-bezier(0.2, 0.6, 0.35, 1);
+}
+
+/* 護盾：六角碎片、青白離子火花、閃爍電弧 */
+.star-cards-impact-particle.is-shard {
+  --impact-particle-w: calc(0.56cqw * var(--impact-particle-size));
+  --impact-particle-h: calc(0.5cqw * var(--impact-particle-size));
+  border-radius: 0;
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  background: linear-gradient(135deg, rgba(235, 255, 255, 0.98) 0%, rgba(120, 236, 255, 0.75) 45%, rgba(30, 150, 255, 0.45) 100%);
+  animation-name: star-cards-impact-ballistic, star-cards-impact-flicker;
+  animation-duration: var(--impact-particle-duration), var(--impact-particle-duration);
+}
+
+.star-cards-impact-particle.is-ion {
+  --impact-particle-h: calc(1.2cqw * var(--impact-particle-size));
+  background: linear-gradient(180deg, transparent 0%, #20d8ff 25%, #9ff8ff 60%, #fff 100%);
+  box-shadow: 0 0 0.3cqw rgba(40, 220, 255, 0.95);
+}
+
+.star-cards-impact-particle.is-arc {
+  --impact-particle-w: calc(0.6cqw * var(--impact-particle-size));
+  --impact-particle-h: calc(2.4cqw * var(--impact-particle-size));
+  border-radius: 0;
+  clip-path: polygon(52% 0, 64% 0, 42% 30%, 68% 32%, 38% 64%, 62% 66%, 44% 100%, 32% 100%, 50% 70%, 26% 68%, 56% 36%, 30% 34%);
+  background: linear-gradient(180deg, #fff, #b8fbff 50%, #46e6ff);
+  filter: drop-shadow(0 0 0.25cqw rgba(60, 230, 255, 1));
+  animation-name: star-cards-impact-arc;
+}
+
+/* ---- 發射口閃光（三種武器共用位置，外觀各自定義） ---- */
+.star-cards-attack-muzzle {
+  bottom: 0;
+  left: 0;
+  width: calc(3.4cqw * var(--fx-projectile-scale));
+  height: calc(3.4cqw * var(--fx-projectile-scale));
+  margin: 0 0 calc(-1.7cqw * var(--fx-projectile-scale)) calc(-1.7cqw * var(--fx-projectile-scale));
+  border-radius: 50%;
+  opacity: 0;
+  mix-blend-mode: screen;
+}
+
+/* ---- 雷射：白熱核心＋粉紅光束剖面、流動能量條紋、雙螺旋能量紋、持續的發射口光芒與沿途光塵 ---- */
+.star-cards-battle-effect.is-laser:not(.is-tie) .star-cards-attack-core {
+  bottom: 0;
+  left: 0;
+  width: calc(1.15cqw * var(--fx-projectile-scale));
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg,
+    transparent 0%, rgba(255, 40, 190, 0.32) 14%, rgba(255, 90, 215, 0.85) 30%, #ffd3f4 42%,
+    #fff 47% 53%, #ffd3f4 58%, rgba(255, 90, 215, 0.85) 70%, rgba(255, 40, 190, 0.32) 86%, transparent 100%);
+  box-shadow: 0 0 1cqw 0.15cqw rgba(255, 60, 200, 0.6), 0 0 2.4cqw 0.4cqw rgba(255, 40, 190, 0.25);
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) scaleY(0);
+  animation: star-cards-laser-beam 720ms linear both;
+}
+
+.star-cards-battle-effect.is-laser:not(.is-tie) .star-cards-attack-core::before,
+.star-cards-battle-effect.is-laser:not(.is-tie) .star-cards-attack-core::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  content: "";
+  pointer-events: none;
+}
+
+/* 流動能量條紋：兩組不同間距的亮紋往目標方向捲動，形成細緻的干涉閃爍 */
+.star-cards-battle-effect.is-laser:not(.is-tie) .star-cards-attack-core::before {
+  left: 32%;
+  right: 32%;
+  border-radius: 999px;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 0.7cqw, rgba(255, 255, 255, 0.9) 0.7cqw 0.82cqw, transparent 0.82cqw 1.5cqw),
+    repeating-linear-gradient(0deg, transparent 0 0.33cqw, rgba(255, 205, 246, 0.5) 0.33cqw 0.4cqw, transparent 0.4cqw 0.9cqw);
+  background-size: 100% 1.5cqw, 100% 0.9cqw;
+  mix-blend-mode: screen;
+  animation: star-cards-laser-flow 160ms linear infinite;
+}
+
+/* 雙螺旋能量紋 */
+.star-cards-battle-effect.is-laser:not(.is-tie) .star-cards-attack-core::after {
+  left: -18%;
+  right: -18%;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 40' preserveAspectRatio='none'%3E%3Cpath d='M10 0 C17 6 17 14 10 20 C3 26 3 34 10 40' fill='none' stroke='%23ffe6f8' stroke-width='1.1'/%3E%3Cpath d='M10 0 C3 6 3 14 10 20 C17 26 17 34 10 40' fill='none' stroke='%23ff7ad8' stroke-width='0.8' stroke-opacity='0.8'/%3E%3C/svg%3E") 0 0 / 100% 3.4cqw repeat-y;
+  opacity: 0.5;
+  filter: drop-shadow(0 0 0.2cqw rgba(255, 80, 210, 0.9));
+  animation: star-cards-laser-helix 220ms linear infinite;
+}
+
+.star-cards-battle-effect.is-laser .star-cards-attack-muzzle {
+  background:
+    linear-gradient(90deg, transparent 8%, rgba(255, 225, 250, 0.95) 50%, transparent 92%) center / 100% 5% no-repeat,
+    linear-gradient(0deg, transparent 20%, rgba(255, 225, 250, 0.75) 50%, transparent 80%) center / 5% 70% no-repeat,
+    radial-gradient(circle, #fff 0 9%, rgba(255, 190, 240, 0.9) 20%, rgba(255, 60, 200, 0.42) 40%, transparent 64%);
+  animation: star-cards-muzzle-laser 720ms ease-out both;
+}
+
+.star-cards-attack-particle.is-mote {
+  --attack-w: calc(0.28cqw * var(--attack-size));
+  --attack-h: calc(0.28cqw * var(--attack-size));
+  background: radial-gradient(circle, #fff 0 35%, #ff9be6 60%, transparent 100%);
+  box-shadow: 0 0 0.4cqw 0.05cqw rgba(255, 80, 210, 0.95);
+}
+
+/* ---- 飛彈：金屬彈體（彈頭、紅色識別帶、尾翼）、閃動的尾焰＋附著煙跡、發射後座煙、沿途煙塵與火星 ---- */
 .star-cards-battle-effect.is-missile { color: #ff7d3d; }
 
-.star-cards-battle-effect.is-missile .star-cards-attack-core {
-  width: 12px;
-  height: 24px;
-  top: auto;
-  bottom: auto;
-  border-radius: 70% 70% 30% 30%;
-  background: #fff;
-  box-shadow: 0 0 9px 3px #ffde78, 0 0 22px 8px #ff5038;
-  transform: translate(-50%, 0) rotate(0);
-}
-
-.star-cards-battle-effect.is-missile.is-player .star-cards-attack-core {
-  left: calc(50% + var(--battle-player-x));
-  bottom: 1%;
-  animation: star-cards-missile-player 690ms cubic-bezier(0.28, 0.76, 0.4, 1) both;
-}
-
-.star-cards-battle-effect.is-missile.is-ai .star-cards-attack-core {
-  left: calc(50% + var(--battle-ai-x));
-  top: 1%;
-  animation: star-cards-missile-ai 690ms cubic-bezier(0.28, 0.76, 0.4, 1) both;
-}
-
+.star-cards-battle-effect.is-missile:not(.is-tie) .star-cards-attack-core,
 .star-cards-battle-effect.is-missile .star-cards-attack-trail {
   --battle-spark-offset: 0cqw;
   --battle-missile-depth-offset: 0cqh;
-  width: 12px;
-  height: 24px;
-  border-radius: 70% 70% 30% 30%;
-  background: #fff;
-  box-shadow: 0 0 9px 3px #ffde78, 0 0 22px 8px #ff5038;
+  bottom: 0;
+  left: 0;
+  width: calc(1cqw * var(--fx-projectile-scale));
+  height: calc(2.9cqw * var(--fx-projectile-scale));
+  margin-bottom: calc(-1.45cqw * var(--fx-projectile-scale));
+  opacity: 0;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 0 0.35cqw rgba(255, 160, 70, 0.75));
 }
 
-.star-cards-battle-effect.is-missile.is-player .star-cards-attack-trail {
-  bottom: calc(12% + var(--battle-missile-depth-offset));
-  left: calc(50% + var(--battle-player-x) + var(--battle-spark-offset));
-  animation: star-cards-missile-sparks-player 520ms linear infinite;
+/* 飛行動畫在 71.43% 抵達，所以總長＝抵達時間 × 1.4 */
+.star-cards-battle-effect.is-missile:not(.is-tie) .star-cards-attack-core {
+  animation: star-cards-missile-flight calc(var(--missile-arrive) * 1.4) linear both;
 }
 
-.star-cards-battle-effect.is-missile.is-ai .star-cards-attack-trail {
-  top: calc(12% + var(--battle-missile-depth-offset));
-  left: calc(50% + var(--battle-ai-x) + var(--battle-spark-offset));
-  animation: star-cards-missile-sparks-ai 520ms linear infinite;
+/* 沿途煙塵、火星的出現時間是以 1 倍速計算的，跟著飛行速度等比縮放 */
+.star-cards-battle-effect.is-missile .star-cards-attack-particle {
+  animation-delay: calc(var(--attack-delay) / var(--fx-missile-speed, 1));
 }
 
+.star-cards-battle-effect.is-missile .star-cards-attack-trail,
+.star-cards-escort-blast {
+  --escort-launch: 0;
+  --escort-scatter-x: 0;
+  --escort-scatter-y: 0;
+  /* 發射延遲＝在齊射時間內的發射時機 × 齊射總時間 */
+  --escort-delay: calc(var(--escort-launch) * var(--fx-missile-salvo));
+}
+
+.star-cards-battle-effect.is-missile .star-cards-attack-trail {
+  animation: star-cards-missile-escort calc(var(--missile-arrive) * 1.4) linear var(--escort-delay) both;
+}
+
+/* 尾隨彈落點的小爆炸：位置＝路徑終點＋散布，時間＝該顆抵達的瞬間（發射延遲＋抵達時間） */
+.star-cards-escort-blast {
+  z-index: 2;
+  bottom: calc(100% + var(--escort-scatter-y) * var(--fx-missile-scatter) * 0.6);
+  left: calc(var(--escort-scatter-x) * var(--fx-missile-scatter));
+  width: calc(2.2cqw * var(--fx-impact-scale));
+  height: calc(2.2cqw * var(--fx-impact-scale));
+  margin: 0 0 calc(-1.1cqw * var(--fx-impact-scale)) calc(-1.1cqw * var(--fx-impact-scale));
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 10%, #ffe08a 22%, rgba(255, 128, 30, 0.75) 40%, rgba(255, 80, 20, 0.2) 58%, transparent 70%);
+  box-shadow: 0 0 0 max(1px, 0.08cqw) rgba(255, 200, 120, 0.5);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: star-cards-escort-blast 320ms ease-out calc(var(--escort-delay) + var(--missile-arrive)) both;
+}
+
+.star-cards-battle-effect.is-missile:not(.is-tie) .star-cards-attack-core::before,
+.star-cards-battle-effect.is-missile .star-cards-attack-trail::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  clip-path: polygon(50% 0, 63% 7%, 72% 18%, 75% 30%, 75% 72%, 100% 90%, 100% 100%, 75% 95%, 25% 95%, 0 100%, 0 90%, 25% 72%, 25% 30%, 28% 18%, 37% 7%);
+  background:
+    linear-gradient(180deg, transparent 0 26%, rgba(205, 38, 44, 0.95) 26% 30%, transparent 30% 70%, rgba(36, 40, 48, 0.85) 70% 100%),
+    linear-gradient(90deg, #2e3239 0%, #7d8591 20%, #e9edf2 42%, #fff 50%, #b4bbc5 62%, #555c66 82%, #24272c 100%);
+}
+
+/* 尾焰：白熱 → 黃 → 橘，接著是附著在彈尾的淡灰煙跡 */
+.star-cards-battle-effect.is-missile:not(.is-tie) .star-cards-attack-core::after,
+.star-cards-battle-effect.is-missile .star-cards-attack-trail::after {
+  position: absolute;
+  top: 92%;
+  left: 50%;
+  width: calc(0.66cqw * var(--fx-projectile-scale));
+  height: calc(4.6cqw * var(--fx-projectile-scale));
+  content: "";
+  border-radius: 45% 45% 50% 50% / 12% 12% 88% 88%;
+  background: linear-gradient(180deg,
+    #fff 0%, #fff3b0 9%, #ffb12e 20%, rgba(255, 92, 24, 0.8) 33%, rgba(255, 80, 20, 0) 46%,
+    rgba(210, 200, 196, 0.4) 54%, rgba(160, 154, 152, 0.22) 76%, transparent 100%);
+  transform: translateX(-50%);
+  transform-origin: 50% 0;
+  animation: star-cards-missile-flame 70ms linear infinite alternate;
+}
+
+.star-cards-battle-effect.is-missile .star-cards-attack-muzzle {
+  background: radial-gradient(circle, #fff 0 8%, #ffe08a 18%, rgba(255, 120, 30, 0.7) 36%, rgba(255, 80, 20, 0.2) 55%, transparent 70%);
+  animation: star-cards-muzzle-burst 300ms ease-out both;
+}
+
+.star-cards-attack-particle.is-smoke,
+.star-cards-attack-particle.is-backblast {
+  --attack-w: calc(1.6cqw * var(--attack-size));
+  --attack-h: calc(1.6cqw * var(--attack-size));
+  background: radial-gradient(circle, rgba(236, 232, 228, 0.85) 0, rgba(165, 158, 155, 0.52) 45%, transparent 70%);
+  animation-name: star-cards-attack-smoke;
+  animation-timing-function: cubic-bezier(0.15, 0.6, 0.3, 1);
+}
+
+.star-cards-attack-particle.is-backblast {
+  --attack-w: calc(1.7cqw * var(--attack-size));
+  --attack-h: calc(1.7cqw * var(--attack-size));
+}
+
+.star-cards-attack-particle.is-cinder {
+  --attack-w: calc(0.14cqw * var(--attack-size));
+  --attack-h: calc(0.14cqw * var(--attack-size));
+  background: radial-gradient(circle, #fff6c8 0 30%, #ffb52e 60%, #ff5a14 100%);
+  box-shadow: 0 0 0.25cqw rgba(255, 130, 30, 0.9);
+  animation-name: star-cards-attack-drift, star-cards-impact-cool;
+  animation-duration: var(--attack-duration), var(--attack-duration);
+}
+
+/* ---- 護盾：在發射方原地展開的半球（弧頂朝目標），不飛向對方 ----
+   球面貼六角格：邊緣的格子被透視壓扁，外緣是貼著圓弧的細小六角折線、最外圈漸淡加模糊；
+   展開時格子由中心往外點亮，命中瞬間由弧頂往兩側再亮一次。
+   半球底邊在發射原點往前 3.5cqw（約牌面上緣下方四分之一處）；預設尺寸 1.3 倍時直徑約 16cqw，略寬於牌面。 */
 .star-cards-battle-effect.is-shield { color: #46e9ff; }
 
-.star-cards-battle-effect.is-shield .star-cards-attack-core {
-  top: 50%;
-  bottom: auto;
-  left: calc(50% + var(--battle-mid-x));
-  width: 68%;
-  aspect-ratio: 1;
-  border: 4px solid #78f5ff;
-  border-radius: 48% 48% 58% 58%;
-  background: radial-gradient(circle, rgba(190, 251, 255, 0.42), rgba(33, 155, 255, 0.08) 68%);
-  box-shadow: 0 0 18px 5px #27dfff, inset 0 0 25px 4px rgba(116, 247, 255, 0.76);
-  transform: translate(-50%, -50%) scale(0.1);
-  animation: star-cards-shield-surge 760ms ease-out both;
+.star-cards-battle-effect.is-shield:not(.is-tie) .star-cards-attack-core {
+  /* 底邊位置與尺寸以發射方牌面為準：玩家的發射原點在牌面上緣往下約 7.9cqw */
+  --dome-base: 3.5cqw;
+  --dome-card-scale: 1;
+  /* 不朝向目標：抵銷攻擊路徑的傾斜，半球一律垂直展開（玩家朝上、OWEN 朝下） */
+  --dome-tilt: calc(-1 * var(--battle-angle));
+  bottom: 0;
+  left: 0;
+  /* SVG 寬 240 單位對應直徑 200 單位＋兩側留白，所以元素寬＝直徑 × 1.2 */
+  width: calc(14.76cqw * var(--dome-card-scale) * var(--fx-projectile-scale));
+  aspect-ratio: 240 / 140;
+  /* 軸心＝元素左下角＝發射原點。關鍵影格依序：把底邊中點（SVG 115/140 處）移到原點 → 以它縮放
+     → 沿垂直方向往前推 --dome-base → 轉回垂直 */
+  transform-origin: 0 100%;
+  opacity: 0;
+  /* 不加整體 drop-shadow：半透明格子整片加光暈會變成蓋住牌面的長方形白霧；柔邊交給最外圈格子的模糊 */
+  animation: star-cards-shield-dome 760ms linear both;
 }
 
+/* OWEN 的牌較小（約 0.89 倍），發射原點只在牌面下緣往內約 2.7cqw：底邊往回退，讓半球同樣從牌面約四分之一處展開 */
+.star-cards-battle-effect.is-shield.is-ai .star-cards-attack-core {
+  --dome-base: -1.2cqw;
+  --dome-card-scale: 0.89;
+}
+
+.star-cards-shield-dome {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* 每片六角形各自獨立、彼此留間隙（不畫接縫線）；格子是亮青→藍的漸層（fill 由 SVG 屬性指定）。
+   依面向鏡頭的程度：正面格子實、球的邊緣格子透，帶出球體感 */
+.star-cards-shield-cell {
+  --cell-rim: 0.5;
+  --cell-facing: 1;
+  --cell-fade: 1;
+  --cell-launch-delay: 0ms;
+  --cell-hit-delay: 0ms;
+  stroke: rgba(190, 248, 255, 0);
+  stroke-width: 0;
+  stroke-linejoin: round;
+  fill-opacity: calc(0.3 + var(--cell-facing) * 0.62);
+  opacity: calc(0.25 + var(--cell-fade) * 0.75);
+  /* 點亮要短：整片變實＋自己外緣一圈淡青光邊，結束後回到無線條的狀態 */
+  animation:
+    star-cards-shield-cell-launch 200ms ease-out calc(30ms + var(--cell-launch-delay)) both,
+    star-cards-shield-cell-hit 260ms ease-out calc(290ms + var(--cell-hit-delay)) forwards;
+}
+
+.star-cards-battle-effect.is-shield .star-cards-attack-muzzle {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpolygon points='50,4 90,27 90,73 50,96 10,73 10,27' fill='rgba(80,230,255,0.15)' stroke='%23d4fcff' stroke-width='4'/%3E%3C/svg%3E") center / 62% no-repeat,
+    radial-gradient(circle, #fff 0 8%, rgba(160, 245, 255, 0.85) 20%, rgba(40, 200, 255, 0.4) 42%, transparent 66%);
+  animation: star-cards-muzzle-burst 340ms ease-out both;
+}
+
+.star-cards-attack-particle.is-flake {
+  --attack-w: calc(0.42cqw * var(--attack-size));
+  --attack-h: calc(0.38cqw * var(--attack-size));
+  border-radius: 0;
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  background: linear-gradient(135deg, rgba(235, 255, 255, 0.95), rgba(90, 225, 255, 0.6));
+  animation-name: star-cards-attack-drift, star-cards-impact-flicker;
+  animation-duration: var(--attack-duration), var(--attack-duration);
+}
+
+/* ---- 平手：三種武器共用同一個撞擊環 ---- */
 .star-cards-battle-effect.is-tie {
   color: #f7f1ff;
 }
 
 .star-cards-battle-effect.is-tie .star-cards-attack-core {
   top: 50%;
-  bottom: auto;
   left: calc(50% + var(--battle-mid-x));
   width: 54%;
   aspect-ratio: 1;
   border: 3px solid currentColor;
   border-radius: 50%;
   background: transparent;
+  box-shadow: 0 0 7px 2px #fff, 0 0 18px 7px currentColor;
   transform: translate(-50%, -50%) scale(0.2);
   animation: star-cards-tie-clash 760ms ease-out both;
 }
@@ -11175,51 +11673,273 @@ html[data-cursor-owner="mouse"] .star-cards-exit-scrim[data-navigation-mode="poi
   }
 }
 
-@keyframes star-cards-laser-player {
-  0% { opacity: 0; transform: translateX(-50%) rotate(var(--battle-angle)) scaleY(0); }
-  18% { opacity: 1; }
-  58% { opacity: 1; transform: translateX(-50%) rotate(var(--battle-angle)) scaleY(1); }
-  100% { opacity: 0; transform: translateX(-50%) rotate(var(--battle-angle)) scaleY(1); }
+/* 雷射：約 200ms 伸到目標（與 STAR_CARDS_ATTACK_CURVES.laser 一致），持續照射時寬度脈動，最後收細熄滅 */
+@keyframes star-cards-laser-beam {
+  0% { opacity: 0; transform: translateX(-50%) scaleX(0.4) scaleY(0); }
+  3% { opacity: 1; }
+  8% { transform: translateX(-50%) scaleX(1) scaleY(0.5); }
+  18% { transform: translateX(-50%) scaleX(1.15) scaleY(0.88); }
+  28% { transform: translateX(-50%) scaleX(1) scaleY(1); }
+  36% { transform: translateX(-50%) scaleX(1.12) scaleY(1); }
+  46% { transform: translateX(-50%) scaleX(0.94) scaleY(1); }
+  58% { opacity: 1; transform: translateX(-50%) scaleX(1.08) scaleY(1); }
+  82% { opacity: 0.9; transform: translateX(-50%) scaleX(0.45) scaleY(1); }
+  100% { opacity: 0; transform: translateX(-50%) scaleX(0.05) scaleY(1); }
 }
 
-@keyframes star-cards-laser-ai {
-  0% { opacity: 0; transform: translateX(-50%) rotate(var(--battle-angle)) scaleY(0); }
-  18% { opacity: 1; }
-  58% { opacity: 1; transform: translateX(-50%) rotate(var(--battle-angle)) scaleY(1); }
-  100% { opacity: 0; transform: translateX(-50%) rotate(var(--battle-angle)) scaleY(1); }
+@keyframes star-cards-laser-flow {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 0 -1.5cqw, 0 -0.9cqw; }
 }
 
-@keyframes star-cards-impact-burst {
-  0% { opacity: 0; transform: translateX(-50%) scale(0.1); }
-  22% { opacity: 1; transform: translateX(-50%) scale(0.75); }
-  100% { opacity: 0; transform: translateX(-50%) scale(1.75); }
+@keyframes star-cards-laser-helix {
+  from { background-position: 0 0; }
+  to { background-position: 0 -3.4cqw; }
 }
 
-@keyframes star-cards-impact-gold-particle {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) rotate(var(--impact-particle-angle)) scale(0.2, 0.45);
-  }
-  16% {
-    opacity: 1;
-    transform: translate(-50%, -50%) rotate(var(--impact-particle-angle)) scale(1, 1.45);
-  }
-  58% { opacity: 0.92; }
+@keyframes star-cards-muzzle-laser {
+  0% { opacity: 0; transform: scale(0.3); }
+  5% { opacity: 1; transform: scale(1.15); }
+  14% { opacity: 0.85; transform: scale(0.9); }
+  30% { opacity: 0.95; transform: scale(1); }
+  45% { opacity: 0.75; transform: scale(0.92); }
+  58% { opacity: 0.85; transform: scale(1); }
+  82% { opacity: 0.45; transform: scale(0.7); }
+  100% { opacity: 0; transform: scale(0.4); }
+}
+
+@keyframes star-cards-muzzle-burst {
+  0% { opacity: 0; transform: scale(0.2); }
+  15% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+
+/* 沿途粒子：在路徑旁出現，往外側與前後漂移後淡出 */
+@keyframes star-cards-attack-drift {
+  0% { opacity: 0; transform: translate(var(--attack-lateral), 0) scale(0.4); }
+  12% { opacity: 1; transform: translate(var(--attack-lateral), 0) scale(1); }
   100% {
     opacity: 0;
-    transform:
-      translate(-50%, -50%)
-      translate(var(--impact-particle-x), var(--impact-particle-y))
-      rotate(var(--impact-particle-angle))
-      scale(0.32, 0.68);
+    transform: translate(calc(var(--attack-lateral) + var(--attack-drift-x)), calc(var(--attack-drift-y) * -1)) scale(0.5);
   }
 }
 
-@keyframes star-cards-missile-player {
-  0% { opacity: 0; transform: translate(-50%, 0) rotate(var(--battle-angle)) scale(0.6); }
-  15% { opacity: 1; }
-  78% { opacity: 1; transform: translate(calc(-50% + var(--battle-player-to-ai-x)), -34cqh) rotate(var(--battle-angle)) scale(1); }
-  100% { opacity: 0; transform: translate(calc(-50% + var(--battle-player-to-ai-x)), -38cqh) rotate(var(--battle-angle)) scale(0.3); }
+/* 煙塵：剛噴出時被尾焰照成暖色，接著擴散變灰 */
+@keyframes star-cards-attack-smoke {
+  0% {
+    opacity: 0;
+    transform: translate(var(--attack-lateral), 0) scale(0.3);
+    filter: sepia(1) saturate(5) hue-rotate(-12deg) brightness(1.35);
+  }
+  10% { opacity: 0.85; }
+  35% { filter: sepia(0.25) saturate(1.2) brightness(1); }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--attack-lateral) + var(--attack-drift-x)), calc(var(--attack-drift-y) * -1)) scale(2.4);
+    filter: none;
+  }
+}
+
+@keyframes star-cards-impact-flash {
+  0% { opacity: 0; transform: scale(0.2); }
+  16% { opacity: 1; transform: scale(var(--impact-flash-scale)); }
+  100% { opacity: 0; transform: scale(calc(var(--impact-flash-scale) * 1.35)); }
+}
+
+@keyframes star-cards-impact-ring {
+  0% { opacity: 0; transform: scale(0.15); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: scale(var(--impact-ring-scale)); }
+}
+
+/* 雷射燒灼核心：持續脈動（模擬光束能量起伏），86% 收尾爆閃後熄滅 */
+@keyframes star-cards-laser-burn-core {
+  0% { opacity: 0; transform: scale(calc(var(--impact-flash-scale) * 0.3)); }
+  6% { opacity: 1; transform: scale(calc(var(--impact-flash-scale) * 0.95)); }
+  14% { transform: scale(calc(var(--impact-flash-scale) * 0.78)); }
+  22% { transform: scale(calc(var(--impact-flash-scale) * 1)); }
+  30% { transform: scale(calc(var(--impact-flash-scale) * 0.84)); }
+  38% { transform: scale(calc(var(--impact-flash-scale) * 1.05)); }
+  46% { transform: scale(calc(var(--impact-flash-scale) * 0.8)); }
+  54% { transform: scale(calc(var(--impact-flash-scale) * 1)); }
+  62% { transform: scale(calc(var(--impact-flash-scale) * 0.86)); }
+  70% { transform: scale(calc(var(--impact-flash-scale) * 1.02)); }
+  78% { opacity: 1; transform: scale(calc(var(--impact-flash-scale) * 0.9)); }
+  86% { opacity: 1; transform: scale(calc(var(--impact-flash-scale) * 1.25)); }
+  100% { opacity: 0; transform: scale(calc(var(--impact-flash-scale) * 0.5)); }
+}
+
+/* 熱浪環：每 140ms 擴散一次，共三次 */
+@keyframes star-cards-laser-burn-ring {
+  0% { opacity: 0; transform: scale(0.3); }
+  20% { opacity: 0.9; }
+  100% { opacity: 0; transform: scale(calc(var(--impact-ring-scale) * 0.85)); }
+}
+
+@keyframes star-cards-laser-burn-lens {
+  0% { opacity: 0; transform: scaleX(0.15); }
+  8% { opacity: 1; transform: scaleX(1); }
+  20% { opacity: 0.6; transform: scaleX(0.82); }
+  32% { opacity: 1; transform: scaleX(1.05); }
+  46% { opacity: 0.55; transform: scaleX(0.8); }
+  60% { opacity: 1; transform: scaleX(1); }
+  74% { opacity: 0.6; transform: scaleX(0.85); }
+  86% { opacity: 1; transform: scaleX(1.15); }
+  100% { opacity: 0; transform: scaleX(0.5); }
+}
+
+@keyframes star-cards-laser-scorch {
+  0% { opacity: 0; transform: scale(0.4); filter: brightness(1.6); }
+  40% { opacity: 0.95; transform: scale(1); filter: brightness(1.2); }
+  60% { opacity: 0.85; filter: brightness(0.9) saturate(1.2); }
+  100% { opacity: 0; transform: scale(1.1); filter: brightness(0.45) saturate(1.4); }
+}
+
+@keyframes star-cards-impact-lens {
+  0% { opacity: 0; transform: scaleX(0.15); }
+  18% { opacity: 1; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(0.6); }
+}
+
+@keyframes star-cards-impact-afterglow {
+  0% { opacity: 0; transform: scale(0.5); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.3); }
+}
+
+/* 高速光跡：沿外擴方向先拉長、再減速縮短 */
+@keyframes star-cards-impact-streak {
+  0% { opacity: 0; transform: translate(0, 0) rotate(var(--impact-particle-angle)) scaleY(0.2); }
+  4% { opacity: 1; }
+  22% {
+    opacity: 1;
+    transform: translate(calc(var(--impact-particle-x) * 0.45), calc(var(--impact-particle-y) * 0.45))
+      rotate(var(--impact-particle-angle)) scaleY(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--impact-particle-x), var(--impact-particle-y))
+      rotate(var(--impact-particle-angle)) scaleY(0.12);
+  }
+}
+
+/* 拋物線：水平減速（0→0.62→0.9→1），重力依時間平方（0.12→0.49→1）下墜 */
+@keyframes star-cards-impact-ballistic {
+  0% { opacity: 0; transform: translate(0, 0) rotate(var(--impact-particle-angle)) scale(0.4); }
+  8% {
+    opacity: 1;
+    transform: translate(calc(var(--impact-particle-x) * 0.22), calc(var(--impact-particle-y) * 0.22))
+      rotate(var(--impact-particle-angle)) scale(1);
+  }
+  35% {
+    opacity: 1;
+    transform: translate(calc(var(--impact-particle-x) * 0.62), calc(var(--impact-particle-y) * 0.62 + var(--impact-particle-gravity) * 0.12))
+      rotate(calc(var(--impact-particle-angle) + var(--impact-particle-spin) * 0.35)) scale(1);
+  }
+  70% {
+    opacity: 0.85;
+    transform: translate(calc(var(--impact-particle-x) * 0.9), calc(var(--impact-particle-y) * 0.9 + var(--impact-particle-gravity) * 0.49))
+      rotate(calc(var(--impact-particle-angle) + var(--impact-particle-spin) * 0.7)) scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--impact-particle-x), calc(var(--impact-particle-y) + var(--impact-particle-gravity)))
+      rotate(calc(var(--impact-particle-angle) + var(--impact-particle-spin))) scale(0.45);
+  }
+}
+
+/* 熔滴與餘燼：由白熱逐漸冷卻成暗紅 */
+@keyframes star-cards-impact-cool {
+  0% { filter: brightness(1.7) saturate(0.8); }
+  45% { filter: brightness(1.1) saturate(1.1); }
+  100% { filter: brightness(0.55) saturate(1.4) hue-rotate(-18deg); }
+}
+
+@keyframes star-cards-impact-flicker {
+  0%, 22%, 48%, 74% { filter: brightness(1.6); }
+  11%, 36%, 62%, 88% { filter: brightness(0.7); }
+  100% { filter: brightness(0.5); }
+}
+
+@keyframes star-cards-impact-fireball {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.2); filter: brightness(1.8); }
+  14% { opacity: 1; transform: translate(calc(var(--impact-particle-x) * 0.5), calc(var(--impact-particle-y) * 0.5)) scale(0.9); }
+  100% {
+    opacity: 0;
+    transform: translate(var(--impact-particle-x), calc(var(--impact-particle-y) + var(--impact-particle-gravity))) scale(1.45);
+    filter: brightness(0.7);
+  }
+}
+
+@keyframes star-cards-impact-smoke {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0deg) scale(0.35); }
+  25% { opacity: 0.8; }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--impact-particle-x) * 1.4), calc(var(--impact-particle-y) * 1.4 + var(--impact-particle-gravity)))
+      rotate(var(--impact-particle-spin)) scale(1.7);
+  }
+}
+
+@keyframes star-cards-impact-arc {
+  0% { opacity: 0; transform: translate(var(--impact-particle-x), var(--impact-particle-y)) rotate(var(--impact-particle-angle)) scaleY(0.5); }
+  8% { opacity: 1; transform: translate(var(--impact-particle-x), var(--impact-particle-y)) rotate(var(--impact-particle-angle)) scaleY(1); }
+  24% { opacity: 0.15; }
+  40% { opacity: 1; transform: translate(var(--impact-particle-x), var(--impact-particle-y)) rotate(calc(var(--impact-particle-angle) + 14deg)) scaleY(1.1); }
+  58% { opacity: 0.25; }
+  74% { opacity: 0.9; transform: translate(var(--impact-particle-x), var(--impact-particle-y)) rotate(calc(var(--impact-particle-angle) - 10deg)) scaleY(0.9); }
+  100% { opacity: 0; transform: translate(var(--impact-particle-x), var(--impact-particle-y)) rotate(var(--impact-particle-angle)) scaleY(0.6); }
+}
+
+/* 主飛彈：加速飛行，71.43%（300ms）抵達目標後鑽入爆炸；位置與 STAR_CARDS_ATTACK_CURVES.missile 一致 */
+@keyframes star-cards-missile-flight {
+  0% { opacity: 0; bottom: 0%; transform: translateX(-50%) scale(0.55); }
+  6% { opacity: 1; }
+  20% { bottom: 7%; transform: translateX(-50%) scale(0.9); }
+  40% { bottom: 24%; transform: translateX(-50%) scale(1); }
+  55% { bottom: 50%; }
+  71.43% { opacity: 1; bottom: 100%; transform: translateX(-50%) scale(1); }
+  100% { opacity: 0; bottom: 104%; transform: translateX(-50%) scale(0.2); }
+}
+
+/* 尾隨飛彈：從各自的散射位置出發，飛向「路徑終點＋自己的落點散布」
+   落點散布＝(--escort-scatter-x／y，-1～1) × --fx-missile-scatter；散布為 0 時全部打同一點 */
+@keyframes star-cards-missile-escort {
+  0% { opacity: 0; bottom: var(--battle-missile-depth-offset); left: var(--battle-spark-offset); transform: translateX(-50%) scale(0.4); }
+  6% { opacity: 1; }
+  20% { bottom: calc(7% + var(--battle-missile-depth-offset)); left: var(--battle-spark-offset); transform: translateX(-50%) scale(0.62); }
+  40% {
+    bottom: calc(24% + var(--battle-missile-depth-offset) + var(--escort-scatter-y) * var(--fx-missile-scatter) * 0.6 * 0.15);
+    left: calc(var(--battle-spark-offset) * 0.85 + var(--escort-scatter-x) * var(--fx-missile-scatter) * 0.15);
+    transform: translateX(-50%) scale(0.68);
+  }
+  55% {
+    bottom: calc(50% + var(--battle-missile-depth-offset) * 0.5 + var(--escort-scatter-y) * var(--fx-missile-scatter) * 0.6 * 0.4);
+    left: calc(var(--battle-spark-offset) * 0.6 + var(--escort-scatter-x) * var(--fx-missile-scatter) * 0.4);
+  }
+  71.43% {
+    opacity: 1;
+    bottom: calc(100% + var(--escort-scatter-y) * var(--fx-missile-scatter) * 0.6);
+    left: calc(var(--escort-scatter-x) * var(--fx-missile-scatter));
+    transform: translateX(-50%) scale(0.68);
+  }
+  100% {
+    opacity: 0;
+    bottom: calc(102% + var(--escort-scatter-y) * var(--fx-missile-scatter) * 0.6);
+    left: calc(var(--escort-scatter-x) * var(--fx-missile-scatter));
+    transform: translateX(-50%) scale(0.15);
+  }
+}
+
+@keyframes star-cards-escort-blast {
+  0% { opacity: 0; transform: scale(0.2); }
+  18% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+
+@keyframes star-cards-missile-flame {
+  from { transform: translateX(-50%) scale(0.9, 0.82); }
+  to { transform: translateX(-50%) scale(1.1, 1.12); }
 }
 
 @keyframes star-cards-score-popup {
@@ -11245,30 +11965,29 @@ html[data-cursor-owner="mouse"] .star-cards-exit-scrim[data-navigation-mode="poi
   }
 }
 
-@keyframes star-cards-missile-ai {
-  0% { opacity: 0; transform: translate(-50%, 0) rotate(calc(180deg + var(--battle-angle))) scale(0.6); }
-  15% { opacity: 1; }
-  78% { opacity: 1; transform: translate(calc(-50% + var(--battle-ai-to-player-x)), 34cqh) rotate(calc(180deg + var(--battle-angle))) scale(1); }
-  100% { opacity: 0; transform: translate(calc(-50% + var(--battle-ai-to-player-x)), 38cqh) rotate(calc(180deg + var(--battle-angle))) scale(0.3); }
+/* 護盾半球：在發射方原地由小撐開（24% 約 180ms 展開完成，略微回彈），維持到命中後慢慢擴散淡出。
+   transform 由右往左讀：translate(-50%, 17.86%) 把底邊中點移到原點 → scale 以底邊中點縮放
+   → 往前推 --dome-base → rotate 抵銷路徑傾斜，保持垂直 */
+@keyframes star-cards-shield-dome {
+  0% { opacity: 0; transform: rotate(var(--dome-tilt)) translate(0, calc(-1 * var(--dome-base))) scale(0.15) translate(-50%, 17.86%); }
+  6% { opacity: 1; }
+  24% { transform: rotate(var(--dome-tilt)) translate(0, calc(-1 * var(--dome-base))) scale(1.06) translate(-50%, 17.86%); }
+  32% { transform: rotate(var(--dome-tilt)) translate(0, calc(-1 * var(--dome-base))) scale(0.97) translate(-50%, 17.86%); }
+  40% { opacity: 1; transform: rotate(var(--dome-tilt)) translate(0, calc(-1 * var(--dome-base))) scale(1) translate(-50%, 17.86%); }
+  70% { opacity: 0.92; transform: rotate(var(--dome-tilt)) translate(0, calc(-1 * var(--dome-base))) scale(1.02) translate(-50%, 17.86%); }
+  100% { opacity: 0; transform: rotate(var(--dome-tilt)) translate(0, calc(-1 * var(--dome-base))) scale(1.1) translate(-50%, 17.86%); }
 }
 
-@keyframes star-cards-missile-sparks-player {
-  0% { bottom: calc(12% + var(--battle-missile-depth-offset)); opacity: 0; transform: translateX(0) scale(1); }
-  25% { opacity: 1; }
-  100% { bottom: calc(80% + var(--battle-missile-depth-offset)); opacity: 0; transform: translateX(var(--battle-player-to-ai-x)) scale(1); }
+/* 展開點亮：格線由亮白退回深藍框、格子由全亮退回原本透明度 */
+@keyframes star-cards-shield-cell-launch {
+  0% { stroke: rgba(190, 248, 255, 0.95); stroke-width: calc(1 + var(--cell-facing) * 2); fill-opacity: 1; }
+  100% { stroke: rgba(190, 248, 255, 0); stroke-width: 0; fill-opacity: calc(0.3 + var(--cell-facing) * 0.62); }
 }
 
-@keyframes star-cards-missile-sparks-ai {
-  0% { top: calc(12% + var(--battle-missile-depth-offset)); opacity: 0; transform: translateX(0) scale(1); }
-  25% { opacity: 1; }
-  100% { top: calc(80% + var(--battle-missile-depth-offset)); opacity: 0; transform: translateX(var(--battle-ai-to-player-x)) scale(1); }
-}
-
-@keyframes star-cards-shield-surge {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.1); }
-  28% { opacity: 1; transform: translate(-50%, -50%) scale(0.72); }
-  62% { opacity: 0.94; transform: translate(-50%, -50%) scale(1.25); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.85); }
+/* 命中瞬間由弧頂往兩側再亮一次 */
+@keyframes star-cards-shield-cell-hit {
+  0%, 100% { stroke: rgba(170, 240, 255, 0); stroke-width: 0; fill-opacity: calc(0.3 + var(--cell-facing) * 0.62); }
+  20% { stroke: rgba(170, 240, 255, 0.85); stroke-width: calc(0.8 + var(--cell-facing) * 1.6); fill-opacity: 1; }
 }
 
 @keyframes star-cards-tie-clash {

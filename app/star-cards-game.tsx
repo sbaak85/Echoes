@@ -6,8 +6,10 @@ import { cursorOwnership } from "./cursor-ownership";
 /* eslint-disable @next/next/no-img-element -- game sprites must preserve exact pixels and alpha */
 
 import {
+  Fragment,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type CSSProperties,
@@ -21,14 +23,18 @@ import {
   type StarCardsMatchResult,
   canPlaceStarCard,
   compareStarCards,
+  createStarCardsAttackParticleLayout,
   createStarCardsImpactParticleLayout,
   createStarCardsMissileTrailLayout,
+  STAR_CARDS_SHIELD_DOME_CELLS,
+  STAR_CARDS_SHIELD_DOME_VIEWBOX,
   getStarCardBattleScore,
   shouldAnimateStarCardsZone,
   shuffleStarCardDeck,
   starCardsAssetUrl,
   type StarCardDefinition,
   type StarCardLane,
+  type StarCardsAttackParticleLayout,
   type StarCardsImpactParticleLayout,
   type StarCardsMissileTrailLayout,
 } from "./star-cards-game";
@@ -90,9 +96,49 @@ type LaneBattleEffect = {
   loserCardId?: string;
   loserCardPoints?: StarCardDefinition["points"];
   impactParticleLayout?: StarCardsImpactParticleLayout;
+  attackParticleLayout?: StarCardsAttackParticleLayout;
   missileTrailLayout?: StarCardsMissileTrailLayout;
   awardedPoints: 0 | 1 | 2 | 3;
 };
+
+/**
+ * 護盾半球：球面上貼六角格（弧頂朝目標），邊緣的格子被透視壓扁；
+ * 最外圈格子漸淡並加模糊。格子由中心往外、再由弧頂往兩側依序點亮。
+ */
+function StarCardsShieldDome() {
+  // 同一畫面可能同時有三路護盾，漸層與模糊濾鏡的 id 必須各自獨立
+  const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  return (
+    <svg className="star-cards-shield-dome" viewBox={STAR_CARDS_SHIELD_DOME_VIEWBOX} aria-hidden="true">
+      <defs>
+        <linearGradient id={`${id}-cell`} x1="0.25" y1="0" x2="0.75" y2="1">
+          <stop offset="0" stopColor="#d4fcff" />
+          <stop offset="0.42" stopColor="#4cc8ff" />
+          <stop offset="1" stopColor="#1a64dc" />
+        </linearGradient>
+        <filter id={`${id}-soft`} x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="2.4" />
+        </filter>
+      </defs>
+      {STAR_CARDS_SHIELD_DOME_CELLS.map((cell, index) => (
+        <polygon
+          className={`star-cards-shield-cell${cell.isEdge ? " is-edge" : ""}`}
+          key={`shield-cell-${index + 1}`}
+          points={cell.points}
+          fill={`url(#${id}-cell)`}
+          filter={cell.isEdge ? `url(#${id}-soft)` : undefined}
+          style={{
+            "--cell-rim": cell.rim,
+            "--cell-facing": cell.facing,
+            "--cell-fade": cell.fade,
+            "--cell-launch-delay": `${cell.launchDelayMs}ms`,
+            "--cell-hit-delay": `${cell.hitDelayMs}ms`,
+          } as StarCardStyle}
+        />
+      ))}
+    </svg>
+  );
+}
 
 type BattleScorePopup = {
   lane: StarCardLane;
@@ -948,7 +994,8 @@ export function StarCardsGame({
         winnerCardId: playerWon ? playerTop.card.id : aiTop.card.id,
         loserCardId: playerWon ? aiTop.card.id : playerTop.card.id,
         loserCardPoints: loser.points,
-        impactParticleLayout: createStarCardsImpactParticleLayout(),
+        impactParticleLayout: createStarCardsImpactParticleLayout(winner.attribute),
+        attackParticleLayout: createStarCardsAttackParticleLayout(winner.attribute),
         missileTrailLayout: winner.attribute === "missile"
           ? createStarCardsMissileTrailLayout()
           : undefined,
@@ -2055,34 +2102,62 @@ export function StarCardsGame({
               data-lane={effect.lane}
               key={`${effect.lane}-${effect.outcome}`}
             >
-              <span className="star-cards-attack-core" />
-              {(["is-one", "is-two", "is-three"] as const).map((className, index) => (
-                <span
-                  className={`star-cards-attack-trail ${className}`}
-                  key={className}
-                  style={effect.missileTrailLayout
-                    ? {
-                        "--battle-spark-offset":
-                          `${effect.missileTrailLayout[index].lateralOffsetVw}cqw`,
-                        "--battle-missile-depth-offset":
-                          `${effect.missileTrailLayout[index].depthOffsetCqh}cqh`,
-                        animationDelay:
-                          `${effect.missileTrailLayout[index].animationDelayMs}ms`,
-                      } as StarCardStyle
-                    : undefined}
-                />
-              ))}
+              {/* 攻擊路徑：原點在發射方、往上＝朝目標；彈體與沿途粒子都在這個座標系裡移動 */}
+              <span className="star-cards-attack-path">
+                {effect.outcome !== "tie" ? <span className="star-cards-attack-muzzle" /> : null}
+                {effect.outcome !== "tie" ? (
+                  <span className="star-cards-attack-particles">
+                    {effect.attackParticleLayout?.map((particle, index) => (
+                      <span
+                        className={`star-cards-attack-particle is-${particle.kind}`}
+                        key={`attack-particle-${index + 1}`}
+                        style={{
+                          "--attack-progress": particle.progress,
+                          "--attack-lateral": `${particle.lateralCqw}cqw`,
+                          "--attack-drift-x": `${particle.driftXCqw}cqw`,
+                          "--attack-drift-y": `${particle.driftYCqw}cqw`,
+                          "--attack-size": particle.sizeScale,
+                          "--attack-delay": `${particle.animationDelayMs}ms`,
+                          "--attack-duration": `${particle.animationDurationMs}ms`,
+                        } as StarCardStyle}
+                      />
+                    ))}
+                  </span>
+                ) : null}
+                <span className="star-cards-attack-core">
+                  {effect.attribute === "shield" && effect.outcome !== "tie" ? <StarCardsShieldDome /> : null}
+                </span>
+                {effect.missileTrailLayout?.map((trail, index) => {
+                  // 尾隨彈與它落點的小爆炸共用同一組變數（發射時機、散射位置、落點散布）
+                  const escortStyle = {
+                    "--battle-spark-offset": `${trail.lateralOffsetVw}cqw`,
+                    "--battle-missile-depth-offset": `${trail.depthOffsetCqh}cqh`,
+                    "--escort-launch": trail.launchFraction,
+                    "--escort-scatter-x": trail.impactScatterX,
+                    "--escort-scatter-y": trail.impactScatterY,
+                  } as StarCardStyle;
+                  return (
+                    <Fragment key={`missile-trail-${index + 1}`}>
+                      <span className="star-cards-attack-trail" style={escortStyle} />
+                      <span className="star-cards-escort-blast" style={escortStyle} />
+                    </Fragment>
+                  );
+                })}
+              </span>
               <span className="star-cards-impact" />
               {effect.outcome !== "tie" ? (
                 <span className="star-cards-impact-particles">
                   {effect.impactParticleLayout?.map((particle, index) => (
                     <span
-                      className="star-cards-impact-particle"
-                      key={`gold-particle-${index + 1}`}
+                      className={`star-cards-impact-particle is-${particle.kind}`}
+                      key={`impact-particle-${index + 1}`}
                       style={{
                         "--impact-particle-x": `${particle.offsetXCqw}cqw`,
-                        "--impact-particle-y": `${particle.offsetYCqh}cqh`,
+                        "--impact-particle-y": `${particle.offsetYCqw}cqw`,
+                        "--impact-particle-gravity": `${particle.gravityCqw}cqw`,
                         "--impact-particle-angle": `${particle.angleDeg}deg`,
+                        "--impact-particle-spin": `${particle.spinDeg}deg`,
+                        "--impact-particle-size": particle.sizeScale,
                         "--impact-particle-delay": `${particle.animationDelayMs}ms`,
                         "--impact-particle-duration": `${particle.animationDurationMs}ms`,
                       } as StarCardStyle}
