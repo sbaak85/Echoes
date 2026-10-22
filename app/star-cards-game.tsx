@@ -24,8 +24,16 @@ import {
   canPlaceStarCard,
   compareStarCards,
   createStarCardsAttackParticleLayout,
-  createStarCardsImpactParticleLayout,
+  createStarCardsImpactSpriteChoice,
   createStarCardsMissileTrailLayout,
+  STAR_CARDS_TIE_SPRITE_ROTATE_DEG,
+  clampStarCardsMissileCount,
+  getStarCardsMissileMainOffsets,
+  STAR_CARDS_MISSILE_ESCORT_COUNT,
+  STAR_CARDS_MISSILE_ESCORT_COUNT_RANGE,
+  STAR_CARDS_MISSILE_MAIN_COUNT,
+  STAR_CARDS_MISSILE_MAIN_COUNT_RANGE,
+  STAR_CARDS_IMPACT_START_MS,
   STAR_CARDS_SHIELD_DOME_CELLS,
   STAR_CARDS_SHIELD_DOME_VIEWBOX,
   getStarCardBattleScore,
@@ -35,9 +43,9 @@ import {
   type StarCardDefinition,
   type StarCardLane,
   type StarCardsAttackParticleLayout,
-  type StarCardsImpactParticleLayout,
   type StarCardsMissileTrailLayout,
 } from "./star-cards-game";
+import { STAR_CARDS_IMPACT_SPRITES, STAR_CARDS_TIE_SPRITE } from "./star-cards-impact-sprites";
 import type { AudioEventManager } from "./audio-event-manager";
 
 type StarCardsPhase =
@@ -95,11 +103,126 @@ type LaneBattleEffect = {
   winnerCardId?: string;
   loserCardId?: string;
   loserCardPoints?: StarCardDefinition["points"];
-  impactParticleLayout?: StarCardsImpactParticleLayout;
+  impactSprite?: LaneImpactSprite;
   attackParticleLayout?: StarCardsAttackParticleLayout;
   missileTrailLayout?: StarCardsMissileTrailLayout;
+  missileMainOffsets?: readonly number[];
+  tieSprite?: LaneImpactSprite;
   awardedPoints: 0 | 1 | 2 | 3;
 };
+
+/** 飛彈數量寫在 globals.css 的 battle layer 上（與其他特效參數同一處），開打當下讀取。 */
+function readStarCardsMissileCounts(layer: HTMLElement | null) {
+  const style = layer ? getComputedStyle(layer) : null;
+  const read = (name: string) => Number.parseFloat(style?.getPropertyValue(name) ?? "");
+  return {
+    main: clampStarCardsMissileCount(read("--fx-missile-main-count"), STAR_CARDS_MISSILE_MAIN_COUNT_RANGE, STAR_CARDS_MISSILE_MAIN_COUNT),
+    escort: clampStarCardsMissileCount(read("--fx-missile-escort-count"), STAR_CARDS_MISSILE_ESCORT_COUNT_RANGE, STAR_CARDS_MISSILE_ESCORT_COUNT),
+  };
+}
+
+/**
+ * 平手氣爆：雙方能量在兩張牌正中間對撞，像空氣被炸開一樣往四面八方擴散（全白）。
+ * 閃光、凝結霧、衝擊環、放射線已烘成序列圖（1 個元素，每次隨機旋轉／鏡像／大小）；
+ * 扭曲背景的氣壓波無法烘焙，保留即時播放。
+ */
+function StarCardsTieShock({ sprite }: { sprite: LaneImpactSprite }) {
+  return (
+    <span className="star-cards-tie-shock">
+      <span className="star-cards-tie-wave" />
+      <span
+        className="star-cards-impact-sprite is-tie"
+        style={{
+          "--sprite-image": `url("${starCardsAssetUrl(sprite.file)}")`,
+          "--sprite-frames": sprite.frames,
+          "--sprite-duration": `${sprite.durationMs}ms`,
+          "--sprite-box": `${sprite.boxCqw}cqw`,
+          "--sprite-flip": sprite.flipX ? -1 : 1,
+          "--sprite-rotate": `${sprite.rotateDeg}deg`,
+          "--sprite-scale": sprite.scale,
+        } as StarCardStyle}
+      >
+        <span className="star-cards-impact-sprite-strip" />
+      </span>
+    </span>
+  );
+}
+
+function createTieSprite(): LaneImpactSprite {
+  const choice = createStarCardsImpactSpriteChoice(STAR_CARDS_TIE_SPRITE.files.length, Math.random, STAR_CARDS_TIE_SPRITE_ROTATE_DEG);
+  return {
+    file: STAR_CARDS_TIE_SPRITE.files[choice.variant],
+    frames: STAR_CARDS_TIE_SPRITE.frames,
+    durationMs: STAR_CARDS_TIE_SPRITE.durationMs,
+    boxCqw: STAR_CARDS_TIE_SPRITE.boxCqw,
+    flipX: choice.flipX,
+    rotateDeg: choice.rotateDeg,
+    scale: choice.scale,
+  };
+}
+
+/** 戰鬥特效時間軸（從按下 BATTLE 起算） */
+const BATTLE_EFFECTS_START_MS = 520;
+const BATTLE_EFFECTS_CLEANUP_MS = 2050;
+/** 飛彈特效最晚留到這裡（下一輪 DRAW 在 2950ms 開放），避免跟下一輪重疊 */
+const BATTLE_EFFECTS_MAX_LINGER_MS = 2900;
+/** 尾隨彈落點小爆炸長度，與 globals.css 的 star-cards-escort-blast 動畫一致 */
+const STAR_CARDS_ESCORT_BLAST_MS = 320;
+
+/** CSS 時間值（"680ms"、".68s"）轉成毫秒；讀不到時用備用值 */
+function parseCssTimeMs(value: string, fallback: number) {
+  const trimmed = value.trim();
+  const number = Number.parseFloat(trimmed);
+  if (!Number.isFinite(number)) return fallback;
+  return trimmed.endsWith("ms") ? number : trimmed.endsWith("s") ? number * 1000 : number;
+}
+
+/** 飛彈抵達時間（300ms ÷ 飛行速度）與齊射總時間，讀自 battle layer 的 CSS 變數 */
+function readStarCardsMissileTiming(layer: HTMLElement | null) {
+  const style = layer ? getComputedStyle(layer) : null;
+  const speed = Number.parseFloat(style?.getPropertyValue("--fx-missile-speed") ?? "");
+  return {
+    arriveMs: STAR_CARDS_IMPACT_START_MS.missile / (Number.isFinite(speed) && speed > 0 ? speed : 1),
+    salvoMs: parseCssTimeMs(style?.getPropertyValue("--fx-missile-salvo") ?? "", 0),
+  };
+}
+
+/** 命中爆炸序列圖：烘焙好的版本＋這次播放的鏡像、旋轉、大小變化。 */
+type LaneImpactSprite = {
+  file: string;
+  frames: number;
+  durationMs: number;
+  boxCqw: number;
+  flipX: boolean;
+  rotateDeg: number;
+  scale: number;
+};
+
+function createLaneImpactSprite(attribute: StarCardDefinition["attribute"]): LaneImpactSprite {
+  const sprite = STAR_CARDS_IMPACT_SPRITES[attribute];
+  const choice = createStarCardsImpactSpriteChoice(sprite.files.length);
+  return {
+    file: sprite.files[choice.variant],
+    frames: sprite.frames,
+    durationMs: sprite.durationMs,
+    boxCqw: sprite.boxCqw,
+    flipX: choice.flipX,
+    rotateDeg: choice.rotateDeg,
+    scale: choice.scale,
+  };
+}
+
+/** 牌局開啟時先載入並解碼所有命中序列圖，避免第一次命中時才下載造成卡頓。 */
+function preloadStarCardsImpactSprites() {
+  for (const sprite of [...Object.values(STAR_CARDS_IMPACT_SPRITES), STAR_CARDS_TIE_SPRITE]) {
+    for (const file of sprite.files) {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = starCardsAssetUrl(file);
+      void image.decode?.().catch(() => undefined);
+    }
+  }
+}
 
 /**
  * 護盾半球：球面上貼六角格（弧頂朝目標），邊緣的格子被透視壓扁；
@@ -364,6 +487,8 @@ export function StarCardsGame({
   const [playerGameWins, setPlayerGameWins] = useState(0);
   const [aiGameWins, setAiGameWins] = useState(0);
   const [battleEffects, setBattleEffects] = useState<LaneBattleEffect[]>([]);
+  const battleLayerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => { preloadStarCardsImpactSprites(); }, []);
   const [battleScorePopups, setBattleScorePopups] = useState<BattleScorePopup[]>([]);
   const [battleLog, setBattleLog] = useState<BattleLogEntry[]>([]);
   const [playerScore, setPlayerScore] = useState(0);
@@ -960,6 +1085,16 @@ export function StarCardsGame({
 
   const resolveBattle = useCallback(() => {
     if (phase !== "battle-ready") return;
+    const missileCounts = readStarCardsMissileCounts(battleLayerRef.current);
+    // 飛彈特效全部播完的時間（從按下 BATTLE 起算）：主爆炸序列圖、最後一顆尾隨彈的落點爆炸，取較晚者
+    const missileTiming = readStarCardsMissileTiming(battleLayerRef.current);
+    const missileEffectsEndMs = Math.min(
+      BATTLE_EFFECTS_MAX_LINGER_MS,
+      BATTLE_EFFECTS_START_MS + Math.max(
+        missileTiming.arriveMs + STAR_CARDS_IMPACT_SPRITES.missile.durationMs,
+        missileCounts.escort > 0 ? missileTiming.salvoMs + missileTiming.arriveMs + STAR_CARDS_ESCORT_BLAST_MS : 0,
+      ) + 50,
+    );
     const effects = STAR_CARD_LANES.flatMap<LaneBattleEffect>((lane) => {
       const playerTop = playerPlaced.filter((placed) => placed.lane === lane).at(-1);
       const aiTop = aiPlaced.filter((placed) => placed.lane === lane).at(-1);
@@ -976,6 +1111,7 @@ export function StarCardsGame({
           outcome: "tie",
           logTitle: matchup,
           logDetail: "DRAW｜同屬性・同點數，雙方卡牌保留",
+          tieSprite: createTieSprite(),
           awardedPoints: 0,
         }];
       }
@@ -994,10 +1130,13 @@ export function StarCardsGame({
         winnerCardId: playerWon ? playerTop.card.id : aiTop.card.id,
         loserCardId: playerWon ? aiTop.card.id : playerTop.card.id,
         loserCardPoints: loser.points,
-        impactParticleLayout: createStarCardsImpactParticleLayout(winner.attribute),
+        impactSprite: createLaneImpactSprite(winner.attribute),
         attackParticleLayout: createStarCardsAttackParticleLayout(winner.attribute),
         missileTrailLayout: winner.attribute === "missile"
-          ? createStarCardsMissileTrailLayout()
+          ? createStarCardsMissileTrailLayout(Math.random, missileCounts.escort)
+          : undefined,
+        missileMainOffsets: winner.attribute === "missile"
+          ? getStarCardsMissileMainOffsets(missileCounts.main)
           : undefined,
         awardedPoints,
       }];
@@ -1057,7 +1196,7 @@ export function StarCardsGame({
             });
           }
         });
-    }, 520);
+    }, BATTLE_EFFECTS_START_MS);
     effects.forEach((effect, index) => {
       schedule(() => {
         if (effect.outcome === "player") {
@@ -1121,7 +1260,16 @@ export function StarCardsGame({
       );
       setPlayerPlaced((cards) => cards.filter((placed) => !defeated.has(placed.card.id)));
       setAiPlaced((cards) => cards.filter((placed) => !defeated.has(placed.card.id)));
-      setBattleEffects([]);
+      // 飛彈（較慢、有齊射）的特效延後到全部播完才移除；其他特效照原本時間移除，牌局流程不受影響
+      const lingeringMissiles = effects.filter((effect) => effect.attribute === "missile" && effect.outcome !== "tie");
+      if (lingeringMissiles.length > 0 && missileEffectsEndMs > BATTLE_EFFECTS_CLEANUP_MS) {
+        setBattleEffects(lingeringMissiles);
+        schedule(() => {
+          setBattleEffects((current) => current.filter((effect) => !lingeringMissiles.includes(effect)));
+        }, missileEffectsEndMs - BATTLE_EFFECTS_CLEANUP_MS);
+      } else {
+        setBattleEffects([]);
+      }
       setDestroyingCardIds([]);
       setPhase("battle-resolved");
       setAnnouncement(
@@ -1200,7 +1348,7 @@ export function StarCardsGame({
         );
         schedule(() => prepareNextGame(currentGame + 1), 2400);
       }, 900);
-    }, 2050);
+    }, BATTLE_EFFECTS_CLEANUP_MS);
   }, [aiGameWins, aiPlaced, aiRemainingDeck.length, currentGame, phase, playExplosionAudioSet, playRandomAudioSet, playStarCardsAudio, playerDrawnCount, playerGameWins, playerPlaced, playerRemainingDeck.length, playerScore, aiScore, markCardsRevealingFront, prepareNextGame, schedule, onMatchCompleted]);
 
   const liftPlacedDrawCard = useCallback(() => {
@@ -2095,18 +2243,20 @@ export function StarCardsGame({
           </aside>
         ) : null}
 
-        <div className="star-cards-battle-layer" aria-hidden="true">
+        <div className="star-cards-battle-layer" aria-hidden="true" ref={battleLayerRef}>
           {battleEffects.map((effect) => (
             <div
               className={`star-cards-battle-effect is-${effect.attribute} is-${effect.outcome}`}
               data-lane={effect.lane}
               key={`${effect.lane}-${effect.outcome}`}
             >
-              {/* 攻擊路徑：原點在發射方、往上＝朝目標；彈體與沿途粒子都在這個座標系裡移動 */}
+              {effect.outcome === "tie" ? (
+                effect.tieSprite ? <StarCardsTieShock sprite={effect.tieSprite} /> : null
+              ) : (
+              /* 攻擊路徑：原點在發射方、往上＝朝目標；彈體與沿途粒子都在這個座標系裡移動 */
               <span className="star-cards-attack-path">
-                {effect.outcome !== "tie" ? <span className="star-cards-attack-muzzle" /> : null}
-                {effect.outcome !== "tie" ? (
-                  <span className="star-cards-attack-particles">
+                <span className="star-cards-attack-muzzle" />
+                <span className="star-cards-attack-particles">
                     {effect.attackParticleLayout?.map((particle, index) => (
                       <span
                         className={`star-cards-attack-particle is-${particle.kind}`}
@@ -2123,10 +2273,20 @@ export function StarCardsGame({
                       />
                     ))}
                   </span>
-                ) : null}
-                <span className="star-cards-attack-core">
-                  {effect.attribute === "shield" && effect.outcome !== "tie" ? <StarCardsShieldDome /> : null}
-                </span>
+                {effect.missileMainOffsets ? (
+                  // 主飛彈可以多顆並排同時發射（--main-offset：以彈體間距為單位的橫向位置）
+                  effect.missileMainOffsets.map((offset, index) => (
+                    <span
+                      className="star-cards-attack-core"
+                      key={`missile-main-${index + 1}`}
+                      style={{ "--main-offset": offset } as StarCardStyle}
+                    />
+                  ))
+                ) : (
+                  <span className="star-cards-attack-core">
+                    {effect.attribute === "shield" ? <StarCardsShieldDome /> : null}
+                  </span>
+                )}
                 {effect.missileTrailLayout?.map((trail, index) => {
                   // 尾隨彈與它落點的小爆炸共用同一組變數（發射時機、散射位置、落點散布）
                   const escortStyle = {
@@ -2144,27 +2304,26 @@ export function StarCardsGame({
                   );
                 })}
               </span>
-              <span className="star-cards-impact" />
-              {effect.outcome !== "tie" ? (
-                <span className="star-cards-impact-particles">
-                  {effect.impactParticleLayout?.map((particle, index) => (
-                    <span
-                      className={`star-cards-impact-particle is-${particle.kind}`}
-                      key={`impact-particle-${index + 1}`}
-                      style={{
-                        "--impact-particle-x": `${particle.offsetXCqw}cqw`,
-                        "--impact-particle-y": `${particle.offsetYCqw}cqw`,
-                        "--impact-particle-gravity": `${particle.gravityCqw}cqw`,
-                        "--impact-particle-angle": `${particle.angleDeg}deg`,
-                        "--impact-particle-spin": `${particle.spinDeg}deg`,
-                        "--impact-particle-size": particle.sizeScale,
-                        "--impact-particle-delay": `${particle.animationDelayMs}ms`,
-                        "--impact-particle-duration": `${particle.animationDurationMs}ms`,
-                      } as StarCardStyle}
-                    />
-                  ))}
-                </span>
-              ) : null}
+              )}
+              {/* 命中爆炸：播放烘焙好的序列圖（1 個元素），取代數十個即時粒子 */}
+              <span className={`star-cards-impact${effect.impactSprite ? " is-sprite" : ""}`}>
+                {effect.impactSprite ? (
+                  <span
+                    className="star-cards-impact-sprite"
+                    style={{
+                      "--sprite-image": `url("${starCardsAssetUrl(effect.impactSprite.file)}")`,
+                      "--sprite-frames": effect.impactSprite.frames,
+                      "--sprite-duration": `${effect.impactSprite.durationMs}ms`,
+                      "--sprite-box": `${effect.impactSprite.boxCqw}cqw`,
+                      "--sprite-flip": effect.impactSprite.flipX ? -1 : 1,
+                      "--sprite-rotate": `${effect.impactSprite.rotateDeg}deg`,
+                      "--sprite-scale": effect.impactSprite.scale,
+                    } as StarCardStyle}
+                  >
+                    <span className="star-cards-impact-sprite-strip" />
+                  </span>
+                ) : null}
+              </span>
             </div>
           ))}
           {battleScorePopups.map((popup) => (

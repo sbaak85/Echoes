@@ -228,6 +228,73 @@ export function createStarCardsImpactParticleLayout(
 }
 
 /**
+ * 平手氣爆的放射線：360° 大致平均（每條在自己的扇區內隨機偏移），但長度、粗細、距離、出現時間與速度都隨機，
+ * 看起來不整齊、像空氣被炸開的噴流。每次平手重新抽選。
+ */
+export const STAR_CARDS_TIE_SPARK_COUNT = 26;
+
+export function createStarCardsTieClashLayout(
+  random: () => number = Math.random,
+): StarCardsImpactParticleLayout {
+  const randomBetween = ([minimum, maximum]: Range) => {
+    const randomValue = Math.min(1, Math.max(0, random()));
+    return minimum + (maximum - minimum) * randomValue;
+  };
+  const round = (value: number) => Number(value.toFixed(2));
+  const sector = 360 / STAR_CARDS_TIE_SPARK_COUNT;
+  return Array.from({ length: STAR_CARDS_TIE_SPARK_COUNT }, (_, index): StarCardsImpactParticle => {
+    const directionDeg = (index * sector + randomBetween([-sector / 2, sector / 2]) + 360) % 360;
+    const directionRad = directionDeg * Math.PI / 180;
+    const distance = randomBetween([3, 10]);
+    const x = Math.cos(directionRad) * distance;
+    const y = Math.sin(directionRad) * distance;
+    return {
+      kind: "spark",
+      offsetXCqw: round(x),
+      offsetYCqw: round(y),
+      gravityCqw: 0,
+      // 長條火花的長軸對準飛行方向
+      angleDeg: round((Math.atan2(y, x) * 180 / Math.PI + 90 + 360) % 360),
+      spinDeg: 0,
+      sizeScale: round(randomBetween([0.45, 2.2])),
+      animationDelayMs: Math.round(randomBetween([0, 70])),
+      animationDurationMs: Math.round(randomBetween([240, 560])),
+    };
+  });
+}
+
+/**
+ * 命中爆炸序列圖的播放變化：每次隨機挑一個烘焙版本，再隨機左右鏡像、小角度旋轉、微調大小，
+ * 讓重複出現的爆炸看起來不一樣。旋轉限制在 ±12°，避免飛彈餘燼往上掉、煙往下飄。
+ */
+export const STAR_CARDS_IMPACT_SPRITE_JITTER = { rotateDeg: 12, scale: [0.9, 1.1] as Range };
+
+export type StarCardsImpactSpriteChoice = {
+  variant: number;
+  flipX: boolean;
+  rotateDeg: number;
+  scale: number;
+};
+
+/** 平手氣爆是放射狀、沒有重力方向，可以任意旋轉 */
+export const STAR_CARDS_TIE_SPRITE_ROTATE_DEG = 180;
+
+export function createStarCardsImpactSpriteChoice(
+  variantCount: number,
+  random: () => number = Math.random,
+  rotateDeg: number = STAR_CARDS_IMPACT_SPRITE_JITTER.rotateDeg,
+): StarCardsImpactSpriteChoice {
+  const unit = () => Math.min(0.999999, Math.max(0, random()));
+  const [scaleMin, scaleMax] = STAR_CARDS_IMPACT_SPRITE_JITTER.scale;
+  return {
+    variant: Math.floor(unit() * Math.max(1, variantCount)),
+    flipX: unit() < 0.5,
+    rotateDeg: Number(((unit() * 2 - 1) * rotateDeg).toFixed(1)),
+    scale: Number((scaleMin + (scaleMax - scaleMin) * unit()).toFixed(3)),
+  };
+}
+
+/**
  * 攻擊途中的時間曲線（毫秒 → 路徑進度 0～1，0＝發射方、1＝目標），與 globals.css 的關鍵影格一致。
  * 三種武器都在命中爆炸開始（特效出現後 300ms）前後抵達目標。
  */
@@ -446,8 +513,30 @@ export function createStarCardsShieldDomeCells(
 
 export const STAR_CARDS_SHIELD_DOME_CELLS = createStarCardsShieldDomeCells();
 
-/** 主飛彈之外的尾隨飛彈數量與編隊範圍 */
-export const STAR_CARDS_MISSILE_ESCORT_COUNT = 8;
+/**
+ * 飛彈數量的預設值與上下限。實際數量由 globals.css 的 --fx-missile-main-count／--fx-missile-escort-count
+ * 決定（開打時讀取），這裡的預設值只在讀不到 CSS 時使用。
+ */
+export const STAR_CARDS_MISSILE_MAIN_COUNT = 1;
+export const STAR_CARDS_MISSILE_MAIN_COUNT_RANGE: Range = [1, 5];
+export const STAR_CARDS_MISSILE_ESCORT_COUNT = 5;
+export const STAR_CARDS_MISSILE_ESCORT_COUNT_RANGE: Range = [0, 20];
+
+/** 把讀到的數量限制在上下限內並取整數；讀不到（NaN）時用預設值 */
+export function clampStarCardsMissileCount(value: number, [minimum, maximum]: Range, fallback: number) {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(maximum, Math.max(minimum, Math.round(value)));
+}
+
+/**
+ * 主飛彈並排位置：以路徑中線為中心左右對稱，單位為「一個彈體間距」，CSS 再乘上間距與子彈倍率。
+ * 1 顆＝[0]；3 顆＝[-1, 0, 1]；2 顆＝[-0.5, 0.5]。主飛彈同時發射，飛行途中往中線收攏、一起命中。
+ */
+export function getStarCardsMissileMainOffsets(count: number): readonly number[] {
+  return Array.from({ length: Math.max(0, count) }, (_, index) => index - (count - 1) / 2);
+}
+
+/** 主飛彈之外的尾隨飛彈編隊範圍 */
 export const STAR_CARDS_MISSILE_ESCORT_LATERAL: Range = [0.9, 4.4];
 export const STAR_CARDS_MISSILE_ESCORT_DEPTH: Range = [-3.4, 3.4];
 
@@ -459,12 +548,14 @@ export const STAR_CARDS_MISSILE_ESCORT_DEPTH: Range = [-3.4, 3.4];
  */
 export function createStarCardsMissileTrailLayout(
   random: () => number = Math.random,
+  escortCount: number = STAR_CARDS_MISSILE_ESCORT_COUNT,
 ): StarCardsMissileTrailLayout {
   const randomBetween = (minimum: number, maximum: number) => {
     const randomValue = Math.min(1, Math.max(0, random()));
     return minimum + (maximum - minimum) * randomValue;
   };
-  const count = STAR_CARDS_MISSILE_ESCORT_COUNT;
+  const count = clampStarCardsMissileCount(escortCount, STAR_CARDS_MISSILE_ESCORT_COUNT_RANGE, STAR_CARDS_MISSILE_ESCORT_COUNT);
+  if (count === 0) return [];
   const perSide = Math.ceil(count / 2);
   const [lateralMin, lateralMax] = STAR_CARDS_MISSILE_ESCORT_LATERAL;
   const lateralSlot = (lateralMax - lateralMin) / perSide;
@@ -477,7 +568,7 @@ export function createStarCardsMissileTrailLayout(
   return Array.from({ length: count }, (_, index): StarCardsMissileTrail => {
     const side = index % 2 === 0 ? -1 : 1;
     const slot = Math.floor(index / 2);
-    // 偏移只在格子中段 30～70%，相鄰兩格至少差 0.4 格寬（約 0.35cqw）
+    // 偏移只在格子中段 30～70%，相鄰兩格至少差 0.4 格寬（8 顆時約 0.35cqw；數量越多格子越窄）
     const lateral = lateralMin + lateralSlot * (slot + randomBetween(0.3, 0.7));
     return {
       lateralOffsetVw: Number((lateral * side).toFixed(2)),

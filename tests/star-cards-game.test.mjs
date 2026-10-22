@@ -13,7 +13,13 @@ import {
   STAR_CARDS_SHIELD_DOME_CELLS,
   STAR_CARDS_SHIELD_DOME_VIEWBOX,
   STAR_CARDS_MISSILE_ESCORT_COUNT,
+  clampStarCardsMissileCount,
+  getStarCardsMissileMainOffsets,
+  createStarCardsTieClashLayout,
+  STAR_CARDS_TIE_SPARK_COUNT,
   STAR_CARDS_IMPACT_START_MS,
+  STAR_CARDS_IMPACT_SPRITE_JITTER,
+  createStarCardsImpactSpriteChoice,
   createStarCardsAttackParticleLayout,
   getStarCardsAttackTimeAt,
   canPlaceStarCard,
@@ -24,6 +30,7 @@ import {
   shouldAnimateStarCardsZone,
   shuffleStarCardDeck,
 } from "../app/star-cards-game.ts";
+import { STAR_CARDS_IMPACT_SPRITES, STAR_CARDS_TIE_SPRITE } from "../app/star-cards-impact-sprites.ts";
 
 test("StarCards exposes the requested debug identity and three lanes", () => {
   assert.equal(STAR_CARDS_DEBUG_NUMBER, 4);
@@ -59,14 +66,14 @@ test("shuffle keeps every card exactly once", () => {
 });
 
 test("missile salvo is one main warhead plus eight widely staggered escorts", () => {
-  assert.equal(STAR_CARDS_MISSILE_ESCORT_COUNT, 8);
+  // 這裡測 8 顆的編隊（數量可調，預設值另外檢查）
   const sequences = [
     [0, 0.25, 0.5, 0.75, 1],
     [0.9, 0.1, 0.6, 0.3, 0.45, 0.05, 0.8],
   ];
   const layouts = sequences.map((values) => {
     let index = 0;
-    return createStarCardsMissileTrailLayout(() => values[index++ % values.length]);
+    return createStarCardsMissileTrailLayout(() => values[index++ % values.length], 8);
   });
   for (const layout of layouts) {
     assert.equal(layout.length, 8);
@@ -96,6 +103,43 @@ test("missile salvo is one main warhead plus eight widely staggered escorts", ()
     });
   }
   assert.notDeepEqual(layouts[0], layouts[1]);
+});
+
+test("tie sparks burst radially and point along their flight", () => {
+  const values = [0, 0.25, 0.5, 0.75, 1];
+  let index = 0;
+  const sparks = createStarCardsTieClashLayout(() => values[index++ % values.length]);
+  assert.equal(sparks.length, STAR_CARDS_TIE_SPARK_COUNT);
+  // 360° 平均分布：四個象限都有火花
+  const quadrants = new Set(sparks.map((spark) => `${spark.offsetXCqw >= 0}${spark.offsetYCqw >= 0}`));
+  assert.equal(quadrants.size, 4);
+  for (const spark of sparks) {
+    const distance = Math.hypot(spark.offsetXCqw, spark.offsetYCqw);
+    assert.ok(distance >= 2.99 && distance <= 10.01);
+    assert.ok(spark.sizeScale >= 0.45 && spark.sizeScale <= 2.2);
+    const travel = (Math.atan2(spark.offsetYCqw, spark.offsetXCqw) * 180 / Math.PI + 360) % 360;
+    const facing = (spark.angleDeg - 90 + 360) % 360;
+    assert.ok(Math.abs(((travel - facing + 540) % 360) - 180) < 0.5);
+  }
+});
+
+test("missile counts are adjustable and clamped", () => {
+  let index = 0;
+  const values = [0.1, 0.6, 0.3, 0.9, 0.45];
+  const random = () => values[index++ % values.length];
+  assert.equal(createStarCardsMissileTrailLayout(random, 0).length, 0);
+  assert.equal(createStarCardsMissileTrailLayout(random, 3).length, 3);
+  const twenty = createStarCardsMissileTrailLayout(random, 20);
+  assert.equal(twenty.length, 20);
+  assert.equal(twenty.filter((trail) => trail.lateralOffsetVw < 0).length, 10);
+  // 超出上限時夾到 20
+  assert.equal(createStarCardsMissileTrailLayout(random, 99).length, 20);
+  assert.equal(clampStarCardsMissileCount(Number.NaN, [1, 5], 1), 1);
+  assert.equal(clampStarCardsMissileCount(7.6, [1, 5], 1), 5);
+  assert.equal(clampStarCardsMissileCount(2.4, [1, 5], 1), 2);
+  assert.deepEqual(getStarCardsMissileMainOffsets(1), [0]);
+  assert.deepEqual(getStarCardsMissileMainOffsets(2), [-0.5, 0.5]);
+  assert.deepEqual(getStarCardsMissileMainOffsets(3), [-1, 0, 1]);
 });
 
 test("attack curves reach the target when the impact explosion starts", () => {
@@ -675,12 +719,15 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
     styles,
     /\.star-cards-battle-effect\.is-ai \.star-cards-impact \{[^}]*left: calc\(50% \+ var\(--battle-player-x\)\)/,
   );
-  assert.match(
-    source,
-    /effect\.outcome !== "tie"[\s\S]*star-cards-impact-particles[\s\S]*effect\.impactParticleLayout\?\.map/,
-  );
-  assert.match(source, /impactParticleLayout: createStarCardsImpactParticleLayout\(winner\.attribute\)/);
-  assert.match(source, /className=\{`star-cards-impact-particle is-\$\{particle\.kind\}`\}/);
+  // 命中爆炸在遊戲中播放烘焙序列圖（1 個元素）；即時粒子的樣式仍保留給測試頁與烘焙使用
+  assert.match(source, /impactSprite: createLaneImpactSprite\(winner\.attribute\)/);
+  assert.match(source, /className=\{`star-cards-impact\$\{effect\.impactSprite \? " is-sprite" : ""\}`\}/);
+  assert.match(source, /<span className="star-cards-impact-sprite-strip" \/>/);
+  assert.match(source, /useEffect\(\(\) => \{ preloadStarCardsImpactSprites\(\); \}, \[\]\);/);
+  assert.doesNotMatch(source, /createStarCardsImpactParticleLayout/);
+  assert.match(styles, /\.star-cards-impact\.is-sprite::before,\s*\.star-cards-impact\.is-sprite::after \{\s*content: none;/);
+  assert.match(styles, /\.star-cards-impact-sprite-strip \{[^}]*animation: star-cards-sprite-play var\(--sprite-duration\) steps\(var\(--sprite-frames\), end\) var\(--impact-start\) both;/);
+  assert.match(styles, /@keyframes star-cards-sprite-play \{\s*from \{ transform: translateX\(0\); \}\s*to \{ transform: translateX\(-100%\); \}/);
   for (const kind of ["needle", "droplet", "fireball", "spark", "ember", "debris", "smoke", "shard", "ion", "arc"]) {
     assert.match(styles, new RegExp(`\\.star-cards-impact-particle\\.is-${kind}[ ,{]`), `missing style for ${kind}`);
   }
@@ -710,22 +757,42 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   // 雷射：多層剖面、流動條紋與螺旋紋
   assert.match(styles, /@keyframes star-cards-laser-beam/);
   assert.match(styles, /@keyframes star-cards-laser-flow/);
-  assert.match(styles, /@keyframes star-cards-laser-helix/);
+  assert.match(styles, /@keyframes star-cards-laser-helix \{[^}]*\}[^}]*to \{ background-position: 0 calc\(var\(--fx-laser-helix-pitch\) \* -1cqw\); \}/);
+  // 雷射螺旋纏繞線間距可調，捲動時間跟著間距等比例
+  assert.match(styles, /\.star-cards-battle-layer \{[^}]*--fx-laser-helix-pitch: 8\.5;/);
+  assert.match(styles, /100% calc\(var\(--fx-laser-helix-pitch\) \* 1cqw\) repeat-y/);
+  assert.match(styles, /animation: star-cards-laser-helix calc\(var\(--fx-laser-helix-pitch\) \* 65ms\) linear infinite;/);
   // 飛彈：金屬彈體＋尾焰，尾隨飛彈從散射位置收攏
   assert.match(styles, /\.is-missile:not\(\.is-tie\) \.star-cards-attack-core::before,[\s\S]*clip-path: polygon\(50% 0/);
   assert.match(styles, /@keyframes star-cards-missile-flight[\s\S]*71\.43% \{[^}]*bottom: 100%/);
   assert.match(styles, /@keyframes star-cards-missile-escort[\s\S]*var\(--battle-spark-offset\)[\s\S]*var\(--battle-missile-depth-offset\)/);
   assert.match(styles, /@keyframes star-cards-missile-flame/);
-  assert.match(source, /missileTrailLayout: winner\.attribute === "missile"[\s\S]*createStarCardsMissileTrailLayout\(\)/);
+  assert.match(source, /missileTrailLayout: winner\.attribute === "missile"[\s\S]*createStarCardsMissileTrailLayout\(Math\.random, missileCounts\.escort\)/);
   assert.match(source, /"--battle-spark-offset": `\$\{trail\.lateralOffsetVw\}cqw`/);
   assert.match(source, /"--battle-missile-depth-offset": `\$\{trail\.depthOffsetCqh\}cqh`/);
   assert.match(source, /"--escort-launch": trail\.launchFraction/);
   // 飛行速度與齊射總時間：可調參數；抵達時間、主爆炸、尾隨彈與落點爆炸、沿途煙塵都跟著同步
-  // 2026-10-21 在 3065 測試頁定案的數值
-  assert.match(styles, /\.star-cards-battle-layer \{[^}]*--fx-laser-bullet-scale: 1\.7;[^}]*--fx-laser-hit-scale: 2\.4;[^}]*--fx-missile-bullet-scale: 1\.75;[^}]*--fx-missile-hit-scale: 2\.2;[^}]*--fx-shield-bullet-scale: 1\.5;[^}]*--fx-shield-hit-scale: 2\.4;/);
-  assert.match(styles, /--fx-missile-scatter: 2\.8cqw;/);
-  assert.match(styles, /--fx-missile-speed: 0\.7;/);
-  assert.match(styles, /--fx-missile-salvo: 550ms;/);
+  // 2026-10-22 在 3065 測試頁定案的數值
+  assert.match(styles, /\.star-cards-battle-layer \{[^}]*--fx-laser-bullet-scale: 1\.7;[^}]*--fx-laser-hit-scale: 2\.4;[^}]*--fx-missile-bullet-scale: 1\.7;[^}]*--fx-missile-hit-scale: 2;[^}]*--fx-shield-bullet-scale: 1\.5;[^}]*--fx-shield-hit-scale: 2\.4;/);
+  assert.match(styles, /--fx-missile-scatter: 4cqw;/);
+  assert.match(styles, /--fx-missile-speed: 0\.5;/);
+  assert.match(styles, /--fx-missile-salvo: 680ms;/);
+  // 飛彈數量：寫在 battle layer 的 CSS 變數，開打時讀取；多顆主飛彈以 --main-offset 並排
+  assert.match(styles, /\.star-cards-battle-layer \{[^}]*--fx-missile-main-count: 1;[^}]*--fx-missile-escort-count: 5;/);
+  assert.equal(STAR_CARDS_MISSILE_ESCORT_COUNT, 5, "TS 備用預設值需與 CSS 一致");
+  // 只有飛彈特效延後移除：等主爆炸序列圖與最後一顆尾隨彈落點爆炸播完（最晚 2900ms，下一輪 DRAW 在 2950ms）
+  assert.match(source, /const BATTLE_EFFECTS_CLEANUP_MS = 2050;/);
+  assert.match(source, /const BATTLE_EFFECTS_MAX_LINGER_MS = 2900;/);
+  assert.match(source, /missileTiming\.arriveMs \+ STAR_CARDS_IMPACT_SPRITES\.missile\.durationMs/);
+  assert.match(source, /missileTiming\.salvoMs \+ missileTiming\.arriveMs \+ STAR_CARDS_ESCORT_BLAST_MS/);
+  assert.match(source, /const lingeringMissiles = effects\.filter\(\(effect\) => effect\.attribute === "missile" && effect\.outcome !== "tie"\);/);
+  assert.match(source, /setBattleEffects\(lingeringMissiles\);[\s\S]*?schedule\(\(\) => \{\s*setBattleEffects\(\(current\) => current\.filter\(\(effect\) => !lingeringMissiles\.includes\(effect\)\)\);\s*\}, missileEffectsEndMs - BATTLE_EFFECTS_CLEANUP_MS\);/);
+  assert.match(styles, /star-cards-escort-blast 320ms ease-out/);
+  assert.match(source, /const missileCounts = readStarCardsMissileCounts\(battleLayerRef\.current\);/);
+  assert.match(source, /createStarCardsMissileTrailLayout\(Math\.random, missileCounts\.escort\)/);
+  assert.match(source, /getStarCardsMissileMainOffsets\(missileCounts\.main\)/);
+  assert.match(source, /style=\{\{ "--main-offset": offset \} as StarCardStyle\}/);
+  assert.match(styles, /@keyframes star-cards-missile-flight \{[\s\S]*?71\.43% \{[^}]*left: calc\(var\(--main-spread, 0px\) \* 0\.25\)/);
   assert.match(styles, /\.star-cards-battle-effect\.is-missile \{[^}]*--missile-arrive: calc\(300ms \/ var\(--fx-missile-speed, 1\)\);[^}]*--impact-start: var\(--missile-arrive\);/);
   assert.match(styles, /--escort-delay: calc\(var\(--escort-launch\) \* var\(--fx-missile-salvo\)\);/);
   assert.match(styles, /star-cards-missile-flight calc\(var\(--missile-arrive\) \* 1\.4\) linear both/);
@@ -757,7 +824,26 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.doesNotMatch(styles.match(/@keyframes star-cards-shield-dome \{[\s\S]*?\n\}/)[0], /bottom:/);
   assert.match(styles, /\.star-cards-shield-cell \{[\s\S]*star-cards-shield-cell-launch[\s\S]*star-cards-shield-cell-hit/);
   // 平手不吃武器樣式：三種武器共用同一個撞擊環
-  assert.match(styles, /\.star-cards-battle-effect\.is-tie \.star-cards-attack-core \{[^}]*aspect-ratio: 1;[^}]*star-cards-tie-clash/);
+  // 平手衝擊波：三種武器共用，位置在兩張牌正中間（特效框 38.5%），可整體縮放
+  // 遊戲中平手：氣壓波即時播放，其餘播烘焙序列圖，任意角度旋轉
+  assert.match(source, /effect\.outcome === "tie" \? \(\s*effect\.tieSprite \? <StarCardsTieShock sprite=\{effect\.tieSprite\} \/> : null/);
+  assert.match(source, /tieSprite: createTieSprite\(\)/);
+  assert.match(source, /function StarCardsTieShock[\s\S]*?<span className="star-cards-tie-wave" \/>[\s\S]*?className="star-cards-impact-sprite is-tie"/);
+  assert.match(source, /createStarCardsImpactSpriteChoice\(STAR_CARDS_TIE_SPRITE\.files\.length, Math\.random, STAR_CARDS_TIE_SPRITE_ROTATE_DEG\)/);
+  assert.match(styles, /\.star-cards-impact-sprite\.is-tie \{\s*--impact-start: 0ms;/);
+  assert.match(styles, /\.star-cards-tie-shock \{[^}]*top: 38\.5%;[^}]*left: calc\(50% \+ var\(--battle-mid-x\)\);[^}]*scale: var\(--fx-tie-scale, 1\);/);
+  assert.match(styles, /\.star-cards-battle-layer \{[^}]*--fx-tie-scale: 1;/);
+  for (const part of ["flash", "puff", "ring", "wave"]) {
+    assert.match(styles, new RegExp(`@keyframes star-cards-tie-${part} \\{`), `missing tie ${part}`);
+  }
+  // 白色氣爆：衝擊環擴散時逐漸模糊淡出，氣壓波扭曲背景，不再有整齊的放射光芒與彩色
+  assert.match(styles, /@keyframes star-cards-tie-ring \{[\s\S]*?100% \{[^}]*opacity: 0; filter: blur\(0\.6cqw\)/);
+  assert.match(styles, /\.star-cards-tie-wave \{[^}]*backdrop-filter: blur\(0\.35cqw\) brightness\(1\.25\);/);
+  assert.doesNotMatch(styles, /star-cards-tie-rays|is-tie-spark:nth-child/);
+  // 放射狀：衝擊環與氣壓波是正圓，沒有上下對衝與左右光跡
+  assert.match(styles, /\.star-cards-tie-ring \{[^}]*aspect-ratio: 1;/);
+  assert.match(styles, /\.star-cards-tie-wave \{[^}]*aspect-ratio: 1;/);
+  assert.doesNotMatch(styles, /star-cards-tie-(clash|charge|flare|streak)/);
   assert.match(
     styles,
     /\.star-cards-score-popup \{[\s\S]*text-shadow: none;[\s\S]*animation: star-cards-score-popup 900ms linear both/,
@@ -831,4 +917,41 @@ test("all StarCards runtime assets are present", () => {
   ]) {
     assert.equal(existsSync(new URL(name, assetRoot)), true, `${name} should exist`);
   }
+});
+
+test("effect sprite sheets: three impact variants per weapon and one tie air-burst", () => {
+  const assetRoot = new URL("../public/ui/star-cards/", import.meta.url);
+  const entries = [
+    ...["laser", "missile", "shield"].map((attribute) => [STAR_CARDS_IMPACT_SPRITES[attribute], 3]),
+    [STAR_CARDS_TIE_SPRITE, 1],
+  ];
+  for (const [sprite, variants] of entries) {
+    assert.equal(sprite.files.length, variants);
+    assert.ok(sprite.frames >= 10 && sprite.frames <= 60);
+    assert.equal(sprite.durationMs, Math.round(sprite.frames * 1000 / sprite.fps));
+    assert.ok(sprite.boxCqw > 4 && sprite.boxCqw < 40);
+    for (const file of sprite.files) {
+      const bytes = readFileSync(new URL(file, assetRoot));
+      assert.equal(bytes.subarray(0, 4).toString("ascii"), "RIFF", `${file} should be a WebP`);
+      assert.equal(bytes.subarray(8, 12).toString("ascii"), "WEBP", `${file} should be a WebP`);
+      // VP8X 擴充格式才有 alpha（透明背景）
+      assert.equal(bytes.subarray(12, 16).toString("ascii"), "VP8X", `${file} should carry alpha`);
+      assert.ok(bytes.length < 800 * 1024, `${file} is too large (${bytes.length} bytes)`);
+    }
+  }
+});
+
+test("impact sprite choice randomizes variant, mirror, small rotation, and size", () => {
+  const seen = { variants: new Set(), flips: new Set() };
+  for (const values of [[0, 0, 0, 0], [0.5, 0.7, 0.5, 0.5], [0.99, 0.2, 1, 1], [0.4, 0.9, 0.25, 0.75]]) {
+    let index = 0;
+    const choice = createStarCardsImpactSpriteChoice(3, () => values[index++]);
+    assert.ok(Number.isInteger(choice.variant) && choice.variant >= 0 && choice.variant < 3);
+    assert.ok(Math.abs(choice.rotateDeg) <= STAR_CARDS_IMPACT_SPRITE_JITTER.rotateDeg);
+    assert.ok(choice.scale >= 0.9 && choice.scale <= 1.1);
+    seen.variants.add(choice.variant);
+    seen.flips.add(choice.flipX);
+  }
+  assert.equal(seen.variants.size, 3);
+  assert.equal(seen.flips.size, 2);
 });

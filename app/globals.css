@@ -10378,19 +10378,26 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   /* 特效尺寸倍率，三種武器各自設定：
      bullet＝子彈（光束寬、彈體、護盾半球、發射口、沿途粒子）；hit＝命中爆炸（光環與粒子飛散範圍）。
      路徑長度與時間不受影響；平手撞擊環不套用。
-     數值為 2026-10-21 在 3065 星際牌特效測試頁調整定案。 */
+     數值為 2026-10-22 在 3065 星際牌特效測試頁調整定案。 */
   --fx-laser-bullet-scale: 1.7;
   --fx-laser-hit-scale: 2.4;
-  --fx-missile-bullet-scale: 1.75;
-  --fx-missile-hit-scale: 2.2;
+  --fx-missile-bullet-scale: 1.7;
+  --fx-missile-hit-scale: 2;
   --fx-shield-bullet-scale: 1.5;
   --fx-shield-hit-scale: 2.4;
   /* 飛彈尾隨彈的落點散布距離：0＝全部打同一點；每顆依自己的 -1～1 散布值乘上這個距離 */
-  --fx-missile-scatter: 2.8cqw;
+  --fx-missile-scatter: 4cqw;
   /* 飛彈飛行速度倍率：1＝主飛彈 300ms 抵達；2＝150ms；0.5＝600ms。命中爆炸與沿途煙塵同步跟著調整 */
-  --fx-missile-speed: 0.7;
-  /* 齊射總時間：主飛彈發射到最後一顆尾隨彈發射的時間；0＝九顆同時發射 */
-  --fx-missile-salvo: 550ms;
+  --fx-missile-speed: 0.5;
+  /* 齊射總時間：主飛彈發射到最後一顆尾隨彈發射的時間；0＝全部同時發射 */
+  --fx-missile-salvo: 680ms;
+  /* 飛彈數量（開打時由 star-cards-game.tsx 讀取）：主飛彈 1～5 顆並排同時發射；尾隨彈 0～20 顆 */
+  --fx-missile-main-count: 1;
+  --fx-missile-escort-count: 5;
+  /* 平手衝擊波的整體大小倍率 */
+  --fx-tie-scale: 1;
+  /* 雷射光束中央雙螺旋纏繞線的間距（單位 cqw，一個完整交纏週期的長度）；越大越鬆 */
+  --fx-laser-helix-pitch: 8.5;
   position: absolute;
   z-index: 82;
   inset: 0;
@@ -10496,15 +10503,6 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   transform: rotate(calc(180deg + var(--battle-angle)));
 }
 
-/* 平手的撞擊環畫在整個特效框中央 */
-.star-cards-battle-effect.is-tie .star-cards-attack-path {
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  transform: none;
-}
-
 .star-cards-attack-particles {
   z-index: 1;
   bottom: 0;
@@ -10605,6 +10603,50 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   width: 42%;
   aspect-ratio: 1;
   transform: translateX(-50%);
+}
+
+/* ---- 命中爆炸序列圖（public/ui/star-cards/fx，由 bake-impacts 烘焙）----
+   閃光、衝擊環、粒子都已烘進圖裡，所以序列圖模式不畫 ::before／::after。
+   一格＝正方形 --sprite-box（命中倍率 1），中心對準命中點；外層 .star-cards-impact 的 scale 再套命中倍率。
+   播放：整條圖以 steps() 往左移，每次移一格；只動 transform，可交給 GPU 合成。 */
+.star-cards-impact.is-sprite::before,
+.star-cards-impact.is-sprite::after {
+  content: none;
+}
+
+.star-cards-impact-sprite {
+  --sprite-frames: 1;
+  --sprite-duration: 1000ms;
+  --sprite-box: 10cqw;
+  --sprite-flip: 1;
+  --sprite-rotate: 0deg;
+  --sprite-scale: 1;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--sprite-box);
+  aspect-ratio: 1;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(var(--sprite-rotate))
+    scale(calc(var(--sprite-flip) * var(--sprite-scale)), var(--sprite-scale));
+}
+
+.star-cards-impact-sprite-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--sprite-frames) * 100%);
+  height: 100%;
+  background: var(--sprite-image) 0 0 / 100% 100% no-repeat;
+  will-change: transform;
+  /* 結束時停在整條圖之外（全透明），不會殘留最後一格 */
+  animation: star-cards-sprite-play var(--sprite-duration) steps(var(--sprite-frames), end) var(--impact-start) both;
+}
+
+@keyframes star-cards-sprite-play {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
 }
 
 .star-cards-impact::before,
@@ -10898,10 +10940,11 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
 .star-cards-battle-effect.is-laser:not(.is-tie) .star-cards-attack-core::after {
   left: -18%;
   right: -18%;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 40' preserveAspectRatio='none'%3E%3Cpath d='M10 0 C17 6 17 14 10 20 C3 26 3 34 10 40' fill='none' stroke='%23ffe6f8' stroke-width='1.1'/%3E%3Cpath d='M10 0 C3 6 3 14 10 20 C17 26 17 34 10 40' fill='none' stroke='%23ff7ad8' stroke-width='0.8' stroke-opacity='0.8'/%3E%3C/svg%3E") 0 0 / 100% 3.4cqw repeat-y;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 40' preserveAspectRatio='none'%3E%3Cpath d='M10 0 C17 6 17 14 10 20 C3 26 3 34 10 40' fill='none' stroke='%23ffe6f8' stroke-width='1.1'/%3E%3Cpath d='M10 0 C3 6 3 14 10 20 C17 26 17 34 10 40' fill='none' stroke='%23ff7ad8' stroke-width='0.8' stroke-opacity='0.8'/%3E%3C/svg%3E") 0 0 / 100% calc(var(--fx-laser-helix-pitch) * 1cqw) repeat-y;
   opacity: 0.5;
   filter: drop-shadow(0 0 0.2cqw rgba(255, 80, 210, 0.9));
-  animation: star-cards-laser-helix 220ms linear infinite;
+  /* 每捲動一個間距的時間跟著間距等比例，螺旋紋流動速度不隨間距改變（約 15cqw/s） */
+  animation: star-cards-laser-helix calc(var(--fx-laser-helix-pitch) * 65ms) linear infinite;
 }
 
 .star-cards-battle-effect.is-laser .star-cards-attack-muzzle {
@@ -10936,8 +10979,11 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   filter: drop-shadow(0 0 0.35cqw rgba(255, 160, 70, 0.75));
 }
 
-/* 飛行動畫在 71.43% 抵達，所以總長＝抵達時間 × 1.4 */
+/* 飛行動畫在 71.43% 抵達，所以總長＝抵達時間 × 1.4。
+   多顆主飛彈並排：--main-offset（彈體間距的倍數）× 1.2cqw × 子彈倍率，飛行途中收攏到中線附近一起命中 */
 .star-cards-battle-effect.is-missile:not(.is-tie) .star-cards-attack-core {
+  --main-offset: 0;
+  --main-spread: calc(var(--main-offset) * 1.2cqw * var(--fx-projectile-scale));
   animation: star-cards-missile-flight calc(var(--missile-arrive) * 1.4) linear both;
 }
 
@@ -11107,22 +11153,96 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   animation-duration: var(--attack-duration), var(--attack-duration);
 }
 
-/* ---- 平手：三種武器共用同一個撞擊環 ---- */
+/* ---- 平手：雙方能量在兩張牌正中間對撞的白色氣爆（三種武器共用）----
+   像空氣被炸開：中心白閃、膨脹散開的凝結霧、兩道邊擴散邊模糊淡出的衝擊環、
+   扭曲背景的氣壓波（backdrop-filter）、長短粗細隨機的放射線。整組以 --fx-tie-scale 縮放。 */
 .star-cards-battle-effect.is-tie {
-  color: #f7f1ff;
+  color: #fff;
 }
 
-.star-cards-battle-effect.is-tie .star-cards-attack-core {
-  top: 50%;
+.star-cards-tie-shock {
+  position: absolute;
+  /* 特效框 top 31%、高 40%；OWEN 牌下緣（39.1%）與玩家牌上緣（53.7%）的正中間在牌桌 46.4% → 框內約 38.5% */
+  top: 38.5%;
   left: calc(50% + var(--battle-mid-x));
-  width: 54%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  scale: var(--fx-tie-scale, 1);
+}
+
+.star-cards-tie-shock > span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  pointer-events: none;
+}
+
+/* 中心白閃 */
+.star-cards-tie-flash {
+  width: 10cqw;
   aspect-ratio: 1;
-  border: 3px solid currentColor;
   border-radius: 50%;
-  background: transparent;
-  box-shadow: 0 0 7px 2px #fff, 0 0 18px 7px currentColor;
-  transform: translate(-50%, -50%) scale(0.2);
-  animation: star-cards-tie-clash 760ms ease-out both;
+  background: radial-gradient(circle, #fff 0 12%, rgba(255, 255, 255, 0.85) 24%, rgba(255, 255, 255, 0.3) 42%, transparent 66%);
+  opacity: 0;
+  animation: star-cards-tie-flash 340ms ease-out both;
+}
+
+/* 凝結霧：一團白霧往外膨脹、越來越糊、慢慢散掉 */
+.star-cards-tie-puff {
+  width: 13cqw;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.55) 0, rgba(255, 255, 255, 0.32) 32%, rgba(255, 255, 255, 0.1) 56%, transparent 70%);
+  opacity: 0;
+  animation: star-cards-tie-puff 760ms cubic-bezier(0.2, 0.7, 0.3, 1) 20ms both;
+}
+
+/* 衝擊環：白色正圓，擴散時邊緣越來越模糊、越來越淡 */
+.star-cards-tie-ring {
+  width: 15cqw;
+  aspect-ratio: 1;
+  border: 0.4cqw solid rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+  box-shadow: 0 0 1cqw rgba(255, 255, 255, 0.75), inset 0 0 0.8cqw rgba(255, 255, 255, 0.6);
+  opacity: 0;
+  animation: star-cards-tie-ring 560ms cubic-bezier(0.15, 0.75, 0.3, 1) both;
+}
+
+.star-cards-tie-ring.is-second {
+  width: 20cqw;
+  border-width: 0.2cqw;
+  animation-duration: 700ms;
+  animation-delay: 80ms;
+}
+
+/* 氣壓波：一圈扭曲背景的透明環（背景模糊＋微亮），像衝擊波經過時的空氣折射 */
+.star-cards-tie-wave {
+  width: 26cqw;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  -webkit-backdrop-filter: blur(0.35cqw) brightness(1.25);
+  backdrop-filter: blur(0.35cqw) brightness(1.25);
+  -webkit-mask-image: radial-gradient(closest-side, transparent 62%, #000 78%, #000 84%, transparent 100%);
+  mask-image: radial-gradient(closest-side, transparent 62%, #000 78%, #000 84%, transparent 100%);
+  opacity: 0;
+  animation: star-cards-tie-wave 780ms ease-out 30ms both;
+}
+
+/* 放射線：沿用命中粒子的光跡樣式，白色、長短粗細不一 */
+.star-cards-impact-particle.is-tie-spark {
+  --impact-start: 0ms;
+  --impact-particle-w: max(1px, calc(0.1cqw * var(--impact-particle-size)));
+  --impact-particle-h: calc(1.7cqw * var(--impact-particle-size));
+  background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.35) 30%, rgba(255, 255, 255, 0.85) 70%, #fff 100%);
+  box-shadow: 0 0 0.3cqw rgba(255, 255, 255, 0.8);
+}
+
+/* 遊戲中：閃光、凝結霧、衝擊環、放射線改播烘焙序列圖（tie-1.webp），從平手特效出現就開始播。
+   上面的即時樣式保留給 3065 測試頁比較與重新烘焙使用 */
+.star-cards-impact-sprite.is-tie {
+  --impact-start: 0ms;
 }
 
 .star-cards-battle-effect.is-tie .star-cards-impact,
@@ -11694,7 +11814,7 @@ html[data-cursor-owner="mouse"] .star-cards-exit-scrim[data-navigation-mode="poi
 
 @keyframes star-cards-laser-helix {
   from { background-position: 0 0; }
-  to { background-position: 0 -3.4cqw; }
+  to { background-position: 0 calc(var(--fx-laser-helix-pitch) * -1cqw); }
 }
 
 @keyframes star-cards-muzzle-laser {
@@ -11893,13 +12013,13 @@ html[data-cursor-owner="mouse"] .star-cards-exit-scrim[data-navigation-mode="poi
 
 /* 主飛彈：加速飛行，71.43%（300ms）抵達目標後鑽入爆炸；位置與 STAR_CARDS_ATTACK_CURVES.missile 一致 */
 @keyframes star-cards-missile-flight {
-  0% { opacity: 0; bottom: 0%; transform: translateX(-50%) scale(0.55); }
+  0% { opacity: 0; bottom: 0%; left: var(--main-spread, 0px); transform: translateX(-50%) scale(0.55); }
   6% { opacity: 1; }
-  20% { bottom: 7%; transform: translateX(-50%) scale(0.9); }
-  40% { bottom: 24%; transform: translateX(-50%) scale(1); }
-  55% { bottom: 50%; }
-  71.43% { opacity: 1; bottom: 100%; transform: translateX(-50%) scale(1); }
-  100% { opacity: 0; bottom: 104%; transform: translateX(-50%) scale(0.2); }
+  20% { bottom: 7%; left: var(--main-spread, 0px); transform: translateX(-50%) scale(0.9); }
+  40% { bottom: 24%; left: calc(var(--main-spread, 0px) * 0.85); transform: translateX(-50%) scale(1); }
+  55% { bottom: 50%; left: calc(var(--main-spread, 0px) * 0.6); }
+  71.43% { opacity: 1; bottom: 100%; left: calc(var(--main-spread, 0px) * 0.25); transform: translateX(-50%) scale(1); }
+  100% { opacity: 0; bottom: 104%; left: calc(var(--main-spread, 0px) * 0.2); transform: translateX(-50%) scale(0.2); }
 }
 
 /* 尾隨飛彈：從各自的散射位置出發，飛向「路徑終點＋自己的落點散布」
@@ -11990,10 +12110,29 @@ html[data-cursor-owner="mouse"] .star-cards-exit-scrim[data-navigation-mode="poi
   20% { stroke: rgba(170, 240, 255, 0.85); stroke-width: calc(0.8 + var(--cell-facing) * 1.6); fill-opacity: 1; }
 }
 
-@keyframes star-cards-tie-clash {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.1); }
-  32% { opacity: 1; transform: translate(-50%, -50%) scale(0.9); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(2.1); }
+@keyframes star-cards-tie-flash {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  12% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.4); }
+}
+
+@keyframes star-cards-tie-puff {
+  0% { opacity: 0; filter: blur(0); transform: translate(-50%, -50%) scale(0.3); }
+  15% { opacity: 1; }
+  100% { opacity: 0; filter: blur(0.9cqw); transform: translate(-50%, -50%) scale(1.5); }
+}
+
+/* 衝擊環：擴散時逐漸模糊淡出 */
+@keyframes star-cards-tie-ring {
+  0% { opacity: 0; filter: blur(0); transform: translate(-50%, -50%) scale(0.08); }
+  10% { opacity: 1; filter: blur(0); }
+  100% { opacity: 0; filter: blur(0.6cqw); transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes star-cards-tie-wave {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
 }
 
 @keyframes star-cards-draw-ready-pulse {
