@@ -11336,17 +11336,24 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   opacity: 0.72;
 }
 
+/* 可按時：按鈕圖本身發光（光暈只掛在 img 上），刷光（::after）不在光暈濾鏡裡，所以不會跟著暈出去 */
 .star-cards-image-button.is-ready {
   --button-ready-glow: #ff5cff;
   --button-ready-glow-bright: rgba(255, 133, 255, 0.96);
   --button-ready-glow-soft: rgba(174, 45, 255, 0.58);
+  /* 光暈兩層：貼近按鈕的亮邊（near）＋往外散的柔光（far） */
+  --button-halo-near: rgba(240, 124, 255, 0.9);
+  --button-halo-far: rgba(152, 32, 255, 0.7);
+  /* 呼吸節奏：按鈕縮放、光暈、背光共用同一個週期與緩動，一起由一般亮度漸亮再回落 */
+  --button-breathe-duration: 1.1s;
+  --button-breathe-ease: cubic-bezier(0.45, 0, 0.55, 1);
   cursor: pointer;
-  filter:
-    brightness(1.14)
-    drop-shadow(0 0 5px rgba(240, 124, 255, 0.88))
-    drop-shadow(0 0 12px rgba(152, 32, 255, 0.68));
   opacity: 1;
-  animation: star-cards-draw-ready-pulse 920ms ease-in-out infinite alternate;
+  animation: star-cards-draw-ready-pulse var(--button-breathe-duration) var(--button-breathe-ease) infinite alternate;
+}
+
+.star-cards-image-button.is-ready > img {
+  animation: star-cards-button-halo-breathe var(--button-breathe-duration) var(--button-breathe-ease) infinite alternate;
 }
 
 .star-cards-image-button.is-ready::before {
@@ -11367,30 +11374,31 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   content: "";
   filter: blur(4px);
   opacity: 0.62;
-  animation: star-cards-button-backlight-pulse 1.05s ease-in-out infinite alternate;
+  animation: star-cards-button-backlight-pulse var(--button-breathe-duration) var(--button-breathe-ease) infinite alternate;
   pointer-events: none;
 }
 
+/* 刷光：與按鈕圖同一個框，並用按鈕圖本身的透明度當遮罩（--button-mask，由 TSX 帶入），
+   只會刷在按鈕實體上，邊緣與按鈕外形完全吻合，不會刷到外圍光暈 */
 .star-cards-image-button.is-ready::after {
   position: absolute;
   z-index: 2;
-  inset: 8% 5%;
-  border-radius: 18%;
+  inset: 0;
   background:
     linear-gradient(
       106deg,
-      transparent 35%,
-      var(--button-ready-glow-soft) 44%,
-      rgba(255, 255, 255, 0.92) 50%,
-      var(--button-ready-glow) 56%,
-      transparent 65%
-    ) 175% 0 / 230% 100% no-repeat;
-  clip-path: polygon(5% 0, 95% 0, 100% 25%, 100% 75%, 95% 100%, 5% 100%, 0 75%, 0 25%);
+      transparent 38%,
+      var(--button-ready-glow-soft) 45%,
+      rgba(255, 255, 255, 0.9) 50%,
+      var(--button-ready-glow-soft) 55%,
+      transparent 62%
+    ) 160% 0 / 250% 100% no-repeat;
+  -webkit-mask: var(--button-mask) center / 100% 100% no-repeat;
+  mask: var(--button-mask) center / 100% 100% no-repeat;
   content: "";
-  filter: blur(2px);
   mix-blend-mode: screen;
   opacity: 0;
-  animation: star-cards-button-glow-sweep 1.35s ease-in-out infinite;
+  animation: star-cards-button-glow-sweep 1.8s ease-in-out infinite;
   pointer-events: none;
 }
 
@@ -11398,24 +11406,31 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   --button-ready-glow: #28dfff;
   --button-ready-glow-bright: rgba(159, 248, 255, 0.98);
   --button-ready-glow-soft: rgba(29, 177, 255, 0.6);
-  filter:
-    brightness(1.16)
-    drop-shadow(0 0 5px rgba(113, 239, 255, 0.92))
-    drop-shadow(0 0 13px rgba(27, 184, 255, 0.72));
+  --button-halo-near: rgba(113, 239, 255, 0.92);
+  --button-halo-far: rgba(27, 184, 255, 0.74);
 }
 
 .star-cards-image-button[data-gamepad-selected="true"] {
+  transform: translateX(-50%) scale(1.045);
+}
+
+.star-cards-image-button[data-gamepad-selected="true"] > img {
+  animation: none;
   filter:
     brightness(1.25)
     drop-shadow(0 0 7px #fff)
     drop-shadow(0 0 20px #d64cff);
-  transform: translateX(-50%) scale(1.045);
 }
 
 .star-cards-image-button.is-pressed,
 .star-cards-image-button:active:not(:disabled) {
-  filter: brightness(1.45) drop-shadow(0 0 24px #e96dff);
   transform: translateX(-50%) translateY(4px) scale(0.92);
+}
+
+.star-cards-image-button.is-pressed > img,
+.star-cards-image-button:active:not(:disabled) > img {
+  animation: none;
+  filter: brightness(1.45) drop-shadow(0 0 24px #e96dff);
 }
 
 .star-cards-image-button.is-pressed::before,
@@ -12137,20 +12152,37 @@ html[data-cursor-owner="mouse"] .star-cards-exit-scrim[data-navigation-mode="poi
 
 @keyframes star-cards-draw-ready-pulse {
   from { transform: translateX(-50%) scale(1); }
-  to { transform: translateX(-50%) scale(1.055); }
+  to { transform: translateX(-50%) scale(1.04); }
+}
+
+/* 光暈呼吸：一般亮度、光暈貼近按鈕 → 更亮、光暈往外散開 */
+@keyframes star-cards-button-halo-breathe {
+  from {
+    filter:
+      brightness(1.06)
+      drop-shadow(0 0 3px var(--button-halo-near))
+      drop-shadow(0 0 7px var(--button-halo-far));
+  }
+  to {
+    filter:
+      brightness(1.3)
+      drop-shadow(0 0 6px var(--button-halo-near))
+      drop-shadow(0 0 18px var(--button-halo-far));
+  }
 }
 
 @keyframes star-cards-button-backlight-pulse {
-  from { opacity: 0.5; transform: scaleX(0.985) scaleY(0.94); }
-  to { opacity: 0.72; transform: scaleX(1.015) scaleY(1.02); }
+  from { opacity: 0.42; transform: scaleX(0.98) scaleY(0.92); }
+  to { opacity: 0.8; transform: scaleX(1.03) scaleY(1.06); }
 }
 
+/* 前 60% 由右往左刷過一次，之後停一下再刷，比連續不停的刷光更像金屬面反光 */
 @keyframes star-cards-button-glow-sweep {
-  0% { opacity: 0; background-position: 175% 0; }
-  18% { opacity: 0.36; }
-  52% { opacity: 0.72; }
-  82% { opacity: 0.34; }
-  100% { opacity: 0; background-position: -75% 0; }
+  0% { opacity: 0; background-position: 160% 0; }
+  10% { opacity: 0.85; }
+  50% { opacity: 0.85; }
+  60% { opacity: 0; background-position: -60% 0; }
+  100% { opacity: 0; background-position: -60% 0; }
 }
 
 @media (max-aspect-ratio: 4 / 5) {

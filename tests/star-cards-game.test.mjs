@@ -479,7 +479,9 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(styles, /@keyframes star-cards-zone-title-settle[\s\S]*opacity: 0\.5;[\s\S]*filter: none/);
   assert.doesNotMatch(source, /star-cards-zone-labels|ZONE \{laneIndex \+ 1\}/);
   assert.doesNotMatch(styles, /\.star-cards-zone-labels/);
-  assert.match(source, /const activeDropHighlightLane = hoveredLane \?\? directionalLaneHighlight/);
+  assert.match(source, /const requestedHighlightLane = hoveredLane \?\? directionalLaneHighlight/);
+  assert.match(source, /const activeDropHighlightLane = requestedHighlightLane && canPlaceTutorialCard\(phase, requestedHighlightLane, activeTutorialCard\)/);
+  assert.match(source, /canPlaceStarCardsTutorialCard\(tutorialActive, currentPhase, lane, card, secondDrawStage\)/);
   assert.match(source, /activeDropHighlightLane \? ` is-\$\{activeDropHighlightLane\.toLowerCase\(\)\}`/);
   assert.match(styles, /\.star-cards-drop-highlight\.is-a[\s\S]*clip-path: inset\(0 62% 0 0\)/);
   assert.match(styles, /\.star-cards-drop-highlight\.is-b[\s\S]*clip-path: inset\(0 38%\)/);
@@ -698,11 +700,18 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   );
   assert.match(
     styles,
-    /\.star-cards-image-button\.is-ready::after \{[^}]*z-index: 2;[^}]*inset: 8% 5%;[^}]*mix-blend-mode: screen/,
+    /\.star-cards-image-button\.is-ready::after \{[^}]*z-index: 2;[^}]*inset: 0;[^}]*mask: var\(--button-mask\) center \/ 100% 100% no-repeat;[^}]*mix-blend-mode: screen/,
   );
+  // 刷光只在按鈕實體上：遮罩用按鈕圖本身，光暈濾鏡掛在 img（不含刷光），按鈕本體不再套光暈濾鏡
+  assert.doesNotMatch(styles, /\.star-cards-image-button\.is-ready::after \{[^}]*clip-path/);
+  assert.match(styles, /\.star-cards-image-button\.is-ready > img \{\s*animation: star-cards-button-halo-breathe var\(--button-breathe-duration\) var\(--button-breathe-ease\) infinite alternate;/);
+  assert.match(styles, /@keyframes star-cards-button-halo-breathe \{[\s\S]*drop-shadow\(0 0 18px var\(--button-halo-far\)\)/);
+  assert.doesNotMatch(styles, /\.star-cards-image-button\.is-ready \{[^}]*\sfilter:/);
+  assert.match(source, /"--button-mask": `url\("\$\{starCardsAssetUrl\("button-draw\.png"\)\}"\)`/);
+  assert.match(source, /"--button-mask": `url\("\$\{starCardsAssetUrl\("button-battle\.png"\)\}"\)`/);
   assert.match(styles, /\.star-cards-image-button\.is-battle\.is-ready[\s\S]*--button-ready-glow: #28dfff/);
   assert.match(styles, /@keyframes star-cards-button-backlight-pulse/);
-  assert.match(styles, /@keyframes star-cards-button-glow-sweep[\s\S]*background-position: -75% 0/);
+  assert.match(styles, /@keyframes star-cards-button-glow-sweep[\s\S]*background-position: -60% 0/);
   assert.match(
     styles,
     /\.star-cards-battle-effect\[data-lane="A"\] \{[^}]*--battle-ai-x: -0\.3cqw;[^}]*--battle-player-x: -3\.7cqw;[^}]*--battle-mid-x: -2cqw;[^}]*--battle-player-to-ai-x: 3\.4cqw;[^}]*--battle-ai-to-player-x: -3\.4cqw;[^}]*--battle-angle: 10deg;/,
@@ -785,7 +794,7 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /const BATTLE_EFFECTS_MAX_LINGER_MS = 2900;/);
   assert.match(source, /missileTiming\.arriveMs \+ STAR_CARDS_IMPACT_SPRITES\.missile\.durationMs/);
   assert.match(source, /missileTiming\.salvoMs \+ missileTiming\.arriveMs \+ STAR_CARDS_ESCORT_BLAST_MS/);
-  assert.match(source, /const lingeringMissiles = effects\.filter\(\(effect\) => effect\.attribute === "missile" && effect\.outcome !== "tie"\);/);
+  assert.match(source, /const lingeringMissiles = batch\.filter\(\(effect\) => effect\.attribute === "missile" && effect\.outcome !== "tie"\);/);
   assert.match(source, /setBattleEffects\(lingeringMissiles\);[\s\S]*?schedule\(\(\) => \{\s*setBattleEffects\(\(current\) => current\.filter\(\(effect\) => !lingeringMissiles\.includes\(effect\)\)\);\s*\}, missileEffectsEndMs - BATTLE_EFFECTS_CLEANUP_MS\);/);
   assert.match(styles, /star-cards-escort-blast 320ms ease-out/);
   assert.match(source, /const missileCounts = readStarCardsMissileCounts\(battleLayerRef\.current\);/);

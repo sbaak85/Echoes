@@ -1,0 +1,198 @@
+/* The shared sct-tip classes supply the accepted purple game Tips artwork. */
+.star-cards-status[hidden] { display: none; }
+.star-cards-tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 310;
+  pointer-events: none;
+  user-select: none;
+}
+
+.star-cards-tutorial-overlay *,
+.star-cards-tutorial-overlay *::before,
+.star-cards-tutorial-overlay *::after {
+  pointer-events: none;
+}
+
+.star-cards-tutorial-mask {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  animation: sct-fade-in var(--star-cards-tutorial-fade, 250ms) linear both;
+}
+
+.star-cards-tutorial-tip {
+  box-sizing: border-box;
+  grid-template-rows: minmax(78px, auto) minmax(47px, auto);
+  min-height: 138px;
+  animation: sct-fade-in var(--star-cards-tutorial-fade, 250ms) linear both;
+}
+
+.star-cards-tutorial-tip .sct-tip-copy {
+  display: flex;
+  align-items: center;
+  padding: 17px 22px 15px;
+  font-size: 16px;
+  overflow-wrap: break-word;
+}
+
+.star-cards-tutorial-tip .sct-tip-footer {
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 8px;
+  padding: 10px 17px 11px 20px;
+  font-size: 14px;
+  letter-spacing: .02em;
+  backdrop-filter: blur(10px);
+}
+
+.star-cards-tutorial-tip.is-compact {
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+  max-height: calc(100dvh - 24px);
+}
+
+.star-cards-tutorial-tip.is-compact .sct-tip-copy {
+  align-items: flex-start;
+  padding: 17px 18px;
+  min-width: 0;
+  min-height: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+}
+
+.star-cards-tutorial-overlay[data-tutorial-stage="draw"] .sct-tip-copy,
+.star-cards-tutorial-overlay[data-tutorial-stage="place"] .sct-tip-copy {
+  padding-block: 11px;
+}
+
+/* Step 6 keeps the Tip fixed while the whole score panel breathes and floats. */
+.star-cards-overlay[data-tutorial-stage="score"] .star-cards-score {
+  transform-origin: 50% 50%;
+  animation: star-cards-tutorial-score-float 2s ease-in-out infinite;
+}
+
+.star-cards-overlay[data-tutorial-stage="score"] .star-cards-dialog:not([aria-hidden="true"]) .star-cards-score {
+  animation-play-state: running !important;
+}
+
+@keyframes star-cards-tutorial-score-float {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1) drop-shadow(0 0 9px rgba(186, 42, 255, .38));
+  }
+  50% {
+    transform: translateY(-3px) scale(1.035);
+    filter: brightness(1.18) drop-shadow(0 0 16px rgba(150, 130, 255, .7));
+  }
+}
+
+/* Float only the cards highlighted by each lesson, including the hidden Step 10 card. */
+.star-cards-overlay[data-tutorial-stage="counter"] .star-cards-lane[data-lane="B"]
+  .star-card-shell.is-placed[data-top-card="true"] .star-card-hover,
+.star-cards-overlay[data-tutorial-stage="points"] .star-cards-lane:is([data-lane="A"], [data-lane="C"])
+  .star-card-shell.is-placed[data-top-card="true"] .star-card-hover,
+.star-cards-overlay[data-tutorial-stage="risk"] .star-cards-lane.is-ai-lane[data-lane="C"] .star-card-shell.is-placed[data-top-card="true"] .star-card-hover,
+.star-cards-overlay[data-tutorial-stage="known"] .star-cards-lane.is-ai-lane:is([data-lane="A"], [data-lane="B"])
+  .star-card-shell.is-placed[data-top-card="true"] .star-card-hover {
+  animation: star-card-float 1.75s ease-in-out infinite;
+}
+
+/* Battle lessons keep the board inert. Exempt these visual cues only while
+   the lesson is visible; exit/settings overlays retain the normal pause. */
+.star-cards-overlay[data-tutorial-stage="counter"] .star-cards-dialog:not([aria-hidden="true"])
+  .star-cards-lane[data-lane="B"] .star-card-shell.is-placed[data-top-card="true"] .star-card-hover,
+.star-cards-overlay[data-tutorial-stage="points"] .star-cards-dialog:not([aria-hidden="true"])
+  .star-cards-lane:is([data-lane="A"], [data-lane="C"]) .star-card-shell.is-placed[data-top-card="true"] .star-card-hover,
+.star-cards-overlay[data-tutorial-stage="risk"] .star-cards-dialog:not([aria-hidden="true"]) .star-cards-lane.is-ai-lane[data-lane="C"] .star-card-shell.is-placed[data-top-card="true"] .star-card-hover,
+.star-cards-overlay[data-tutorial-stage="known"] .star-cards-dialog:not([aria-hidden="true"])
+  .star-cards-lane.is-ai-lane:is([data-lane="A"], [data-lane="B"]) .star-card-shell.is-placed[data-top-card="true"] .star-card-hover {
+  animation-play-state: running !important;
+}
+
+.star-cards-tutorial-tip.is-compact .sct-tip-footer {
+  padding: 8px 16px;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.star-cards-tutorial-tip.is-compact .star-cards-tutorial-waiting {
+  margin-left: auto;
+}
+
+.star-cards-tutorial-text-measure {
+  position: fixed;
+  left: -100000px;
+  top: 0;
+  width: max-content;
+  max-width: none;
+  white-space: pre;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.star-cards-tutorial-operation {
+  display: inline-block;
+  width: max-content;
+  max-width: 100%;
+  justify-self: start;
+  transform-origin: left center;
+  animation: new-player-tutorial-prompt-breathe 1.25s ease-in-out infinite alternate;
+}
+
+.star-cards-tutorial-waiting { font-size: .9em; }
+
+.star-cards-tutorial-input-blocker {
+  position: fixed;
+  pointer-events: auto;
+  touch-action: pan-y;
+}
+.star-cards-tutorial-overlay[data-actionable="true"] .star-cards-tutorial-tip {
+  pointer-events: auto;
+  cursor: pointer;
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+.star-cards-tutorial-overlay[data-actionable="true"][data-owner="directional"] .star-cards-tutorial-tip {
+  border-color: #dbc0f1;
+  box-shadow: 0 0 18px #ae84c52b;
+}
+.star-cards-tutorial-overlay[data-owner="directional"],
+.star-cards-tutorial-overlay[data-owner="directional"] *,
+.star-cards-tutorial-overlay[data-owner="gamepad"],
+.star-cards-tutorial-overlay[data-owner="gamepad"] * { cursor: none !important; }
+
+.star-cards-tutorial-input-icon {
+  display: inline-block;
+  width: 1.65em;
+  height: 1.65em;
+  margin: -.2em .1em;
+  vertical-align: -.4em;
+  object-fit: contain;
+}
+
+@media (max-width: 600px), (max-height: 560px) {
+  .star-cards-tutorial-tip {
+    grid-template-rows: minmax(64px, auto) minmax(36px, auto);
+    min-height: 110px;
+  }
+  .star-cards-tutorial-tip .sct-tip-copy { padding: 11px 14px; font-size: 14px; }
+  .star-cards-tutorial-tip .sct-tip-footer { padding: 8px 14px; font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .star-cards-overlay[data-tutorial-stage="score"] .star-cards-score { animation: none; }
+  .star-cards-tutorial-tip { animation: sct-fade-in var(--star-cards-tutorial-fade, 250ms) linear both; }
+  .star-cards-tutorial-operation { animation: none; }
+  .star-cards-overlay[data-tutorial-stage="counter"] .star-cards-lane[data-lane="B"]
+    .star-card-shell.is-placed[data-top-card="true"] .star-card-hover,
+  .star-cards-overlay[data-tutorial-stage="points"] .star-cards-lane:is([data-lane="A"], [data-lane="C"])
+    .star-card-shell.is-placed[data-top-card="true"] .star-card-hover,
+  .star-cards-overlay[data-tutorial-stage="risk"] .star-cards-lane.is-ai-lane[data-lane="C"] .star-card-shell.is-placed[data-top-card="true"] .star-card-hover,
+.star-cards-overlay[data-tutorial-stage="known"] .star-cards-lane.is-ai-lane:is([data-lane="A"], [data-lane="B"])
+    .star-card-shell.is-placed[data-top-card="true"] .star-card-hover { animation: none; }
+}

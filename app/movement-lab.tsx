@@ -202,7 +202,7 @@ import { FREQUENCY_CALIBRATION_COMPLETION_FLAG } from "./frequency-calibration-p
 import { WeldingRoutePuzzle } from "./welding-route-puzzle.tsx";
 import { BusCardPuzzle } from "./bus-card-puzzle.tsx";
 import { BUS_CARD_INTERACTION_ID } from "./bus-card-puzzle.ts";
-import { STAR_CARDS_INTERACTION_ID, completeStarCardsQuestMatch } from "./star-cards-quest-flow.ts";
+import { STAR_CARDS_INTERACTION_ID, STAR_CARDS_TUTORIAL_STARTED_FLAG, shouldStartStarCardsTutorial, completeStarCardsQuestMatch } from "./star-cards-quest-flow.ts";
 import { getStarCardsMatchWinner, type StarCardsMatchResult } from "./star-cards-game.ts";
 import { StarCardsGame } from "./star-cards-game.tsx";
 import {
@@ -4167,6 +4167,7 @@ export function MovementLab() {
   const [frequencyPuzzleOpen, setFrequencyPuzzleOpen] = useState(false);
   const [weldingPuzzleOpen, setWeldingPuzzleOpen] = useState(false);
   const [starCardsOpen, setStarCardsOpen] = useState(false);
+  const [starCardsTutorialStart, setStarCardsTutorialStart] = useState(false);
   const [starshipInteractionMenuOpen, setStarshipInteractionMenuOpen] =
     useState(false);
   const [starshipCraftingTutorialStart, setStarshipCraftingTutorialStart] = useState(false);
@@ -4736,6 +4737,17 @@ export function MovementLab() {
   const openStarCardsGame = (session?: PowerPuzzleSession) => {
     if (starCardsOpenRef.current) return;
     starCardsSessionRef.current = session ?? null;
+    const startTutorial = shouldStartStarCardsTutorial(
+      session?.interactable.id, storyProgressRef.current.storyFlags,
+    );
+    setStarCardsTutorialStart(startTutorial);
+    if (startTutorial) {
+      // Claim at actual launch, after the interaction dialogue. Abandoning the
+      // match must not replay the first-launch tutorial or count as a quest win.
+      try { setStoryFlag(STAR_CARDS_TUTORIAL_STARTED_FLAG, true); }
+      catch { /* setStoryFlag retains the in-memory flag even if storage fails. */ }
+      requestPortableAutosaveRef.current("star-cards-tutorial-started");
+    }
     closePowerRoutingPuzzle();
     dismissTimeElapsedNotice();
     optionsOpenRef.current = false;
@@ -19167,6 +19179,7 @@ export function MovementLab() {
       {starCardsOpen ? (
         <StarCardsGame
           onClose={closeStarCardsGame}
+          tutorialEnabled={starCardsTutorialStart}
           onMatchCompleted={(result) => completeStarCardsMatchRef.current(result)}
           audioEvents={audioEventManagerRef.current}
           initialGamepadMode={starCardsInitialGamepadMode}
