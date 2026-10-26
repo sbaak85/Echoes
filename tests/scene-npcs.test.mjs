@@ -203,13 +203,13 @@ test("idle breathing is subtle, foot-anchored and staggered per NPC", () => {
   assert.notDeepEqual(getBreathingScale("npc-owen", 1000), getBreathingScale("npc-rena", 1000));
 });
 
-test("ship_interior uses independent NPCs; Owen is shared by all three of his dialogues", () => {
+test("ship_interior uses independent NPCs; Owen is shared by all of his dialogues (incl. the 018 replay)", () => {
   const scene = JSON.parse(readFileSync(new URL("../public/maps/ship_interior.scene.json", import.meta.url), "utf8"));
   assert.ok(scene.interactables.every(interactable => !("npc" in interactable)), "no legacy inline npc remains");
   const { npcs, bindings } = collectSceneNpcs(scene);
   assert.deepEqual([...npcs.keys()].sort(), ["npc-captain", "npc-ian", "npc-owen", "npc-rena"]);
   const owenDialogues = [...bindings].filter(([, npcId]) => npcId === "npc-owen").map(([id]) => id.slice(-3)).sort();
-  assert.deepEqual(owenDialogues, ["011", "015", "017"]);
+  assert.deepEqual(owenDialogues, ["011", "015", "017", "018"]);
   const raw = normalizeNpcCatalog(JSON.parse(readFileSync(new URL("../public/characters/npc-catalog.json", import.meta.url), "utf8")));
   for (const definition of npcs.values()) assert.ok(getSceneNpcRenderData(definition, raw), definition.id);
 });

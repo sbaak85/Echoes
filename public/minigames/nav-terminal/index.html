@@ -1,0 +1,1095 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>航線監測終端</title>
+<style>
+  :root {
+    --bg: #03070d;
+    --panel: rgba(8, 20, 32, 0.82);
+    --panel-edge: rgba(92, 196, 230, 0.42);
+    --panel-edge-soft: rgba(92, 196, 230, 0.16);
+    --cyan: #6fe3ff;
+    --cyan-soft: rgba(111, 227, 255, 0.55);
+    --cyan-dim: rgba(111, 227, 255, 0.28);
+    --amber: #ffb547;
+    --text: #d9f3ff;
+    --muted: #7fa3b5;
+    --mono: "Cascadia Mono", "Consolas", "Lucida Console", monospace;
+    --sans: "Bahnschrift", "Segoe UI", "Microsoft JhengHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+  body { font-family: var(--sans); color: var(--text); }
+
+  /* 設計尺寸 1600×900，依視窗等比縮放 */
+  #stage {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 1600px;
+    height: 900px;
+    transform-origin: center center;
+    background:
+      radial-gradient(1200px 600px at 50% 40%, rgba(20, 60, 90, 0.35), transparent 70%),
+      linear-gradient(180deg, #06111c, #03070d);
+    border: 1px solid rgba(92, 196, 230, 0.25);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 30px 90px rgba(0, 0, 0, 0.6), inset 0 0 120px rgba(0, 40, 70, 0.35);
+    overflow: hidden;
+  }
+  /* 掃描線質感 */
+  #stage::after {
+    content: "";
+    position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 3px);
+    mix-blend-mode: screen;
+  }
+
+  /* ---------- 面板通用：切角邊框 ---------- */
+  .panel {
+    position: absolute;
+    background: var(--panel);
+    clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  }
+  .panel::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    clip-path: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, var(--panel-edge), var(--panel-edge-soft) 40%, var(--panel-edge-soft) 70%, var(--panel-edge));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+  }
+  .panel-title {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 12px 18px 8px;
+    border-bottom: 1px solid var(--panel-edge-soft);
+  }
+  .panel-title b { font-size: 19px; letter-spacing: 0.12em; color: var(--text); font-weight: 700; }
+  .panel-title b::before { content: ""; display: inline-block; width: 3px; height: 17px; margin-right: 10px; vertical-align: -2px; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+  .panel-title span { font-size: 11px; letter-spacing: 0.24em; color: var(--muted); }
+  .panel-title .tag {
+    margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em;
+    padding: 2px 8px; border: 1px solid var(--cyan-dim); color: var(--cyan);
+  }
+
+  /* ---------- 頂部標題列 ---------- */
+  #header {
+    position: absolute; left: 22px; right: 22px; top: 14px; height: 62px;
+    display: flex; align-items: center; padding: 0 26px;
+    clip-path: polygon(24px 0, calc(100% - 24px) 0, 100% 50%, calc(100% - 24px) 100%, 24px 100%, 0 50%);
+    background: linear-gradient(90deg, rgba(10, 32, 48, 0.95), rgba(6, 18, 30, 0.85) 55%, rgba(10, 32, 48, 0.95));
+  }
+  #header::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; clip-path: inherit; padding: 1px;
+    background: linear-gradient(90deg, var(--panel-edge), var(--panel-edge-soft), var(--panel-edge));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  }
+  .title-main { font-size: 32px; font-weight: 700; letter-spacing: 0.32em; text-shadow: 0 0 14px rgba(111, 227, 255, 0.35); }
+  .title-sub { margin-left: 18px; font-size: 13px; letter-spacing: 0.3em; color: var(--muted); }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 26px; }
+  /* 返回船艙（滑鼠／觸控用；鍵盤 Esc、手把 B 在輸入欄空白時也會返回） */
+  .exit-btn {
+    margin-left: 30px; padding: 6px 16px; font: inherit; font-size: 13px; letter-spacing: 0.24em;
+    color: var(--muted); background: rgba(8, 24, 36, 0.7); border: 1px solid var(--cyan-dim);
+    cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent;
+  }
+  .exit-btn:focus, .exit-btn:focus-visible { outline: none; box-shadow: none; }
+  body[data-owner="mouse"] .exit-btn:hover { color: var(--text); border-color: var(--cyan-soft); }
+  .exit-btn:disabled { opacity: 0.35; cursor: default; }
+  /* 方向鍵／手把擁有輸入時隱藏實體游標 */
+  body[data-owner="keyboard"], body[data-owner="keyboard"] *, body[data-owner="gamepad"], body[data-owner="gamepad"] * { cursor: none !important; }
+  /* 嵌入遊戲時：背景交給遊戲的遮罩 */
+  html.is-embedded, html.is-embedded body { background: transparent; }
+  .ship-id { text-align: right; }
+  .ship-id b { display: block; font-size: 20px; letter-spacing: 0.42em; font-weight: 600; }
+  .ship-id span { font-size: 10px; letter-spacing: 0.28em; color: var(--muted); }
+  .clock { padding-left: 24px; border-left: 1px solid var(--panel-edge-soft); font-family: var(--mono); }
+  .clock span { display: block; font-size: 11px; letter-spacing: 0.2em; color: var(--muted); }
+  .clock em { font-style: normal; color: var(--text); }
+  .clock b { font-size: 24px; letter-spacing: 0.08em; font-weight: 500; color: var(--cyan); }
+
+  /* ---------- 左側：訊號矩陣 ---------- */
+  #matrix-panel { left: 22px; top: 88px; width: 420px; height: 478px; }
+  .matrix-body { padding: 13px 18px 4px; }
+  .matrix-block { position: relative; margin-bottom: 11px; padding: 11px 10px 7px; border: 1px solid var(--panel-edge-soft); background: rgba(3, 12, 20, 0.6); }
+  /* 校對完成的 BLOCK：邊框與標籤轉綠 */
+  .matrix-block.is-solved { border-color: rgba(125, 255, 200, 0.55); box-shadow: inset 0 0 18px rgba(125, 255, 200, 0.08); }
+  /* 校對完成：整組蓋上一層半透明綠色，中央蓋章 CALIBRATED */
+  .matrix-block::after {
+    content: "CALIBRATED"; position: absolute; inset: 0; z-index: 2;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-size: 26px; font-weight: 700; letter-spacing: 0.42em; text-indent: 0.42em;
+    color: #b9ffe2; text-shadow: 0 0 12px rgba(125, 255, 200, 0.75);
+    background: linear-gradient(135deg, rgba(28, 112, 80, 0.78), rgba(14, 72, 52, 0.84));
+    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+    opacity: 0; transform: scale(1.04); pointer-events: none;
+    transition: opacity 260ms ease, transform 320ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  .matrix-block.is-solved::after { opacity: 1; transform: scale(1); }
+  .matrix-block.is-solved .block-label { color: #7dffc8; }
+  /* ?debug=1：標出每組的特殊格（測試用） */
+  .debug .cell.is-special { outline: 1px dashed rgba(255, 210, 120, 0.85); outline-offset: -1px; }
+  .matrix-block .block-label {
+    position: absolute; z-index: 3; top: -8px; left: 10px; padding: 0 6px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; color: var(--muted); background: #071624;
+  }
+  .matrix-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 10px; }
+  .cell {
+    position: relative; padding: 2px 4px 2px 16px;
+    font-family: var(--mono); font-size: 18px; letter-spacing: 0.12em; text-align: center;
+    color: var(--cyan-soft);
+    background: linear-gradient(180deg, rgba(20, 60, 80, 0.25), rgba(8, 24, 36, 0.35));
+    border: 1px solid rgba(111, 227, 255, 0.12);
+    transition: color 220ms ease, text-shadow 220ms ease, border-color 220ms ease;
+  }
+  /* 燈號小點 */
+  .cell::before {
+    content: ""; position: absolute; left: 6px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%;
+    background: rgba(111, 227, 255, 0.35); box-shadow: 0 0 4px rgba(111, 227, 255, 0.4);
+  }
+  .is-jitter .cell { color: rgba(111, 227, 255, 0.55); }
+  .is-jitter .cell::before { animation: led-blink 140ms steps(2) infinite; }
+  .is-hold .cell { color: #e6fbff; text-shadow: 0 0 8px rgba(111, 227, 255, 0.75); border-color: rgba(111, 227, 255, 0.32); }
+  .is-hold .cell::before { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+  /* 特殊格多停的那段時間：數字和亮度都維持 HOLD 樣式，刷走時才一起變暗 */
+  .is-jitter .cell.is-lingering { color: #e6fbff; text-shadow: 0 0 8px rgba(111, 227, 255, 0.75); border-color: rgba(111, 227, 255, 0.32); transition: none; }
+  .is-jitter .cell.is-lingering::before { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); animation: none; }
+  /* 已校對的 BLOCK：數字停住，一直維持 HOLD 的亮狀態，燈號也不再閃 */
+  .matrix-block.is-solved .cell { color: #e6fbff; text-shadow: 0 0 8px rgba(111, 227, 255, 0.75); border-color: rgba(111, 227, 255, 0.32); }
+  .matrix-block.is-solved .cell::before { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); animation: none; }
+  @keyframes led-blink { 50% { opacity: 0.25; } }
+  .matrix-foot { position: absolute; left: 0; right: 0; bottom: 0; padding: 4px 18px 12px; }
+  .cycle-row { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; letter-spacing: 0.16em; color: var(--muted); margin-bottom: 6px; }
+  .cycle-bar { height: 4px; background: rgba(111, 227, 255, 0.1); overflow: hidden; }
+  .cycle-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--cyan-dim), var(--cyan)); box-shadow: 0 0 8px var(--cyan); }
+  .is-hold-tag { color: #fff !important; border-color: var(--cyan) !important; box-shadow: 0 0 10px rgba(111, 227, 255, 0.35) inset; }
+
+  /* ---------- 左下：輸入小鍵盤 ---------- */
+  #keypad-panel { left: 22px; top: 578px; width: 420px; bottom: 84px; }
+  .keypad-body { display: grid; grid-template-columns: 1fr 198px; gap: 16px; padding: 12px 16px 14px 18px; }
+  .code-readout { display: flex; flex-direction: column; gap: 6px; }
+  .code-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; color: var(--muted); }
+  .code-slots { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 6px 0 8px; }
+  .code-slot {
+    height: 40px; display: grid; place-items: center;
+    font-family: var(--mono); font-size: 22px; color: #e6fbff;
+    border-bottom: 2px solid rgba(111, 227, 255, 0.28);
+    background: linear-gradient(180deg, transparent, rgba(111, 227, 255, 0.06));
+    text-shadow: 0 0 8px rgba(111, 227, 255, 0.6);
+  }
+  .code-slot.is-cursor { border-bottom-color: var(--cyan); animation: slot-caret 900ms steps(2) infinite; }
+  @keyframes slot-caret { 50% { border-bottom-color: rgba(111, 227, 255, 0.2); } }
+  .code-readout.is-sent .code-slot { color: #7dffc8; border-bottom-color: #7dffc8; text-shadow: 0 0 10px rgba(125, 255, 200, 0.7); }
+  .code-readout.is-cleared .code-slot { animation: slot-clear 260ms ease-out; }
+  .code-readout.is-wrong .code-slot { color: #ff7a7a; border-bottom-color: #ff6060; text-shadow: 0 0 10px rgba(255, 90, 90, 0.7); animation: slot-shake 320ms ease-out; }
+  @keyframes slot-shake { 20% { transform: translateX(-3px); } 40% { transform: translateX(3px); } 60% { transform: translateX(-2px); } 80% { transform: translateX(2px); } }
+  @keyframes slot-clear { from { background: rgba(255, 181, 71, 0.18); } }
+  .code-status { padding-top: 10px; border-top: 1px solid var(--panel-edge-soft); font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; color: var(--muted); line-height: 1.9; }
+  .code-status b { color: var(--text); font-weight: 500; }
+  .keypad-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .key {
+    position: relative; height: 36px; padding: 0;
+    font-family: var(--mono); font-size: 18px; color: var(--text);
+    background: linear-gradient(180deg, rgba(24, 58, 78, 0.55), rgba(8, 24, 36, 0.75));
+    border: 1px solid rgba(111, 227, 255, 0.24);
+    clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+    cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; user-select: none;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease, transform 80ms ease;
+  }
+  .key:focus, .key:focus-visible { outline: none; box-shadow: none; }
+  .key.is-symbol { color: var(--amber); }
+  /* 只有滑鼠擁有輸入時才顯示 hover；方向鍵／手把擁有時只顯示 is-selected 選取框 */
+  #keypad-panel[data-input-owner="mouse"] .key:hover { border-color: rgba(111, 227, 255, 0.6); background: linear-gradient(180deg, rgba(36, 86, 110, 0.65), rgba(10, 32, 46, 0.8)); }
+  #keypad-panel[data-input-owner="directional"] .key.is-selected { border-color: #ffd98a; box-shadow: inset 0 0 0 1px #ffd98a; color: #fff; }
+  .key.is-pressed { transform: translateY(1px); background: linear-gradient(180deg, rgba(111, 227, 255, 0.55), rgba(40, 120, 150, 0.6)); color: #031018; }
+
+  /* ---------- 過關訊息 ---------- */
+  #clear-banner {
+    position: absolute; left: 50%; top: 46%; z-index: 20;
+    transform: translate(-50%, -50%) scaleX(0.6); opacity: 0; pointer-events: none;
+    padding: 22px 64px 24px; text-align: center;
+    background: linear-gradient(90deg, transparent, rgba(6, 30, 26, 0.94) 14%, rgba(8, 40, 34, 0.96) 50%, rgba(6, 30, 26, 0.94) 86%, transparent);
+    border-block: 1px solid rgba(125, 255, 200, 0.8);
+    box-shadow: 0 0 40px rgba(125, 255, 200, 0.18);
+    transition: opacity 260ms ease, transform 360ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  #clear-banner.is-shown { opacity: 1; transform: translate(-50%, -50%) scaleX(1); }
+  #clear-banner span { display: block; font-family: var(--mono); font-size: 12px; letter-spacing: 0.4em; color: #7dffc8; }
+  #clear-banner b { display: block; margin-top: 8px; font-size: 30px; letter-spacing: 0.24em; color: #eafff7; text-shadow: 0 0 14px rgba(125, 255, 200, 0.6); }
+  #stage.is-closing { transition: opacity 600ms ease, filter 600ms ease; opacity: 0; filter: brightness(1.6) blur(2px); }
+  #closed-note { position: fixed; inset: 0; display: none; place-items: center; color: var(--muted); font-family: var(--mono); font-size: 13px; letter-spacing: 0.2em; }
+  #closed-note.is-shown { display: grid; }
+  #closed-note button { margin-top: 14px; padding: 8px 22px; border: 1px solid var(--cyan-dim); background: rgba(8, 24, 36, 0.8); color: var(--text); font: inherit; cursor: pointer; outline: none; }
+  #closed-note button:focus, #closed-note button:focus-visible { outline: none; }
+
+  /* ---------- 中央：星圖 ---------- */
+  #map-panel { left: 458px; top: 88px; right: 22px; bottom: 84px; }
+  #map-view { position: absolute; inset: 8px; overflow: hidden; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+  #map-view img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; filter: saturate(1.05) brightness(0.92); }
+  #map-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 6, 12, 0.55)); }
+  .map-hud { position: absolute; font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; color: var(--muted); }
+
+  /* SVG 文字 */
+  .svg-mono { font-family: var(--mono); }
+  .wpt-label { font-size: 17px; fill: #bfefff; letter-spacing: 0.08em; }
+  .wpt-sub { font-size: 13.5px; fill: #7fb3c6; }
+  .ship-tag-title { font-size: 14px; fill: #e9fbff; letter-spacing: 0.14em; font-weight: 700; }
+  .ship-tag-line { font-size: 11px; fill: #9fdcef; }
+  .contact-id { font-size: 12px; fill: #ffd28a; letter-spacing: 0.1em; font-weight: 700; }
+  .contact-line { font-size: 10.5px; fill: #f3c27c; }
+  .ghost-label { font-size: 11px; fill: #bdf3ff; letter-spacing: 0.08em; }
+  .ghost-label-strong { font-size: 12px; fill: #e9fbff; letter-spacing: 0.1em; font-weight: 700; }
+  .cube-label { font-size: 14px; letter-spacing: 0.2em; }
+  .map-label-text { font-size: 19px; fill: #8fa8b8; letter-spacing: 0.12em; }
+
+  /* ---------- 底部：航線進度 ---------- */
+  #footer { left: 22px; right: 22px; bottom: 14px; height: 58px; display: flex; align-items: center; padding: 0 26px; gap: 28px; }
+  .footer-label { font-size: 15px; letter-spacing: 0.16em; font-weight: 700; white-space: nowrap; }
+  .footer-label span { display: block; font-size: 10px; letter-spacing: 0.26em; color: var(--muted); font-weight: 400; }
+  .progress { position: relative; flex: 1; height: 26px; margin: 0 52px 0 18px; }
+  .progress .track { position: absolute; left: 0; right: 0; top: 12px; height: 2px; background: rgba(111, 227, 255, 0.15); }
+  .progress .fill { position: absolute; left: 0; top: 12px; height: 2px; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+  .progress .node { position: absolute; top: 7px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; border: 2px solid var(--cyan); background: #04101a; }
+  .progress .node em { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 10px; font-style: normal; letter-spacing: 0.14em; color: var(--muted); white-space: nowrap; }
+  .progress .ship-dot { position: absolute; top: 4px; width: 0; height: 0; margin-left: -8px; border-left: 16px solid var(--cyan); border-top: 9px solid transparent; border-bottom: 9px solid transparent; filter: drop-shadow(0 0 6px var(--cyan)); }
+  .footer-stats { display: flex; flex: none; gap: 26px; padding-left: 26px; border-left: 1px solid var(--panel-edge-soft); font-family: var(--mono); }
+  .footer-stats div span { display: block; font-size: 10px; letter-spacing: 0.2em; color: var(--muted); }
+  .footer-stats div b { font-size: 17px; font-weight: 500; color: var(--text); }
+  .status-ok { color: #7dffc8 !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <header id="header">
+    <div class="title-main">航線監測終端</div>
+    <div class="title-sub">ITHACA / NAVIGATION WATCH</div>
+    <button type="button" class="exit-btn" id="exit">返回船艙</button>
+    <div class="header-right">
+      <div class="ship-id"><b>ITHACA</b><span>DEEP SURVEY VESSEL · TX-1130-7</span></div>
+      <div class="clock"><span>啟航 <em id="mission-day">第 12 天</em> · 2184</span><b id="clock">06:42:00</b></div>
+    </div>
+  </header>
+
+  <section id="matrix-panel" class="panel">
+    <div class="panel-title"><b>訊號矩陣</b><span>SIGNAL MATRIX</span><em class="tag" id="matrix-tag">SCAN</em></div>
+    <div class="matrix-body" id="matrix"></div>
+    <div class="matrix-foot">
+      <div class="cycle-row"><span id="cycle-label">SAMPLING</span><span id="cycle-time">0.0 s</span></div>
+      <div class="cycle-bar"><i id="cycle-bar"></i></div>
+    </div>
+  </section>
+
+  <section id="keypad-panel" class="panel" data-input-owner="mouse">
+    <div class="panel-title"><b>輸入終端</b><span>INPUT PAD</span><em class="tag" id="keypad-tag">READY</em></div>
+    <div class="keypad-body">
+      <div class="code-readout" id="code-readout">
+        <div>
+          <div class="code-label">CODE INPUT · 7 DIGITS</div>
+          <div class="code-slots" id="code-slots"></div>
+        </div>
+        <div class="code-status" id="code-status">＊ 清除　＜ 刪除<br />狀態 <b>待命</b></div>
+      </div>
+      <div class="keypad-grid" id="keypad-grid" role="group" aria-label="輸入小鍵盤"></div>
+    </div>
+  </section>
+
+  <section id="map-panel" class="panel">
+    <div id="map-view">
+      <img src="starmap.webp" alt="" />
+      <svg id="map-svg" viewBox="0 0 1293 983" preserveAspectRatio="xMidYMin slice">
+        <defs>
+          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="glow-strong" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="6" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="divider-blur" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="5" />
+          </filter>
+          <radialGradient id="contact-core">
+            <stop offset="0" stop-color="#fff6dd" />
+            <stop offset="0.35" stop-color="#ffc35c" />
+            <stop offset="1" stop-color="#ff9b2e" stop-opacity="0" />
+          </radialGradient>
+          <linearGradient id="sweep-grad" x1="0" x2="1">
+            <stop offset="0" stop-color="#6fe3ff" stop-opacity="0" />
+            <stop offset="1" stop-color="#bff4ff" stop-opacity="1" />
+          </linearGradient>
+        </defs>
+        <!-- 航線：已走過（實線）、預計（半透明虛線）、循環往前畫的光段 -->
+        <path id="route-base" fill="none" stroke="rgba(111,227,255,0.10)" stroke-width="10" stroke-linecap="round" />
+        <!-- 三節航線校對立方體（BLOCK A／B／C），畫在航線下面 -->
+        <g id="cubes"></g>
+        <path id="route-ahead" fill="none" stroke="rgba(111,227,255,0.38)" stroke-width="2" stroke-dasharray="10 9" stroke-linecap="round" />
+        <path id="route-done" fill="none" stroke="#6fe3ff" stroke-width="2.6" stroke-linecap="round" filter="url(#glow)" />
+        <!-- 底圖原本的「GRID 200,000 km」「200,000 km」改為依航線長度換算的光年 -->
+        <g class="map-label-fix">
+          <rect x="24" y="78" width="180" height="26" fill="#08131f" />
+          <text id="grid-label" x="29" y="97" class="svg-mono map-label-text">GRID</text>
+          <rect x="1168" y="62" width="106" height="26" fill="#08131f" />
+          <text id="scale-label" x="1268" y="81" class="svg-mono map-label-text" text-anchor="end">ly</text>
+        </g>
+        <g id="waypoints"></g>
+        <g id="contacts"></g>
+        <g id="ghost"></g>
+        <g id="ship"></g>
+      </svg>
+      <div class="vignette"></div>
+    </div>
+  </section>
+
+  <div id="clear-banner"><span>QUANTUM WARP CALIBRATION</span><b>已成功校對量子曲速誤差</b></div>
+
+  <section id="footer" class="panel">
+    <div class="footer-label">航線進度<span>ROUTE PROGRESS</span></div>
+    <div class="progress" id="progress">
+      <div class="track"></div><div class="fill" id="progress-fill"></div><div class="ship-dot" id="progress-ship"></div>
+    </div>
+    <div class="footer-stats">
+      <div><span>目的地</span><b>Tabit（π³ Orionis）</b></div>
+      <div><span>剩餘距離</span><b id="remain">0 ly</b></div>
+      <div><span>預計抵達</span><b id="eta">—</b></div>
+      <div><span>導航計畫</span><b class="status-ok">提前 17 小時</b></div>
+    </div>
+  </section>
+</div>
+
+<div id="closed-note"><div style="text-align:center">（預覽）遊戲已關閉<br /><button type="button" id="replay">重新開始</button></div></div>
+<script>
+(() => {
+  // ---------- 嵌入遊戲：與主程式溝通（同源 iframe） ----------
+  const CHANNEL = "echoes-nav-terminal";
+  const embedded = window.parent !== window;
+  if (embedded) document.documentElement.classList.add("is-embedded");
+  const notifyHost = (type, payload = {}) => { if (embedded) window.parent.postMessage({ channel: CHANNEL, type, ...payload }, location.origin); };
+  let hostPad = null;
+  addEventListener("message", event => {
+    if (event.origin === location.origin && event.source === window.parent &&
+        event.data?.channel === CHANNEL && event.data.type === "gamepad") hostPad = event.data.pad;
+  });
+  const readPad = () => embedded ? hostPad : navigator.getGamepads?.().find(Boolean) ?? null;
+  const initialOwnerParam = new URLSearchParams(location.search).get("owner");
+  // ---------- 等比縮放 ----------
+  const stage = document.getElementById("stage");
+  const fit = () => { const s = Math.min(innerWidth / 1600, innerHeight / 900) * 0.98; stage.style.transform = `translate(-50%, -50%) scale(${s})`; };
+  addEventListener("resize", fit); fit();
+
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pad = (n, w = 2) => String(Math.floor(n)).padStart(w, "0");
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs = {}, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent?.appendChild(n); return n; };
+
+  // ================= 航程模型（對齊劇情） =================
+  // 第三章 section-8：Tabit（π³ Orionis）距地球約 26.3 光年。全程計畫 30 天。
+  // 第二章：啟航第 12 天 06:42（飛航記錄儀的浮點誤差時刻），進度比導航計畫快 17 小時。
+  const TOTAL_LY = 26.3;
+  const PLAN_DAYS = 30;
+  const AHEAD_HOURS = 17;
+  const SECONDS_PER_DAY = 86400;
+  const LY_PER_DAY = TOTAL_LY / PLAN_DAYS;                 // 0.8767 ly／日
+  const WARP_C = LY_PER_DAY * 365.25;                       // ≈ 320.2 倍光速（1 光年＝光走 365.25 日）
+  const START_ELAPSED_S = 11 * SECONDS_PER_DAY + 6 * 3600 + 42 * 60;   // 第 12 天 06:42 ＝ 已航行 11 日 6 時 42 分
+  // Tabit 的赤道座標（ICRS）：RA 4h49m50s、Dec +6°57′41″ → 以太陽系為原點的直角座標（光年）
+  const RA = (4 + 49 / 60 + 50.4 / 3600) * 15 * Math.PI / 180, DEC = (6 + 57 / 60 + 41 / 3600) * Math.PI / 180;
+  const TABIT = { x: TOTAL_LY * Math.cos(DEC) * Math.cos(RA), y: TOTAL_LY * Math.cos(DEC) * Math.sin(RA), z: TOTAL_LY * Math.sin(DEC) };
+  const HEADING_DEG = RA * 180 / Math.PI;                   // 航向＝Tabit 的赤經 ≈ 072.5°
+  const voyage = elapsedS => {
+    const coveredLy = Math.min(TOTAL_LY, LY_PER_DAY * (elapsedS / SECONDS_PER_DAY + AHEAD_HOURS / 24));
+    const remainingLy = TOTAL_LY - coveredLy;
+    return { coveredLy, remainingLy, t: coveredLy / TOTAL_LY, etaS: remainingLy / LY_PER_DAY * SECONDS_PER_DAY };
+  };
+  const fmtDuration = s => `${Math.floor(s / SECONDS_PER_DAY)}d ${pad(s / 3600 % 24)}:${pad(s / 60 % 60)}:${pad(s % 60)}`;
+
+  // ---------- 時鐘（劇情時間 06:42 起算） ----------
+  const clock = document.getElementById("clock");
+  const missionDay = document.getElementById("mission-day");
+  const clockStart = performance.now();
+  const storyElapsedS = () => START_ELAPSED_S + (performance.now() - clockStart) / 1000;
+  const tickClock = () => {
+    const s = storyElapsedS();
+    clock.textContent = `${pad(s / 3600 % 24)}:${pad(s / 60 % 60)}:${pad(s % 60)}`;
+    missionDay.textContent = `第 ${Math.floor(s / SECONDS_PER_DAY) + 1} 天`;
+  };
+
+  // ---------- 訊號矩陣：3 組 × 3×3 個 7 位數，同頻率亂跳 3 秒 → 靜止 1.5 秒 ----------
+  // 玩法：每個 BLOCK 每局隨機藏 1 個「特殊格」，每次靜止時都顯示同一串固定數字，
+  // 下一輪開始跳動時會比其他格晚 0.15 秒才刷走。找出並輸入它，就能鎖定對應的航線立方體。
+  const matrix = document.getElementById("matrix");
+  if (new URLSearchParams(location.search).get("debug") === "1") matrix.classList.add("debug");
+  const cells = [];
+  const randomDigits = () => String(Math.floor(rand(1000000, 9999999)));
+  const blocks = ["A", "B", "C"].map((letter, blockIndex) => {
+    const block = document.createElement("div"); block.className = "matrix-block";
+    block.innerHTML = `<div class="block-label">BLOCK ${letter} · 0x${["1A", "2C", "3F"][blockIndex]}</div>`;
+    const grid = document.createElement("div"); grid.className = "matrix-grid";
+    const blockCells = [];
+    for (let i = 0; i < 9; i++) { const c = document.createElement("div"); c.className = "cell"; grid.appendChild(c); cells.push(c); blockCells.push(c); }
+    block.appendChild(grid); matrix.appendChild(block);
+    return { letter, el: block, cells: blockCells, specialIndex: 0, fixed: "", solved: false };
+  });
+  const setupRound = () => {
+    const used = new Set();
+    blocks.forEach(b => {
+      let fixed; do { fixed = randomDigits(); } while (used.has(fixed)); used.add(fixed);
+      b.fixed = fixed; b.specialIndex = Math.floor(rand(0, 9)); b.solved = false;
+      b.el.classList.remove("is-solved");
+      b.cells.forEach((c, i) => c.classList.toggle("is-special", i === b.specialIndex));
+    });
+    console.info("[航線校對] 本局答案", blocks.map(b => `${b.letter}:${b.fixed}`).join("  "));
+  };
+  setupRound();
+  const isSpecial = c => blocks.some(b => b.cells[b.specialIndex] === c);
+  // 已校對的 BLOCK 不再重刷，數字停在校對當下的數值
+  const isFrozen = c => blocks.some(b => b.solved && b.cells.includes(c));
+  cells.forEach(c => c.textContent = randomDigits());
+  const JITTER_MS = 3000, HOLD_MS = 1500, STEP_MS = 75, SPECIAL_LINGER_MS = 150;
+  const matrixTag = document.getElementById("matrix-tag"), cycleLabel = document.getElementById("cycle-label"), cycleTime = document.getElementById("cycle-time"), cycleBar = document.getElementById("cycle-bar");
+  const matrixStart = performance.now(); let lastStep = 0, wasJitter = true, specialsReleased = true, matrixScanAudio = false;
+  const tickMatrix = now => {
+    const t = (now - matrixStart) % (JITTER_MS + HOLD_MS);
+    const jitter = t < JITTER_MS;
+    // 進入靜止：特殊格顯示本局固定的數字（其他格停在最後一次亂數）
+    if (!jitter && wasJitter) {
+      blocks.forEach(b => { if (b.solved) return; const c = b.cells[b.specialIndex]; c.textContent = b.fixed; c.classList.add("is-lingering"); });
+      specialsReleased = false;
+    }
+    wasJitter = jitter;
+    // 特殊格剛好在跳動開始後 0.15 秒刷走
+    if (jitter && !specialsReleased && t >= SPECIAL_LINGER_MS) {
+      specialsReleased = true;
+      blocks.forEach(b => { if (b.solved) return; const c = b.cells[b.specialIndex]; c.textContent = randomDigits(); c.classList.remove("is-lingering"); });
+    }
+    matrix.classList.toggle("is-jitter", jitter); matrix.classList.toggle("is-hold", !jitter);
+    // 刷動音：每輪刷動（SCAN）開始時通知播放一次（音檔自帶頭尾 0.5 秒淡化，約 2.78 秒播完後安靜等下一輪）；
+    // 刷動中途結束（全部校對完成）時通知提前淡出
+    const scanning = jitter && !gameCleared && blocks.some(b => !b.solved);
+    if (scanning !== matrixScanAudio) {
+      matrixScanAudio = scanning;
+      window.navTerminalMatrixScanActive = scanning;   // 預覽頁的音效模組晚載入時用來補上目前狀態
+      if (embedded) notifyHost("matrix-scan", { active: scanning });
+      else window.dispatchEvent(new CustomEvent("nav-terminal-matrix-scan", { detail: { active: scanning } }));
+    }
+    matrixTag.textContent = jitter ? "SCAN" : "HOLD"; matrixTag.classList.toggle("is-hold-tag", !jitter);
+    cycleLabel.textContent = jitter ? "SAMPLING" : "FRAME LOCKED";
+    cycleTime.textContent = ((jitter ? t : t - JITTER_MS) / 1000).toFixed(1) + " s";
+    cycleBar.style.width = (jitter ? t / JITTER_MS * 100 : 100) + "%";
+    if (jitter && now - lastStep >= STEP_MS) {
+      lastStep = now;
+      // 特殊格比其他格多停一段時間才開始跳（期間維持亮色）
+      cells.forEach(c => { if (!isFrozen(c) && (specialsReleased || !isSpecial(c))) c.textContent = randomDigits(); });
+    }
+  };
+
+  // ---------- 航線（星圖上：太陽系 → 中繼點 → Tabit） ----------
+  const ROUTE_D = "M 170 752 C 300 690, 420 630, 560 568 S 760 445, 860 385 S 1020 290, 1118 214";
+  ["route-base", "route-ahead", "route-done"].forEach(id => document.getElementById(id).setAttribute("d", ROUTE_D));
+  const routeDone = document.getElementById("route-done"), routeAhead = document.getElementById("route-ahead");
+  const total = routeDone.getTotalLength();
+  const routeSamples = Array.from({ length: 60 }, (_, i) => routeDone.getPointAtLength(total * i / 59));
+  // 星圖比例尺：整條航線＝26.3 光年
+  const LY_PER_PX = TOTAL_LY / total;
+  const GRID_PX = 195, SCALE_BAR_PX = 83;               // 底圖的網格間距與比例尺長度（像素）
+  document.getElementById("grid-label").textContent = `GRID  ${(GRID_PX * LY_PER_PX).toFixed(1)} ly`;
+  document.getElementById("scale-label").textContent = `${(SCALE_BAR_PX * LY_PER_PX).toFixed(1)} ly`;
+
+  // 航點：座標為以太陽系為原點的 ICRS 直角座標（光年）
+  const at = f => ({ x: TABIT.x * f, y: TABIT.y * f, z: TABIT.z * f });
+  const fmtXYZ = p => `${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)} ly`;
+  const waypoints = [
+    { name: "WPT 1 · SOL", short: "SOL · D1", at: 0.0, sub: "出發 " + fmtXYZ(at(0)) },
+    { name: "WPT 2 · MID", short: "MID · D16", at: 0.5, sub: "中繼 " + fmtXYZ(at(0.5)) },
+    { name: "WPT 3 · TABIT", short: "TABIT · D30", at: 1.0, sub: "π³ Ori " + fmtXYZ(TABIT) },
+  ];
+  // 星圖上的標註（船艦數值牌、光點標註、預測航程框）整組等比放大，字與外框一起變大
+  const LABEL_SCALE = 1.3;
+  // 頂邊限制：標註框碰到星圖可見範圍的上下左右邊緣時，動態推回範圍內（不超出四邊）。
+  // SVG 用 xMidYMin slice 鋪滿，可見範圍比 viewBox 小，依 #map-view 的實際尺寸換算（設計尺寸固定，算一次即可）。
+  const EDGE_MARGIN = 8;
+  const MAP_BOUNDS = (() => {
+    const view = document.getElementById("map-view");
+    const s = Math.max(view.clientWidth / 1293, view.clientHeight / 983);
+    const w = view.clientWidth / s, h = view.clientHeight / s;
+    return { x: (1293 - w) / 2, y: 0, width: w, height: h };
+  })();
+  const pushInside = rect => {
+    const minX = MAP_BOUNDS.x + EDGE_MARGIN, maxX = MAP_BOUNDS.x + MAP_BOUNDS.width - EDGE_MARGIN;
+    const minY = MAP_BOUNDS.y + EDGE_MARGIN, maxY = MAP_BOUNDS.y + MAP_BOUNDS.height - EDGE_MARGIN;
+    const dx = rect.x < minX ? minX - rect.x : rect.x + rect.width > maxX ? maxX - rect.x - rect.width : 0;
+    const dy = rect.y < minY ? minY - rect.y : rect.y + rect.height > maxY ? maxY - rect.y - rect.height : 0;
+    return { dx, dy };
+  };
+  const wptGroup = document.getElementById("waypoints");
+  const occupiedRects = [];   // 航點標籤佔用的區域（光點標註要避開）
+  waypoints.forEach(w => {
+    const p = routeDone.getPointAtLength(total * w.at);
+    occupiedRects.push(w.at === 1.0 ? { x: p.x - 46, y: p.y - 70, width: 300, height: 64 } : { x: p.x - 14, y: p.y - 14, width: 300, height: 68 });
+    const g = el("g", { transform: `translate(${p.x} ${p.y})` }, wptGroup);
+    el("circle", { r: 11, fill: "none", stroke: "rgba(111,227,255,0.35)", "stroke-width": 1 }, g);
+    el("circle", { r: 6.5, fill: "#04101a", stroke: "#6fe3ff", "stroke-width": 2, filter: "url(#glow)" }, g);
+    el("circle", { r: 2.2, fill: "#bff4ff" }, g);
+    // 終點 Tabit 的標籤放在航點正上方（左緣略偏左），避開立方體與預測箭頭的標註
+    const isEnd = w.at === 1.0;
+    const lx = isEnd ? -36 : 16, ly = isEnd ? -48 : 24;
+    const label = el("text", { x: lx, y: ly, class: "svg-mono wpt-label" }, g); label.textContent = w.name;
+    const sub = el("text", { x: lx, y: ly + 19, class: "svg-mono wpt-sub" }, g); sub.textContent = w.sub;
+  });
+
+  // 船艦箭頭與旁邊的數值牌
+  const shipGroup = document.getElementById("ship");
+  const shipBody = el("g", {}, shipGroup);
+  el("circle", { r: 26, fill: "none", stroke: "rgba(111,227,255,0.25)", "stroke-dasharray": "3 5" }, shipBody);
+  const shipPulse = el("circle", { r: 14, fill: "none", stroke: "rgba(111,227,255,0.6)", "stroke-width": 1.2 }, shipBody);
+  const shipArrow = el("g", { filter: "url(#glow-strong)" }, shipBody);
+  el("path", { d: "M 22 0 L -14 -13 L -6 0 L -14 13 Z", fill: "#7ff0ff", stroke: "#e6fdff", "stroke-width": 1.2, "stroke-linejoin": "round" }, shipArrow);
+  el("path", { d: "M 22 0 L -6 0", stroke: "#ffffff", "stroke-width": 1 }, shipArrow);
+  const tag = el("g", {}, shipGroup);
+  // 數值牌放在船艦左上方（航線往右上延伸，左上是空曠的星空），不壓到前方的航點標籤
+  const TAG_RECT = { x: -276, y: -136, width: 232, height: 90 };
+  el("path", { d: "M -18 -18 L -44 -46 L -276 -46", fill: "none", stroke: "rgba(111,227,255,0.7)", "stroke-width": 1 }, tag);
+  el("rect", { ...TAG_RECT, fill: "rgba(4,16,26,0.8)", stroke: "rgba(111,227,255,0.45)" }, tag);
+  const tagTitle = el("text", { x: -266, y: -116, class: "svg-mono ship-tag-title" }, tag); tagTitle.textContent = "ITHACA · WARP";
+  const tagL1 = el("text", { x: -266, y: -100, class: "svg-mono ship-tag-line" }, tag);
+  const tagL2 = el("text", { x: -266, y: -86, class: "svg-mono ship-tag-line" }, tag);
+  const tagL3 = el("text", { x: -266, y: -72, class: "svg-mono ship-tag-line" }, tag);
+  const tagL4 = el("text", { x: -266, y: -58, class: "svg-mono ship-tag-line" }, tag);
+
+  // ---------- 航線校對立方體：3 節相連、順著航線、有前後透視；輪流亮 2 秒，校對完成的固定為淡綠色 ----------
+  const CUBE_RANGES = [[0.22, 0.46], [0.46, 0.7], [0.7, 0.9]];
+  const CUBE_CYCLE_MS = 2000;
+  const cubeGroup = document.getElementById("cubes");
+  const defs = document.querySelector("#map-svg defs");
+  // 一點透視：每節的近端截面是正對畫面的直立矩形，沿航線方向的四條邊都收向前方的消失點；
+  // 遠端截面＝近端截面以消失點為中心縮小，正好落在下一節的起點，所以三節無縫相連、越遠越小。
+  const CUBE_NEAR_SIZE = { w: 112, h: 72 };   // 第 1 節近端截面（像素）
+  const CUBE_SHRINK = 0.8;                    // 每一節遠端相對近端的縮小比例
+  // 玻璃截面質感：沿航線疊很多片半透明的截面板，近端那片最亮（有內框、角標與 HUD 字），往遠端漸淡
+  const GLASS_SLICES = 10;
+  const DIVIDER_SCALE = { w: 1.9, h: 2.3 };   // 接點霧面板相對該處截面的放大倍數                     // 每一節疊幾片截面板
+  const poly = pts => pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const rectAt = (P, w, h) => [
+    { x: P.x - w / 2, y: P.y - h / 2 },   // 0 左上
+    { x: P.x + w / 2, y: P.y - h / 2 },   // 1 右上
+    { x: P.x + w / 2, y: P.y + h / 2 },   // 2 右下
+    { x: P.x - w / 2, y: P.y + h / 2 },   // 3 左下
+  ];
+  let nearSize = { ...CUBE_NEAR_SIZE };
+  let prevHull = null;                        // 前一節立方體的外輪廓（用來遮掉霧面板被擋住的部分）
+  const convexHull = pts => {
+    const p = [...pts].sort((a, b) => a.x - b.x || a.y - b.y);
+    const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+    const half = list => list.reduce((h, q) => { while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], q) <= 0) h.pop(); h.push(q); return h; }, []);
+    const lower = half(p), upper = half([...p].reverse());
+    return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+  };
+  const cubes = CUBE_RANGES.map(([a, b], i) => {
+    const P0 = routeDone.getPointAtLength(total * a), P1 = routeDone.getPointAtLength(total * b);
+    const L = Math.hypot(P1.x - P0.x, P1.y - P0.y);
+    const ux = (P1.x - P0.x) / L, uy = (P1.y - P0.y) / L;
+    // 消失點放在這一節方向的延長線上，距離 D 讓遠端剛好縮成 CUBE_SHRINK 倍
+    const D = CUBE_SHRINK * L / (1 - CUBE_SHRINK);
+    const VP = { x: P1.x + ux * D, y: P1.y + uy * D };
+    const n = rectAt(P0, nearSize.w, nearSize.h);
+    const f = n.map(c => ({ x: VP.x + (c.x - VP.x) * CUBE_SHRINK, y: VP.y + (c.y - VP.y) * CUBE_SHRINK }));
+    nearSize = { w: nearSize.w * CUBE_SHRINK, h: nearSize.h * CUBE_SHRINK };
+    // 外側面：沿航線方向的淡漸層，當作整節的體積光
+    const gradId = `cube-grad-${i}`;
+    const grad = el("linearGradient", { id: gradId, gradientUnits: "userSpaceOnUse", x1: P0.x, y1: P0.y, x2: P1.x, y2: P1.y }, defs);
+    const stop0 = el("stop", { offset: 0 }, grad), stop1 = el("stop", { offset: 1 }, grad);
+    // 截面板：每片自己的斜向漸層（右上亮、左下暗），像一片發光玻璃
+    const panelId = `cube-panel-${i}`;
+    const pgrad = el("linearGradient", { id: panelId, x1: 1, y1: 0, x2: 0, y2: 1 }, defs);
+    const pstop0 = el("stop", { offset: 0 }, pgrad), pstop1 = el("stop", { offset: 0.55 }, pgrad), pstop2 = el("stop", { offset: 1 }, pgrad);
+    // 兩節之間的接點：多疊一片較大的白色半透明霧面板，讓三節更有區隔。
+    // 前後層次：前一節（離畫面近）在霧面板前面，被它擋住的部分要遮掉；後一節在霧面板後面。
+    // 所以圖層順序是 C → 霧面板 2 → B → 霧面板 1 → A（每個新元素都插到最底下）。
+    if (i > 0) {
+      const maskId = `divider-mask-${i}`;
+      const mask = el("mask", { id: maskId, maskUnits: "userSpaceOnUse", x: 0, y: 0, width: 1293, height: 983 }, defs);
+      el("rect", { x: 0, y: 0, width: 1293, height: 983, fill: "#fff" }, mask);
+      el("polygon", { points: poly(prevHull), fill: "#000" }, mask);
+      const div = el("g", { class: "cube-divider", mask: `url(#${maskId})` });
+      cubeGroup.prepend(div);
+      const dw = nearSize.w / CUBE_SHRINK * DIVIDER_SCALE.w, dh = nearSize.h / CUBE_SHRINK * DIVIDER_SCALE.h;
+      const box = { x: P0.x - dw / 2, y: P0.y - dh / 2, width: dw, height: dh };
+      el("rect", { ...box, fill: "rgba(255,255,255,0.10)", filter: "url(#divider-blur)" }, div);
+      el("rect", { ...box, fill: "rgba(255,255,255,0.04)", stroke: "rgba(255,255,255,0.42)", "stroke-width": 1 }, div);
+      // 四個角外側的「」角標（跟霧面板同一層，一樣會被前一節擋住）
+      const t = Math.min(dw, dh) * 0.12, gp = 4, x0 = box.x - gp, y0 = box.y - gp, x1 = box.x + dw + gp, y1 = box.y + dh + gp;
+      el("path", { fill: "none", stroke: "rgba(255,255,255,0.7)", "stroke-width": 1.2, "stroke-linecap": "square", d: [
+        `M ${x0} ${y0 + t} V ${y0} H ${x0 + t}`, `M ${x1 - t} ${y0} H ${x1} V ${y0 + t}`,
+        `M ${x1} ${y1 - t} V ${y1} H ${x1 - t}`, `M ${x0 + t} ${y1} H ${x0} V ${y1 - t}`,
+      ].join(" ") }, div);
+    }
+    const g = el("g", {});
+    cubeGroup.prepend(g);
+    prevHull = convexHull([...n, ...f]);
+    const faces = [
+      [n[0], n[1], f[1], f[0]], [n[3], n[2], f[2], f[3]], [n[0], n[3], f[3], f[0]], [n[1], n[2], f[2], f[1]],
+    ].map(pts => el("polygon", { points: poly(pts), fill: `url(#${gradId})` }, g));
+    // 沿透視間距排的截面（k＝0 是近端），由遠畫到近，近的疊在上面
+    const frames = Array.from({ length: GLASS_SLICES + 1 }, (_, k) => {
+      const scale = 1 / (1 + k * (1 / CUBE_SHRINK - 1) / GLASS_SLICES);
+      return n.map(c => ({ x: VP.x + (c.x - VP.x) * scale, y: VP.y + (c.y - VP.y) * scale }));
+    });
+    const slices = [];
+    for (let k = GLASS_SLICES; k >= 1; k--) {
+      slices[k] = el("polygon", { points: poly(frames[k]), fill: `url(#${panelId})`, "stroke-linejoin": "round" }, g);
+    }
+    const edges = el("g", { fill: "none", "stroke-linejoin": "round", "stroke-width": 0.6 }, g);
+    for (let k = 0; k < 4; k++) el("line", { x1: n[k].x, y1: n[k].y, x2: f[k].x, y2: f[k].y }, edges);
+    // 近端主面板：玻璃填色＋外框＋內框＋外側角標＋HUD 字
+    const front = el("g", {}, g);
+    const frontFill = el("polygon", { points: poly(n), fill: `url(#${panelId})` }, front);
+    const frontLine = el("polygon", { points: poly(n), fill: "none", "stroke-linejoin": "round" }, front);
+    const w = n[1].x - n[0].x, h = n[3].y - n[0].y;
+    const inner = el("rect", { x: n[0].x + w * 0.08, y: n[0].y + h * 0.3, width: w * 0.84, height: h * 0.58, fill: "none", "stroke-width": 0.5 }, front);
+    const tick = Math.min(w, h) * 0.14, gap = 3;
+    const ticks = el("path", { fill: "none", "stroke-width": 1, "stroke-linecap": "square", d: [
+      `M ${n[0].x - gap} ${n[0].y - gap + tick} V ${n[0].y - gap} H ${n[0].x - gap + tick}`,
+      `M ${n[1].x + gap - tick} ${n[1].y - gap} H ${n[1].x + gap} V ${n[1].y - gap + tick}`,
+      `M ${n[2].x + gap} ${n[2].y + gap - tick} V ${n[2].y + gap} H ${n[2].x + gap - tick}`,
+      `M ${n[3].x - gap + tick} ${n[3].y + gap} H ${n[3].x - gap} V ${n[3].y + gap - tick}`,
+    ].join(" ") }, front);
+    const fs = Math.max(5.5, h * 0.13);
+    const hud = el("g", { class: "svg-mono", "font-size": fs.toFixed(1) }, front);
+    const hudTitle = el("text", { x: n[0].x + w * 0.08, y: n[0].y + h * 0.2, "font-weight": 700 }, hud);
+    hudTitle.textContent = `B-LOCK ${blocks[i].letter}`;
+    const hudSpan = el("text", { x: n[1].x - w * 0.08, y: n[0].y + h * 0.2, "text-anchor": "end" }, hud);
+    hudSpan.textContent = `${((b - a) * TOTAL_LY).toFixed(2)} ly`;
+    if (w < 95) hudSpan.remove();   // 太小的面板只留標題，避免字擠在一起
+    const hudIdx = el("text", { x: n[1].x - w * 0.12, y: n[0].y + h * 0.8, "text-anchor": "end", "font-size": (fs * 0.85).toFixed(1) }, hud);
+    hudIdx.textContent = `v${i + 1}.0`;
+    // 標籤放在近端截面的左下角下方
+    const label = el("text", { x: n[3].x + 2, y: n[3].y + 16, class: "svg-mono cube-label" }, g);
+    label.textContent = `BLOCK ${blocks[i].letter}`;
+    const xs = [...n, ...f].map(c => c.x), ys = [...n, ...f].map(c => c.y);
+    const bbox = { x: Math.min(...xs) - 6, y: Math.min(...ys) - 6, width: Math.max(...xs) - Math.min(...xs) + 12, height: Math.max(...ys) - Math.min(...ys) + 26 };
+    return { g, faces, slices, edges, front, frontLine, inner, ticks, hud, label, stop0, stop1, pstop0, pstop1, pstop2, block: blocks[i], bbox };
+  });
+  // a0／a1：外側面漸層；panel：截面板亮度（右上最亮處）；slice：截面板邊線亮度；front：近端面板亮度倍率
+  const CUBE_STYLE = {
+    idle:   { a0: 0.04, a1: 0.015, panel: 0.09, slice: 0.1, front: 0.45, rgb: "111,227,255", stroke: "rgba(111,227,255,0.25)", label: "rgba(127,163,181,0.6)", glow: false },
+    active: { a0: 0.16, a1: 0.05, panel: 0.5, slice: 0.45, front: 1, rgb: "255,196,70", stroke: "rgba(255,222,140,0.95)", label: "#ffd98a", glow: true },
+    solved: { a0: 0.14, a1: 0.04, panel: 0.42, slice: 0.4, front: 0.85, rgb: "125,255,200", stroke: "rgba(150,255,210,0.9)", label: "#7dffc8", glow: false },
+  };
+  let activeCube = 0, cubeSwitchAt = 0;
+  const applyCube = (cube, state) => {
+    if (cube.state === state) return;
+    cube.state = state;
+    const st = CUBE_STYLE[state];
+    cube.stop0.setAttribute("stop-color", `rgba(${st.rgb},${st.a0})`);
+    cube.stop1.setAttribute("stop-color", `rgba(${st.rgb},${st.a1})`);
+    cube.pstop0.setAttribute("stop-color", `rgba(${st.rgb},${st.panel})`);
+    cube.pstop1.setAttribute("stop-color", `rgba(${st.rgb},${(st.panel * 0.45).toFixed(3)})`);
+    cube.pstop2.setAttribute("stop-color", `rgba(${st.rgb},${(st.panel * 0.15).toFixed(3)})`);
+    // 截面板：越遠越淡，像一疊往後退的玻璃
+    cube.slices.forEach((sl, k) => {
+      if (!sl) return;
+      const fade = 1 - (k / GLASS_SLICES) * 0.6;
+      sl.setAttribute("fill-opacity", (0.85 * fade).toFixed(3));
+      sl.setAttribute("stroke", `rgba(${st.rgb},${(st.slice * fade).toFixed(3)})`);
+      sl.setAttribute("stroke-width", 0.6);
+    });
+    cube.edges.setAttribute("stroke", `rgba(${st.rgb},${(st.slice * 1.4).toFixed(3)})`);
+    cube.front.setAttribute("opacity", st.front);
+    cube.frontLine.setAttribute("stroke", st.stroke);
+    cube.frontLine.setAttribute("stroke-width", state === "idle" ? 0.8 : 1.4);
+    cube.frontLine.setAttribute("filter", st.glow ? "url(#glow)" : "none");
+    cube.inner.setAttribute("stroke", `rgba(${st.rgb},0.4)`);
+    cube.ticks.setAttribute("stroke", st.stroke);
+    cube.hud.setAttribute("fill", st.label);
+    cube.label.setAttribute("fill", st.label);
+  };
+  const tickCubes = now => {
+    const open = cubes.map((c, i) => i).filter(i => !cubes[i].block.solved);
+    // 依序輪到下一節尚未校對的立方體；剛校對完成的那節立刻換下一節
+    if (open.length) {
+      const nextOpen = () => open.find(i => i > activeCube) ?? open[0];
+      if (!open.includes(activeCube)) { activeCube = nextOpen(); cubeSwitchAt = now + CUBE_CYCLE_MS; }
+      else if (now >= cubeSwitchAt) { if (cubeSwitchAt) activeCube = nextOpen(); cubeSwitchAt = now + CUBE_CYCLE_MS; }
+    }
+    cubes.forEach((c, i) => applyCube(c, c.block.solved ? "solved" : open.length && i === activeCube ? "active" : "idle"));
+  };
+
+  // ---------- 預測航程示意：半透明發光箭頭拖著光尾，從船艦前進 → WPT 2 稍停 → WPT 3 → 循環 ----------
+  const ghostGroup = document.getElementById("ghost");
+  // 已預測過的路段：很淡的軌跡
+  const ghostTrail = el("path", { d: ROUTE_D, fill: "none", stroke: "rgba(160,236,255,0.16)", "stroke-width": 3, "stroke-linecap": "round" }, ghostGroup);
+  // 光尾：同粗、同亮度的一條線；整組（箭頭＋光尾）再一起做成半透明，表示這是預覽
+  const TAIL = [{ len: 220, width: 3.5, opacity: 1 }];
+  const GHOST_OPACITY = 0.55;
+  const tailGroup = el("g", { filter: "url(#glow)" }, ghostGroup);
+  const tailSegments = TAIL.map(t => ({ ...t, path: el("path", { d: ROUTE_D, fill: "none", stroke: "#c6f6ff", "stroke-width": t.width, "stroke-linecap": "round", opacity: t.opacity }, tailGroup) }));
+  const ghostBody = el("g", {}, ghostGroup);
+  const ghostArrow = el("g", { filter: "url(#glow-strong)" }, ghostBody);
+  el("path", { d: "M 19 0 L -11 -11 L -5 0 L -11 11 Z", fill: "#bff4ff", stroke: "#e2fbff", "stroke-width": 1.3, "stroke-linejoin": "round" }, ghostArrow);
+  const ghostTag = el("g", {}, ghostBody);
+  const GHOST_RECT = { x: 14, y: 10, width: 172, height: 36 };
+  el("rect", { ...GHOST_RECT, fill: "rgba(4,16,26,0.72)", stroke: "rgba(160,236,255,0.4)", "stroke-dasharray": "4 3" }, ghostTag);
+  const ghostTitle = el("text", { x: 22, y: 25, class: "svg-mono ghost-label-strong" }, ghostTag);
+  const ghostLine = el("text", { x: 22, y: 39, class: "svg-mono ghost-label" }, ghostTag);
+  // 時間軸（毫秒）：飛到 WPT 2 → 停 → 飛到 WPT 3 → 停 → 淡出 → 空檔
+  const GHOST = { toMid: 3400, holdMid: 1200, toEnd: 5600, holdEnd: 1400, fade: 700, gap: 700 };
+  const GHOST_CYCLE = Object.values(GHOST).reduce((a, b) => a + b, 0);
+  const easeInOut = x => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+  const tickGhost = (elapsed, shipT) => {
+    const midT = waypoints[1].at;
+    let t = elapsed % GHOST_CYCLE, f, alpha = 1, stop = null;
+    const fromT = Math.min(shipT, midT);
+    if (t < GHOST.toMid) f = fromT + (midT - fromT) * easeInOut(t / GHOST.toMid);
+    else if ((t -= GHOST.toMid) < GHOST.holdMid) { f = midT; stop = waypoints[1]; }
+    else if ((t -= GHOST.holdMid) < GHOST.toEnd) f = midT + (1 - midT) * easeInOut(t / GHOST.toEnd);
+    else if ((t -= GHOST.toEnd) < GHOST.holdEnd) { f = 1; stop = waypoints[2]; }
+    else if ((t -= GHOST.holdEnd) < GHOST.fade) { f = 1; stop = waypoints[2]; alpha = 1 - t / GHOST.fade; }
+    else { ghostGroup.setAttribute("opacity", "0"); return; }
+    const fadeIn = Math.min(1, (elapsed % GHOST_CYCLE) / 250);
+    ghostGroup.setAttribute("opacity", (alpha * fadeIn * GHOST_OPACITY).toFixed(3));
+    const len = total * f, p = routeDone.getPointAtLength(len), p2 = routeDone.getPointAtLength(Math.min(total, len + 2)), pb = routeDone.getPointAtLength(Math.max(0, len - 2));
+    const ang = Math.atan2(p2.y - pb.y, p2.x - pb.x) * 180 / Math.PI;
+    ghostBody.setAttribute("transform", `translate(${p.x} ${p.y})`);
+    ghostArrow.setAttribute("transform", `rotate(${ang})`);
+    // 標註放在箭頭右下、航點標籤的下方（船艦數值牌在左上、航點標籤緊貼航點右下），離開船艦一小段後才淡入
+    const ghostPush = pushInside({ x: p.x + 2 + GHOST_RECT.x * LABEL_SCALE, y: p.y + 42 + GHOST_RECT.y * LABEL_SCALE, width: GHOST_RECT.width * LABEL_SCALE, height: GHOST_RECT.height * LABEL_SCALE });
+    ghostTag.setAttribute("transform", `translate(${2 + ghostPush.dx} ${42 + ghostPush.dy}) scale(${LABEL_SCALE})`);
+    ghostTag.setAttribute("opacity", Math.max(0, Math.min(1, (len - total * shipT - 40) / 70)).toFixed(2));
+    // 船艦到箭頭這段畫一條半透明的預測軌跡
+    const shipLen = total * shipT;
+    ghostTrail.setAttribute("stroke-dasharray", `0 ${shipLen} ${Math.max(0, len - shipLen)} ${total}`);
+    // 光尾只畫在船艦與箭頭之間；停在航點時光尾慢慢收短
+    const moving = !stop;
+    tailSegments.forEach(seg => {
+      const tailLen = Math.max(0, Math.min(seg.len * (moving ? 1 : 0.35), len - shipLen));
+      seg.path.setAttribute("stroke-dasharray", `0 ${len - tailLen} ${tailLen} ${total}`);
+    });
+    // 預計時間：以目前航速換算船艦飛到箭頭位置要多久（遞增）；後面是箭頭位置離 Tabit 的剩餘光年（遞減）
+    const days = Math.max(0, (f - shipT) * TOTAL_LY / LY_PER_DAY);
+    const aheadLy = Math.max(0, TOTAL_LY * (1 - f));
+    ghostTitle.textContent = stop ? `${stop === waypoints[2] ? "TABIT" : "WPT 2"} 抵達` : "預測航程";
+    ghostLine.textContent = `T+ ${Math.floor(days)}d ${pad(days * 24 % 24)}h · ${aheadLy.toFixed(2)} ly`;
+  };
+
+  // ---------- 浮現的光點與標註（距離與方位由星圖上的實際位置換算） ----------
+  const contactGroup = document.getElementById("contacts");
+  const contacts = []; let nextContactAt = 0, contactSerial = 0;
+  const shipPos = { x: 0, y: 0, angle: 0 };
+  const spawnContact = now => {
+    if (contacts.length >= 6) return;
+    let x, y, tries = 0;
+    // 避開航線帶（含航點與船艦數值牌）與其他光點，標註才不會互相壓到
+    const nearRoute = (px, py) => routeSamples.some(q => Math.hypot(q.x - px, q.y - py) < 120);
+    do { x = rand(120, 1180); y = rand(130, 770); tries++; }
+    while (tries < 40 && (contacts.some(c => Math.hypot(c.x - x, c.y - y) < 190) || nearRoute(x, y) || (x < 300 && y < 150)));
+    if (tries >= 40) return;
+    // 標註框的位置先算好：與船艦數值牌、航點標籤、其他光點標註重疊就放棄這次生成
+    const fx = x > 1000, fy = y < 170;
+    const BOX_W = 150 * LABEL_SCALE, BOX_H = 48 * LABEL_SCALE;
+    // 框貼著引線末端（±60），垂直方向貼著轉折點的上方或下方
+    const labelRect = { x: fx ? x - 60 - BOX_W : x + 60, y: fy ? y + 32 : y - 30 - BOX_H, width: BOX_W, height: BOX_H };
+    const hits = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+    const shipTag = { x: shipPos.x + TAG_RECT.x * LABEL_SCALE - 10, y: shipPos.y + TAG_RECT.y * LABEL_SCALE - 10, width: TAG_RECT.width * LABEL_SCALE + 60, height: TAG_RECT.height * LABEL_SCALE + 70 };
+    const markerRect = { x: x - 20, y: y - 20, width: 40, height: 40 };
+    const others = [shipTag, ...occupiedRects, ...cubes.map(c => c.bbox), ...contacts.flatMap(c => [c.labelRect, c.markerRect])];
+    if (others.some(r => hits(r, labelRect) || hits(r, markerRect))) return;
+    const g = el("g", { transform: `translate(${x} ${y})`, opacity: 0 }, contactGroup);
+    const ring = el("circle", { r: 8, fill: "none", stroke: "#ffbe5c", "stroke-width": 1.2 }, g);
+    el("circle", { r: 9, fill: "url(#contact-core)" }, g);
+    el("circle", { r: 2.4, fill: "#fff8e6" }, g);
+    const flipX = x > 1000, flipY = y < 170;
+    const sx = flipX ? -1 : 1, sy = flipY ? 1 : -1;
+    const bx = sx * 34, by = sy * 30;
+    el("path", { d: `M ${sx * 10} ${sy * 9} L ${bx} ${by} L ${bx + sx * 26} ${by}`, fill: "none", stroke: "rgba(255,190,92,0.7)", "stroke-width": 1 }, g);
+    const br = 15, bl = 6;
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([cx, cy]) => el("path", { d: `M ${cx * br} ${cy * (br - bl)} L ${cx * br} ${cy * br} L ${cx * (br - bl)} ${cy * br}`, fill: "none", stroke: "#ffbe5c", "stroke-width": 1.4 }, g));
+    // 標註框整組放大：往遠離引線的方向長大（框的近端維持貼著引線）
+    // 框內座標的外框是 (-6,-2)～(144,46)，放大後以引線端點為基準換算平移量
+    const tx = flipX ? bx - 26 - 144 * LABEL_SCALE : bx + 26 + 6 * LABEL_SCALE, ty = flipY ? by + 2 + 2 * LABEL_SCALE : by - 46 * LABEL_SCALE;
+    const boxPush = pushInside({ x: x + tx - 6 * LABEL_SCALE, y: y + ty - 2 * LABEL_SCALE, width: BOX_W, height: BOX_H });
+    const box = el("g", { transform: `translate(${tx + boxPush.dx} ${ty + boxPush.dy}) scale(${LABEL_SCALE})` }, g);
+    el("rect", { x: -6, y: -2, width: 150, height: 48, fill: "rgba(20,12,2,0.62)", stroke: "rgba(255,190,92,0.35)" }, box);
+    const id = el("text", { x: 0, y: 12, class: "svg-mono contact-id" }, box);
+    const l1 = el("text", { x: 0, y: 26, class: "svg-mono contact-line" }, box);
+    const l2 = el("text", { x: 0, y: 39, class: "svg-mono contact-line" }, box);
+    contactSerial = contactSerial % 89 + 1;
+    const kind = ["UNK", "DEB", "ICE", "SIG"][Math.floor(rand(0, 4))];
+    id.textContent = `C-${pad(contactSerial + 10)}  ${kind}`;
+    contacts.push({ g, ring, l1, l2, x, y, labelRect, markerRect, born: now, life: rand(4200, 6500), sig: rand(0.1, 0.9), noise: rand(-0.004, 0.004), lastText: 0 });
+  };
+  const tickContacts = now => {
+    if (now >= nextContactAt) { spawnContact(now); nextContactAt = now + rand(700, 1500); }
+    for (let i = contacts.length - 1; i >= 0; i--) {
+      const c = contacts[i], age = now - c.born;
+      const fadeIn = Math.min(1, age / 450), fadeOut = Math.min(1, (c.life - age) / 600);
+      if (age >= c.life) { c.g.remove(); contacts.splice(i, 1); continue; }
+      c.g.setAttribute("opacity", Math.max(0, Math.min(fadeIn, fadeOut)).toFixed(3));
+      const pulse = (age % 1400) / 1400;
+      c.ring.setAttribute("r", (8 + pulse * 18).toFixed(1));
+      c.ring.setAttribute("opacity", (1 - pulse).toFixed(2));
+      if (now - c.lastText > 120) {
+        c.lastText = now;
+        // 距離＝與船艦在星圖上的像素距離 × 比例尺（加上 ±0.4% 的量測雜訊）；方位＝相對航向的夾角
+        c.noise = Math.max(-0.006, Math.min(0.006, c.noise + rand(-0.0008, 0.0008)));
+        const distLy = Math.hypot(c.x - shipPos.x, c.y - shipPos.y) * LY_PER_PX * (1 + c.noise);
+        let brg = Math.atan2(c.y - shipPos.y, c.x - shipPos.x) * 180 / Math.PI - shipPos.angle;
+        brg = ((brg + 540) % 360) - 180;
+        c.sig = Math.min(0.99, Math.max(0.05, c.sig + rand(-0.02, 0.02)));
+        c.l1.textContent = `DIST ${distLy.toFixed(3)} ly`;
+        c.l2.textContent = `BRG ${brg >= 0 ? "+" : ""}${brg.toFixed(1)}°  SIG ${c.sig.toFixed(2)}`;
+      }
+    }
+  };
+
+  // ---------- 底部進度 ----------
+  const progress = document.getElementById("progress"), progressFill = document.getElementById("progress-fill"), progressShip = document.getElementById("progress-ship");
+  const remain = document.getElementById("remain"), eta = document.getElementById("eta");
+  waypoints.forEach(w => { const n = document.createElement("div"); n.className = "node"; n.style.left = (w.at * 100) + "%"; n.innerHTML = `<em>${w.short}</em>`; progress.appendChild(n); });
+
+  // ---------- 輸入小鍵盤：0～9、＊（清除全部）、＜（刪除一碼）；滑鼠／觸控、鍵盤、手把都能操作 ----------
+  // 沒有確認鍵：輸滿 7 碼自動送出
+  // 依專案 UI 規則：不顯示瀏覽器原生焦點框；同一時間只有一個輸入擁有者（mouse／directional），
+  // 選取框只在方向鍵或手把操作時出現，滑鼠移動就交還給滑鼠。
+  const CODE_LENGTH = 7;
+  const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "<"];
+  const keypadPanel = document.getElementById("keypad-panel"), keypadGrid = document.getElementById("keypad-grid");
+  const codeSlots = document.getElementById("code-slots"), codeReadout = document.getElementById("code-readout");
+  const codeStatus = document.getElementById("code-status"), keypadTag = document.getElementById("keypad-tag");
+  const slots = Array.from({ length: CODE_LENGTH }, () => { const d = document.createElement("div"); d.className = "code-slot"; codeSlots.appendChild(d); return d; });
+  const keyButtons = KEYS.map((label, index) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "key" + (label === "*" || label === "<" ? " is-symbol" : ""); b.textContent = label === "*" ? "＊" : label === "<" ? "＜" : label;
+    b.setAttribute("aria-label", label === "*" ? "清除全部" : label === "<" ? "刪除一碼" : label);
+    b.addEventListener("pointerdown", event => setOwner(event.pointerType === "mouse" ? "mouse" : "touch"));
+    b.addEventListener("click", () => { selectedKey = index; pressKey(label); });
+    keypadGrid.appendChild(b);
+    return b;
+  });
+  // 輸入擁有者：mouse／touch／keyboard／gamepad；keyboard 與 gamepad 屬於方向選取（顯示 is-selected 選取框）
+  let code = "", selectedKey = 4, owner = "", statusTimer = 0, inputLocked = false;
+  const isDirectional = () => owner === "keyboard" || owner === "gamepad";
+  const OWNER_HELP = {
+    mouse: "Esc 返回船艙",
+    touch: "點「返回船艙」離開",
+    keyboard: "空白鍵按下　Esc 返回",
+    gamepad: "A 按下　B 刪除／返回",
+  };
+  const setOwner = next => {
+    if (owner === next) return;
+    owner = next;
+    document.body.dataset.owner = next;
+    keypadPanel.dataset.inputOwner = isDirectional() ? "directional" : "mouse";
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    renderSelection(); renderHelp();
+    notifyHost("owner", { owner: next });
+  };
+  const renderSelection = () => keyButtons.forEach((b, i) => b.classList.toggle("is-selected", isDirectional() && i === selectedKey));
+  let statusText = "待命";
+  const renderHelp = () => { codeStatus.innerHTML = `＊ 清除　＜ 刪除<br />${OWNER_HELP[owner] ?? OWNER_HELP.mouse}<br />狀態 <b>${statusText}</b>`; };
+  const renderCode = () => slots.forEach((slot, i) => { slot.textContent = code[i] ?? ""; slot.classList.toggle("is-cursor", i === code.length); });
+  const setStatus = (text, tag) => {
+    statusText = text; renderHelp();
+    keypadTag.textContent = tag;
+  };
+  const flash = (button) => { button.classList.add("is-pressed"); setTimeout(() => button.classList.remove("is-pressed"), 120); };
+  let gameCleared = false;
+  // 輸滿 7 碼自動送出：與尚未校對的 BLOCK 特殊數字比對
+  const submit = () => {
+    clearTimeout(statusTimer);
+    codeReadout.classList.remove("is-sent", "is-cleared", "is-wrong");
+    const hit = blocks.find(b => b.fixed === code);
+    if (hit && !hit.solved) {
+      hit.solved = true; hit.el.classList.add("is-solved");
+      if (embedded) notifyHost("block-calibrated");
+      else window.dispatchEvent(new Event("nav-terminal-block-calibrated"));
+      codeReadout.classList.add("is-sent");
+      setStatus(`BLOCK ${hit.letter} 校對完成`, "LOCKED");
+      if (blocks.every(b => b.solved)) { finishGame(); return; }
+    } else if (hit) {
+      codeReadout.classList.add("is-sent");
+      setStatus(`BLOCK ${hit.letter} 已校對`, "LOCKED");
+    } else {
+      void codeReadout.offsetWidth; codeReadout.classList.add("is-wrong");
+      if (embedded) notifyHost("input-rejected");
+      else window.dispatchEvent(new Event("nav-terminal-input-rejected"));
+      setStatus("校對失敗", "ERROR");
+    }
+    inputLocked = true;
+    statusTimer = setTimeout(() => {
+      code = ""; inputLocked = false;
+      codeReadout.classList.remove("is-sent", "is-wrong"); renderCode();
+      setStatus(`待命 · 已校對 ${blocks.filter(b => b.solved).length}／3`, "READY");
+    }, 900);
+  };
+  // 過關：等 0.5 秒刷出訊息，停 2.5 秒後關閉（預覽中淡出並提供重新開始）
+  const finishGame = () => {
+    gameCleared = true; inputLocked = true;
+    setStatus("全部校對完成", "CLEAR");
+    setTimeout(() => document.getElementById("clear-banner").classList.add("is-shown"), 500);
+    exitButton.disabled = true;
+    setTimeout(() => {
+      stage.classList.add("is-closing");
+      setTimeout(() => {
+        if (embedded) notifyHost("complete", { solved: blocks.map(b => b.letter) });
+        else document.getElementById("closed-note").classList.add("is-shown");
+      }, 650);
+    }, 3000);
+  };
+  // 返回船艙：中途離開不算完成，下次互動重新開始
+  const exitButton = document.getElementById("exit");
+  const leave = () => {
+    if (gameCleared) return;
+    if (embedded) notifyHost("cancel");
+    else location.reload();
+  };
+  exitButton.addEventListener("click", leave);
+  document.getElementById("replay").addEventListener("click", () => location.reload());
+  const pressKey = label => {
+    if (inputLocked || !KEYS.includes(label)) return;
+    // 所有輸入路徑共用一次音效；校對鎖定期間不發出事件。
+    const inputEvent = label === "*" ? "clear" : "input";
+    if (embedded) notifyHost(inputEvent);
+    else window.dispatchEvent(new Event(`nav-terminal-${inputEvent}`));
+    if (label === "<") { flash(keyButtons[KEYS.indexOf("<")]); backspace(); return; }
+    flash(keyButtons[KEYS.indexOf(label)]);
+    codeReadout.classList.remove("is-sent", "is-cleared");
+    clearTimeout(statusTimer);
+    if (label === "*") {
+      code = ""; void codeReadout.offsetWidth; codeReadout.classList.add("is-cleared");
+      setStatus("已清除", "CLEAR");
+    } else if (code.length < CODE_LENGTH) {
+      code += label; setStatus(`已輸入 ${code.length}／${CODE_LENGTH} 碼`, "INPUT");
+      if (code.length === CODE_LENGTH) { renderCode(); submit(); return; }
+    } else {
+      setStatus("已滿 7 碼", "FULL");
+    }
+    renderCode();
+  };
+  const backspace = () => { if (!code || inputLocked) return; clearTimeout(statusTimer); codeReadout.classList.remove("is-sent", "is-cleared"); code = code.slice(0, -1); renderCode(); setStatus(code ? `已輸入 ${code.length}／${CODE_LENGTH} 碼` : "待命", code ? "INPUT" : "READY"); };
+  const moveSelection = (dx, dy, source) => {
+    if (!isDirectional()) { setOwner(source); return; }
+    setOwner(source);
+    const col = selectedKey % 3, row = Math.floor(selectedKey / 3);
+    selectedKey = ((row + dy + 4) % 4) * 3 + (col + dx + 3) % 3;
+    renderSelection();
+  };
+  renderCode();
+  setOwner(initialOwnerParam === "gamepad" || initialOwnerParam === "keyboard" || initialOwnerParam === "touch" ? initialOwnerParam : "mouse");
+  // 滑鼠要真的移動（超過 2px）才接手，避免游標停在原地時搶走方向選取
+  let lastMouse = null, touchUntil = 0;
+  addEventListener("pointermove", event => {
+    if (event.pointerType !== "mouse" || performance.now() < touchUntil) return;
+    const p = { x: event.clientX, y: event.clientY };
+    if (lastMouse && Math.hypot(p.x - lastMouse.x, p.y - lastMouse.y) > 2) setOwner("mouse");
+    lastMouse = p;
+  });
+  addEventListener("pointerdown", event => { if (event.pointerType !== "mouse") { touchUntil = performance.now() + 900; setOwner("touch"); } }, true);
+  addEventListener("keydown", event => {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    const k = event.key;
+    if (k === "Escape") { event.preventDefault(); if (!event.repeat) leave(); return; }
+    if (k === "Tab") { event.preventDefault(); return; }
+    if (/^[0-9]$/.test(k)) { event.preventDefault(); pressKey(k); return; }
+    if (k === "*" || event.code === "NumpadMultiply") { event.preventDefault(); pressKey("*"); return; }
+    if (k === "Backspace" || k === "Delete" || k === "<") { event.preventDefault(); pressKey("<"); return; }
+    const dir = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[k];
+    if (dir) { event.preventDefault(); moveSelection(...dir, "keyboard"); return; }
+    if (k === " " || k === "Enter") {
+      event.preventDefault();
+      if (event.repeat) return;
+      if (owner === "keyboard") pressKey(KEYS[selectedKey]); else setOwner("keyboard");
+    }
+  });
+  // 手把：十字鍵／左搖桿移動（回中才再移動），A 按下選取的鍵，B 刪除一碼；輸入欄空白時 B 返回船艙。
+  // 開啟時先等所有按鍵回中（padArmed），避免開啟小遊戲的那一下 A 直接按到鍵盤。
+  let padHeld = "", padArmed = false;
+  const tickGamepad = () => {
+    const pad = readPad();
+    if (!pad) { padHeld = ""; padArmed = false; return; }
+    const [ax = 0, ay = 0] = pad.axes, b = i => Boolean(pad.buttons[i]?.pressed);
+    const dir = b(12) || ay < -0.6 ? "up" : b(13) || ay > 0.6 ? "down" : b(14) || ax < -0.6 ? "left" : b(15) || ax > 0.6 ? "right" : "";
+    const button = b(0) ? "a" : b(1) ? "b" : "";
+    const now = dir || button;
+    if (!padArmed) { if (!now) padArmed = true; padHeld = now; return; }
+    if (now && now !== padHeld) {
+      if (dir) moveSelection(...{ up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[dir], "gamepad");
+      else if (button === "a") { if (owner === "gamepad") pressKey(KEYS[selectedKey]); else setOwner("gamepad"); }
+      else if (button === "b") { setOwner("gamepad"); if (code && !inputLocked) pressKey("<"); else if (!inputLocked) leave(); }
+    }
+    padHeld = now;
+  };
+  addEventListener("blur", () => { padArmed = false; });
+
+  // ---------- 主循環 ----------
+  const start = performance.now(); let lastData = 0, warpJitter = 0;
+  const frame = now => {
+    const elapsed = now - start;
+    const v = voyage(storyElapsedS());
+    const shipLen = total * v.t;                 // 以 320 倍光速前進，畫面上幾乎靜止（每秒約前進 0.00001 光年）
+    const p = routeDone.getPointAtLength(shipLen), p2 = routeDone.getPointAtLength(Math.min(total, shipLen + 2));
+    const angle = Math.atan2(p2.y - p.y, p2.x - p.x) * 180 / Math.PI;
+    shipPos.x = p.x; shipPos.y = p.y; shipPos.angle = angle;
+    shipBody.setAttribute("transform", `translate(${p.x} ${p.y})`);
+    shipArrow.setAttribute("transform", `rotate(${angle})`);
+    const tagPush = pushInside({ x: p.x + TAG_RECT.x * LABEL_SCALE, y: p.y + TAG_RECT.y * LABEL_SCALE, width: TAG_RECT.width * LABEL_SCALE, height: TAG_RECT.height * LABEL_SCALE });
+    tag.setAttribute("transform", `translate(${p.x + tagPush.dx} ${p.y + tagPush.dy}) scale(${LABEL_SCALE})`);
+    const pulse = (elapsed % 1600) / 1600;
+    shipPulse.setAttribute("r", (14 + pulse * 22).toFixed(1)); shipPulse.setAttribute("opacity", (0.8 * (1 - pulse)).toFixed(2));
+
+    routeDone.setAttribute("stroke-dasharray", `${shipLen} ${total}`);
+    routeAhead.setAttribute("stroke-dasharray", `0 ${shipLen} ` + "10 9 ".repeat(Math.ceil((total - shipLen) / 19) + 1));
+    routeAhead.style.strokeDashoffset = String(-((elapsed / 40) % 19));
+
+    // 數值牌：位置與剩餘距離由航程模型算出（每秒約變化 0.00001 光年），曲速倍率有極小的場域波動
+    if (now - lastData > 90) {
+      lastData = now;
+      warpJitter = Math.max(-0.06, Math.min(0.06, warpJitter + rand(-0.01, 0.01)));
+      const pos = at(v.t);
+      tagL1.textContent = `SPD ${(WARP_C + warpJitter).toFixed(2)} c  HDG ${(HEADING_DEG + warpJitter * 0.2).toFixed(2)}°`;
+      tagL2.textContent = `X ${pos.x.toFixed(5)}  Y ${pos.y.toFixed(5)}`;
+      tagL3.textContent = `Z ${pos.z.toFixed(5)} ly   (ICRS)`;
+      tagL4.textContent = `REM ${v.remainingLy.toFixed(5)} ly  ETA ${fmtDuration(v.etaS)}`;
+      remain.textContent = `${v.remainingLy.toFixed(4)} ly`;
+      eta.textContent = fmtDuration(v.etaS);
+    }
+    progressFill.style.width = (v.t * 100) + "%";
+    progressShip.style.left = (v.t * 100) + "%";
+
+    tickGhost(elapsed, v.t);
+    tickClock(); tickMatrix(now); tickContacts(now); tickGamepad(); tickCubes(now);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+})();
+</script>
+<script type="module">
+  // 正式遊戲由父頁的 AudioEventManager 播放，避免 iframe 重複發聲。
+  if (window.parent === window) {
+    const { AudioEventManager } = await import("./audio-event-manager.generated.js");
+    const audioEvents = new AudioEventManager({
+      eventNames: ["uiInput", "navTerminalCleared", "navTerminalInputRejected", "navTerminalBlockCalibrated", "navTerminalMatrixScan"],
+      assetBaseUrl: new URL("../../", location.href).href,
+    });
+    window.addEventListener("nav-terminal-input", () => {
+      void audioEvents.play("uiInput", { restart: true }).catch(() => {});
+    });
+    window.addEventListener("nav-terminal-clear", () => {
+      void audioEvents.play("navTerminalCleared", { restart: true }).catch(() => {});
+    });
+    window.addEventListener("nav-terminal-input-rejected", () => {
+      void audioEvents.play("navTerminalInputRejected", { restart: true }).catch(() => {});
+    });
+    window.addEventListener("nav-terminal-block-calibrated", () => {
+      void audioEvents.play("navTerminalBlockCalibrated", { restart: true }).catch(() => {});
+    });
+    window.addEventListener("nav-terminal-matrix-scan", event => {
+      audioEvents.setNavTerminalMatrixScanActive(Boolean(event.detail?.active));
+    });
+    if (window.navTerminalMatrixScanActive) audioEvents.setNavTerminalMatrixScanActive(true);
+    window.addEventListener("pagehide", () => audioEvents.dispose(), { once: true });
+  }
+</script>
+</body>
+</html>

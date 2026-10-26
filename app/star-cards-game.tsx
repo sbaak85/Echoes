@@ -27,6 +27,9 @@ import {
   compareStarCards,
   createStarCardsAttackParticleLayout,
   createStarCardsImpactSpriteChoice,
+  isStarCardsSuddenDeath,
+  STAR_CARDS_SUDDEN_DEATH_AFTER_TIES,
+  resolveStarCardsGameEnd,
   createStarCardsMissileTrailLayout,
   STAR_CARDS_TIE_SPRITE_ROTATE_DEG,
   clampStarCardsMissileCount,
@@ -162,6 +165,12 @@ function createTieSprite(): LaneImpactSprite {
     scale: choice.scale,
   };
 }
+
+/** 整場勝負標題出現後，自動返回船艙的時間 */
+const STAR_CARDS_MATCH_END_RETURN_MS = 2600;
+
+/** 驟死賽規則說明停留時間（接在局數標題之後） */
+const STAR_CARDS_SUDDEN_DEATH_BANNER_MS = 3200;
 
 /** 戰鬥特效時間軸（從按下 BATTLE 起算） */
 const BATTLE_EFFECTS_START_MS = 520;
@@ -299,6 +308,8 @@ type StarCardsGameProps = {
   /** The first interaction launch or standalone preview opts in explicitly. */
   tutorialEnabled?: boolean;
   inputSuspended?: boolean;
+  /** 除錯：第 1 局直接是驟死賽（網址參數 ?starCardsSuddenDeath=1，只在 localhost） */
+  debugSuddenDeath?: boolean;
 };
 
 type PlacementPromptState = {
@@ -441,6 +452,7 @@ export function StarCardsGame({
   gamepadMode = initialGamepadMode,
   tutorialEnabled = false,
   inputSuspended = false,
+  debugSuddenDeath = false,
 }: StarCardsGameProps) {
   const inputSuspendedRef = useRef(inputSuspended);
   inputSuspendedRef.current = inputSuspended;
@@ -524,6 +536,12 @@ export function StarCardsGame({
   } | null>(null);
   const [playerGameWins, setPlayerGameWins] = useState(0);
   const [aiGameWins, setAiGameWins] = useState(0);
+  /** 連續平手局數；分出勝負就歸零。達到門檻時本局為驟死賽 */
+  const [consecutiveTieGames, setConsecutiveTieGames] = useState(
+    debugSuddenDeath ? STAR_CARDS_SUDDEN_DEATH_AFTER_TIES : 0,
+  );
+  const suddenDeathActive = isStarCardsSuddenDeath(consecutiveTieGames);
+  const [suddenDeathBannerVisible, setSuddenDeathBannerVisible] = useState(false);
   const [battleEffects, setBattleEffects] = useState<LaneBattleEffect[]>([]);
   const battleLayerRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => { preloadStarCardsImpactSprites(); }, []);
@@ -720,13 +738,25 @@ export function StarCardsGame({
         setNavigationMode("directional");
         setSelectedHandIndex(1);
       }
-      showPlacementPrompt("initial");
+      if (!debugSuddenDeath) {
+        showPlacementPrompt("initial");
+        return;
+      }
+      // 除錯開局即驟死賽：與正式的驟死賽局相同，先播規則說明，播完才出現配置提示
+      setAnnouncement("第 1 局：驟死賽！任一次 BATTLE 得分較多的一方直接拿下這局");
+      setSuddenDeathBannerVisible(true);
+      schedule(() => setSuddenDeathBannerVisible(false), STAR_CARDS_SUDDEN_DEATH_BANNER_MS);
+      const promptRequest = placementPromptRequestRef.current;
+      schedule(() => {
+        if (placementPromptRequestRef.current !== promptRequest) return;
+        showPlacementPrompt("initial");
+      }, STAR_CARDS_SUDDEN_DEATH_BANNER_MS);
     }, 920);
     return () => {
       timersRef.current.forEach((task) => window.clearTimeout(task.timer));
       timersRef.current = [];
     };
-  }, [initialGamepadMode, playInitialDealAudio, schedule, showPlacementPrompt, tutorialEnabled]);
+  }, [debugSuddenDeath, initialGamepadMode, playInitialDealAudio, schedule, showPlacementPrompt, tutorialEnabled]);
 
   const getLaneCards = useCallback(
     (owner: StarCardsOwner, lane: StarCardLane) =>
@@ -1113,7 +1143,7 @@ export function StarCardsGame({
     }
   }, [aiDrawPlaced, phase, playerDrawPlaced, repositioningCardId, schedule]);
 
-  const prepareNextGame = useCallback((nextGame: number) => {
+  const prepareNextGame = useCallback((nextGame: number, suddenDeath = false) => {
     const nextPlayerDeck = createOwnerDeck("player", nextGame);
     const nextAiDeck = createOwnerDeck("ai", nextGame);
     placementPromptRequestRef.current += 1;
@@ -1174,10 +1204,27 @@ export function StarCardsGame({
     setAnnouncement(`第 ${nextGame} 局開始，雙方重新洗牌`);
     playInitialDealAudio();
     schedule(() => setGameBannerNumber(null), 950);
+    if (suddenDeath) {
+      // 局數標題之後接著刷出驟死賽規則（不擋操作，玩家可以同時開始配置）
+      setAnnouncement(`第 ${nextGame} 局：驟死賽！任一次 BATTLE 得分較多的一方直接拿下這局`);
+      schedule(() => setSuddenDeathBannerVisible(true), 950);
+      schedule(() => setSuddenDeathBannerVisible(false), 950 + STAR_CARDS_SUDDEN_DEATH_BANNER_MS);
+    }
     schedule(() => {
       setPhase("initial-placement");
-      showPlacementPrompt("initial");
-      setAnnouncement(`第 ${nextGame} 局：拖曳三張牌，分別放入 A／B／C`);
+      if (!suddenDeath) {
+        showPlacementPrompt("initial");
+        setAnnouncement(`第 ${nextGame} 局：拖曳三張牌，分別放入 A／B／C`);
+        return;
+      }
+      // 驟死賽：配置提示等規則說明播完才出現，避免兩者在畫面中央重疊；
+      // 玩家在說明期間已經開始配置（提示被關閉）就不再補顯示
+      const promptRequest = placementPromptRequestRef.current;
+      schedule(() => {
+        if (placementPromptRequestRef.current !== promptRequest) return;
+        showPlacementPrompt("initial");
+        setAnnouncement(`第 ${nextGame} 局（驟死賽）：拖曳三張牌，分別放入 A／B／C`);
+      }, 950 + STAR_CARDS_SUDDEN_DEATH_BANNER_MS - 1050);
     }, 1050);
   }, [initialGamepadMode, playInitialDealAudio, schedule, showPlacementPrompt]);
 
@@ -1242,7 +1289,9 @@ export function StarCardsGame({
         awardedPoints,
       }];
     });
-    if (effects.length === 0) return;
+    // 三路都沒有雙方對位的卡牌（例如 9／9 時玩家的牌都在 A、B，歐文的都在 C）也要照常結算：
+    // 原本這裡直接 return，BATTLE 亮著卻按不動，整局永遠無法結束。空的 BATTLE 不播特效、不得分，
+    // 之後照一般流程回到 DRAW，或在最後一次 BATTLE 依總分結束這局。
     playStarCardsAudio("starCardsUiInput");
     const battlePlayerPoints = effects.reduce(
       (total, effect) => total + (effect.outcome === "player" ? effect.awardedPoints : 0),
@@ -1295,7 +1344,13 @@ export function StarCardsGame({
       );
       schedule(() => {
         setVictoriousCardIds([]);
-        if (!isFinalBattleOfGame) {
+        const gameEnd = resolveStarCardsGameEnd({
+          suddenDeath: suddenDeathActive,
+          isFinalBattle: isFinalBattleOfGame,
+          playerScore: finalPlayerScore,
+          aiScore: finalAiScore,
+        });
+        if (gameEnd === "continue") {
           setActiveDrawIndex(null);
           setNavigationMode("directional");
           setSelectedHandIndex(0);
@@ -1307,11 +1362,12 @@ export function StarCardsGame({
           return;
         }
 
-        const gameWinner = finalPlayerScore === finalAiScore
-          ? null
-          : finalPlayerScore > finalAiScore
-            ? "player"
-            : "ai";
+        const gameWinner = gameEnd === "tie" ? null : gameEnd;
+        const scoreLabel = suddenDeathActive && !isFinalBattleOfGame
+          ? `驟死賽 ${playerDrawnCount}／${STAR_CARD_DECK.length} 決勝比分`
+          : `${suddenDeathActive ? "驟死賽 " : ""}9／9 最終比分`;
+        const nextTieGames = gameWinner ? 0 : consecutiveTieGames + 1;
+        setConsecutiveTieGames(nextTieGames);
         const nextPlayerGameWins = playerGameWins + (gameWinner === "player" ? 1 : 0);
         const nextAiGameWins = aiGameWins + (gameWinner === "ai" ? 1 : 0);
         if (gameWinner === "player") setPlayerGameWins(nextPlayerGameWins);
@@ -1323,8 +1379,8 @@ export function StarCardsGame({
             tone: gameWinner ?? "tie",
             title: `// GAME ${currentGame} RESULT`,
             detail: gameWinner
-              ? `9／9 最終比分 PLAYER ${finalPlayerScore}：${finalAiScore} OWEN｜${gameWinner === "player" ? "PLAYER" : "OWEN"} 取得 1 局勝利`
-              : `9／9 最終比分 PLAYER ${finalPlayerScore}：${finalAiScore} OWEN｜本局平手，暫不計局勝`,
+              ? `${scoreLabel} PLAYER ${finalPlayerScore}：${finalAiScore} OWEN｜${gameWinner === "player" ? "PLAYER" : "OWEN"} 取得 1 局勝利`
+              : `${scoreLabel} PLAYER ${finalPlayerScore}：${finalAiScore} OWEN｜本局平手，暫不計局勝${isStarCardsSuddenDeath(nextTieGames) ? "；下一局為驟死賽" : ""}`,
           },
         ]);
 
@@ -1334,7 +1390,7 @@ export function StarCardsGame({
           );
           setMatchResultBanner({ text: "【平手】", outcome: "tie" });
           schedule(() => setMatchResultBanner(null), 950);
-          schedule(() => prepareNextGame(currentGame + 1), 2400);
+          schedule(() => prepareNextGame(currentGame + 1, isStarCardsSuddenDeath(nextTieGames)), 2400);
           return;
         }
 
@@ -1356,6 +1412,13 @@ export function StarCardsGame({
             matchReportedRef.current = true;
             onMatchCompleted?.(result);
           }
+          // 整場結束：看完勝負標題後自動返回船艙（任務結果與存檔已在 onMatchCompleted 完成）。
+          // 原本只能按 Esc／B／Select 退出，觸控或滑鼠玩家會卡在牌桌上。
+          schedule(() => {
+            timersRef.current.forEach((task) => window.clearTimeout(task.timer));
+            timersRef.current = [];
+            onClose();
+          }, STAR_CARDS_MATCH_END_RETURN_MS);
           return;
         }
 
@@ -1482,7 +1545,7 @@ export function StarCardsGame({
       });
       schedule(() => tutorialBattleRef.current?.revealComplete(), STAR_CARD_REVEAL_FRONT_MS + 80);
     } else runBattleEffects(effects, finishBattle);
-  }, [aiGameWins, aiPlaced, aiRemainingDeck.length, currentGame, phase, playExplosionAudioSet, playRandomAudioSet, playStarCardsAudio, playerDrawnCount, playerGameWins, playerPlaced, playerRemainingDeck.length, playerScore, aiScore, markCardsRevealingFront, prepareNextGame, schedule, onMatchCompleted, tutorialActive, secondDrawStage]);
+  }, [aiGameWins, aiPlaced, aiRemainingDeck.length, consecutiveTieGames, currentGame, phase, playExplosionAudioSet, playRandomAudioSet, playStarCardsAudio, playerDrawnCount, playerGameWins, playerPlaced, playerRemainingDeck.length, playerScore, aiScore, markCardsRevealingFront, prepareNextGame, schedule, onClose, onMatchCompleted, suddenDeathActive, tutorialActive, secondDrawStage]);
 
   useEffect(() => {
     if (exitPromptOpen || inputSuspended || secondDrawStage !== "placed" || phase !== "battle-ready" || tutorialAutoActionRef.current === "battle") return;
@@ -2279,6 +2342,22 @@ export function StarCardsGame({
           </div>
         ) : null}
 
+        {suddenDeathBannerVisible ? (
+          <div className="star-cards-sudden-death-banner" role="status" aria-live="assertive">
+            <div className="star-cards-sudden-death-card">
+              <span className="star-cards-sudden-death-eyebrow" aria-hidden="true">SUDDEN DEATH</span>
+              <strong>驟死賽</strong>
+              <p>連續兩局平手！本局只要有一次 BATTLE 分出高下，<br />得分較多的一方直接拿下這局。</p>
+            </div>
+          </div>
+        ) : null}
+
+        {suddenDeathActive && !suddenDeathBannerVisible && !matchResultBanner && gameBannerNumber === null ? (
+          <div className="star-cards-sudden-death-tag" aria-hidden="true">
+            <span>SUDDEN DEATH</span>驟死賽
+          </div>
+        ) : null}
+
         <div
           key={`score-${scorePulse?.serial ?? 0}`}
           className={`star-cards-score${scorePulse ? ` is-scoring is-${scorePulse.owner}` : ""}`}
@@ -2291,7 +2370,7 @@ export function StarCardsGame({
 
         <div
           className="star-cards-match-wins"
-          aria-label={`勝局：PLAYER ${playerGameWins}，OWEN ${aiGameWins}；五戰三勝制，目前第 ${currentGame} 局；平手局不計勝局並追加下一局`}
+          aria-label={`勝局：PLAYER ${playerGameWins}，OWEN ${aiGameWins}；五戰三勝制，目前第 ${currentGame} 局${suddenDeathActive ? "（驟死賽）" : ""}；平手局不計勝局並追加下一局，連續兩局平手後改為驟死賽`}
         >
           <img src={starCardsAssetUrl("match-wins-panel.png")} alt="" aria-hidden="true" />
           <b className="is-player-wins">{playerGameWins}</b>

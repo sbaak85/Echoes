@@ -2,7 +2,7 @@
 import { useLayoutEffect, useRef, type RefObject, type PointerEventHandler } from "react";
 import { GamepadHint } from "./gamepad-button-icon";
 import { resolveRuntimePublicAssetUrl } from "./public-asset-url";
-import type { DialogueView } from "./dialogue-player";
+import type { DialogueChoiceView, DialogueView } from "./dialogue-player";
 import type { DialogueHistoryView } from "./dialogue-history";
 
 type Props = {
@@ -13,21 +13,26 @@ type Props = {
   onPointerInput?: PointerEventHandler<HTMLButtonElement>;
   /** 有值時在對話框右上角顯示「按 [□] 全螢幕」（與左上的回顧訊息對稱） */
   onFullscreen?: () => unknown;
+  /** 對話選項視窗（最後一句之後）；開啟時點對話框不會往下，要點選項 */
+  choice?: DialogueChoiceView; onChooseOption?: (index: number) => unknown; onHoverOption?: (index: number) => unknown;
 };
 // This is the production dialogue/history markup; previews mount the same view.
-export function DialoguePlayerView({ view, history, historyScrollable, textSize, gamepadMode, boxRef, historyScrollRef, historyCloseRef, onAdvance, onOpenHistory, onCloseHistory, onPointerInput, onFullscreen }: Props) {
+export function DialoguePlayerView({ view, history, historyScrollable, textSize, gamepadMode, boxRef, historyScrollRef, historyCloseRef, onAdvance, onOpenHistory, onCloseHistory, onPointerInput, onFullscreen, choice, onChooseOption, onHoverOption }: Props) {
   const mouseRight = resolveRuntimePublicAssetUrl("ui/input/mouse-right.svg");
   const historyTriggerRef = useRef<HTMLButtonElement | null>(null);
   const fullscreenTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const choiceListRef = useRef<HTMLDivElement | null>(null);
   const hasFullscreenPrompt = Boolean(onFullscreen);
+  const choiceOpen = Boolean(choice && choice.options.length > 0);
   // 「訊息回顧」貼在對話框左上角外側（PC 規格：與對話框左緣對齊、上方間距 16px）。
   // 依對話框實際位置計算，UI 縮放或文字變多使對話框變高時都會跟著移動。
   useLayoutEffect(() => {
     const trigger = historyTriggerRef.current;
     const fullscreenTrigger = fullscreenTriggerRef.current;
+    const choiceList = choiceListRef.current;
     const box = boxRef.current;
-    const parent = (trigger ?? fullscreenTrigger)?.offsetParent as HTMLElement | null;
-    if ((!trigger && !fullscreenTrigger) || !box || !parent) return;
+    const parent = (trigger ?? fullscreenTrigger ?? choiceList)?.offsetParent as HTMLElement | null;
+    if ((!trigger && !fullscreenTrigger && !choiceList) || !box || !parent) return;
     const place = () => {
       const parentRect = parent.getBoundingClientRect();
       const boxRect = box.getBoundingClientRect();
@@ -42,6 +47,12 @@ export function DialoguePlayerView({ view, history, historyScrollable, textSize,
         fullscreenTrigger.style.right = `${parentRect.right - boxRect.right}px`;
         fullscreenTrigger.style.bottom = bottom;
       }
+      // 對話選項：右緣對齊對話框，疊在「回顧訊息／全螢幕」那一列之上，不與它們重疊
+      if (choiceList) {
+        const promptRowHeight = Math.max(trigger?.offsetHeight ?? 0, fullscreenTrigger?.offsetHeight ?? 0);
+        choiceList.style.right = `${parentRect.right - boxRect.right}px`;
+        choiceList.style.bottom = `${parentRect.bottom - boxRect.top + 16 * uiScale + (promptRowHeight ? promptRowHeight + 10 * uiScale : 0)}px`;
+      }
     };
     place();
     // 對話框進場動畫（transform）不會觸發 ResizeObserver，動畫結束後再校正一次
@@ -51,7 +62,7 @@ export function DialoguePlayerView({ view, history, historyScrollable, textSize,
     observer.observe(parent);
     window.addEventListener("resize", place);
     return () => { window.clearTimeout(settleTimer); observer.disconnect(); window.removeEventListener("resize", place); };
-  }, [boxRef, view?.canReview, view?.lineId, textSize, hasFullscreenPrompt]);
+  }, [boxRef, view?.canReview, view?.lineId, textSize, hasFullscreenPrompt, choiceOpen]);
   return <>
     {view && <>
       {view.canReview && <button ref={historyTriggerRef} className="dialogue-history-trigger" type="button" aria-haspopup="dialog" aria-expanded={Boolean(history)} aria-hidden={Boolean(history)} disabled={Boolean(history)} onPointerDown={onPointerInput} onClick={event => { event.stopPropagation(); onOpenHistory(); }}>
@@ -65,7 +76,15 @@ export function DialoguePlayerView({ view, history, historyScrollable, textSize,
         </svg>
         <span>全螢幕</span>
       </button>}
-      <button ref={boxRef} className={`dialogue-box dialogue-size-${textSize}${history ? " is-history-open" : ""}`} type="button" aria-label="對話；按下顯示下一頁" disabled={Boolean(history)} data-dialogue-id={view.dialogueId} data-line-id={view.lineId} onPointerDown={onPointerInput} onClick={onAdvance}>
+      {choiceOpen && choice && !history && <div ref={choiceListRef} className="dialogue-choice-list" role="listbox" aria-label="選擇回應" onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
+        {choice.options.map((label, index) => <button key={`${index}-${label}`} type="button" role="option" aria-selected={index === choice.selectedIndex}
+          className={`dialogue-choice-option${index === choice.selectedIndex ? " is-selected" : ""}`}
+          onPointerEnter={event => { if (event.pointerType === "mouse") onHoverOption?.(index); }}
+          onClick={event => { event.stopPropagation(); onChooseOption?.(index); }}>
+          <span className="dialogue-choice-index" aria-hidden="true">{index + 1}</span><span className="dialogue-choice-label">{label}</span>
+        </button>)}
+      </div>}
+      <button ref={boxRef} className={`dialogue-box dialogue-size-${textSize}${history ? " is-history-open" : ""}${choiceOpen ? " is-choosing" : ""}`} type="button" aria-label={choiceOpen ? "對話；請選擇上方的選項" : "對話；按下顯示下一頁"} disabled={Boolean(history)} data-dialogue-id={view.dialogueId} data-line-id={view.lineId} onPointerDown={onPointerInput} onClick={choiceOpen ? undefined : onAdvance}>
         <span className="dialogue-frame-surface" aria-hidden="true" /><span className="dialogue-frame-bloom" aria-hidden="true" />
         {view.speaker && <strong className="dialogue-speaker">{view.speaker}</strong>}<span className="dialogue-text">{view.text}</span><span className="dialogue-next" aria-hidden="true" />
       </button>

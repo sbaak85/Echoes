@@ -34,6 +34,14 @@ public sealed class DialogueEditorForm : Form
     private readonly DataGridViewComboBoxColumn _failureSpeakerColumn = new();
     private readonly DataGridViewComboBoxColumn _survivalFailureSpeakerColumn = new();
     private readonly DataGridViewComboBoxColumn _completionSpeakerColumn = new();
+    // 「對話選項」頁（只在互動／出入口的對話編輯中出現；章節段落模式會移除這頁）
+    private const string ChoiceActionContinueText = "繼續互動";
+    private const string ChoiceActionCancelText = "結束、不互動";
+    private readonly DataGridView _choiceGrid = new();
+    private readonly DataGridViewComboBoxColumn _choiceSpeakerColumn = new();
+    private readonly List<Button> _lineButtons = new();
+    private readonly DialogueChoice? _originalChoice;
+    private TabPage? _choicePage;
     private readonly NumericUpDown _successDelayInput = CreateDelayInput();
     private readonly NumericUpDown _failureDelayInput = CreateDelayInput();
     private readonly NumericUpDown _survivalFailureDelayInput = CreateDelayInput();
@@ -102,6 +110,8 @@ public sealed class DialogueEditorForm : Form
             .Concat(FailureDialogue.Lines.Select(line => line.Speaker))
             .Concat(editableSurvivalFailureDialogue.Lines.Select(line => line.Speaker))
             .Concat(editableCompletionDialogue.Lines.Select(line => line.Speaker))
+            .Concat(SuccessDialogue.Choice?.Options.SelectMany(option => option.ReplyLines).Select(line => line.Speaker)
+                ?? Enumerable.Empty<string>())
             .Where(speaker => !string.IsNullOrWhiteSpace(speaker))
             .Select(speaker => speaker.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -187,6 +197,10 @@ public sealed class DialogueEditorForm : Form
         _tabs.TabPages.Add(failurePage);
         _tabs.TabPages.Add(survivalFailurePage);
         _tabs.TabPages.Add(completionPage);
+        _originalChoice = SuccessDialogue.Choice?.Clone();
+        ConfigureChoiceGrid(SuccessDialogue.Choice);
+        _choicePage = CreateChoicePage();
+        _tabs.TabPages.Add(_choicePage);
         _tabs.SelectedIndex = 0;
 
         var buttons = new FlowLayoutPanel
@@ -197,13 +211,23 @@ public sealed class DialogueEditorForm : Form
             FlowDirection = FlowDirection.LeftToRight,
             BackColor = Color.FromArgb(31, 35, 42),
         };
-        buttons.Controls.Add(CreateButton("新增一句", (_, _) => AddLine()));
-        buttons.Controls.Add(CreateButton("綁定為抽選群組", (_, _) => BindRandomGroup()));
-        buttons.Controls.Add(CreateButton("解除抽選群組", (_, _) => UnbindRandomGroup()));
-        buttons.Controls.Add(CreateButton("刪除", (_, _) => DeleteLine()));
-        buttons.Controls.Add(CreateButton("上移", (_, _) => MoveLine(-1)));
-        buttons.Controls.Add(CreateButton("下移", (_, _) => MoveLine(1)));
-        buttons.Controls.Add(CreateButton("複製 Line ID", (_, _) => CopyCurrentLineId()));
+        _lineButtons.AddRange(new[]
+        {
+            CreateButton("新增一句", (_, _) => AddLine()),
+            CreateButton("綁定為抽選群組", (_, _) => BindRandomGroup()),
+            CreateButton("解除抽選群組", (_, _) => UnbindRandomGroup()),
+            CreateButton("刪除", (_, _) => DeleteLine()),
+            CreateButton("上移", (_, _) => MoveLine(-1)),
+            CreateButton("下移", (_, _) => MoveLine(1)),
+            CreateButton("複製 Line ID", (_, _) => CopyCurrentLineId()),
+        });
+        foreach (var lineButton in _lineButtons) buttons.Controls.Add(lineButton);
+        // 台詞用的按鈕只作用在台詞表格；切到「對話選項」頁時停用，改用該頁自己的按鈕
+        _tabs.SelectedIndexChanged += (_, _) =>
+        {
+            var onChoicePage = _choicePage is not null && _tabs.SelectedTab == _choicePage;
+            foreach (var lineButton in _lineButtons) lineButton.Enabled = !onChoicePage;
+        };
 
         var cancel = CreateButton("取消", (_, _) => DialogResult = DialogResult.Cancel);
         var save = CreateButton("儲存腳本 (Ctrl+S)", (_, _) => SaveDialogues());
@@ -392,6 +416,224 @@ public sealed class DialogueEditorForm : Form
         RefreshGroupPresentation(grid);
         if (grid.Rows.Count > 0) ApplyGridSelection(grid, new[] { 0 });
         RefreshSpeakerOptions();
+    }
+
+    private void ConfigureChoiceGrid(DialogueChoice? choice)
+    {
+        var grid = _choiceGrid;
+        grid.Dock = DockStyle.Fill;
+        grid.AllowUserToAddRows = false;
+        grid.AllowUserToDeleteRows = false;
+        grid.AllowUserToResizeRows = false;
+        grid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
+        grid.AutoGenerateColumns = false;
+        grid.BackgroundColor = Color.FromArgb(18, 21, 27);
+        grid.BorderStyle = BorderStyle.None;
+        grid.GridColor = Color.FromArgb(58, 64, 73);
+        grid.RowHeadersVisible = false;
+        grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        grid.MultiSelect = false;
+        grid.EditMode = DataGridViewEditMode.EditOnEnter;
+        grid.DefaultCellStyle.BackColor = Color.FromArgb(27, 30, 37);
+        grid.DefaultCellStyle.ForeColor = Color.WhiteSmoke;
+        grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(43, 94, 91);
+        grid.DefaultCellStyle.SelectionForeColor = Color.White;
+        grid.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+        grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(37, 41, 49);
+        grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.WhiteSmoke;
+        grid.EnableHeadersVisualStyles = false;
+        grid.RowTemplate.Height = 40;
+        grid.RowTemplate.MinimumHeight = 36;
+        grid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "label",
+            HeaderText = "選項文字",
+            Width = 200,
+            SortMode = DataGridViewColumnSortMode.NotSortable,
+        });
+        _choiceSpeakerColumn.Name = "speaker";
+        _choiceSpeakerColumn.HeaderText = "回應發話者";
+        _choiceSpeakerColumn.Width = 170;
+        _choiceSpeakerColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+        _choiceSpeakerColumn.FlatStyle = FlatStyle.Flat;
+        _choiceSpeakerColumn.DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox;
+        _choiceSpeakerColumn.Items.Add("");
+        _choiceSpeakerColumn.Items.Add(NarrationOption);
+        foreach (var speaker in _speakers.Concat(_knownSpeakers)) _choiceSpeakerColumn.Items.Add(speaker);
+        grid.Columns.Add(_choiceSpeakerColumn);
+        grid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "reply",
+            HeaderText = "選擇後播放的回應台詞（可留空）",
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
+            SortMode = DataGridViewColumnSortMode.NotSortable,
+            CellTemplate = new DialogueTextCell(),
+        });
+        var actionColumn = new DataGridViewComboBoxColumn
+        {
+            Name = "action",
+            HeaderText = "選後動作",
+            Width = 150,
+            SortMode = DataGridViewColumnSortMode.NotSortable,
+            FlatStyle = FlatStyle.Flat,
+            DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox,
+        };
+        actionColumn.Items.Add(ChoiceActionContinueText);
+        actionColumn.Items.Add(ChoiceActionCancelText);
+        grid.Columns.Add(actionColumn);
+        foreach (var option in choice?.Options ?? new List<DialogueChoiceOption>())
+        {
+            var reply = option.ReplyLines.FirstOrDefault();
+            var speaker = reply?.Speaker?.Trim() ?? "";
+            if (speaker.Length > 0 && !_choiceSpeakerColumn.Items.Contains(speaker)) _choiceSpeakerColumn.Items.Add(speaker);
+            var rowIndex = grid.Rows.Add(
+                option.Label,
+                reply is null ? DefaultNewLineSpeaker : speaker.Length == 0 ? NarrationOption : speaker,
+                reply?.Text ?? "",
+                option.Action == DialogueChoiceOption.CancelAction ? ChoiceActionCancelText : ChoiceActionContinueText);
+            // 保留原本的選項 ID、回應 Line ID 與第二句之後的回應台詞（此頁只編輯第一句）
+            grid.Rows[rowIndex].Tag = option.Clone();
+        }
+        grid.CurrentCellDirtyStateChanged += (_, _) =>
+        {
+            if (grid.IsCurrentCellDirty && grid.CurrentCell is DataGridViewComboBoxCell)
+            {
+                grid.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            }
+        };
+        grid.DataError += (_, eventArgs) => eventArgs.ThrowException = false;
+    }
+
+    private TabPage CreateChoicePage()
+    {
+        var page = new TabPage("對話選項")
+        {
+            BackColor = Color.FromArgb(25, 28, 34),
+            ForeColor = Color.FromArgb(226, 230, 234),
+            Padding = new Padding(0),
+        };
+        var settings = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 76,
+            Padding = new Padding(12, 9, 12, 7),
+            BackColor = Color.FromArgb(31, 35, 42),
+        };
+        var hint = new Label
+        {
+            Text = "「可互動時的對話」最後一句播完後跳出選項（最多 4 個，不需要選項時刪光即可）。",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(170, 181, 190),
+        };
+        hint.SetBounds(12, 9, 900, 23);
+        var actionHint = new Label
+        {
+            Text = "選後動作：「繼續互動」＝接著執行原本的互動（開始小遊戲、發放獎勵、結算）；「結束、不互動」＝只播回應台詞，不結算也不消耗次數。",
+            AutoSize = false,
+            ForeColor = Color.FromArgb(205, 180, 112),
+        };
+        actionHint.SetBounds(12, 40, 1000, 23);
+        settings.Controls.Add(hint);
+        settings.Controls.Add(actionHint);
+        var choiceButtons = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 44,
+            Padding = new Padding(8, 6, 8, 4),
+            FlowDirection = FlowDirection.LeftToRight,
+            BackColor = Color.FromArgb(31, 35, 42),
+        };
+        choiceButtons.Controls.Add(CreateButton("新增選項", (_, _) => AddChoiceOption()));
+        choiceButtons.Controls.Add(CreateButton("刪除選項", (_, _) => DeleteChoiceOption()));
+        choiceButtons.Controls.Add(CreateButton("上移", (_, _) => MoveChoiceOption(-1)));
+        choiceButtons.Controls.Add(CreateButton("下移", (_, _) => MoveChoiceOption(1)));
+        page.Controls.Add(_choiceGrid);
+        page.Controls.Add(choiceButtons);
+        page.Controls.Add(settings);
+        return page;
+    }
+
+    private void AddChoiceOption()
+    {
+        if (_choiceGrid.Rows.Count >= DialogueChoice.MaxOptions)
+        {
+            MessageBox.Show(this, $"對話選項最多 {DialogueChoice.MaxOptions} 個。", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        var rowIndex = _choiceGrid.Rows.Add("", DefaultNewLineSpeaker, "", ChoiceActionContinueText);
+        _choiceGrid.CurrentCell = _choiceGrid.Rows[rowIndex].Cells["label"];
+        _choiceGrid.BeginEdit(true);
+    }
+
+    private void DeleteChoiceOption()
+    {
+        if (_choiceGrid.CurrentRow is not { } row) return;
+        _choiceGrid.Rows.Remove(row);
+    }
+
+    private void MoveChoiceOption(int delta)
+    {
+        if (_choiceGrid.CurrentRow is not { } row) return;
+        var index = row.Index;
+        var target = index + delta;
+        if (target < 0 || target >= _choiceGrid.Rows.Count) return;
+        _choiceGrid.EndEdit();
+        _choiceGrid.Rows.RemoveAt(index);
+        _choiceGrid.Rows.Insert(target, row);
+        _choiceGrid.CurrentCell = _choiceGrid.Rows[target].Cells["label"];
+    }
+
+    /// <summary>讀回「對話選項」頁；章節段落模式（沒有這頁）沿用原本的選項。選項文字空白但有回應台詞時提示錯誤。</summary>
+    private bool TryReadChoice(out DialogueChoice? choice)
+    {
+        choice = _originalChoice?.Clone();
+        if (_choicePage is null || !_tabs.TabPages.Contains(_choicePage)) return true;
+        _choiceGrid.EndEdit();
+        var options = new List<DialogueChoiceOption>();
+        foreach (DataGridViewRow row in _choiceGrid.Rows)
+        {
+            var label = Convert.ToString(row.Cells["label"].Value)?.Trim() ?? "";
+            var reply = Convert.ToString(row.Cells["reply"].Value)?.Trim() ?? "";
+            if (label.Length == 0)
+            {
+                if (reply.Length == 0) continue;
+                _tabs.SelectedTab = _choicePage;
+                _choiceGrid.CurrentCell = row.Cells["label"];
+                MessageBox.Show(this, "對話選項的「選項文字」不可空白。", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+            var source = row.Tag as DialogueChoiceOption;
+            var id = string.IsNullOrWhiteSpace(source?.Id)
+                ? $"{_lineIdPrefix}-choice-{options.Count + 1:000}"
+                : source!.Id;
+            var speaker = Convert.ToString(row.Cells["speaker"].Value)?.Trim() ?? "";
+            if (speaker == NarrationOption || speaker == AddSpeakerOption) speaker = "";
+            var replyLines = new List<DialogueLine>();
+            if (reply.Length > 0)
+            {
+                replyLines.Add(new DialogueLine
+                {
+                    LineId = source?.ReplyLines.FirstOrDefault()?.LineId is { Length: > 0 } existingLineId
+                        ? existingLineId
+                        : $"{id}-line-001",
+                    Speaker = speaker,
+                    Text = reply,
+                });
+                replyLines.AddRange(source?.ReplyLines.Skip(1).Select(line => line.Clone()) ?? Enumerable.Empty<DialogueLine>());
+            }
+            options.Add(new DialogueChoiceOption
+            {
+                Id = id,
+                Label = label,
+                ReplyLines = replyLines,
+                Action = Convert.ToString(row.Cells["action"].Value) == ChoiceActionCancelText
+                    ? DialogueChoiceOption.CancelAction
+                    : DialogueChoiceOption.ContinueAction,
+            });
+            if (options.Count >= DialogueChoice.MaxOptions) break;
+        }
+        choice = options.Count == 0 ? null : new DialogueChoice { Options = options };
+        return true;
     }
 
     private static TabPage CreateDialoguePage(
@@ -1113,12 +1355,15 @@ public sealed class DialogueEditorForm : Form
         if (failureLines is null) return;
         var survivalFailureLines = ReadLines(_survivalFailureGrid, allowEmpty: true)!;
         var completionLines = ReadLines(_completionGrid, allowEmpty: true)!;
+        if (!TryReadChoice(out var choice)) return;
+        var choiceReplyLines = choice?.Options.SelectMany(option => option.ReplyLines) ?? Enumerable.Empty<DialogueLine>();
 
         // 從共用清單選到、但原本不屬於這段對話的發話者，也要寫回 Speakers。
         var speakers = _speakers
             .Concat(successLines.Concat(failureLines)
                 .Concat(survivalFailureLines)
                 .Concat(completionLines)
+                .Concat(choiceReplyLines)
                 .Select(line => line.Speaker))
             .Where(speaker => !string.IsNullOrWhiteSpace(speaker))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -1128,6 +1373,7 @@ public sealed class DialogueEditorForm : Form
             CharacterDelaySeconds = (float)_successDelayInput.Value,
             Speakers = speakers.ToList(),
             Lines = successLines,
+            Choice = choice,
         };
         FailureDialogue = new DialogueScript
         {

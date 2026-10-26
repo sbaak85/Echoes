@@ -29,8 +29,49 @@ import {
   getStarCardBattleScore,
   shouldAnimateStarCardsZone,
   shuffleStarCardDeck,
+  STAR_CARDS_SUDDEN_DEATH_AFTER_TIES,
+  isStarCardsSuddenDeath,
+  resolveStarCardsGameEnd,
 } from "../app/star-cards-game.ts";
 import { STAR_CARDS_IMPACT_SPRITES, STAR_CARDS_TIE_SPRITE } from "../app/star-cards-impact-sprites.ts";
+
+test("two consecutive tied games turn the next game into sudden death", () => {
+  assert.equal(STAR_CARDS_SUDDEN_DEATH_AFTER_TIES, 2);
+  assert.equal(isStarCardsSuddenDeath(0), false);
+  assert.equal(isStarCardsSuddenDeath(1), false);
+  assert.equal(isStarCardsSuddenDeath(2), true);
+  assert.equal(isStarCardsSuddenDeath(3), true);
+  // 一般局：9 張打完才比總分，中途領先不結束
+  assert.equal(resolveStarCardsGameEnd({ suddenDeath: false, isFinalBattle: false, playerScore: 5, aiScore: 0 }), "continue");
+  assert.equal(resolveStarCardsGameEnd({ suddenDeath: false, isFinalBattle: true, playerScore: 5, aiScore: 4 }), "player");
+  assert.equal(resolveStarCardsGameEnd({ suddenDeath: false, isFinalBattle: true, playerScore: 4, aiScore: 4 }), "tie");
+  // 驟死賽：任何一次 BATTLE 後分數不同就分出勝負；同分繼續；9 張打完仍同分算平手
+  assert.equal(resolveStarCardsGameEnd({ suddenDeath: true, isFinalBattle: false, playerScore: 0, aiScore: 0 }), "continue");
+  assert.equal(resolveStarCardsGameEnd({ suddenDeath: true, isFinalBattle: false, playerScore: 2, aiScore: 2 }), "continue");
+  assert.equal(resolveStarCardsGameEnd({ suddenDeath: true, isFinalBattle: false, playerScore: 1, aiScore: 3 }), "ai");
+  assert.equal(resolveStarCardsGameEnd({ suddenDeath: true, isFinalBattle: false, playerScore: 3, aiScore: 1 }), "player");
+  assert.equal(resolveStarCardsGameEnd({ suddenDeath: true, isFinalBattle: true, playerScore: 6, aiScore: 6 }), "tie");
+});
+
+test("sudden death shows a rule banner at game start and a persistent tag", () => {
+  const source = readFileSync(new URL("../app/star-cards-game.tsx", import.meta.url), "utf8");
+  const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(source, /prepareNextGame\(currentGame \+ 1, isStarCardsSuddenDeath\(nextTieGames\)\)/);
+  assert.match(source, /const nextTieGames = gameWinner \? 0 : consecutiveTieGames \+ 1;/);
+  assert.match(source, /className="star-cards-sudden-death-banner"/);
+  assert.match(source, /<strong>驟死賽<\/strong>/);
+  assert.match(source, /className="star-cards-sudden-death-tag"/);
+  assert.match(styles, /\.star-cards-sudden-death-card \{[^}]*animation: star-cards-sudden-death-in 3200ms/);
+  assert.match(styles, /\.star-cards-sudden-death-banner \{[^}]*pointer-events: none;/);
+  // 驟死賽的配置提示延到規則說明結束後，避免與說明條重疊
+  assert.match(source, /950 \+ STAR_CARDS_SUDDEN_DEATH_BANNER_MS - 1050/);
+  assert.match(source, /if \(placementPromptRequestRef\.current !== promptRequest\) return;/);
+  // 除錯參數：第 1 局直接驟死賽
+  assert.match(source, /debugSuddenDeath \? STAR_CARDS_SUDDEN_DEATH_AFTER_TIES : 0/);
+  const lab = readFileSync(new URL('../app/movement-lab.tsx', import.meta.url), 'utf8');
+  assert.match(lab, /get\(\"starCardsSuddenDeath\"\) === \"1\"/);
+  assert.match(lab, /debugSuddenDeath=\{STAR_CARDS_DEBUG_SUDDEN_DEATH\}/);
+});
 
 test("StarCards exposes the requested debug identity and three lanes", () => {
   assert.equal(STAR_CARDS_DEBUG_NUMBER, 4);
@@ -367,6 +408,11 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /【第\{gameBannerNumber\}局】/);
   assert.match(source, /\{ text: "你贏了！", outcome: "victory" \}/);
   assert.match(source, /\{ text: "失敗了…", outcome: "defeat" \}/);
+  // 整場結束後自動返回船艙，不需要按 Esc／B（觸控與滑鼠玩家不會卡在牌桌）
+  assert.match(source, /const STAR_CARDS_MATCH_END_RETURN_MS = 2600;/);
+  // 沒有對位卡牌的 BATTLE 仍要結算，不能讓整局卡死
+  assert.doesNotMatch(source, /if \(effects\.length === 0\) return;/);
+  assert.match(source, /onMatchCompleted\?\.\(result\);[\s\S]{0,400}onClose\(\);\s*\}, STAR_CARDS_MATCH_END_RETURN_MS\);/);
   assert.match(
     source,
     /if \(!gameWinner\) \{[\s\S]*setMatchResultBanner\(\{ text: "【平手】", outcome: "tie" \}\);[\s\S]*schedule\(\(\) => prepareNextGame\(currentGame \+ 1\), 2400\);[\s\S]*return;/,

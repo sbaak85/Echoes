@@ -1,4 +1,4 @@
-import type { InteractionDialogueScript } from "./interaction-flow";
+import type { DialogueChoiceOutcome, InteractionDialogueScript } from "./interaction-flow";
 
 export type DialogueManagerRequest<TContext = unknown> = {
   id: string;
@@ -8,11 +8,14 @@ export type DialogueManagerRequest<TContext = unknown> = {
 
 export type DialogueManagerResult = {
   completed: boolean;
+  /** 對話有選項時，玩家選定的結果 */
+  choiceAction?: DialogueChoiceOutcome["choiceAction"];
+  choiceId?: string;
 };
 
 export type DialoguePresenter<TContext = unknown> = (
   request: DialogueManagerRequest<TContext>,
-  complete: () => void,
+  complete: (outcome?: DialogueChoiceOutcome) => void,
 ) => (() => void) | void;
 
 export type DialogueCompletionListener<TContext = unknown> = (
@@ -59,7 +62,7 @@ export class DialogueManager<TContext = unknown> {
     script: InteractionDialogueScript,
     context: TContext,
     onComplete?: () => void,
-  ) {
+  ): Promise<DialogueManagerResult> {
     return new Promise<DialogueManagerResult>((resolve) => {
       this.queue.push({ id, script, context, resolve, onComplete });
       this.pump();
@@ -71,7 +74,7 @@ export class DialogueManager<TContext = unknown> {
     script: InteractionDialogueScript,
     context: TContext,
     onComplete?: () => void,
-  ) {
+  ): Promise<DialogueManagerResult> {
     if (
       this.active?.id === id ||
       this.queue.some((queued) => queued.id === id)
@@ -81,7 +84,7 @@ export class DialogueManager<TContext = unknown> {
     return this.play(id, script, context, onComplete);
   }
 
-  playRegistered(id: string, context: TContext, onComplete?: () => void) {
+  playRegistered(id: string, context: TContext, onComplete?: () => void): Promise<DialogueManagerResult> {
     const script = this.scripts.get(id);
     if (!script) {
       return Promise.resolve({ completed: false });
@@ -93,12 +96,13 @@ export class DialogueManager<TContext = unknown> {
     return this.active !== null;
   }
 
-  completeCurrent() {
+  completeCurrent(outcome?: DialogueChoiceOutcome) {
     const active = this.active;
     if (!active) return;
     this.active = null;
     this.cancelPresentation = null;
-    active.onComplete?.();
+    // 選了「cancel」的選項：對話正常結束，但不執行呼叫端接在對話後的互動（例如開始小遊戲）
+    if (outcome?.choiceAction !== "cancel") active.onComplete?.();
     try {
       this.completionListener?.({
         id: active.id,
@@ -110,7 +114,10 @@ export class DialogueManager<TContext = unknown> {
       // caller still receives a completed result and the next dialogue pumps.
       console.error("[DialogueManager] Completion listener failed.", error);
     }
-    active.resolve({ completed: true });
+    // 沒有選項的對話維持原本的 { completed: true }
+    active.resolve(outcome?.choiceAction
+      ? { completed: true, choiceAction: outcome.choiceAction, choiceId: outcome.choiceId }
+      : { completed: true });
     this.pump();
   }
 
@@ -134,9 +141,9 @@ export class DialogueManager<TContext = unknown> {
     if (this.active || !this.presenter || this.queue.length === 0) return;
     const next = this.queue.shift()!;
     this.active = next;
-    const cancel = this.presenter(next, () => {
+    const cancel = this.presenter(next, (outcome) => {
       if (this.active !== next) return;
-      this.completeCurrent();
+      this.completeCurrent(outcome);
     });
     this.cancelPresentation = typeof cancel === "function" ? cancel : null;
   }

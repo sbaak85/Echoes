@@ -155,7 +155,7 @@ test("腳本對話開始顯示前會自動關閉背包及其附屬操作狀態",
   const presenterStart = source.indexOf("dialogueManager.setPresenter((request, complete) => {");
   const presenterEnd = source.indexOf("});", presenterStart);
   const presenter = source.slice(presenterStart, presenterEnd);
-  const inventorySetterStart = source.indexOf("const setInventoryPanelOpen = (open: boolean) => {");
+  const inventorySetterStart = source.indexOf("const setInventoryPanelOpen = (");
   const inventorySetterEnd = source.indexOf("const setSpeedValue =", inventorySetterStart);
   const inventorySetter = source.slice(inventorySetterStart, inventorySetterEnd);
 

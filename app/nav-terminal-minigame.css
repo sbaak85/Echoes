@@ -1,0 +1,22 @@
+.nav-terminal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  /* 與其他小遊戲一致：場景變暗、模糊 */
+  background:
+    radial-gradient(circle at 50% 45%, rgba(14, 60, 90, 0.2), transparent 52%),
+    rgba(0, 5, 8, 0.82);
+  backdrop-filter: blur(5px) brightness(0.72);
+  pointer-events: auto;
+  overscroll-behavior: contain;
+}
+
+.nav-terminal-overlay iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color-scheme: normal;
+}

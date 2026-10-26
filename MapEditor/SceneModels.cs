@@ -972,6 +972,8 @@ public sealed class DialogueScript
     public float CharacterDelaySeconds { get; set; } = 0.02f;
     public List<string> Speakers { get; set; } = new() { "Sbaak", "Echo" };
     public List<DialogueLine> Lines { get; set; } = new();
+    /// <summary>最後一句之後顯示的對話選項；沒有選項時為 null（不寫入 JSON）。</summary>
+    public DialogueChoice? Choice { get; set; }
 
     public static DialogueScript CreateDefault() => new()
     {
@@ -995,14 +997,38 @@ public sealed class DialogueScript
     {
         CharacterDelaySeconds = CharacterDelaySeconds,
         Speakers = Speakers.ToList(),
-        Lines = Lines.Select(line => new DialogueLine
-        {
-            LineId = line.LineId,
-            Speaker = line.Speaker,
-            Text = line.Text,
-            RandomGroupId = line.RandomGroupId,
-            Weight = line.Weight,
-        }).ToList(),
+        Lines = Lines.Select(line => line.Clone()).ToList(),
+        Choice = Choice?.Clone(),
+    };
+}
+
+/// <summary>
+/// 對話選項（app/interaction-flow.ts 的 InteractionDialogueChoice）。
+/// 選後動作 continue＝繼續原本的互動；cancel＝只播回應台詞，不結算互動、不消耗次數。
+/// </summary>
+public sealed class DialogueChoice
+{
+    public const int MaxOptions = 4;
+    public List<DialogueChoiceOption> Options { get; set; } = new();
+
+    public DialogueChoice Clone() => new() { Options = Options.Select(option => option.Clone()).ToList() };
+}
+
+public sealed class DialogueChoiceOption
+{
+    public const string ContinueAction = "continue";
+    public const string CancelAction = "cancel";
+    public string Id { get; set; } = "";
+    public string Label { get; set; } = "";
+    public List<DialogueLine> ReplyLines { get; set; } = new();
+    public string Action { get; set; } = ContinueAction;
+
+    public DialogueChoiceOption Clone() => new()
+    {
+        Id = Id,
+        Label = Label,
+        ReplyLines = ReplyLines.Select(line => line.Clone()).ToList(),
+        Action = Action,
     };
 }
 
@@ -1013,6 +1039,15 @@ public sealed class DialogueLine
     public string Text { get; set; } = "...";
     public string? RandomGroupId { get; set; }
     public int? Weight { get; set; }
+
+    public DialogueLine Clone() => new()
+    {
+        LineId = LineId,
+        Speaker = Speaker,
+        Text = Text,
+        RandomGroupId = RandomGroupId,
+        Weight = Weight,
+    };
 }
 
 public sealed class MovementGuide

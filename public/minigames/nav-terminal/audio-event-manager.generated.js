@@ -1,0 +1,2247 @@
+// Generated from app/audio-event-manager.ts by scripts/build-nav-terminal-audio.mjs
+export const AUDIO_EVENT_CONFIG = ({
+    "plantVineMotion": {
+        "label": "趨光藤蔓：生長與位移音效池",
+        "trigger": "左右藤蔓實際生長、伸縮、位移或擺動時各選一段不同音檔循環；依每幀動畫速度調整 10%～80% 音量，停止或離開介面立即停音。",
+        "sourceAssetPaths": [
+            "I:/Codex/專案型/Age-of-Pirates/Assets/Audio/vine_1.mp3",
+            "I:/Codex/專案型/Age-of-Pirates/Assets/Audio/vine_2.mp3",
+            "I:/Codex/專案型/Age-of-Pirates/Assets/Audio/vine_3.mp3"
+        ],
+        "sources": [
+            "./audio/vine_1.mp3",
+            "./audio/vine_2.mp3",
+            "./audio/vine_3.mp3"
+        ],
+        "volume": 0.8,
+        "delaySeconds": 0,
+        "loop": true,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "workbenchToolOpen": {
+        "label": "工作臺頁面：開啟工具",
+        "trigger": "確認製作工作臺卡片並進入道具合成頁面時播放一次",
+        "sourceAssetPaths": [
+            "Assets/Audio/開啟工具2.mp3"
+        ],
+        "sources": [
+            "./audio/開啟工具2.mp3"
+        ],
+        "volume": 0.4,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "workbenchCookingOpen": {
+        "label": "工作臺頁面：開啟料理",
+        "trigger": "確認料理工作臺卡片並進入料理合成頁面時播放一次",
+        "sourceAssetPaths": [
+            "Assets/Audio/開啟料理2.mp3"
+        ],
+        "sources": [
+            "./audio/開啟料理2.mp3"
+        ],
+        "volume": 0.4,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "workbenchToolHover": {
+        "label": "工作臺卡片：製作工具",
+        "trigger": "製作工作臺進入 Hover／預選 Tween 時單次播放；切換時前音軌 0.1 秒淡出後靜音自然播完",
+        "sourceAssetPaths": [
+            "Assets/Audio/製作工具.mp3"
+        ],
+        "sources": [
+            "./audio/製作工具.mp3"
+        ],
+        "volume": 0.4,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "workbenchCookingHover": {
+        "label": "工作臺卡片：煮食切菜",
+        "trigger": "料理工作臺進入 Hover／預選 Tween 時單次播放；切換時前音軌 0.1 秒淡出後靜音自然播完",
+        "sourceAssetPaths": [
+            "Assets/Audio/煮食切菜.mp3"
+        ],
+        "sources": [
+            "./audio/煮食切菜.mp3"
+        ],
+        "volume": 0.45,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "craftingStarted": {
+        "label": "製作成功：啟動",
+        "trigger": "成功動畫開始時播放一次",
+        "sourceAssetPaths": [
+            "public/audio/製作音效2.mp3"
+        ],
+        "sources": [
+            "./audio/製作音效2.mp3"
+        ],
+        "volume": 0.7,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "craftingAssemblyStep2": {
+        "label": "製作成功：組裝第二拍",
+        "trigger": "成功動畫開始後 0.1 秒",
+        "sourceAssetPaths": [
+            "public/audio/製作2.mp3"
+        ],
+        "sources": [
+            "./audio/製作2.mp3"
+        ],
+        "volume": 0.4,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "craftingAssemblyStep3": {
+        "label": "製作成功：組裝第三拍",
+        "trigger": "成功動畫開始後 0.4 秒",
+        "sourceAssetPaths": [
+            "public/audio/製作3.mp3"
+        ],
+        "sources": [
+            "./audio/製作3.mp3"
+        ],
+        "volume": 0.1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "craftingItemShine": {
+        "label": "製作成功：單件閃光",
+        "trigger": "每件物品的閃亮光束開始時各播放一次，支援重疊",
+        "sourceAssetPaths": [
+            "public/audio/閃亮1.mp3"
+        ],
+        "sources": [
+            "./audio/閃亮1.mp3"
+        ],
+        "volume": 0.6,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "craftingFinished": {
+        "label": "製作成功：收尾",
+        "trigger": "最後一件閃光開始後 0.2 秒，只播放一次",
+        "sourceAssetPaths": [
+            "public/audio/製作音效1.mp3"
+        ],
+        "sources": [
+            "./audio/製作音效1.mp3"
+        ],
+        "volume": 0.5,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "footsteps": {
+        "label": "草地腳步",
+        "trigger": "角色產生實際移動速度時開始；角色停止、視窗失焦或頁面進入背景時暫停。",
+        "sourceAssetPaths": [
+            "Assets/Audio/芝生の上を歩く.mp3"
+        ],
+        "sources": [
+            "./audio/grass-footsteps.mp3"
+        ],
+        "volume": 0.5,
+        "delaySeconds": 0,
+        "loop": true,
+        "fadeInPercent": 1,
+        "fadeOutPercent": 0
+    },
+    "dialogueTyping": {
+        "label": "對話文字打字效果",
+        "trigger": "每個對話文字頁開始逐字顯示時從頭播放；文字未完成時循環；刷完、快速補完、切頁或關閉對話時停止並歸零。",
+        "sourceAssetPaths": [
+            "Assets/Audio/打字效果音_#4-1785390293018.mp3"
+        ],
+        "sources": [
+            "./audio/dialogue-typing-4.mp3"
+        ],
+        "volume": 0.5,
+        "delaySeconds": 0,
+        "loop": true,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "interactionAccepted": {
+        "label": "互動指令成立",
+        "trigger": "左鍵點擊或手把 A 新按下，且系統找到互動區並成功建立可達互動指令的當下播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/互動操作音_#1-1785307011343.mp3"
+        ],
+        "sources": [
+            "./audio/interaction-success-1.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "interactionDenied": {
+        "label": "互動操作否定",
+        "trigger": "玩家的互動操作失敗，且場上操作提示第一次實際繪製紅色失敗圈時播放一次；需求不足、互動鎖定或無法抵達皆共用此事件，成功的藍綠提示圈不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/互動否定.mp3"
+        ],
+        "sources": [
+            "./audio/interaction-denied.mp3"
+        ],
+        "volume": 0.3,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "dialogueOpened": {
+        "label": "對話視窗展開",
+        "trigger": "對話視窗 UI 實際建立並展開時播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/互動啟動音__#4-1785307003422.mp3"
+        ],
+        "sources": [
+            "./audio/dialogue-open-4.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "signalDetectorIllustrationOpened": {
+        "label": "訊號探測儀插圖啟用掃描聲",
+        "trigger": "每次啟用訊號探測儀_C.png 插圖時播放一次；對話換頁、動畫更新與 React 重繪不重播。單次音效自然播完。",
+        "sourceAssetPaths": [
+            "Assets/Audio/掃描聲2.mp3"
+        ],
+        "sources": [
+            "./audio/signal-detector-scan-2.mp3"
+        ],
+        "volume": 0.9,
+        "delaySeconds": 0.2,
+        "fadeInPercent": 10,
+        "fadeOutPercent": 10
+    },
+    "chapterEndSavePromptOpened": {
+        "label": "章節結束存檔確認視窗展開",
+        "trigger": "chapter03-End 字幕淡出完成後，『要手動儲存目前的遊戲進度嗎？』確認視窗由關閉轉為開啟時播放一次；React 重繪期間不重複播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/存檔確認.mp3"
+        ],
+        "sources": [
+            "./audio/chapter-end-save-confirmation.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "deathImminentBreathing": {
+        "label": "自然死亡前急促呼吸",
+        "trigger": "任一自然死亡條件進入最後 1 個遊戲分鐘，死亡前畫面開始 RootShake、模糊並同步淡入黑幕的當下播放一次；React 重繪期間不重複播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/呼吸急促1.mp3"
+        ],
+        "sources": [
+            "./audio/death-imminent-breathing-1.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "gameOverImageRevealed": {
+        "label": "Game Over 插圖淡入",
+        "trigger": "自然死亡正式成立、畫面已維持全黑且 Gameover 插圖開始 1 秒 FadeIn 的當下播放一次；Game Over 介面重繪不重複播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/Gameover1.mp3"
+        ],
+        "sources": [
+            "./audio/game-over-1.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "navTerminalBlockCalibrated": {
+        "label": "航線監測終端：矩陣校對成功",
+        "trigger": "任一尚未校對的矩陣首次校對成功並顯示 CALIBRATED 時播放一次；重複輸入已完成矩陣不播放。",
+        "sourceAssetPaths": [
+            "public/audio/frequency-lock-success.mp3"
+        ],
+        "sources": [
+            "./audio/frequency-lock-success.mp3"
+        ],
+        "volume": 0.6,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "navTerminalInputRejected": {
+        "label": "航線監測終端：七碼校對失敗",
+        "trigger": "輸滿七碼且不符合任何 BLOCK 的正確代碼，輸入欄開始紅色閃動時播放一次。",
+        "sourceAssetPaths": [
+            "Assets/Audio/平手.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-tie.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "navTerminalMatrixScan": {
+        "label": "航線監測終端：訊號矩陣刷動",
+        "trigger": "訊號矩陣每輪數字刷動（SCAN 3 秒）開始時從頭播放一次，不循環：音檔約 2.78 秒，頭尾各 18%（約 0.5 秒）淡入淡出，播完後安靜等下一輪刷動再重播。三組都校對完成或離開小遊戲而刷動中途結束時，以 0.5 秒提前淡出（NAV_TERMINAL_MATRIX_SCAN_MIX）。",
+        "sourceAssetPaths": [
+            "Assets/Audio/Electronic_SE.mp3"
+        ],
+        "sources": [
+            "./audio/electronic-se.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 18,
+        "fadeOutPercent": 18
+    },
+    "navTerminalCleared": {
+        "label": "航線監測終端：清除輸入",
+        "trigger": "玩家按下航線監測終端的 ＊ 清除鍵時播放一次；校對鎖定期間不播放。",
+        "sourceAssetPaths": [
+            "public/audio/interaction-denied.mp3"
+        ],
+        "sources": [
+            "./audio/interaction-denied.mp3"
+        ],
+        "volume": 0.5,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "uiInput": {
+        "label": "介面輸入點擊",
+        "trigger": "玩家點擊背包內的操作按鈕、道具頁籤、換頁箭頭、道具格或其右鍵選單；點擊快捷工具格或其右鍵選單；開啟／關閉背包或 Options 介面；飛船互動介面切換選項、確認或返回；以及新手教學每次有效換卡、航線監測終端的數字／刪除鍵有效輸入時播放（清除鍵改由 navTerminalCleared 管理）。只要輸入成立就播放，不要求操作成功。任務提示、生存計量與小地圖的展開／收折改由 hudExpanded／hudCollapsed 管理。",
+        "sourceAssetPaths": [
+            "Assets/Audio/InPut.mp3"
+        ],
+        "sources": [
+            "./audio/ui-input.mp3"
+        ],
+        "volume": 0.8,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starshipMenuOpened": {
+        "label": "飛船互動介面開啟",
+        "trigger": "互動對話完成後，飛船互動介面由關閉轉為開啟時播放一次。",
+        "sourceAssetPaths": [
+            "Assets/Audio/飛船互動介面2.mp3"
+        ],
+        "sources": [
+            "./audio/starship-menu-open-2.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsUiInput": {
+        "label": "星際牌按鈕輸入",
+        "trigger": "星際牌小遊戲內可用的 DRAW 或 BATTLE 按鈕，透過滑鼠、鍵盤或手把成功觸發時播放一次。",
+        "sourceAssetPaths": [
+            "Assets/Audio/InPut.mp3"
+        ],
+        "sources": [
+            "./audio/ui-input.mp3"
+        ],
+        "volume": 0.7,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsCardDealt": {
+        "label": "星際牌發牌飛入",
+        "trigger": "星際牌任何一張卡牌開始飛入畫面時逐張播放；開場我方三張與對手三張共六次，每次 DRAW 我方與對手各一次。允許短時間內重疊播放，但同時最多三軌且任意 200ms 內最多開始三聲，超出的呼叫直接略過。",
+        "sourceAssetPaths": [
+            "Assets/Audio/飛牌.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-card-dealt.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0,
+        "maxPlaysPerWindow": 3,
+        "playLimitWindowMs": 200,
+        "maxOverlappingVoices": 3
+    },
+    "starCardsCardFlipped": {
+        "label": "星際牌卡牌翻面",
+        "trigger": "星際牌任何一張卡牌由正面翻到背面，或由背面翻回正面時逐張播放；我方與對手共用。首局對手由左至右每 0.1 秒翻一張，我方序列比對手晚 0.1 秒開始；同時翻面的兩張仍各自播放，最多六軌重疊。",
+        "sourceAssetPaths": [
+            "Assets/Audio/翻面.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-card-flipped.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0,
+        "maxPlaysPerWindow": 6,
+        "playLimitWindowMs": 200,
+        "maxOverlappingVoices": 6
+    },
+    "starCardsLaneChanged": {
+        "label": "星際牌拖曳換格",
+        "trigger": "玩家拖曳卡牌進入 A、B、C 任一格，使該格亮框由未亮或其他格切換為亮起時播放一次；停留在同一格內不重複播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/換格2.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-lane-changed.mp3"
+        ],
+        "volume": 0.5,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsLaserFire1": {
+        "label": "星際牌雷射發射 1",
+        "trigger": "星際牌 BATTLE 中任一路雷射武器開始發射光束時，從七首雷射發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒。這是發射池，不包含卡牌命中爆炸聲。多路雷射發射可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/The_sound_of_a_power_#1-1788199126794.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-laser-fire-1.mp3"
+        ],
+        "volume": 0.17,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsLaserFire2": {
+        "label": "星際牌雷射發射 2",
+        "trigger": "星際牌 BATTLE 中任一路雷射武器開始發射光束時，從七首雷射發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒。這是發射池，不包含卡牌命中爆炸聲。多路雷射發射可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/The_sound_of_a_power_#3-1788199017585.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-laser-fire-2.mp3"
+        ],
+        "volume": 0.17,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsLaserFire3": {
+        "label": "星際牌雷射發射 3",
+        "trigger": "星際牌 BATTLE 中任一路雷射武器開始發射光束時，從七首雷射發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒。這是發射池，不包含卡牌命中爆炸聲。多路雷射發射可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/The_sound_of_a_power_#4-1788199021817.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-laser-fire-3.mp3"
+        ],
+        "volume": 0.17,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsLaserFire4": {
+        "label": "星際牌雷射發射 4",
+        "trigger": "星際牌 BATTLE 中任一路雷射武器開始發射光束時，從七首雷射發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒。這是發射池，不包含卡牌命中爆炸聲。多路雷射發射可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/The_sound_of_a_power_#4-1788199120487.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-laser-fire-4.mp3"
+        ],
+        "volume": 0.17,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsLaserFire5": {
+        "label": "星際牌雷射發射 5",
+        "trigger": "星際牌 BATTLE 中任一路雷射武器開始發射光束時，從七首雷射發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒。這是發射池，不包含卡牌命中爆炸聲。多路雷射發射可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/FX_RailgunBulletShoot01.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-laser-fire-5.mp3"
+        ],
+        "volume": 0.17,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsLaserFire6": {
+        "label": "星際牌雷射發射 6",
+        "trigger": "星際牌 BATTLE 中任一路雷射武器開始發射光束時，從七首雷射發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒。這是發射池，不包含卡牌命中爆炸聲。多路雷射發射可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/FX_RailgunBulletShoot02.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-laser-fire-6.mp3"
+        ],
+        "volume": 0.17,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsLaserFire7": {
+        "label": "星際牌雷射發射 7",
+        "trigger": "星際牌 BATTLE 中任一路雷射武器開始發射光束時，從七首雷射發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.4 秒。這是發射池，不包含卡牌命中爆炸聲。多路雷射發射可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/FX_RailgunBulletShoot03.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-laser-fire-7.mp3"
+        ],
+        "volume": 0.17,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsMissileFire1": {
+        "label": "星際牌飛彈發射 1",
+        "trigger": "星際牌 BATTLE 中任一路飛彈武器開始發射時，從六首飛彈發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.3 秒。這是發射池，不包含卡牌命中爆炸聲。多路飛彈發射可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/SplitBullet_Fire01.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-missile-fire-1.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsMissileFire2": {
+        "label": "星際牌飛彈發射 2",
+        "trigger": "星際牌 BATTLE 中任一路飛彈武器開始發射時，從六首飛彈發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.3 秒。這是發射池，不包含卡牌命中爆炸聲。多路飛彈發射可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/SplitBullet_Fire02.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-missile-fire-2.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsMissileFire3": {
+        "label": "星際牌飛彈發射 3",
+        "trigger": "星際牌 BATTLE 中任一路飛彈武器開始發射時，從六首飛彈發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.3 秒。這是發射池，不包含卡牌命中爆炸聲。多路飛彈發射可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/SplitBullet_Fire03.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-missile-fire-3.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsMissileFire4": {
+        "label": "星際牌飛彈發射 4",
+        "trigger": "星際牌 BATTLE 中任一路飛彈武器開始發射時，從六首飛彈發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.3 秒。這是發射池，不包含卡牌命中爆炸聲。多路飛彈發射可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/ChargeBullet_Fire01.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-missile-fire-4.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsMissileFire5": {
+        "label": "星際牌飛彈發射 5",
+        "trigger": "星際牌 BATTLE 中任一路飛彈武器開始發射時，從六首飛彈發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.3 秒。這是發射池，不包含卡牌命中爆炸聲。多路飛彈發射可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/ChargeBullet_Fire02.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-missile-fire-5.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsMissileFire6": {
+        "label": "星際牌飛彈發射 6",
+        "trigger": "星際牌 BATTLE 中任一路飛彈武器開始發射時，從六首飛彈發射音效池隨機抽出 3～4 支組成一套，允許重複抽到同一支；第一聲立即播放，後續每聲隨機間隔 0.2～0.3 秒。這是發射池，不包含卡牌命中爆炸聲。多路飛彈發射可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/ChargeBullet_Fire03.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-missile-fire-6.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsShieldAttackLayer1": {
+        "label": "星際牌護盾攻擊混音－護盾 1",
+        "trigger": "星際牌 BATTLE 中任一路護盾艦開始發射護盾攻擊時，與 starCardsShieldAttackLayer2 同一幀同步播放；兩層合計視為一組護盾攻擊音效，不進行隨機抽選。多路護盾攻擊可各自重疊。",
+        "sourceAssetPaths": [
+            "Assets/Audio/護盾1.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-shield-attack-1.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsShieldAttackLayer2": {
+        "label": "星際牌護盾攻擊混音－護盾 2",
+        "trigger": "星際牌 BATTLE 中任一路護盾艦開始發射護盾攻擊時，與 starCardsShieldAttackLayer1 同一幀同步播放；兩層合計視為一組護盾攻擊音效，不進行隨機抽選。多路護盾攻擊可各自重疊。",
+        "sourceAssetPaths": [
+            "Assets/Audio/護盾2.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-shield-attack-2.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsTie": {
+        "label": "星際牌平手碰撞",
+        "trigger": "星際牌 BATTLE 中任一路判定為平手，並正式開始播放該路平手碰撞特效的同一時間播放一次；每一路平手各自觸發，非平手、發射與爆炸流程不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/平手.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-tie.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsExplosion1": {
+        "label": "星際牌卡牌爆炸 1",
+        "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/The_sound_of_a_missi_#1-1788199534339.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-explosion-1.mp3"
+        ],
+        "volume": 0.15,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsExplosion2": {
+        "label": "星際牌卡牌爆炸 2",
+        "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/The_sound_of_a_missi_#1-1788199550101.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-explosion-2.mp3"
+        ],
+        "volume": 0.15,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsExplosion3": {
+        "label": "星際牌卡牌爆炸 3",
+        "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/The_sound_of_a_missi_#2-1788199534341.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-explosion-3.mp3"
+        ],
+        "volume": 0.15,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsExplosion4": {
+        "label": "星際牌卡牌爆炸 4",
+        "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/The_sound_of_a_missi_#2-1788199552869.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-explosion-4.mp3"
+        ],
+        "volume": 0.15,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsExplosion5": {
+        "label": "星際牌卡牌爆炸 5",
+        "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/The_sound_of_a_missi_#3-1788199534341.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-explosion-5.mp3"
+        ],
+        "volume": 0.15,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsExplosion6": {
+        "label": "星際牌卡牌爆炸 6",
+        "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/The_sound_of_a_missi_#3-1788199552869.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-explosion-6.mp3"
+        ],
+        "volume": 0.15,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsExplosion7": {
+        "label": "星際牌卡牌爆炸 7",
+        "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/The_sound_of_a_missi_#4-1788199534342.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-explosion-7.mp3"
+        ],
+        "volume": 0.15,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsExplosion8": {
+        "label": "星際牌卡牌爆炸 8",
+        "trigger": "星際牌 BATTLE 中任一路卡牌真正被命中並進入爆炸／摧毀效果時，從十二首共用爆炸池隨機抽出 2～3 支作為前段，允許重複抽到同一支；整套總共 3～4 聲，最後一聲依被擊敗卡牌點數指定收尾。雷射、飛彈或其他武器造成的爆炸皆共用，平手不播放；每聲隨機間隔 0.2～0.4 秒，多路爆炸可重疊且互不截斷。",
+        "sourceAssetPaths": [
+            "Assets/Audio/The_sound_of_a_missi_#4-1788199552869.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-explosion-8.mp3"
+        ],
+        "volume": 0.15,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "starCardsExplosionFinish1": {
+        "label": "星際牌爆炸普通收尾 1",
+        "trigger": "本音效屬於十二首共用爆炸池。星際牌 BATTLE 中 1 點或 2 點卡牌被擊敗時，爆炸組最後一聲必須從 FX_Mon_Dead01～03 三支普通收尾音效隨機抽一支；整套爆炸總共 3～4 聲。若被擊敗的是 3 點卡牌，最後一聲不使用本音效。",
+        "sourceAssetPaths": [
+            "Assets/Audio/FX_Mon_Dead01.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-explosion-finish-1.mp3"
+        ],
+        "volume": 0.15,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 10
+    },
+    "starCardsExplosionFinish2": {
+        "label": "星際牌爆炸普通收尾 2",
+        "trigger": "本音效屬於十二首共用爆炸池。星際牌 BATTLE 中 1 點或 2 點卡牌被擊敗時，爆炸組最後一聲必須從 FX_Mon_Dead01～03 三支普通收尾音效隨機抽一支；整套爆炸總共 3～4 聲。若被擊敗的是 3 點卡牌，最後一聲不使用本音效。",
+        "sourceAssetPaths": [
+            "Assets/Audio/FX_Mon_Dead02.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-explosion-finish-2.mp3"
+        ],
+        "volume": 0.15,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 10
+    },
+    "starCardsExplosionFinish3": {
+        "label": "星際牌爆炸普通收尾 3",
+        "trigger": "本音效屬於十二首共用爆炸池。星際牌 BATTLE 中 1 點或 2 點卡牌被擊敗時，爆炸組最後一聲必須從 FX_Mon_Dead01～03 三支普通收尾音效隨機抽一支；整套爆炸總共 3～4 聲。若被擊敗的是 3 點卡牌，最後一聲不使用本音效。",
+        "sourceAssetPaths": [
+            "Assets/Audio/FX_Mon_Dead03.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-explosion-finish-3.mp3"
+        ],
+        "volume": 0.15,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 10
+    },
+    "starCardsExplosionHeavyFinish": {
+        "label": "星際牌 3 點牌爆炸收尾",
+        "trigger": "本音效屬於十二首共用爆炸池。星際牌 BATTLE 中被擊敗的卡牌為 3 點牌時，爆炸組最後一聲固定播放 Fx_PantagonExplode_In；不再從三支普通收尾音效抽選，整套爆炸總共 3～4 聲。",
+        "sourceAssetPaths": [
+            "Assets/Audio/Fx_PantagonExplode_In.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-explosion-heavy-finish.mp3"
+        ],
+        "volume": 0.15,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 10
+    },
+    "hudExpanded": {
+        "label": "HUD 介面展開",
+        "trigger": "任務提示 UI、生存計量 UI 或小地圖 UI 的狀態真正由收折切換為展開時播放一次；滑鼠、鍵盤、手把、教學與系統流程共用。",
+        "sourceAssetPaths": [
+            "Assets/Audio/介面展開.mp3"
+        ],
+        "sources": [
+            "./audio/hud-expand.mp3"
+        ],
+        "volume": 0.6,
+        "delaySeconds": 0,
+        "fadeInPercent": 5,
+        "fadeOutPercent": 5
+    },
+    "hudCollapsed": {
+        "label": "HUD 介面收折",
+        "trigger": "任務提示 UI、生存計量 UI 或小地圖 UI 的狀態真正由展開切換為收折時播放一次；滑鼠、鍵盤、手把、教學與系統流程共用。",
+        "sourceAssetPaths": [
+            "Assets/Audio/互動操作音_#1-1785307011343.mp3"
+        ],
+        "sources": [
+            "./audio/interaction-success-1.mp3"
+        ],
+        "volume": 0.9,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "frequencyCoarseTick": {
+        "label": "調頻粗調刻度切換",
+        "trigger": "調頻小遊戲的預調輪盤實際切換至另一格頻段刻度時播放一次；停留在同一格不重複播放，且不再播放一般 Input 音效。",
+        "sourceAssetPaths": [
+            "Assets/Audio/刻度.mp3"
+        ],
+        "sources": [
+            "./audio/frequency-coarse-tick.mp3"
+        ],
+        "volume": 0.72,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "frequencyFineFar": {
+        "label": "調頻微調－遠離目標",
+        "trigger": "玩家持續調整微調頻率時循環播放；接近度低於 20% 時主導，20% 至 80% 之間與接近音軌降低音量後交叉淡化，停止調整或關閉視窗時暫停。播放中音量會在小聲與正常之間柔和往返。",
+        "sourceAssetPaths": [
+            "Assets/Audio/調頻遠離.mp3"
+        ],
+        "sources": [
+            "./audio/frequency-fine-far.mp3"
+        ],
+        "volume": 0.58,
+        "delaySeconds": 0,
+        "loop": true,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "frequencyFineNear": {
+        "label": "調頻微調－接近目標",
+        "trigger": "玩家持續調整微調頻率時循環播放；接近度高於 80% 時主導，20% 至 80% 之間與遠離音軌降低音量後交叉淡化。播放中音量會在小聲、正常與較大聲之間柔和往返，且愈接近命中整體愈大聲。",
+        "sourceAssetPaths": [
+            "Assets/Audio/調頻接近.mp3"
+        ],
+        "sources": [
+            "./audio/frequency-fine-near.mp3"
+        ],
+        "volume": 0.78,
+        "delaySeconds": 0,
+        "loop": true,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "frequencyLocked": {
+        "label": "調頻精準命中並鎖定",
+        "trigger": "調頻達到可命中範圍後，玩家按下鎖定頻率按鈕或手把 RT 的當下播放一次；非命中鎖定只播放一般 Input 音效。",
+        "sourceAssetPaths": [
+            "Assets/Audio/調頻成功.mp3"
+        ],
+        "sources": [
+            "./audio/frequency-lock-success.mp3"
+        ],
+        "volume": 0.5,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "worldItemLanded": {
+        "label": "場上道具觸地",
+        "trigger": "互動獎勵、Debug 生成或背包丟棄的道具完成主要拋物線，第一次碰到場上地面的瞬間播放一次；飛行途中、後續小彈跳與滑動階段不重複播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/Drop.mp3"
+        ],
+        "sources": [
+            "./audio/world-item-drop.mp3"
+        ],
+        "volume": 0.85,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "worldItemPickedUp": {
+        "label": "場上道具拾取成功",
+        "trigger": "玩家成功拾取固定場景道具或場上 Spawn／背包丟棄的道具，且道具數量已加入背包並從場上移除後播放一次；只有接觸、點擊失敗、重複拾取或背包數量未增加時不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/Pick.mp3"
+        ],
+        "sources": [
+            "./audio/world-item-pickup.mp3"
+        ],
+        "volume": 0.9,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "crystalMiningSucceeded": {
+        "label": "藍色晶體採礦成功",
+        "trigger": "interaction-006 成功完成，且藍色晶體碎片的地面 Spawn 獎勵已成功建立後播放一次；需求不足、超過每日次數或找不到合法 Spawn 落點時不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/採礦聲1.mp3"
+        ],
+        "sources": [
+            "./audio/mining-1.mp3"
+        ],
+        "volume": 0.5,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "emergencyRationConsumed": {
+        "label": "成功食用緊急口糧",
+        "trigger": "玩家從背包或快捷工具列成功使用 R0005 緊急口糧，生存數值已套用且道具已扣除後播放一次；無法使用或數值已滿時不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/飲食1.mp3"
+        ],
+        "sources": [
+            "./audio/eating-1.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "purifiedWaterConsumed": {
+        "label": "成功飲用淨水瓶",
+        "trigger": "玩家從背包或快捷工具列成功使用 R0004 淨水瓶，口渴數值已恢復且道具已扣除後播放一次；無法使用或口渴已滿時不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/飲水2.mp3"
+        ],
+        "sources": [
+            "./audio/drinking-2.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "alienFruitConsumed": {
+        "label": "成功食用外星果實",
+        "trigger": "玩家從背包或快捷工具列成功使用 R0012 外星果實，生存數值已套用且道具已扣除後播放一次；無法使用或數值已滿時不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/吃水果.mp3"
+        ],
+        "sources": [
+            "./audio/eat-fruit.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "spiritFocusMedicineConsumed": {
+        "label": "成功使用精神專注劑",
+        "trigger": "玩家從背包或快捷工具列成功使用 R0016 精神專注劑，精神數值已恢復且道具已扣除後播放一次；無法使用或精神已滿時不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/精神藥劑.mp3"
+        ],
+        "sources": [
+            "./audio/spirit-focus-medicine.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "energySupplyDrinkConsumed": {
+        "label": "成功飲用提神補給飲料",
+        "trigger": "玩家從背包或快捷工具列成功使用 R0017 提神補給飲料，生存數值已恢復且道具已扣除後播放一次；無法使用或相關生存數值已滿時不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/飲用提神飲料.mp3"
+        ],
+        "sources": [
+            "./audio/energy-supply-drink.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "campPowerCrystalInserted": {
+        "label": "營地電力灌入晶體成功",
+        "trigger": "interaction-013 的灌入確認流程成功扣除一個藍色晶體碎片，且營地電力確實增加並寫入狀態後播放一次；取消、道具不足或電力已滿時不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/灌入晶體1.mp3"
+        ],
+        "sources": [
+            "./audio/camp-power-crystal-inserted.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "generatorPanelOpened": {
+        "label": "共振發電機蓋板拆開成功",
+        "trigger": "interaction-020 成功完成且其地面 Spawn 獎勵已成功建立後播放一次；需求不足、互動已使用或找不到合法 Spawn 落點時不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/拆開面板2.mp3"
+        ],
+        "sources": [
+            "./audio/panel-open-2.mp3"
+        ],
+        "volume": 0.7,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "questCompleted": {
+        "label": "任務完成提示",
+        "trigger": "任務提示 UI 開始播放綠色 COMPLETE 底光與外框擴散演出的瞬間播放一次。",
+        "sourceAssetPaths": [
+            "Assets/Audio/任務成功.mp3"
+        ],
+        "sources": [
+            "./audio/quest-complete.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "questStarted": {
+        "label": "任務開始或更新",
+        "trigger": "任務提示 UI 接取新任務，或開始切換到下一任務階段並播放 NEXT 演出的瞬間播放一次。",
+        "sourceAssetPaths": [
+            "Assets/Audio/任務開始.mp3"
+        ],
+        "sources": [
+            "./audio/quest-start.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "questObjectiveAdded": {
+        "label": "任務途中新增目標",
+        "trigger": "目前 Stage 進行途中，原本鎖定的事件型 OBJ 首次啟用並開始顯示解鎖 Tween 時播放一次；Stage 開始時立即列出的 OBJ、讀檔還原與重複事件不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/任務新增.mp3"
+        ],
+        "sources": [
+            "./audio/quest-objective-added.mp3"
+        ],
+        "volume": 0.25,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "questObjectiveProgressed": {
+        "label": "任務 OBJ 進度推進",
+        "trigger": "需求數量大於 1 且「顯示進度」為 True 的任務 OBJ，在實際進度值增加時播放一次；重複互動、進度倒退、讀檔還原與啟用時同步既有背包數量不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/quest-objective-progress-1.mp3"
+        ],
+        "sources": [
+            "./audio/quest-objective-progress-1.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "questObjectiveCompleted": {
+        "label": "任務 OBJ 核取完成",
+        "trigger": "任務 OBJ 真正開始播放核取方塊打勾與完成 Pop Tween 時播放一次；讀檔恢復已完成狀態、沒有顯示完成 Tween，或延遲期間已切換至其他 Stage 時不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/任務OBJ過關.mp3"
+        ],
+        "sources": [
+            "./audio/quest-objective-complete.mp3"
+        ],
+        "volume": 0.35,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "hotbarItemAssigned": {
+        "label": "道具置入快捷工具列",
+        "trigger": "玩家從背包的「快捷」指令確認將仍持有的道具指派或取代至快捷工具列時播放一次；選格、取消、道具已不存在或重複確認不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/hotbar-item-assigned.mp3"
+        ],
+        "sources": [
+            "./audio/hotbar-item-assigned.mp3"
+        ],
+        "volume": 0.7,
+        "delaySeconds": 0,
+        "fadeInPercent": 5,
+        "fadeOutPercent": 15
+    },
+    "generatorStartup1": {
+        "label": "發電機成功啟動－第一段",
+        "trigger": "電力分配小遊戲的供電組合正確，玩家按下「確認供電」並正式進入成功啟動流程的當下播放；失敗組合、切換設備或重複輸入不播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/發電機啟動1.mp3"
+        ],
+        "sources": [
+            "./audio/generator-startup-1.mp3"
+        ],
+        "volume": 0.35,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 15
+    },
+    "generatorStartup2": {
+        "label": "發電機成功啟動－第二段",
+        "trigger": "電力分配小遊戲成功啟動流程成立後 1 秒播放；與第一段共用同一次成功事件，失敗時不排程。",
+        "sourceAssetPaths": [
+            "Assets/Audio/發電機啟動2.mp3"
+        ],
+        "sources": [
+            "./audio/generator-startup-2.mp3"
+        ],
+        "volume": 0.25,
+        "delaySeconds": 1,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 15
+    },
+    "generatorRunning": {
+        "label": "發電機成功啟動－運作聲",
+        "trigger": "電力分配小遊戲成功啟動流程成立後 1.5 秒播放；與前兩段共用同一次成功事件，失敗時不排程。",
+        "sourceAssetPaths": [
+            "Assets/Audio/發電機運作.mp3"
+        ],
+        "sources": [
+            "./audio/generator-running.mp3"
+        ],
+        "volume": 0.3,
+        "delaySeconds": 1.5,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 30
+    },
+    "weldingPreviewCountdown": {
+        "label": "焊接預覽倒數",
+        "trigger": "焊接小遊戲確認開始預覽後，3、2、1 每個倒數數字實際顯示的當下各播放一次；進入自動預覽後停止。",
+        "sourceAssetPaths": [
+            "Assets/Audio/倒數計時.mp3"
+        ],
+        "sources": [
+            "./audio/welding-preview-countdown.mp3"
+        ],
+        "volume": 0.35,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "weldingSparksLayer1": {
+        "label": "焊接火星混音－第一層",
+        "trigger": "焊接小遊戲實際描繪且火星特效持續播放時，與第二層同時循環混音；火星開始時共同淡入，火星停止時共同淡出。",
+        "sourceAssetPaths": [
+            "Assets/Audio/焊接1.mp3"
+        ],
+        "sources": [
+            "./audio/welding-sparks-1.mp3"
+        ],
+        "volume": 0.4,
+        "delaySeconds": 0,
+        "loop": true,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "weldingSparksLayer2": {
+        "label": "焊接火星混音－第二層",
+        "trigger": "焊接小遊戲實際描繪且火星特效持續播放時，與第一層同時循環混音；兩支素材自然錯相穿插，對遊戲端視為同一個焊接聲事件。",
+        "sourceAssetPaths": [
+            "Assets/Audio/焊接2.mp3"
+        ],
+        "sources": [
+            "./audio/welding-sparks-2.mp3"
+        ],
+        "volume": 0.4,
+        "delaySeconds": 0,
+        "loop": true,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "weldingFailed": {
+        "label": "焊接失敗提示",
+        "trigger": "焊接小遊戲判定失敗，紅色「焊接錯誤了」底板實際出現時播放一次；後續失敗檢視、退出、耗材扣除與失敗對話不重複播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/焊接失敗.mp3"
+        ],
+        "sources": [
+            "./audio/welding-failed.mp3"
+        ],
+        "volume": 1,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "weldingSucceeded": {
+        "label": "焊接成功提示",
+        "trigger": "焊接小遊戲正式判定成功，綠色「焊接成功」底板實際出現時播放一次；確認完成與後續成功對話不重複播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/調頻成功.mp3"
+        ],
+        "sources": [
+            "./audio/frequency-lock-success.mp3"
+        ],
+        "volume": 0.4,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    }
+});
+export const LINE_SE_CONFIG = ([
+    {
+        "lineId": "chapter03-section-9-line-010",
+        "source": "./audio/Alarm.mp3",
+        "volume": 0.85,
+        "delaySeconds": 0,
+        "fadeInSeconds": 0.05,
+        "fadeOutSeconds": 0.5,
+        "loop": false,
+        "nextLineBehavior": "finish"
+    },
+    {
+        "lineId": "chapter03-section-9-line-013",
+        "source": "./audio/Radio-waves.mp3",
+        "volume": 0.7,
+        "delaySeconds": 0,
+        "fadeInSeconds": 0.1,
+        "fadeOutSeconds": 0.5,
+        "loop": false,
+        "nextLineBehavior": "finish"
+    }
+]);
+export const DEFAULT_BGM_USER_VOLUME = 0.35;
+export const BGM_TRACK_CONFIG = ({
+    "default": {
+        "label": "常駐播放 BGM",
+        "sourceAssetPaths": [
+            "Assets/Audio/main_BGM.mp3"
+        ],
+        "sources": [
+            "./audio/main_BGM.mp3"
+        ],
+        "volume": 1,
+        "loop": true,
+        "rememberPosition": true
+    },
+    "power-routing": {
+        "label": "電力分配小遊戲 BGM",
+        "sourceAssetPaths": [
+            "Assets/Audio/power-routing.mp3"
+        ],
+        "sources": [
+            "./audio/power-routing.mp3"
+        ],
+        "volume": 1,
+        "loop": true,
+        "rememberPosition": false
+    },
+    "frequency-calibration": {
+        "label": "調頻小遊戲 BGM",
+        "sourceAssetPaths": [
+            "Assets/Audio/frequency-calibration.mp3"
+        ],
+        "sources": [
+            "./audio/frequency-calibration.mp3"
+        ],
+        "volume": 1,
+        "loop": true,
+        "rememberPosition": false
+    },
+    "welding-route": {
+        "label": "焊接小遊戲 BGM",
+        "sourceAssetPaths": [
+            "Assets/Audio/welding-route.mp3"
+        ],
+        "sources": [
+            "./audio/welding-route.mp3"
+        ],
+        "volume": 1,
+        "loop": true,
+        "rememberPosition": false
+    },
+    "star-cards": {
+        "label": "星際牌小遊戲 BGM",
+        "sourceAssetPaths": [
+            "Assets/Audio/星海棋盤.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards.mp3"
+        ],
+        "volume": 1,
+        "loop": true,
+        "rememberPosition": false
+    },
+    "phototropic-plant": {
+        "label": "植物解謎 BGM：Sombra Forest",
+        "sourceAssetPaths": [
+            "Assets/Audio/Sombra_Forest_BGM.mp3"
+        ],
+        "sources": [
+            "./audio/Sombra_Forest_BGM.mp3"
+        ],
+        "volume": 0.7,
+        "loop": true,
+        "rememberPosition": false
+    }
+});
+export const BGM_CONTROL_RULES = ([
+    {
+        "id": "quest-ch03-main-001-bgm-half",
+        "label": "MAIN_001 起至 MAIN_002 前：BGM 50%",
+        "enabled": true,
+        "triggerType": "quest",
+        "targetId": "QUEST_CH03_MAIN_001",
+        "state": "active|completed",
+        "action": "volume",
+        "targetVolume": 0.7,
+        "fadeOutSeconds": 1,
+        "fadeInSeconds": 1,
+        "priority": 100,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    },
+    {
+        "id": "chapter03-section-9-line-010-bgm-silence",
+        "label": "Section 9 警告台詞：BGM 於 1 秒內淡出",
+        "enabled": true,
+        "triggerType": "dialogueLine",
+        "targetId": "chapter03-section-9-line-010",
+        "state": "triggered",
+        "action": "volume",
+        "targetVolume": 0,
+        "fadeOutSeconds": 1,
+        "fadeInSeconds": 0,
+        "priority": 500,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    },
+    {
+        "id": "survival-death-imminent-bgm-fadeout",
+        "label": "自然死亡前模糊轉黑：BGM 於 2 秒內淡出結束",
+        "enabled": true,
+        "triggerType": "event",
+        "targetId": "survival-death-imminent",
+        "state": "triggered",
+        "action": "mute",
+        "targetVolume": 0,
+        "fadeOutSeconds": 2,
+        "fadeInSeconds": 1,
+        "priority": 10000,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    },
+    {
+        "id": "minigame-bgm-change-1",
+        "label": "電力分配：切換專用 BGM",
+        "enabled": true,
+        "triggerType": "minigame",
+        "targetId": "power-routing",
+        "state": "playing",
+        "action": "fade",
+        "trackId": "power-routing",
+        "targetVolume": 1,
+        "fadeOutSeconds": 1.5,
+        "fadeInSeconds": 1.5,
+        "priority": 1000,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    },
+    {
+        "id": "minigame-bgm-change-2",
+        "label": "調頻：切換專用 BGM",
+        "enabled": true,
+        "triggerType": "minigame",
+        "targetId": "frequency-calibration",
+        "state": "playing",
+        "action": "fade",
+        "trackId": "frequency-calibration",
+        "targetVolume": 1,
+        "fadeOutSeconds": 1.5,
+        "fadeInSeconds": 1.5,
+        "priority": 1000,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    },
+    {
+        "id": "minigame-bgm-change-3",
+        "label": "焊接：切換專用 BGM",
+        "enabled": true,
+        "triggerType": "minigame",
+        "targetId": "welding-route",
+        "state": "playing",
+        "action": "fade",
+        "trackId": "welding-route",
+        "targetVolume": 1,
+        "fadeOutSeconds": 1.5,
+        "fadeInSeconds": 1.5,
+        "priority": 1000,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    },
+    {
+        "id": "minigame-bgm-change-4",
+        "label": "星際牌：切換專用 BGM",
+        "enabled": true,
+        "triggerType": "minigame",
+        "targetId": "star-cards",
+        "state": "playing",
+        "action": "fade",
+        "trackId": "star-cards",
+        "targetVolume": 1,
+        "fadeOutSeconds": 1.5,
+        "fadeInSeconds": 1.5,
+        "priority": 1000,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    },
+    {
+        "id": "bus-card-bgm-pause",
+        "label": "匯流排小遊戲：地圖曲淡出並暫停，結束回到場景時淡入續播",
+        "enabled": true,
+        "triggerType": "minigame",
+        "targetId": "bus-card",
+        "state": "playing",
+        "action": "pause",
+        "targetVolume": 0,
+        "fadeOutSeconds": 1.5,
+        "fadeInSeconds": 1.5,
+        "priority": 1000,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    },
+    {
+        "id": "nav-terminal-bgm-pause",
+        "label": "航線校對終端小遊戲：地圖曲淡出並暫停，結束回到場景時淡入續播",
+        "enabled": true,
+        "triggerType": "minigame",
+        "targetId": "nav-terminal",
+        "state": "playing",
+        "action": "pause",
+        "targetVolume": 0,
+        "fadeOutSeconds": 1.5,
+        "fadeInSeconds": 1.5,
+        "priority": 1000,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    },
+    {
+        "id": "phototropic-plant-intro-pause",
+        "label": "植物入場：地圖曲淡出並暫停，等待藤蔓到位",
+        "enabled": true,
+        "triggerType": "minigame",
+        "targetId": "phototropic-plant",
+        "state": "intro",
+        "action": "pause",
+        "targetVolume": 0,
+        "fadeOutSeconds": 1.5,
+        "fadeInSeconds": 1.5,
+        "priority": 1000,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    },
+    {
+        "id": "phototropic-plant-playing-bgm",
+        "label": "藤蔓到位：植物曲淡入；成功對話播完或退出時續播地圖曲",
+        "enabled": true,
+        "triggerType": "minigame",
+        "targetId": "phototropic-plant",
+        "state": "playing",
+        "action": "fade",
+        "trackId": "phototropic-plant",
+        "targetVolume": 1,
+        "fadeOutSeconds": 1.5,
+        "fadeInSeconds": 1.5,
+        "priority": 1000,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    }
+]);
+const SUCCESSFUL_ITEM_USE_AUDIO_EVENT_BY_ITEM_ID = {
+    R0004: "purifiedWaterConsumed",
+    R0005: "emergencyRationConsumed",
+    R0012: "alienFruitConsumed",
+    R0016: "spiritFocusMedicineConsumed",
+    R0017: "energySupplyDrinkConsumed",
+};
+const SUCCESSFUL_INTERACTION_AUDIO_EVENT_BY_INTERACTION_ID = {
+    "interaction-006": "crystalMiningSucceeded",
+    "interaction-020": "generatorPanelOpened",
+};
+export function getSuccessfulItemUseAudioEvent(itemId) {
+    return SUCCESSFUL_ITEM_USE_AUDIO_EVENT_BY_ITEM_ID[itemId] ?? null;
+}
+export function getSuccessfulInteractionAudioEvent(interactionId) {
+    return SUCCESSFUL_INTERACTION_AUDIO_EVENT_BY_INTERACTION_ID[interactionId] ?? null;
+}
+export const NAV_TERMINAL_MATRIX_SCAN_MIX = {
+    eventName: "navTerminalMatrixScan",
+    earlyStopFadeOutSeconds: 0.5,
+};
+export const WELDING_SPARK_MIX_CONFIG = {
+    layerEventNames: [
+        "weldingSparksLayer1",
+        "weldingSparksLayer2",
+    ],
+    totalVolume: 0.8,
+    fadeInSeconds: 0.1,
+    fadeOutSeconds: 0.5,
+};
+export function getFrequencyFineAudioMix(strength, phase) {
+    const closeness = Math.min(1, Math.max(0, strength / 100));
+    const rawBlend = Math.min(1, Math.max(0, (closeness - 0.2) / 0.6));
+    const nearWeight = rawBlend * rawBlend * (3 - 2 * rawBlend);
+    const farWeight = 1 - nearWeight;
+    const wave = (Math.sin(phase * Math.PI * 2) + 1) / 2;
+    const farPulse = 0.35 + wave * 0.65;
+    const nearPulse = 0.28 + wave * 0.97;
+    const proximityBoost = 0.45 + closeness * 0.55;
+    return {
+        farVolume: clampVolume(AUDIO_EVENT_CONFIG.frequencyFineFar.volume * farWeight * farPulse),
+        nearVolume: clampVolume(AUDIO_EVENT_CONFIG.frequencyFineNear.volume *
+            nearWeight *
+            nearPulse *
+            proximityBoost),
+    };
+}
+function clampVolume(value) {
+    return Math.min(1, Math.max(0, value));
+}
+function clampPercent(value) {
+    return Math.min(100, Math.max(0, value ?? 0));
+}
+function clampSeconds(value) {
+    return Number.isFinite(value) ? Math.max(0, value ?? 0) : 0;
+}
+export function getLineSeNextLineBehavior(definition) {
+    return definition.nextLineBehavior === "stop" ? "stop" : "finish";
+}
+export function getAudioFadeDurationMilliseconds(durationSeconds, fadePercent) {
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0)
+        return 0;
+    return durationSeconds * 1000 * clampPercent(fadePercent) / 100;
+}
+export const PLANT_VINE_MOTION_AUDIO_CONFIG = {
+    minimumVolume: .1,
+    stopSpeed: .0005,
+    fullVolumeSpeed: 1,
+    retryMilliseconds: 250,
+};
+export function getPlantVineMotionVolume(speed) {
+    const config = PLANT_VINE_MOTION_AUDIO_CONFIG;
+    if (!Number.isFinite(speed) || speed <= config.stopSpeed)
+        return 0;
+    const ratio = Math.min(1, (speed - config.stopSpeed) / (config.fullVolumeSpeed - config.stopSpeed));
+    return config.minimumVolume + (AUDIO_EVENT_CONFIG.plantVineMotion.volume - config.minimumVolume) * ratio;
+}
+const MINIGAME_AUDIO_PREFIXES = {
+    "star-cards": ["starCards"],
+    "frequency-calibration": ["frequency"],
+    "welding-route": ["welding"],
+    "power-routing": ["generatorStartup", "generatorRunning"],
+    "phototropic-plant": ["plantVineMotion"],
+    "nav-terminal": ["navTerminal"],
+};
+export function getMinigameAudioGroup(eventName) {
+    for (const [minigameId, prefixes] of Object.entries(MINIGAME_AUDIO_PREFIXES)) {
+        if (prefixes.some((prefix) => eventName.startsWith(prefix)))
+            return minigameId;
+    }
+    return null;
+}
+export class AudioEventManager {
+    plantVineVoices = new Map();
+    setPlantVineMotion(motion) {
+        if (this.disposed)
+            return;
+        const sources = AUDIO_EVENT_CONFIG.plantVineMotion.sources;
+        for (const side of ["L", "R"]) {
+            const volume = getPlantVineMotionVolume(motion[side]);
+            let voice = this.plantVineVoices.get(side);
+            if (volume === 0) {
+                if (voice) {
+                    this.plantVineVoices.delete(side);
+                    this.stopPlantVineVoice(voice);
+                }
+                continue;
+            }
+            if (!voice) {
+                const used = new Set([...this.plantVineVoices.values()].map(active => active.sourceIndex));
+                const choices = sources.map((_, index) => index).filter(index => !used.has(index));
+                const sourceIndex = choices[Math.floor(Math.random() * choices.length)];
+                const audio = new Audio(sources[sourceIndex]);
+                audio.preload = "auto";
+                audio.loop = true;
+                voice = { audio, sourceIndex, pending: null, retryAt: 0 };
+                this.plantVineVoices.set(side, voice);
+            }
+            voice.audio.volume = volume;
+            if (!voice.audio.paused || voice.pending || performance.now() < voice.retryAt)
+                continue;
+            const current = voice;
+            current.pending = current.audio.play().then(() => {
+                if (this.disposed || this.plantVineVoices.get(side) !== current)
+                    this.stopPlantVineVoice(current);
+            }).catch(() => { current.retryAt = performance.now() + PLANT_VINE_MOTION_AUDIO_CONFIG.retryMilliseconds; })
+                .finally(() => { current.pending = null; });
+        }
+    }
+    stopPlantVines() {
+        this.plantVineVoices.forEach(voice => this.stopPlantVineVoice(voice));
+        this.plantVineVoices.clear();
+    }
+    stopPlantVineVoice(voice) {
+        voice.audio.volume = 0;
+        voice.audio.pause();
+        voice.audio.currentTime = 0;
+    }
+    activeWorkbenchVoice = null;
+    workbenchVoices = new Set();
+    playWorkbenchHover(eventName) {
+        if (this.disposed)
+            return Promise.resolve();
+        const previous = this.activeWorkbenchVoice;
+        this.activeWorkbenchVoice = null;
+        if (previous) {
+            this.cancelPendingPlay(previous);
+            const started = performance.now();
+            const initialVolume = previous.audio.volume;
+            const fade = (now) => {
+                const progress = Math.min(1, Math.max(0, (now - started) / 100));
+                previous.audio.volume = initialVolume * (1 - progress);
+                previous.fadeFrameId = progress < 1
+                    ? window.requestAnimationFrame(fade) : null;
+            };
+            previous.fadeFrameId = window.requestAnimationFrame(fade);
+        }
+        if (!eventName)
+            return Promise.resolve();
+        const definition = this.getRuntime(eventName).definition;
+        const voice = {
+            audio: new Audio(definition.sources[0]), definition,
+            delayResolve: null, delayTimerId: null, fadeFrameId: null,
+            endedHandler: () => { }, pendingPlay: null, requestId: 0, sourceIndex: 0,
+        };
+        voice.audio.preload = "auto";
+        voice.audio.loop = false;
+        voice.audio.volume = clampVolume(definition.volume);
+        const release = () => {
+            this.cancelPendingPlay(voice);
+            voice.audio.removeEventListener("ended", release);
+            voice.audio.removeEventListener("error", release);
+            this.workbenchVoices.delete(voice);
+            if (this.activeWorkbenchVoice === voice)
+                this.activeWorkbenchVoice = null;
+        };
+        voice.endedHandler = release;
+        voice.audio.addEventListener("ended", release);
+        voice.audio.addEventListener("error", release);
+        this.activeWorkbenchVoice = voice;
+        this.workbenchVoices.add(voice);
+        return this.startPlayback(voice, ++voice.requestId).catch(error => { release(); throw error; });
+    }
+    disposed = false;
+    runtimes = new Map();
+    recentPlayStarts = new Map();
+    overlappingVoices = new Map();
+    lineSeRuntimes = new Map();
+    currentDialogueLineId = null;
+    activeLineSeRuntime = null;
+    weldingSparksActive = false;
+    weldingSparksFadeFrameId = null;
+    weldingSparksRequestId = 0;
+    constructor(options = {}) {
+        Object.entries(AUDIO_EVENT_CONFIG).filter(([eventName]) => !options.eventNames || options.eventNames.includes(eventName))
+            .forEach(([eventName, configuredDefinition]) => {
+            const definition = options.assetBaseUrl
+                ? { ...configuredDefinition, sources: configuredDefinition.sources.map(source => new URL(source, options.assetBaseUrl).href) }
+                : configuredDefinition;
+            const audio = new Audio(definition.sources[0]);
+            audio.preload = getMinigameAudioGroup(eventName) ? "none" : "auto";
+            audio.volume = clampVolume(definition.volume);
+            audio.loop = Boolean(definition.loop && definition.sources.length === 1);
+            const runtime = {
+                audio,
+                definition,
+                delayResolve: null,
+                delayTimerId: null,
+                fadeFrameId: null,
+                endedHandler: () => { },
+                pendingPlay: null,
+                requestId: 0,
+                sourceIndex: 0,
+            };
+            runtime.endedHandler = () => {
+                if (runtime.fadeFrameId !== null) {
+                    window.cancelAnimationFrame(runtime.fadeFrameId);
+                    runtime.fadeFrameId = null;
+                }
+                runtime.audio.volume = clampVolume(runtime.definition.volume);
+                if (this.disposed ||
+                    !runtime.definition.loop ||
+                    runtime.definition.sources.length <= 1) {
+                    return;
+                }
+                runtime.sourceIndex =
+                    (runtime.sourceIndex + 1) % runtime.definition.sources.length;
+                runtime.audio.src = runtime.definition.sources[runtime.sourceIndex];
+                runtime.audio.load();
+                void runtime.audio.play().catch(() => {
+                });
+            };
+            audio.addEventListener("ended", runtime.endedHandler);
+            this.runtimes.set(eventName, runtime);
+        });
+        if (!options.eventNames)
+            LINE_SE_CONFIG.forEach((definition) => {
+                const lineId = definition.lineId.trim();
+                if (!lineId || this.lineSeRuntimes.has(lineId))
+                    return;
+                const audio = new Audio(definition.source);
+                audio.preload = "auto";
+                audio.volume = clampVolume(definition.volume);
+                audio.loop = Boolean(definition.loop);
+                this.lineSeRuntimes.set(lineId, {
+                    audio,
+                    definition,
+                    delayTimerId: null,
+                    fadeFrameId: null,
+                    requestId: 0,
+                });
+            });
+    }
+    getAudio(eventName) {
+        return this.getRuntime(eventName).audio;
+    }
+    warmedMinigames = new Set();
+    warmMinigameAudio(minigameId) {
+        if (this.disposed || this.warmedMinigames.has(minigameId))
+            return;
+        if (!MINIGAME_AUDIO_PREFIXES[minigameId])
+            return;
+        this.warmedMinigames.add(minigameId);
+        this.runtimes.forEach((runtime, eventName) => {
+            if (getMinigameAudioGroup(eventName) !== minigameId)
+                return;
+            if (runtime.audio.preload === "auto")
+                return;
+            runtime.audio.preload = "auto";
+            runtime.audio.load();
+        });
+    }
+    getDefinition(eventName) {
+        return this.getRuntime(eventName).definition;
+    }
+    setVolume(eventName, volume) {
+        const runtime = this.getRuntime(eventName);
+        const nextVolume = clampVolume(volume);
+        runtime.audio.volume = nextVolume;
+        this.overlappingVoices.forEach((voiceRuntime, voice) => {
+            if (voiceRuntime === runtime)
+                voice.volume = nextVolume;
+        });
+    }
+    setWeldingSparksActive(active) {
+        if (this.disposed)
+            return;
+        const runtimes = WELDING_SPARK_MIX_CONFIG.layerEventNames.map((eventName) => this.getRuntime(eventName));
+        const allPlaying = runtimes.every((runtime) => !runtime.audio.paused);
+        if (active === this.weldingSparksActive && (!active || allPlaying))
+            return;
+        this.weldingSparksActive = active;
+        const requestId = ++this.weldingSparksRequestId;
+        this.cancelWeldingSparksFade();
+        if (active) {
+            const resumingFade = runtimes.some((runtime) => !runtime.audio.paused);
+            runtimes.forEach((runtime) => {
+                this.cancelPendingPlay(runtime);
+                if (!resumingFade) {
+                    runtime.audio.currentTime = 0;
+                    runtime.audio.volume = 0;
+                }
+                void runtime.audio.play().catch(() => {
+                });
+            });
+            this.fadeWeldingSparks(requestId, WELDING_SPARK_MIX_CONFIG.fadeInSeconds * 1000, false);
+            return;
+        }
+        this.fadeWeldingSparks(requestId, WELDING_SPARK_MIX_CONFIG.fadeOutSeconds * 1000, true);
+    }
+    setNavTerminalMatrixScanActive(active) {
+        const mix = NAV_TERMINAL_MATRIX_SCAN_MIX;
+        if (active) {
+            void this.play(mix.eventName, { restart: true }).catch(() => {
+            });
+            return;
+        }
+        this.fadeOutAndStop(mix.eventName, mix.earlyStopFadeOutSeconds);
+    }
+    play(eventName, options = {}) {
+        const runtime = this.getRuntime(eventName);
+        if (this.disposed)
+            return Promise.resolve();
+        if (this.isPlaybackLimited(eventName, runtime, options)) {
+            return Promise.resolve();
+        }
+        if (options.overlap &&
+            !runtime.definition.loop &&
+            runtime.definition.sources.length === 1 &&
+            runtime.definition.delaySeconds === 0 &&
+            clampPercent(runtime.definition.fadeInPercent) === 0 &&
+            clampPercent(runtime.definition.fadeOutPercent) === 0) {
+            return this.playOverlappingOneShot(runtime);
+        }
+        if (options.restart) {
+            this.cancelPendingPlay(runtime);
+            runtime.audio.pause();
+            runtime.audio.currentTime = 0;
+        }
+        else {
+            if (!runtime.audio.paused)
+                return Promise.resolve();
+            if (runtime.pendingPlay)
+                return runtime.pendingPlay;
+        }
+        const requestId = ++runtime.requestId;
+        const pendingPlay = this.startPlayback(runtime, requestId);
+        runtime.pendingPlay = pendingPlay;
+        const clearPendingPlay = () => {
+            if (runtime.pendingPlay === pendingPlay)
+                runtime.pendingPlay = null;
+        };
+        void pendingPlay.then(clearPendingPlay, clearPendingPlay);
+        return pendingPlay;
+    }
+    stop(eventName, options = {}) {
+        const runtime = this.runtimes.get(eventName);
+        if (!runtime || this.disposed)
+            return;
+        this.cancelPendingPlay(runtime);
+        runtime.audio.pause();
+        if (options.reset ?? true)
+            runtime.audio.currentTime = 0;
+        this.overlappingVoices.forEach((voiceRuntime, voice) => {
+            if (voiceRuntime !== runtime)
+                return;
+            voice.pause();
+            if (options.reset ?? true)
+                voice.currentTime = 0;
+            this.overlappingVoices.delete(voice);
+        });
+    }
+    triggerDialogueLineSe(lineId) {
+        if (this.disposed)
+            return;
+        const normalizedLineId = lineId.trim();
+        if (this.currentDialogueLineId === normalizedLineId)
+            return;
+        this.releaseActiveLineSe();
+        this.currentDialogueLineId = normalizedLineId;
+        const runtime = this.lineSeRuntimes.get(normalizedLineId) ?? null;
+        this.activeLineSeRuntime = runtime;
+        if (runtime)
+            this.scheduleLineSe(runtime);
+    }
+    clearDialogueLineSe() {
+        if (this.disposed)
+            return;
+        this.releaseActiveLineSe();
+        this.currentDialogueLineId = null;
+    }
+    dispose() {
+        if (this.disposed)
+            return;
+        this.stopPlantVines();
+        this.workbenchVoices.forEach(voice => {
+            voice.endedHandler();
+            voice.audio.pause();
+        });
+        this.workbenchVoices.clear();
+        this.activeWorkbenchVoice = null;
+        this.weldingSparksActive = false;
+        this.weldingSparksRequestId += 1;
+        this.cancelWeldingSparksFade();
+        this.disposed = true;
+        this.runtimes.forEach((runtime) => {
+            this.cancelPendingPlay(runtime);
+            runtime.audio.removeEventListener("ended", runtime.endedHandler);
+            runtime.audio.pause();
+            runtime.audio.currentTime = 0;
+        });
+        this.runtimes.clear();
+        this.recentPlayStarts.clear();
+        this.overlappingVoices.forEach((_runtime, voice) => {
+            voice.pause();
+            voice.currentTime = 0;
+        });
+        this.overlappingVoices.clear();
+        this.lineSeRuntimes.forEach((runtime) => {
+            this.cancelLineSeRuntime(runtime);
+            runtime.audio.pause();
+            runtime.audio.currentTime = 0;
+        });
+        this.lineSeRuntimes.clear();
+        this.activeLineSeRuntime = null;
+        this.currentDialogueLineId = null;
+    }
+    scheduleLineSe(runtime) {
+        this.cancelLineSeRuntime(runtime);
+        runtime.audio.pause();
+        runtime.audio.currentTime = 0;
+        runtime.audio.loop = Boolean(runtime.definition.loop);
+        runtime.audio.volume = clampVolume(runtime.definition.volume);
+        const requestId = runtime.requestId;
+        const start = () => {
+            runtime.delayTimerId = null;
+            if (this.disposed ||
+                runtime.requestId !== requestId ||
+                this.activeLineSeRuntime !== runtime) {
+                return;
+            }
+            const fadeInSeconds = clampSeconds(runtime.definition.fadeInSeconds);
+            runtime.audio.volume = fadeInSeconds > 0
+                ? 0
+                : clampVolume(runtime.definition.volume);
+            void runtime.audio.play().then(() => {
+                if (this.disposed ||
+                    runtime.requestId !== requestId ||
+                    runtime.audio.paused) {
+                    return;
+                }
+                this.startLineSeNaturalEnvelope(runtime, requestId);
+            }).catch(() => {
+            });
+        };
+        const delayMilliseconds = clampSeconds(runtime.definition.delaySeconds) * 1000;
+        if (delayMilliseconds > 0) {
+            runtime.delayTimerId = window.setTimeout(start, delayMilliseconds);
+        }
+        else {
+            start();
+        }
+    }
+    releaseActiveLineSe() {
+        const runtime = this.activeLineSeRuntime;
+        this.activeLineSeRuntime = null;
+        if (!runtime)
+            return;
+        if (runtime.delayTimerId !== null) {
+            this.cancelLineSeRuntime(runtime);
+            return;
+        }
+        if (getLineSeNextLineBehavior(runtime.definition) === "stop") {
+            this.fadeAndStopLineSe(runtime);
+            return;
+        }
+        runtime.audio.loop = false;
+    }
+    startLineSeNaturalEnvelope(runtime, requestId) {
+        if (runtime.fadeFrameId !== null) {
+            window.cancelAnimationFrame(runtime.fadeFrameId);
+        }
+        const targetVolume = clampVolume(runtime.definition.volume);
+        const fadeInSeconds = clampSeconds(runtime.definition.fadeInSeconds);
+        const fadeOutSeconds = clampSeconds(runtime.definition.fadeOutSeconds);
+        const smoothstep = (progress) => progress * progress * (3 - 2 * progress);
+        const update = () => {
+            if (this.disposed || runtime.requestId !== requestId)
+                return;
+            const fadeInProgress = fadeInSeconds > 0
+                ? Math.min(1, runtime.audio.currentTime / fadeInSeconds)
+                : 1;
+            const remainingSeconds = Number.isFinite(runtime.audio.duration)
+                ? Math.max(0, runtime.audio.duration - runtime.audio.currentTime)
+                : Number.POSITIVE_INFINITY;
+            const fadeOutProgress = !runtime.audio.loop && fadeOutSeconds > 0
+                ? Math.min(1, remainingSeconds / fadeOutSeconds)
+                : 1;
+            runtime.audio.volume = clampVolume(targetVolume * smoothstep(fadeInProgress) * smoothstep(fadeOutProgress));
+            if (!runtime.audio.paused && !runtime.audio.ended) {
+                runtime.fadeFrameId = window.requestAnimationFrame(update);
+            }
+            else {
+                runtime.fadeFrameId = null;
+                runtime.audio.volume = targetVolume;
+            }
+        };
+        runtime.fadeFrameId = window.requestAnimationFrame(update);
+    }
+    fadeAndStopLineSe(runtime) {
+        const requestId = ++runtime.requestId;
+        if (runtime.fadeFrameId !== null) {
+            window.cancelAnimationFrame(runtime.fadeFrameId);
+            runtime.fadeFrameId = null;
+        }
+        const durationMilliseconds = clampSeconds(runtime.definition.fadeOutSeconds) * 1000;
+        if (runtime.audio.paused || durationMilliseconds <= 0) {
+            runtime.audio.pause();
+            runtime.audio.currentTime = 0;
+            runtime.audio.volume = clampVolume(runtime.definition.volume);
+            return;
+        }
+        const startingVolume = runtime.audio.volume;
+        const startedAt = performance.now();
+        const update = (time) => {
+            if (this.disposed || runtime.requestId !== requestId)
+                return;
+            const progress = Math.min(1, Math.max(0, (time - startedAt) / durationMilliseconds));
+            const eased = progress * progress * (3 - 2 * progress);
+            runtime.audio.volume = clampVolume(startingVolume * (1 - eased));
+            if (progress < 1) {
+                runtime.fadeFrameId = window.requestAnimationFrame(update);
+                return;
+            }
+            runtime.fadeFrameId = null;
+            runtime.audio.pause();
+            runtime.audio.currentTime = 0;
+            runtime.audio.volume = clampVolume(runtime.definition.volume);
+        };
+        runtime.fadeFrameId = window.requestAnimationFrame(update);
+    }
+    cancelLineSeRuntime(runtime) {
+        runtime.requestId += 1;
+        if (runtime.delayTimerId !== null) {
+            window.clearTimeout(runtime.delayTimerId);
+            runtime.delayTimerId = null;
+        }
+        if (runtime.fadeFrameId !== null) {
+            window.cancelAnimationFrame(runtime.fadeFrameId);
+            runtime.fadeFrameId = null;
+        }
+    }
+    async startPlayback(runtime, requestId) {
+        const delayMilliseconds = Math.max(0, runtime.definition.delaySeconds * 1000);
+        if (delayMilliseconds > 0) {
+            await new Promise((resolve) => {
+                runtime.delayResolve = resolve;
+                runtime.delayTimerId = window.setTimeout(() => {
+                    runtime.delayTimerId = null;
+                    runtime.delayResolve = null;
+                    resolve();
+                }, delayMilliseconds);
+            });
+        }
+        if (this.disposed || runtime.requestId !== requestId)
+            return;
+        const fadeInPercent = clampPercent(runtime.definition.fadeInPercent);
+        const fadeOutPercent = clampPercent(runtime.definition.fadeOutPercent);
+        const targetVolume = clampVolume(runtime.definition.volume);
+        if (fadeInPercent > 0)
+            runtime.audio.volume = 0;
+        await runtime.audio.play();
+        if ((fadeInPercent > 0 || fadeOutPercent > 0) &&
+            !this.disposed &&
+            runtime.requestId === requestId) {
+            this.startVolumeEnvelope(runtime, requestId, targetVolume, fadeInPercent, fadeOutPercent);
+        }
+    }
+    playOverlappingOneShot(runtime) {
+        const voice = new Audio(runtime.definition.sources[0]);
+        voice.preload = "auto";
+        voice.loop = false;
+        voice.volume = clampVolume(runtime.definition.volume);
+        this.overlappingVoices.set(voice, runtime);
+        const release = () => {
+            voice.removeEventListener("ended", release);
+            voice.removeEventListener("error", release);
+            this.overlappingVoices.delete(voice);
+        };
+        voice.addEventListener("ended", release);
+        voice.addEventListener("error", release);
+        return voice.play().catch((error) => {
+            release();
+            throw error;
+        });
+    }
+    isPlaybackLimited(eventName, runtime, options) {
+        const maxOverlappingVoices = Math.max(0, Math.floor(runtime.definition.maxOverlappingVoices ?? 0));
+        if (options.overlap && maxOverlappingVoices > 0) {
+            let activeVoiceCount = 0;
+            this.overlappingVoices.forEach((voiceRuntime) => {
+                if (voiceRuntime === runtime)
+                    activeVoiceCount += 1;
+            });
+            if (activeVoiceCount >= maxOverlappingVoices)
+                return true;
+        }
+        const maxPlaysPerWindow = Math.max(0, Math.floor(runtime.definition.maxPlaysPerWindow ?? 0));
+        const playLimitWindowMs = Math.max(0, runtime.definition.playLimitWindowMs ?? 0);
+        if (maxPlaysPerWindow <= 0 || playLimitWindowMs <= 0)
+            return false;
+        const now = performance.now();
+        const windowStart = now - playLimitWindowMs;
+        const recentStarts = (this.recentPlayStarts.get(eventName) ?? [])
+            .filter((startedAt) => startedAt > windowStart);
+        if (recentStarts.length >= maxPlaysPerWindow) {
+            this.recentPlayStarts.set(eventName, recentStarts);
+            return true;
+        }
+        recentStarts.push(now);
+        this.recentPlayStarts.set(eventName, recentStarts);
+        return false;
+    }
+    startVolumeEnvelope(runtime, requestId, targetVolume, fadeInPercent, fadeOutPercent) {
+        const smoothstep = (progress) => progress * progress * (3 - 2 * progress);
+        const updateVolume = () => {
+            if (this.disposed || runtime.requestId !== requestId)
+                return;
+            const playbackMilliseconds = runtime.audio.currentTime * 1000;
+            const fadeInMilliseconds = getAudioFadeDurationMilliseconds(runtime.audio.duration, fadeInPercent);
+            const fadeOutMilliseconds = getAudioFadeDurationMilliseconds(runtime.audio.duration, fadeOutPercent);
+            const fadeInProgress = fadeInPercent > 0
+                ? fadeInMilliseconds > 0
+                    ? Math.min(1, Math.max(0, playbackMilliseconds / fadeInMilliseconds))
+                    : 0
+                : 1;
+            const remainingMilliseconds = Number.isFinite(runtime.audio.duration)
+                ? Math.max(0, runtime.audio.duration * 1000 - playbackMilliseconds)
+                : Number.POSITIVE_INFINITY;
+            const fadeOutProgress = fadeOutPercent > 0 && fadeOutMilliseconds > 0
+                ? Math.min(1, Math.max(0, remainingMilliseconds / fadeOutMilliseconds))
+                : 1;
+            runtime.audio.volume = clampVolume(targetVolume * smoothstep(fadeInProgress) * smoothstep(fadeOutProgress));
+            if (!runtime.audio.ended && !runtime.audio.paused) {
+                runtime.fadeFrameId = window.requestAnimationFrame(updateVolume);
+            }
+            else {
+                runtime.fadeFrameId = null;
+            }
+        };
+        runtime.fadeFrameId = window.requestAnimationFrame(updateVolume);
+    }
+    fadeWeldingSparks(requestId, durationMilliseconds, stopWhenComplete) {
+        const runtimes = WELDING_SPARK_MIX_CONFIG.layerEventNames.map((eventName) => this.getRuntime(eventName));
+        const startingVolumes = runtimes.map((runtime) => runtime.audio.volume);
+        const targetVolumes = runtimes.map((runtime) => stopWhenComplete ? 0 : clampVolume(runtime.definition.volume));
+        const startedAt = performance.now();
+        const smoothstep = (progress) => progress * progress * (3 - 2 * progress);
+        const update = (time) => {
+            if (this.disposed || requestId !== this.weldingSparksRequestId)
+                return;
+            const progress = durationMilliseconds <= 0
+                ? 1
+                : Math.min(1, Math.max(0, (time - startedAt) / durationMilliseconds));
+            const eased = smoothstep(progress);
+            runtimes.forEach((runtime, index) => {
+                runtime.audio.volume = clampVolume(startingVolumes[index] +
+                    (targetVolumes[index] - startingVolumes[index]) * eased);
+            });
+            if (progress < 1) {
+                this.weldingSparksFadeFrameId = window.requestAnimationFrame(update);
+                return;
+            }
+            this.weldingSparksFadeFrameId = null;
+            if (stopWhenComplete && !this.weldingSparksActive) {
+                runtimes.forEach((runtime) => {
+                    runtime.audio.pause();
+                    runtime.audio.currentTime = 0;
+                });
+            }
+        };
+        this.weldingSparksFadeFrameId = window.requestAnimationFrame(update);
+    }
+    fadeOutAndStop(eventName, fadeOutSeconds) {
+        if (this.disposed)
+            return;
+        const runtime = this.getRuntime(eventName);
+        if (runtime.audio.paused || runtime.audio.ended)
+            return;
+        this.cancelPendingPlay(runtime);
+        const requestId = runtime.requestId;
+        const startingVolume = runtime.audio.volume;
+        const durationMilliseconds = fadeOutSeconds * 1000;
+        const startedAt = performance.now();
+        const smoothstep = (progress) => progress * progress * (3 - 2 * progress);
+        const update = (time) => {
+            if (this.disposed || runtime.requestId !== requestId)
+                return;
+            const progress = durationMilliseconds <= 0
+                ? 1
+                : Math.min(1, Math.max(0, (time - startedAt) / durationMilliseconds));
+            runtime.audio.volume = clampVolume(startingVolume * (1 - smoothstep(progress)));
+            if (progress < 1) {
+                runtime.fadeFrameId = window.requestAnimationFrame(update);
+                return;
+            }
+            runtime.fadeFrameId = null;
+            runtime.audio.pause();
+            runtime.audio.currentTime = 0;
+        };
+        runtime.fadeFrameId = window.requestAnimationFrame(update);
+    }
+    cancelWeldingSparksFade() {
+        if (this.weldingSparksFadeFrameId === null)
+            return;
+        window.cancelAnimationFrame(this.weldingSparksFadeFrameId);
+        this.weldingSparksFadeFrameId = null;
+    }
+    cancelPendingPlay(runtime) {
+        runtime.requestId += 1;
+        if (runtime.fadeFrameId !== null) {
+            window.cancelAnimationFrame(runtime.fadeFrameId);
+            runtime.fadeFrameId = null;
+        }
+        if (runtime.delayTimerId !== null) {
+            window.clearTimeout(runtime.delayTimerId);
+            runtime.delayTimerId = null;
+        }
+        runtime.delayResolve?.();
+        runtime.delayResolve = null;
+        runtime.pendingPlay = null;
+    }
+    getRuntime(eventName) {
+        const runtime = this.runtimes.get(eventName);
+        if (!runtime) {
+            throw new Error(`Unknown audio event: ${eventName}`);
+        }
+        return runtime;
+    }
+}

@@ -71,3 +71,58 @@ test("game and preview both mount the shared production player/view, and intro s
   const preview = readFileSync(new URL("../app/phototropic-preview/page.tsx", import.meta.url), "utf8");
   assert.match(preview, /scene6.interactables.find/); assert.match(preview, /scene6-interaction-020/); assert.match(preview, /scene6-interaction-021/);
 });
+
+function choiceRig() {
+  const playback = { current: null }, typing = { current: null }, historyOpen = { current: false };
+  let view, choice;
+  const player = createDialoguePlayer({ playback, typing, historyOpen,
+    setView: next => view = next, setHistory: () => {}, setChoice: next => choice = next,
+    setTimer: () => 0, clearTimer: () => {},
+  });
+  return { player, playback, get view() { return view; }, get choice() { return choice; } };
+}
+const choiceScript = { characterDelaySeconds: 0, lines: [{ speaker: "歐文", text: "嘿，要來打一場星際牌嗎?" }], choice: { options: [
+  { id: "yes", label: "好啊", replyLines: [{ speaker: "Sbaak", text: "好啊，誰怕誰。" }], action: "continue" },
+  { id: "no", label: "先不用", replyLines: [{ speaker: "Sbaak", text: "先不了，下次吧。" }], action: "cancel" },
+  { label: "   " },
+] } };
+
+test("dialogue choices open after the last line, move with wrap, play the reply and report the outcome", () => {
+  const r = choiceRig(); const outcomes = [];
+  r.player.present("owen", {}, outcome => outcomes.push(outcome), choiceScript);
+  assert.equal(r.choice, null);
+  r.player.advance();
+  assert.deepEqual(r.choice, { options: ["好啊", "先不用"], selectedIndex: 0 }, "blank options are dropped");
+  assert.equal(r.view.text, "嘿，要來打一場星際牌嗎?", "question stays visible while choosing");
+  assert.equal(r.player.moveChoice(-1), true); assert.equal(r.choice.selectedIndex, 1, "wraps to the last option");
+  assert.equal(r.player.moveChoice(1), true); assert.equal(r.choice.selectedIndex, 0);
+  assert.equal(r.player.hoverChoice(1), true); assert.equal(r.choice.selectedIndex, 1);
+  r.player.advance(); // confirm key confirms the highlighted option
+  assert.equal(r.choice, null); assert.equal(r.view.text, "先不了，下次吧。"); assert.equal(r.view.speaker, "Sbaak");
+  assert.deepEqual(outcomes, []);
+  r.player.advance();
+  assert.deepEqual(outcomes, [{ choiceId: "no", choiceAction: "cancel" }]); assert.equal(r.view, null);
+});
+
+test("a confirmed option without reply lines ends immediately; dialogues without choices are unchanged", () => {
+  const r = choiceRig(); const outcomes = [];
+  r.player.present("q", {}, outcome => outcomes.push(outcome), { characterDelaySeconds: 0, lines: [{ text: "?" }], choice: { options: [{ label: "OK" }] } });
+  r.player.advance(); assert.equal(r.player.confirmChoice(0), true);
+  assert.deepEqual(outcomes, [{ choiceId: "option-1", choiceAction: "continue" }]);
+  const plain = choiceRig(); const done = [];
+  plain.player.present("p", {}, outcome => done.push(outcome), { characterDelaySeconds: 0, lines: [{ text: "hi" }] });
+  plain.player.advance(); assert.deepEqual(done, [undefined]); assert.equal(plain.player.moveChoice(1), false);
+});
+
+test("the manager skips the caller's follow-up when a cancel option is chosen but still resolves completed", async () => {
+  const manager = new DialogueManager();
+  const r = choiceRig();
+  manager.setPresenter((request, complete) => { r.player.present(request.id, request.context, complete, request.script); return r.player.close; });
+  let started = 0;
+  const yes = manager.play("owen", choiceScript, {}, () => started++);
+  r.player.advance(); r.player.confirmChoice(0); r.player.advance();
+  assert.deepEqual(await yes, { completed: true, choiceAction: "continue", choiceId: "yes" }); assert.equal(started, 1);
+  const no = manager.play("owen", choiceScript, {}, () => started++);
+  r.player.advance(); r.player.confirmChoice(1); r.player.advance();
+  assert.deepEqual(await no, { completed: true, choiceAction: "cancel", choiceId: "no" }); assert.equal(started, 1, "cancel never starts the match");
+});

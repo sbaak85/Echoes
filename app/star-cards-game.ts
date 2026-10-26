@@ -12,6 +12,35 @@ export function getStarCardsMatchWinner({ playerWins, aiWins }: StarCardsMatchRe
   return null;
 }
 
+/** 連續平手幾局後，下一局改為驟死賽 */
+export const STAR_CARDS_SUDDEN_DEATH_AFTER_TIES = 2;
+
+export function isStarCardsSuddenDeath(consecutiveTieGames: number) {
+  return consecutiveTieGames >= STAR_CARDS_SUDDEN_DEATH_AFTER_TIES;
+}
+
+/**
+ * 一次 BATTLE 結算後，這一局是否結束、由誰拿下。
+ * 一般局：9 張打完才比總分。驟死賽：任何一次 BATTLE 後總分不同就立刻分出勝負
+ * （之前的 BATTLE 都是同分，所以等於「這次 BATTLE 得分較多的一方」）；9 張打完仍同分則平手。
+ */
+export function resolveStarCardsGameEnd({
+  suddenDeath,
+  isFinalBattle,
+  playerScore,
+  aiScore,
+}: {
+  suddenDeath: boolean;
+  isFinalBattle: boolean;
+  playerScore: number;
+  aiScore: number;
+}): "continue" | "player" | "ai" | "tie" {
+  const leader = playerScore > aiScore ? "player" : aiScore > playerScore ? "ai" : null;
+  if (suddenDeath && leader) return leader;
+  if (!isFinalBattle) return "continue";
+  return leader ?? "tie";
+}
+
 export const starCardsAssetUrl = (fileName: string) => resolveRuntimePublicAssetUrl(
   `ui/star-cards/${fileName}`,
 );

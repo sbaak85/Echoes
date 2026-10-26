@@ -330,10 +330,20 @@ public sealed class MainForm : Form
         });
         grid.Columns.Add("count", "句數");
         grid.Columns.Add("speakers", "發話者");
-        grid.Columns["name"].FillWeight = 27;
-        grid.Columns["id"].FillWeight = 28;
-        grid.Columns["count"].FillWeight = 10;
-        grid.Columns["speakers"].FillWeight = 35;
+        grid.Columns.Add("preview", "第一句預覽");
+        // 各欄依比例填滿（Fill）；視窗縮窄時全部按同樣比例縮，預覽欄過長的文字以「…」截斷，
+        // 滑鼠停在儲存格上可看完整第一句。
+        grid.Columns["name"].FillWeight = 18;
+        grid.Columns["id"].FillWeight = 18;
+        grid.Columns["count"].FillWeight = 6;
+        grid.Columns["speakers"].FillWeight = 16;
+        grid.Columns["preview"].FillWeight = 42;
+        foreach (var name in new[] { "name", "id", "count", "speakers", "preview" })
+        {
+            grid.Columns[name].MinimumWidth = 36;
+        }
+        grid.Columns["preview"].DefaultCellStyle.ForeColor = Theme.Muted;
+        grid.Columns["preview"].DefaultCellStyle.WrapMode = DataGridViewTriState.False;
         grid.ClipboardCopyMode = DataGridViewClipboardCopyMode.Disable;
 
         var buttons = CreateToolbar(
@@ -720,9 +730,21 @@ public sealed class MainForm : Form
             var speakers = section.Dialogue.Lines.Select(line => line.Speaker)
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Distinct(StringComparer.OrdinalIgnoreCase);
-            grid.Rows.Add(section.Name, section.Id, null, section.Dialogue.Lines.Count, string.Join("、", speakers));
+            var preview = GetFirstLinePreview(section.Dialogue);
+            var rowIndex = grid.Rows.Add(section.Name, section.Id, null, section.Dialogue.Lines.Count, string.Join("、", speakers), preview);
+            grid.Rows[rowIndex].Cells["preview"].ToolTipText = preview;
         }
         SelectRow(grid, selected);
+    }
+
+    /// <summary>腳本第一句（略過空白句）的單行預覽：「發話者：台詞」，旁白（無發話者）只顯示台詞。</summary>
+    internal static string GetFirstLinePreview(DialogueScript dialogue)
+    {
+        var line = dialogue.Lines.FirstOrDefault(candidate => !string.IsNullOrWhiteSpace(candidate.Text));
+        if (line is null) return "";
+        var text = string.Join(" ", line.Text.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Trim()).Where(part => part.Length > 0));
+        return string.IsNullOrWhiteSpace(line.Speaker) ? text : $"{line.Speaker.Trim()}：{text}";
     }
 
     private void SaveDocument()

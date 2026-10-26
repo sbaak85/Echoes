@@ -66,7 +66,11 @@ export const AUDIO_EVENT_CONFIG = (
         "I:/Codex/專案型/Age-of-Pirates/Assets/Audio/vine_2.mp3",
         "I:/Codex/專案型/Age-of-Pirates/Assets/Audio/vine_3.mp3"
       ],
-      "sources": ["./audio/vine_1.mp3", "./audio/vine_2.mp3", "./audio/vine_3.mp3"],
+      "sources": [
+        "./audio/vine_1.mp3",
+        "./audio/vine_2.mp3",
+        "./audio/vine_3.mp3"
+      ],
       "volume": 0.8,
       "delaySeconds": 0,
       "loop": true,
@@ -327,16 +331,72 @@ export const AUDIO_EVENT_CONFIG = (
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
+    "navTerminalBlockCalibrated": {
+      "label": "航線監測終端：矩陣校對成功",
+      "trigger": "任一尚未校對的矩陣首次校對成功並顯示 CALIBRATED 時播放一次；重複輸入已完成矩陣不播放。",
+      "sourceAssetPaths": [
+        "public/audio/frequency-lock-success.mp3"
+      ],
+      "sources": [
+        "./audio/frequency-lock-success.mp3"
+      ],
+      "volume": 0.6,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "navTerminalInputRejected": {
+      "label": "航線監測終端：七碼校對失敗",
+      "trigger": "輸滿七碼且不符合任何 BLOCK 的正確代碼，輸入欄開始紅色閃動時播放一次。",
+      "sourceAssetPaths": [
+        "Assets/Audio/平手.mp3"
+      ],
+      "sources": [
+        "./audio/star-cards-tie.mp3"
+      ],
+      "volume": 0.2,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
+    "navTerminalMatrixScan": {
+      "label": "航線監測終端：訊號矩陣刷動",
+      "trigger": "訊號矩陣每輪數字刷動（SCAN 3 秒）開始時從頭播放一次，不循環：音檔約 2.78 秒，頭尾各 18%（約 0.5 秒）淡入淡出，播完後安靜等下一輪刷動再重播。三組都校對完成或離開小遊戲而刷動中途結束時，以 0.5 秒提前淡出（NAV_TERMINAL_MATRIX_SCAN_MIX）。",
+      "sourceAssetPaths": [
+        "Assets/Audio/Electronic_SE.mp3"
+      ],
+      "sources": [
+        "./audio/electronic-se.mp3"
+      ],
+      "volume": 0.2,
+      "delaySeconds": 0,
+      "fadeInPercent": 18,
+      "fadeOutPercent": 18
+    },
+    "navTerminalCleared": {
+      "label": "航線監測終端：清除輸入",
+      "trigger": "玩家按下航線監測終端的 ＊ 清除鍵時播放一次；校對鎖定期間不播放。",
+      "sourceAssetPaths": [
+        "public/audio/interaction-denied.mp3"
+      ],
+      "sources": [
+        "./audio/interaction-denied.mp3"
+      ],
+      "volume": 0.5,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
     "uiInput": {
       "label": "介面輸入點擊",
-      "trigger": "玩家點擊背包內的操作按鈕、道具頁籤、換頁箭頭、道具格或其右鍵選單；點擊快捷工具格或其右鍵選單；開啟／關閉背包或 Options 介面；飛船互動介面切換選項、確認或返回；以及新手教學每次有效換卡時播放。只要輸入成立就播放，不要求操作成功。任務提示、生存計量與小地圖的展開／收折改由 hudExpanded／hudCollapsed 管理。",
+      "trigger": "玩家點擊背包內的操作按鈕、道具頁籤、換頁箭頭、道具格或其右鍵選單；點擊快捷工具格或其右鍵選單；開啟／關閉背包或 Options 介面；飛船互動介面切換選項、確認或返回；以及新手教學每次有效換卡、航線監測終端的數字／刪除鍵有效輸入時播放（清除鍵改由 navTerminalCleared 管理）。只要輸入成立就播放，不要求操作成功。任務提示、生存計量與小地圖的展開／收折改由 hudExpanded／hudCollapsed 管理。",
       "sourceAssetPaths": [
         "Assets/Audio/InPut.mp3"
       ],
       "sources": [
         "./audio/ui-input.mp3"
       ],
-      "volume": 0.7,
+      "volume": 0.8,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
@@ -818,7 +878,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/hud-expand.mp3"
       ],
-      "volume": 0.3,
+      "volume": 0.6,
       "delaySeconds": 0,
       "fadeInPercent": 5,
       "fadeOutPercent": 5
@@ -832,7 +892,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/interaction-success-1.mp3"
       ],
-      "volume": 0.7,
+      "volume": 0.9,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
@@ -1387,8 +1447,12 @@ export const BGM_TRACK_CONFIG = (
     },
     "phototropic-plant": {
       "label": "植物解謎 BGM：Sombra Forest",
-      "sourceAssetPaths": ["Assets/Audio/Sombra_Forest_BGM.mp3"],
-      "sources": ["./audio/Sombra_Forest_BGM.mp3"],
+      "sourceAssetPaths": [
+        "Assets/Audio/Sombra_Forest_BGM.mp3"
+      ],
+      "sources": [
+        "./audio/Sombra_Forest_BGM.mp3"
+      ],
       "volume": 0.7,
       "loop": true,
       "rememberPosition": false
@@ -1514,6 +1578,36 @@ export const BGM_CONTROL_RULES = (
       "restoreMode": "resume"
     },
     {
+      "id": "bus-card-bgm-pause",
+      "label": "匯流排小遊戲：地圖曲淡出並暫停，結束回到場景時淡入續播",
+      "enabled": true,
+      "triggerType": "minigame",
+      "targetId": "bus-card",
+      "state": "playing",
+      "action": "pause",
+      "targetVolume": 0,
+      "fadeOutSeconds": 1.5,
+      "fadeInSeconds": 1.5,
+      "priority": 1000,
+      "durationSeconds": 0,
+      "restoreMode": "resume"
+    },
+    {
+      "id": "nav-terminal-bgm-pause",
+      "label": "航線校對終端小遊戲：地圖曲淡出並暫停，結束回到場景時淡入續播",
+      "enabled": true,
+      "triggerType": "minigame",
+      "targetId": "nav-terminal",
+      "state": "playing",
+      "action": "pause",
+      "targetVolume": 0,
+      "fadeOutSeconds": 1.5,
+      "fadeInSeconds": 1.5,
+      "priority": 1000,
+      "durationSeconds": 0,
+      "restoreMode": "resume"
+    },
+    {
       "id": "phototropic-plant-intro-pause",
       "label": "植物入場：地圖曲淡出並暫停，等待藤蔓到位",
       "enabled": true,
@@ -1581,6 +1675,15 @@ export function getSuccessfulInteractionAudioEvent(
  * 兩條音軌在遊戲端只以一個「焊接火星混音」事件控制。
  * 每層最高 40%，合成後的目標總音量為 80%。
  */
+/**
+ * 航線監測終端訊號矩陣刷動音。一般情況的頭尾淡化由事件的 FadeIn／FadeOut % 處理
+ * （18% × 2.78 秒 ≈ 0.5 秒）；這裡只管刷動中途結束時的提前淡出秒數。
+ */
+export const NAV_TERMINAL_MATRIX_SCAN_MIX = {
+  eventName: "navTerminalMatrixScan",
+  earlyStopFadeOutSeconds: 0.5,
+} as const satisfies { eventName: AudioEventName; earlyStopFadeOutSeconds: number };
+
 export const WELDING_SPARK_MIX_CONFIG = {
   layerEventNames: [
     "weldingSparksLayer1",
@@ -1719,6 +1822,7 @@ const MINIGAME_AUDIO_PREFIXES: Readonly<Record<string, readonly string[]>> = {
   "welding-route": ["welding"],
   "power-routing": ["generatorStartup", "generatorRunning"],
   "phototropic-plant": ["plantVineMotion"],
+  "nav-terminal": ["navTerminal"],
 };
 
 export function getMinigameAudioGroup(eventName: string): string | null {
@@ -1829,12 +1933,17 @@ export class AudioEventManager {
   private weldingSparksFadeFrameId: number | null = null;
   private weldingSparksRequestId = 0;
 
-  constructor() {
+  /** 獨立小遊戲預覽可只載入需要的事件，並指定相對音檔的根目錄。主遊戲維持預設。 */
+  constructor(options: { eventNames?: readonly AudioEventName[]; assetBaseUrl?: string } = {}) {
     (
       Object.entries(AUDIO_EVENT_CONFIG) as Array<
         [AudioEventName, AudioEventDefinition]
       >
-    ).forEach(([eventName, definition]) => {
+    ).filter(([eventName]) => !options.eventNames || options.eventNames.includes(eventName))
+    .forEach(([eventName, configuredDefinition]) => {
+      const definition = options.assetBaseUrl
+        ? { ...configuredDefinition, sources: configuredDefinition.sources.map(source => new URL(source, options.assetBaseUrl).href) }
+        : configuredDefinition;
       const audio = new Audio(definition.sources[0]);
       // 小遊戲專用音效延後到該小遊戲啟動時才載入；未預載時直接 play() 仍會即時載入播放
       audio.preload = getMinigameAudioGroup(eventName) ? "none" : "auto";
@@ -1879,7 +1988,7 @@ export class AudioEventManager {
       this.runtimes.set(eventName, runtime);
     });
 
-    LINE_SE_CONFIG.forEach((definition) => {
+    if (!options.eventNames) LINE_SE_CONFIG.forEach((definition) => {
       const lineId = definition.lineId.trim();
       if (!lineId || this.lineSeRuntimes.has(lineId)) return;
       const audio = new Audio(definition.source);
@@ -1970,6 +2079,21 @@ export class AudioEventManager {
       WELDING_SPARK_MIX_CONFIG.fadeOutSeconds * 1000,
       true,
     );
+  }
+
+  /**
+   * 訊號矩陣每輪刷動開始時從頭播一次（不循環，頭尾淡化依事件的 FadeIn／FadeOut %）；
+   * 音檔比刷動短，播完就安靜等下一輪。刷動中途結束（全部校對完成、離開小遊戲）才提前淡出。
+   */
+  setNavTerminalMatrixScanActive(active: boolean) {
+    const mix = NAV_TERMINAL_MATRIX_SCAN_MIX;
+    if (active) {
+      void this.play(mix.eventName, { restart: true }).catch(() => {
+        // 瀏覽器封鎖自動播放時，下一輪刷動會再請求播放。
+      });
+      return;
+    }
+    this.fadeOutAndStop(mix.eventName, mix.earlyStopFadeOutSeconds);
   }
 
   play(eventName: AudioEventName, options: PlayOptions = {}) {
@@ -2420,6 +2544,35 @@ export class AudioEventManager {
     };
 
     this.weldingSparksFadeFrameId = window.requestAnimationFrame(update);
+  }
+
+  /** 提前停止（還沒自然播完）時，從目前音量淡出後停止；之後重新播放會中斷這次淡出。 */
+  private fadeOutAndStop(eventName: AudioEventName, fadeOutSeconds: number) {
+    if (this.disposed) return;
+    const runtime = this.getRuntime(eventName);
+    if (runtime.audio.paused || runtime.audio.ended) return;
+    // 停掉依音檔長度計算的頭尾淡化，改由這裡接手音量
+    this.cancelPendingPlay(runtime);
+    const requestId = runtime.requestId;
+    const startingVolume = runtime.audio.volume;
+    const durationMilliseconds = fadeOutSeconds * 1000;
+    const startedAt = performance.now();
+    const smoothstep = (progress: number) => progress * progress * (3 - 2 * progress);
+    const update = (time: number) => {
+      if (this.disposed || runtime.requestId !== requestId) return;
+      const progress = durationMilliseconds <= 0
+        ? 1
+        : Math.min(1, Math.max(0, (time - startedAt) / durationMilliseconds));
+      runtime.audio.volume = clampVolume(startingVolume * (1 - smoothstep(progress)));
+      if (progress < 1) {
+        runtime.fadeFrameId = window.requestAnimationFrame(update);
+        return;
+      }
+      runtime.fadeFrameId = null;
+      runtime.audio.pause();
+      runtime.audio.currentTime = 0;
+    };
+    runtime.fadeFrameId = window.requestAnimationFrame(update);
   }
 
   private cancelWeldingSparksFade() {

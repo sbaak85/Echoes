@@ -62,6 +62,7 @@ internal static class QuestReferenceProvider
         {
             (File: "power-routing-puzzle.ts", Constant: "POWER_ROUTING_INTERACTION_ID", Name: "電力路由解謎"),
             (File: "bus-card-puzzle.ts", Constant: "BUS_CARD_INTERACTION_ID", Name: "匯流排導通解謎"),
+            (File: "nav-terminal-minigame.ts", Constant: "NAV_TERMINAL_INTERACTION_ID", Name: "航線監測終端校對"),
             (File: "star-cards-quest-flow.ts", Constant: "STAR_CARDS_INTERACTION_ID", Name: "星際牌勝利"),
             (File: "movement-lab.tsx", Constant: "WELDING_ROUTE_INTERACTION_ID", Name: "焊接解謎"),
             (File: "movement-lab.tsx", Constant: "FREQUENCY_CALIBRATION_INTERACTION_ID", Name: "調頻解謎"),

@@ -202,7 +202,9 @@ import { FREQUENCY_CALIBRATION_COMPLETION_FLAG } from "./frequency-calibration-p
 import { WeldingRoutePuzzle } from "./welding-route-puzzle.tsx";
 import { BusCardPuzzle } from "./bus-card-puzzle.tsx";
 import { BUS_CARD_INTERACTION_ID } from "./bus-card-puzzle.ts";
-import { STAR_CARDS_INTERACTION_ID, STAR_CARDS_TUTORIAL_STARTED_FLAG, shouldStartStarCardsTutorial, completeStarCardsQuestMatch } from "./star-cards-quest-flow.ts";
+import { NavTerminalMinigame } from "./nav-terminal-minigame.tsx";
+import { NAV_TERMINAL_INTERACTION_ID, NAV_TERMINAL_MESSAGE_CHANNEL } from "./nav-terminal-minigame.ts";
+import { STAR_CARDS_INTERACTION_ID, STAR_CARDS_REPLAY_INTERACTION_ID, STAR_CARDS_TUTORIAL_STARTED_FLAG, STAR_CARDS_QUEST_ID, STAR_CARDS_OBJECTIVE_ID, STAR_CARDS_INTRO_DIALOGUE_ID, STAR_CARDS_INTRO_PLAYED_FLAG, shouldStartStarCardsTutorial, completeStarCardsQuestMatch, getStarCardsPostMatchDialogueId, getStarCardsInteractionPlan } from "./star-cards-quest-flow.ts";
 import { getStarCardsMatchWinner, type StarCardsMatchResult } from "./star-cards-game.ts";
 import { StarCardsGame } from "./star-cards-game.tsx";
 import {
@@ -288,7 +290,7 @@ import {
   type SceneItemPoint,
 } from "./item-point-manager";
 import { DialogueManager } from "./dialogue-manager";
-import { createDialoguePlayer, type DialoguePlayback as SharedDialoguePlayback, type DialogueView, type DialogueTyping } from "./dialogue-player";
+import { createDialoguePlayer, type DialoguePlayback as SharedDialoguePlayback, type DialogueChoiceView, type DialogueView, type DialogueTyping } from "./dialogue-player";
 import { DialoguePlayerView } from "./dialogue-player-view";
 import { StoryEventManager } from "./story-event-manager";
 import { MainObjectiveMarker } from "./main-objective-marker";
@@ -856,6 +858,14 @@ const SCENE_REGISTRY = new Map<string, SceneFile>(
  * 單場景預覽：網址加上 ?scene=<sceneId>（例如 ?scene=ship_interior&noSave）時，
  * 只載入該場景（不拼接同層的其他地圖），直接在它的出生點開始，不跑章節劇情。
  */
+/** 星際牌關閉後，等畫面切回船艙再播放結果對話的時間 */
+const STAR_CARDS_POST_MATCH_DIALOGUE_DELAY_MS = 450;
+
+/** 除錯：?starCardsSuddenDeath=1 直接開一局星際牌，第 1 局即為驟死賽（只在 localhost） */
+const STAR_CARDS_DEBUG_SUDDEN_DEATH = typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") &&
+  new URLSearchParams(window.location.search).get("starCardsSuddenDeath") === "1";
+
 const PREVIEW_SCENE_ID = (() => {
   if (typeof window === "undefined") return null;
   const sceneId = new URLSearchParams(window.location.search).get("scene");
@@ -3870,6 +3880,9 @@ export function MovementLab() {
     bgmDirectorRef.current?.setMinigameState(PLANT_BGM_ID, phase);
   })).current;
   const pendingBgmSubtitleRef = useRef<string | null>(null);
+  const setNavTerminalMatrixScanAudioActive = useCallback((active: boolean) => {
+    audioEventManagerRef.current?.setNavTerminalMatrixScanActive(active);
+  }, []);
   const setWeldingSparkAudioActive = useCallback((active: boolean) => {
     audioEventManagerRef.current?.setWeldingSparksActive(active);
   }, []);
@@ -3922,12 +3935,21 @@ export function MovementLab() {
   const busCardInitialOwnerRef = useRef<"mouse" | "keyboard" | "gamepad" | "touch">("mouse");
   const completeBusCardInteractionRef = useRef<() => void>(() => {});
   const [busCardOpen, setBusCardOpen] = useState(false);
+  // 航線監測終端（019）：與匯流排小遊戲相同，以同源 iframe 嵌入，輸入由終端頁面接管
+  const navTerminalOpenRef = useRef(false);
+  const navTerminalFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const navTerminalInitialOwnerRef = useRef<"mouse" | "keyboard" | "gamepad" | "touch">("mouse");
+  const completeNavTerminalInteractionRef = useRef<() => void>(() => {});
+  const [navTerminalOpen, setNavTerminalOpen] = useState(false);
   const frequencyPuzzleOpenRef = useRef(false);
   const weldingPuzzleOpenRef = useRef(false);
   const starCardsOpenRef = useRef(false);
   const starCardsInputRearmRef = useRef(false);
   const starCardsSessionRef = useRef<PowerPuzzleSession | null>(null);
   const completeStarCardsMatchRef = useRef<(result: StarCardsMatchResult) => void>(() => {});
+  /** 整場對決結束後、關閉牌局時要播放的劇情對話（勝：section-8，敗：section-9） */
+  const starCardsPostMatchDialogueRef = useRef<string | null>(null);
+  const playStarCardsPostMatchDialogueRef = useRef<(dialogueId: string) => void>(() => {});
   const starshipInteractionMenuOpenRef = useRef(false);
   const starshipInteractionMenuEntryIdRef = useRef<string | null>(null);
   const starshipInteractionMenuInputRearmRef = useRef(false);
@@ -4572,6 +4594,9 @@ export function MovementLab() {
     [],
   );
   const [dialogueView, setDialogueView] = useState<DialogueView>(null);
+  /** 對話選項視窗（最後一句之後）；null＝沒有開啟 */
+  const [dialogueChoiceView, setDialogueChoiceView] = useState<DialogueChoiceView>(null);
+  const dialogueChoiceGamepadDirectionRef = useRef(0);
   const [dialogueHistoryView, setDialogueHistoryView] =
     useState<DialogueHistoryView | null>(null);
   const [dialogueHistoryScrollable, setDialogueHistoryScrollable] =
@@ -4661,7 +4686,14 @@ export function MovementLab() {
       setBusCardOpen(false);
       window.queueMicrotask(() => canvasRef.current?.focus({ preventScroll: true }));
     }
+    if (navTerminalOpenRef.current) {
+      navTerminalOpenRef.current = false;
+      setNavTerminalOpen(false);
+      window.queueMicrotask(() => canvasRef.current?.focus({ preventScroll: true }));
+    }
     stopFrequencyFineTuningAudio(true);
+    bgmDirectorRef.current?.setMinigameState("bus-card", null);
+    bgmDirectorRef.current?.setMinigameState("nav-terminal", null);
     bgmDirectorRef.current?.setMinigameState("power-routing", null);
     bgmDirectorRef.current?.setMinigameState("frequency-calibration", null);
     bgmDirectorRef.current?.setMinigameState("welding-route", null);
@@ -4684,6 +4716,10 @@ export function MovementLab() {
     bgmDirectorRef.current?.setMinigameState("star-cards", null);
     starCardsOpenRef.current = false;
     setStarCardsOpen(false);
+    // 整場已分出勝負（自動返回或玩家自行退出）才播放結果對話；中途放棄不播
+    const postMatchDialogueId = starCardsPostMatchDialogueRef.current;
+    starCardsPostMatchDialogueRef.current = null;
+    if (postMatchDialogueId) playStarCardsPostMatchDialogueRef.current(postMatchDialogueId);
   }, []);
 
   const closeStarshipInteractionMenu = useCallback(() => {
@@ -4807,8 +4843,29 @@ export function MovementLab() {
     busCardOpenRef.current = true;
     busCardInitialOwnerRef.current = source === "gamepad" ? "gamepad" :
       cursorOwnership.owner === "touch" ? "touch" : source === "keyboard" ? "keyboard" : "mouse";
+    // 地圖 BGM 淡出暫停；結束（closePowerRoutingPuzzle）時淡入續播
+    bgmDirectorRef.current?.setMinigameState("bus-card", "playing");
     setPowerPuzzleOpen(true);
     setBusCardOpen(true);
+  };
+
+  const openNavTerminalMinigame = (interactable: SceneInteractable, source: PendingInteraction["source"]) => {
+    dismissTimeElapsedNotice();
+    clearInventoryHoverHint();
+    optionsOpenRef.current = false;
+    inventoryOpenRef.current = false;
+    setOptionsOpen(false);
+    setInventoryOpen(false);
+    powerPuzzleSessionRef.current = { interactable, source };
+    // 沿用小遊戲共用的世界／存檔鎖；輸入交給嵌入的終端頁面
+    powerPuzzleOpenRef.current = true;
+    navTerminalOpenRef.current = true;
+    navTerminalInitialOwnerRef.current = source === "gamepad" ? "gamepad" :
+      cursorOwnership.owner === "touch" ? "touch" : source === "keyboard" ? "keyboard" : "mouse";
+    // 地圖 BGM 淡出暫停；結束（closePowerRoutingPuzzle）時淡入續播
+    bgmDirectorRef.current?.setMinigameState("nav-terminal", "playing");
+    setPowerPuzzleOpen(true);
+    setNavTerminalOpen(true);
   };
 
   const handleWeldingPuzzleVirtualCursorAvailabilityChange = useCallback(
@@ -4975,10 +5032,14 @@ export function MovementLab() {
     if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
       return;
     }
-    if (new URLSearchParams(window.location.search).get("starCardsPreview") !== "1") {
+    if (
+      new URLSearchParams(window.location.search).get("starCardsPreview") !== "1" &&
+      !STAR_CARDS_DEBUG_SUDDEN_DEATH
+    ) {
       return;
     }
     starCardsPreviewStartedRef.current = true;
+    // 沒有互動來源的開局不會啟動新手教學，所以驟死賽除錯一開始就是一般牌組
     openStarCardsGame();
   }, []);
 
@@ -6706,7 +6767,7 @@ export function MovementLab() {
     setQuickAssign(value);
     if (!value && quickAssignReturnToInventoryRef.current) {
       quickAssignReturnToInventoryRef.current = false;
-      setInventoryPanelOpen(true);
+      setInventoryPanelOpen(true, true);
       returnInventoryActionToItems();
     }
   };
@@ -7749,6 +7810,8 @@ export function MovementLab() {
   const dialoguePlayer = createDialoguePlayer<SceneInteractable>({
     playback: dialoguePlaybackRef, typing: dialogueTypingRef, historyOpen: dialogueHistoryOpenRef,
     setView: setDialogueView, setHistory: setDialogueHistoryView,
+    setChoice: setDialogueChoiceView,
+    onChoiceMove: () => playOneShotAudio("uiInput"), onChoiceConfirm: () => playOneShotAudio("uiInput"),
     setTimer: (callback, delay) => window.setTimeout(callback, delay), clearTimer: timer => window.clearTimeout(timer),
     onTypingStart: requestDialogueTypingAudioPlayback, onTypingStop: stopDialogueTypingAudio,
     onLineSe: lineId => audioEventManagerRef.current?.triggerDialogueLineSe(lineId),
@@ -7845,6 +7908,10 @@ export function MovementLab() {
     dialogueManager.register(dialogueId, script);
   });
 
+  // 牌局關閉後稍等畫面切回船艙再播結果對話（等待期間鎖住操作）
+  playStarCardsPostMatchDialogueRef.current = (dialogueId) =>
+    scheduleRegisteredStoryDialogue(dialogueId, STAR_CARDS_POST_MATCH_DIALOGUE_DELAY_MS);
+
   const scheduleRegisteredStoryDialogue = (
     dialogueId: string,
     delayMilliseconds: number,
@@ -7902,9 +7969,15 @@ export function MovementLab() {
     onComplete?: () => void,
     dialogue: InteractionDialogueScript | null | undefined = interactable.dialogue,
   ) => {
+    // 插圖流程最後也會呼叫 complete；對話選了 cancel 的選項時要一樣跳過後續互動
+    let choiceCancelled = false;
     if (dialogue === interactable.dialogue && presentInteractionIllustration(interactable,
-      () => dialogueManager.playUnique(`interaction:${interactable.id}`, dialogue ?? { lines: [] }, interactable),
-      () => onComplete?.())) return;
+      () => dialogueManager.playUnique(`interaction:${interactable.id}`, dialogue ?? { lines: [] }, interactable)
+        .then((result) => {
+          if (result.choiceAction === "cancel") choiceCancelled = true;
+          return result;
+        }),
+      () => { if (!choiceCancelled) onComplete?.(); })) return;
     return dialogueManager.playUnique(
     `interaction:${interactable.id}`,
     dialogue ?? { lines: [{ speaker: "", text: "..." }] },
@@ -8863,7 +8936,7 @@ export function MovementLab() {
     setQuestCollapsed((current) => !current);
   }, [cycleMobileHudPanel]);
 
-  const setInventoryPanelOpen = (open: boolean) => {
+  const setInventoryPanelOpen = (open: boolean, preserveSelection = false) => {
     settleNaturalSurvivalRef.current();
     clearInventoryHoverHint();
     if (open && (powerPuzzleOpenRef.current || starCardsOpenRef.current)) return;
@@ -8880,6 +8953,20 @@ export function MovementLab() {
     setInventorySelectedActionValue("use");
     inventoryOpenRef.current = open;
     if (open && !wasOpen) setInventoryMobileTab("catalog");
+    if (open && !wasOpen && !preserveSelection) {
+      inventoryCategoryRef.current = "all";
+      setInventoryCategory("all");
+      setInventoryPage(0);
+      inventoryEquippedBackpackSelectedRef.current = false;
+      setSelectedEquippedBackpack(false);
+      // 1-1 是目前持有道具排序後的第一格，不是資料庫索引 0 或上次選取。
+      const firstOwnedItem = getOwnedItemStacks(playerInventoryRef.current)[0];
+      const firstIndex = firstOwnedItem?.databaseIndex ?? -1;
+      selectedInventoryIndexRef.current = firstIndex;
+      setSelectedInventoryIndex(firstIndex);
+      inventoryDirectionRearmRequiredRef.current = true;
+      setInventoryContextMenu(null);
+    }
     if (!open) {
       clearInventoryItemInspectImmediately();
       const pendingDrag = pendingInventoryDragRef.current;
@@ -9510,6 +9597,10 @@ export function MovementLab() {
       bgmDirector.setMinigameState("welding-route", "playing");
     } else if (frequencyPuzzleOpenRef.current) {
       bgmDirector.setMinigameState("frequency-calibration", "playing");
+    } else if (busCardOpenRef.current) {
+      bgmDirector.setMinigameState("bus-card", "playing");
+    } else if (navTerminalOpenRef.current) {
+      bgmDirector.setMinigameState("nav-terminal", "playing");
     } else if (powerPuzzleOpenRef.current) {
       bgmDirector.setMinigameState("power-routing", "playing");
     }
@@ -10765,6 +10856,11 @@ export function MovementLab() {
         busCardFrameRef.current?.contentWindow?.focus();
         return;
       }
+      if (navTerminalOpenRef.current) {
+        event.preventDefault();
+        navTerminalFrameRef.current?.contentWindow?.focus();
+        return;
+      }
       const key = event.key.toLowerCase();
       if (plantController.isOpen && !dialoguePlaybackRef.current) {
         event.preventDefault();
@@ -10810,6 +10906,25 @@ export function MovementLab() {
           });
         }
         return;
+      }
+      // 對話選項視窗：↑↓／W S 移動、1～4 直接選、Enter／Space／E 確定（其他確認鍵走 advanceDialogue 也會確定）
+      if (dialoguePlaybackRef.current && dialoguePlayer.isChoosing()) {
+        const choiceDelta = key === "arrowup" || key === "w" ? -1 : key === "arrowdown" || key === "s" ? 1 : 0;
+        if (choiceDelta) {
+          event.preventDefault();
+          dialoguePlayer.moveChoice(choiceDelta);
+          return;
+        }
+        if (/^[1-4]$/.test(key)) {
+          event.preventDefault();
+          if (!event.repeat) dialoguePlayer.confirmChoice(Number(key) - 1);
+          return;
+        }
+        if (["enter", " ", keyboardInteractionKey].includes(key)) {
+          event.preventDefault();
+          if (!event.repeat) dialoguePlayer.confirmChoice();
+          return;
+        }
       }
       if (plantController.isOpen && dialoguePlaybackRef.current) {
         event.preventDefault();
@@ -11343,7 +11458,7 @@ export function MovementLab() {
             undefined,
             {
               itemIds: new Set(ITEM_DEFINITIONS.map((item) => item.id)),
-              puzzleIds: new Set([PLANT_PUZZLE_ID, BUS_CARD_INTERACTION_ID]),
+              puzzleIds: new Set([PLANT_PUZZLE_ID, BUS_CARD_INTERACTION_ID, NAV_TERMINAL_INTERACTION_ID]),
               interactionIds: new Set(
                 [...SCENE_REGISTRY.values()].flatMap((scene) =>
                   (scene.interactables ?? []).map((interactable) => interactable.id),
@@ -12339,6 +12454,16 @@ export function MovementLab() {
       );
     };
 
+    completeNavTerminalInteractionRef.current = () => {
+      const session = powerPuzzleSessionRef.current;
+      if (!navTerminalOpenRef.current || session?.interactable.id !== NAV_TERMINAL_INTERACTION_ID) return;
+      closePowerRoutingPuzzle();
+      if (completeInteraction(session.interactable, session.source)) {
+        publishPuzzleCompleted(session);
+        requestPortableAutosaveRef.current("nav-terminal-completed");
+      }
+    };
+
     completeBusCardInteractionRef.current = () => {
       const session = powerPuzzleSessionRef.current;
       if (!busCardOpenRef.current || session?.interactable.id !== BUS_CARD_INTERACTION_ID) return;
@@ -12352,16 +12477,21 @@ export function MovementLab() {
     completeStarCardsMatchRef.current = (result) => {
       const session = starCardsSessionRef.current;
       const manager = questRuntimeManagerRef.current;
+      // 勝敗都要在回到船艙後播放對應劇情；只有 017 的正式對決會回傳對話 ID
+      if (starCardsOpenRef.current) {
+        starCardsPostMatchDialogueRef.current =
+          getStarCardsPostMatchDialogueId(session?.interactable.id, result);
+      }
       if (!starCardsOpenRef.current || !session || !manager ||
           session.interactable.id !== STAR_CARDS_INTERACTION_ID ||
-          getStarCardsMatchWinner(result) !== "player") return;
-      // Only an actual victory from interaction 017 can settle this interaction.
-      // Debug Game 4, defeat and cancellation never consume its use or grant progress.
+          getStarCardsMatchWinner(result) === null) return;
+      // 017 打完一整場（勝或敗）就完成這次互動與 OBJ_03；
+      // Debug Game 4、預覽開局與中途退出都不會走到這裡，不消耗互動也不推進任務。
       starCardsSessionRef.current = null;
       if (completeInteraction(session.interactable, session.source) &&
           completeStarCardsQuestMatch(manager, session.interactable.id, result)) {
         saveQuestSaveData(manager.exportSave());
-        requestPortableAutosaveRef.current("star-cards-victory");
+        requestPortableAutosaveRef.current("star-cards-match-completed");
       }
     };
 
@@ -12669,14 +12799,51 @@ export function MovementLab() {
         return true;
       }
       if (openQuestItemSubmissionConfirmation(interactable, source)) return true;
-      if (interactable.id === STAR_CARDS_INTERACTION_ID) {
+      if (interactable.id === STAR_CARDS_REPLAY_INTERACTION_ID) {
+        // 重玩：對話選項選「好啊」（continue）才開打；選「先不用」（cancel）只播回應台詞
+        const startReplay = () => openStarCardsGame({ interactable, source });
+        const dialogue = selectInteractionDialogue(interactable, "success");
+        if (dialogue) openDialogue(interactable, startReplay, dialogue);
+        else startReplay();
+        if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
+        return true;
+      }
+      const starCardsPlan = interactable.id === STAR_CARDS_INTERACTION_ID
+        ? getStarCardsInteractionPlan(
+            questRuntimeManagerRef.current?.isObjectiveInProgress(STAR_CARDS_QUEST_ID, STAR_CARDS_OBJECTIVE_ID) ?? false,
+            storyProgressRef.current.storyFlags,
+          )
+        : null;
+      // 過了 OBJ_03 任務階段（plan＝dialogue-only）不開打，往下走一般互動，播 017 自己的對話
+      if (starCardsPlan && starCardsPlan !== "dialogue-only") {
         const startMatch = () => openStarCardsGame({ interactable, source });
-        if (interactable.storyDialogueId && dialogueManager.get(interactable.storyDialogueId)) {
+        if (starCardsPlan === "intro-then-match" && dialogueManager.get(STAR_CARDS_INTRO_DIALOGUE_ID)) {
+          // 開場劇情只播一次：播完才記錄，對話被中斷就下次再播
+          void dialogueManager.playRegistered(STAR_CARDS_INTRO_DIALOGUE_ID, interactable, () => {
+            try { setStoryFlag(STAR_CARDS_INTRO_PLAYED_FLAG, true); }
+            catch { /* setStoryFlag 仍會保留記憶體中的旗標 */ }
+            requestPortableAutosaveRef.current("star-cards-intro-played");
+            startMatch();
+          });
+        } else if (interactable.storyDialogueId && dialogueManager.get(interactable.storyDialogueId)) {
+          // MapEditor 有指定劇情對話 ID 時沿用它，否則播 017 自己的對話
           void dialogueManager.playRegistered(interactable.storyDialogueId, interactable, startMatch);
         } else {
           const dialogue = selectInteractionDialogue(interactable, "success");
           if (dialogue) openDialogue(interactable, startMatch, dialogue);
           else startMatch();
+        }
+        if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
+        return true;
+      }
+      if (interactable.id === NAV_TERMINAL_INTERACTION_ID) {
+        // 先播成功互動對話，播完才開啟航線監測終端；完成小遊戲才算互動成功
+        const startNavTerminal = () => openNavTerminalMinigame(interactable, source);
+        const successDialogue = selectInteractionDialogue(interactable, "success");
+        if (successDialogue) {
+          openDialogue(interactable, startNavTerminal, successDialogue);
+        } else {
+          startNavTerminal();
         }
         if (source === "pointer") pointerInteractionTriggeredId = interactable.id;
         return true;
@@ -13228,7 +13395,7 @@ export function MovementLab() {
       }
 
       return element.closest(
-        ".quick-assign-shield, .quick-assign-panel, .new-player-tutorial-overlay, .inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .star-cards-overlay, .star-cards-dialog, .starship-interaction-menu, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .survival-game-over, .dialogue-box, .dialogue-history-trigger, .dialogue-fullscreen-trigger, .dialogue-history-overlay, .quest-hud",
+        ".quick-assign-shield, .quick-assign-panel, .new-player-tutorial-overlay, .inventory-hotbar, .inventory-overlay, .inventory-dialog, .options-overlay, .options-dialog, .power-puzzle-overlay, .power-puzzle-dialog, .welding-puzzle-overlay, .welding-puzzle-dialog, .star-cards-overlay, .star-cards-dialog, .starship-interaction-menu, .scene-connection-confirmation-overlay, .scene-connection-confirmation, .survival-game-over, .dialogue-box, .dialogue-choice-list, .dialogue-history-trigger, .dialogue-fullscreen-trigger, .dialogue-history-overlay, .quest-hud",
       )
         ? "blocked"
         : "none";
@@ -13458,7 +13625,7 @@ export function MovementLab() {
       if (
         event.target instanceof Element &&
         event.target.closest(
-          ".dialogue-box, .dialogue-history-trigger, .dialogue-fullscreen-trigger, .dialogue-history-overlay",
+          ".dialogue-box, .dialogue-choice-list, .dialogue-history-trigger, .dialogue-fullscreen-trigger, .dialogue-history-overlay",
         )
       ) {
         return;
@@ -13539,7 +13706,7 @@ export function MovementLab() {
         const overDialogue =
           event.target instanceof Element &&
           event.target.closest(
-            ".dialogue-box, .dialogue-history-trigger, .dialogue-fullscreen-trigger, .dialogue-history-overlay",
+            ".dialogue-box, .dialogue-choice-list, .dialogue-history-trigger, .dialogue-fullscreen-trigger, .dialogue-history-overlay",
           ) !== null;
         if (overDialogue) {
           virtualCursorVisible = false;
@@ -15234,8 +15401,10 @@ export function MovementLab() {
       const nativeGamepadInput = getNativeGamepadInput(
         nativeGamepadRef.current,
       );
-      if (busCardOpenRef.current) {
+      if (busCardOpenRef.current || navTerminalOpenRef.current) {
         // Transfer browser AND native controller input; never let the same press reach the map.
+        const embeddedFrame = busCardOpenRef.current ? busCardFrameRef.current : navTerminalFrameRef.current;
+        const embeddedChannel = busCardOpenRef.current ? "echoes-bus-card" : NAV_TERMINAL_MESSAGE_CHANNEL;
         const pad = browserGamepadInput.connected ? browserGamepadInput : nativeGamepadInput;
         const buttons = Array.from({ length: 16 }, () => ({ pressed: false }));
         buttons[0].pressed = pad.confirmPressed;
@@ -15244,7 +15413,7 @@ export function MovementLab() {
         buttons[13].pressed = pad.dpadY > 0;
         buttons[14].pressed = pad.dpadX < 0;
         buttons[15].pressed = pad.dpadX > 0;
-        busCardFrameRef.current?.contentWindow?.postMessage({ channel: "echoes-bus-card", type: "gamepad",
+        embeddedFrame?.contentWindow?.postMessage({ channel: embeddedChannel, type: "gamepad",
           pad: pad.connected ? { axes: [pad.stickX, pad.stickY], buttons } : null }, window.location.origin);
         gamepadHandoffGate.requireNeutral();
         pressedKeys.clear();
@@ -15939,6 +16108,19 @@ export function MovementLab() {
         gamepadDpadXRepeatSeconds = 0;
         gamepadDpadYRepeatSeconds = 0;
       }
+      // 對話選項：十字鍵或左搖桿上下移動選取（回中才會再移動一格），A 由 advanceDialogue 確定
+      const dialogueChoiceDirection =
+        gamepadInput.connected && !dialogueHistoryMenuOpen && dialoguePlayer.isChoosing()
+          ? Math.abs(gamepadInput.dpadY) > 0.5
+            ? Math.sign(gamepadInput.dpadY)
+            : Math.abs(gamepadInput.stickY) > 0.6
+              ? Math.sign(gamepadInput.stickY)
+              : 0
+          : 0;
+      if (dialogueChoiceDirection && dialogueChoiceDirection !== dialogueChoiceGamepadDirectionRef.current) {
+        dialoguePlayer.moveChoice(dialogueChoiceDirection);
+      }
+      dialogueChoiceGamepadDirectionRef.current = dialogueChoiceDirection;
       if (dialogueHistoryMenuOpen) {
         virtualCursorVisible = false;
         if (gamepadInput.connected && activeInputMode === "gamepad") {
@@ -17358,6 +17540,7 @@ export function MovementLab() {
     return () => {
       craftingReturnDialogueController.dispose();
       completeStarCardsMatchRef.current = () => {};
+      starCardsPostMatchDialogueRef.current = null;
       starCardsSessionRef.current = null;
       questSkipKeyController.cancel();
       startStarshipSleepRef.current = () => {};
@@ -17775,11 +17958,12 @@ export function MovementLab() {
     if (
       dialoguePlaybackRef.current &&
       event.target instanceof Element &&
-      !event.target.closest(".dialogue-box")
+      !event.target.closest(".dialogue-box, .dialogue-choice-list")
     ) {
       event.preventDefault();
       event.stopPropagation();
-      advanceDialogue();
+      // 選項視窗開啟時點空白處不做事，必須點選項（避免誤選）
+      if (!dialoguePlayer.isChoosing()) advanceDialogue();
     }
   };
 
@@ -18280,6 +18464,7 @@ export function MovementLab() {
         textSize={dialogueTextSize} gamepadMode={questPromptInputMode === "gamepad"}
         boxRef={dialogueBoxRef} historyScrollRef={dialogueHistoryScrollRef} historyCloseRef={dialogueHistoryCloseRef}
         onAdvance={advanceDialogue} onOpenHistory={openDialogueHistory} onCloseHistory={closeDialogueHistory}
+        choice={dialogueChoiceView} onChooseOption={index => dialoguePlayer.confirmChoice(index)} onHoverOption={index => dialoguePlayer.hoverChoice(index)}
         onFullscreen={!openingFullscreenPromptDismissed && blackScreenVisible && mobileHudLayout && !stageFullscreen ? () => {
           setOpeningFullscreenPromptDismissed(true);
           void toggleStageFullscreen();
@@ -19180,6 +19365,7 @@ export function MovementLab() {
         <StarCardsGame
           onClose={closeStarCardsGame}
           tutorialEnabled={starCardsTutorialStart}
+          debugSuddenDeath={STAR_CARDS_DEBUG_SUDDEN_DEATH}
           onMatchCompleted={(result) => completeStarCardsMatchRef.current(result)}
           audioEvents={audioEventManagerRef.current}
           initialGamepadMode={starCardsInitialGamepadMode}
@@ -19247,7 +19433,15 @@ export function MovementLab() {
       {busCardOpen ? <BusCardPuzzle frameRef={busCardFrameRef} initialOwner={busCardInitialOwnerRef.current}
         onCancel={closePowerRoutingPuzzle} onComplete={() => completeBusCardInteractionRef.current()} /> : null}
 
-      {powerPuzzleOpen && !frequencyPuzzleOpen && !weldingPuzzleOpen && !busCardOpen ? (
+      {navTerminalOpen ? <NavTerminalMinigame frameRef={navTerminalFrameRef} initialOwner={navTerminalInitialOwnerRef.current}
+        onInput={() => playOneShotAudio("uiInput")}
+        onClear={() => playOneShotAudio("navTerminalCleared")}
+        onInputRejected={() => playOneShotAudio("navTerminalInputRejected")}
+        onBlockCalibrated={() => playOneShotAudio("navTerminalBlockCalibrated")}
+        onMatrixScanChange={setNavTerminalMatrixScanAudioActive}
+        onCancel={closePowerRoutingPuzzle} onComplete={() => completeNavTerminalInteractionRef.current()} /> : null}
+
+      {powerPuzzleOpen && !frequencyPuzzleOpen && !weldingPuzzleOpen && !busCardOpen && !navTerminalOpen ? (
         <PowerRoutingPuzzle
           ref={powerPuzzleControllerRef}
           availablePower={campPowerState.current}

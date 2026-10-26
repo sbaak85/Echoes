@@ -12,7 +12,59 @@ export type InteractionDialogueScript = {
   characterDelaySeconds?: number;
   speakers?: string[];
   lines: InteractionDialogueLine[];
+  /** 最後一句之後顯示的對話選項（可省略）；由 MapEditor 對話腳本編輯器的「對話選項」頁設定。 */
+  choice?: InteractionDialogueChoice;
 };
+
+/**
+ * 選後動作：continue＝繼續原本的互動（例如開始小遊戲、發放獎勵、結算互動）；
+ * cancel＝只播完回應台詞就結束，不執行互動、不消耗次數。
+ */
+export type InteractionDialogueChoiceAction = "continue" | "cancel";
+
+export type InteractionDialogueChoiceOption = {
+  id?: string;
+  label: string;
+  /** 選擇後播放的回應台詞（可留空直接結束） */
+  replyLines?: InteractionDialogueLine[];
+  action?: InteractionDialogueChoiceAction;
+};
+
+export type InteractionDialogueChoice = {
+  options: InteractionDialogueChoiceOption[];
+};
+
+/** 對話結束時回報玩家選了什麼；沒有選項的對話不帶值。 */
+export type DialogueChoiceOutcome = {
+  choiceId?: string;
+  choiceAction?: InteractionDialogueChoiceAction;
+};
+
+export const DIALOGUE_CHOICE_MAX_OPTIONS = 4;
+
+/** 只保留有文字的選項（最多 4 個）；沒有可用選項時回傳 null，對話照一般方式結束。 */
+export function normalizeDialogueChoice(choice: unknown): InteractionDialogueChoice | null {
+  if (!choice || typeof choice !== "object") return null;
+  const rawOptions = (choice as { options?: unknown }).options;
+  if (!Array.isArray(rawOptions)) return null;
+  const options = rawOptions.flatMap((candidate, index): InteractionDialogueChoiceOption[] => {
+    if (!candidate || typeof candidate !== "object") return [];
+    const option = candidate as Partial<InteractionDialogueChoiceOption>;
+    const label = typeof option.label === "string" ? option.label.trim() : "";
+    if (!label) return [];
+    const replyLines = Array.isArray(option.replyLines)
+      ? option.replyLines.filter((line): line is InteractionDialogueLine =>
+          Boolean(line) && typeof line.text === "string" && line.text.trim().length > 0)
+      : [];
+    return [{
+      id: typeof option.id === "string" && option.id.trim() ? option.id.trim() : `option-${index + 1}`,
+      label,
+      replyLines,
+      action: option.action === "cancel" ? "cancel" : "continue",
+    }];
+  }).slice(0, DIALOGUE_CHOICE_MAX_OPTIONS);
+  return options.length > 0 ? { options } : null;
+}
 
 export type InteractionDialogueLine = {
   /** Stable editor-generated ID used by precise dialogue-line events such as BGM cues. */
