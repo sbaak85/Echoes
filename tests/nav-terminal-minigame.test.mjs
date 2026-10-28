@@ -56,3 +56,19 @@ test('MAIN_004 STAGE_01 completes after the cockpit (021), the nav terminal mini
   manager.handleEvent({ type: 'puzzleCompleted', targetId: NAV_TERMINAL_INTERACTION_ID });
   assert.equal(manager.getObjectiveProgress(questId, 'QUEST_CH02_MAIN_004_OBJ_04').completed, true);
 });
+
+test('MAIN_004 STAGE_02 completes after washing up (022) and going to bed (023)', () => {
+  const stage = doc.quests.find(q => q.id === questId).stages[1];
+  assert.deepEqual(Object.fromEntries(stage.objectives.map(o => [o.id, [o.type, o.targetId]])), {
+    QUEST_CH02_MAIN_004_OBJ_01: ['interactionSucceeded', 'shipinterior-interaction-022'],
+    QUEST_CH02_MAIN_004_OBJ_02: ['interactionSucceeded', 'shipinterior-interaction-023'],
+  });
+  const manager = new QuestRuntimeManager(doc);
+  manager.startQuest(questId);
+  for (const targetId of ['shipinterior-interaction-021', 'shipinterior-interaction-020']) manager.handleEvent({ type: 'interactionSucceeded', targetId });
+  manager.handleEvent({ type: 'puzzleCompleted', targetId: NAV_TERMINAL_INTERACTION_ID });
+  for (const [targetId, objectiveId] of [['shipinterior-interaction-022', 'QUEST_CH02_MAIN_004_OBJ_01'], ['shipinterior-interaction-023', 'QUEST_CH02_MAIN_004_OBJ_02']]) {
+    manager.handleEvent({ type: 'interactionSucceeded', targetId });
+    assert.equal(manager.getObjectiveProgress(questId, objectiveId).completed, true, objectiveId);
+  }
+});

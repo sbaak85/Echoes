@@ -51,6 +51,50 @@ function build(command, state = createState()) {
   });
 }
 
+test("Stage Next follows all Chapter 2 stages before entering Chapter 3 despite interleaved storage", () => {
+  const expected = [
+    ["QUEST_CH02_MAIN_001", "01"],
+    ["QUEST_CH02_MAIN_002", "01"], ["QUEST_CH02_MAIN_002", "02"],
+    ["QUEST_CH02_MAIN_003", "01"], ["QUEST_CH02_MAIN_003", "02"],
+    ["QUEST_CH02_MAIN_004", "01"], ["QUEST_CH02_MAIN_004", "02"],
+    ["QUEST_CH02_MAIN_005", "01"], ["QUEST_CH02_MAIN_005", "02"], ["QUEST_CH02_MAIN_005", "03"],
+    ["QUEST_CH03_MAIN_001", "01"],
+  ];
+  let plan = build({ kind: "goto", questRef: expected[0][0] });
+  for (let i = 1; i < expected.length; i++) {
+    const previous = plan;
+    plan = build({ kind: "stage-next" }, { ...createState(), ...previous });
+    assert.equal(plan.targetQuestId, expected[i][0]);
+    assert.equal(plan.targetStageId, `${expected[i][0]}_STAGE_${expected[i][1]}`);
+    const previousStage = questDocument.quests.find(q => q.id === previous.targetQuestId)
+      .stages.find(s => s.id === previous.targetStageId);
+    for (const objective of previousStage.objectives) {
+      assert.equal(plan.questSave.quests[previous.targetQuestId].objectives[objective.id].completed, true);
+    }
+    for (const questId of previous.completedQuestIds) {
+      assert.equal(plan.questSave.quests[questId].state, "completed", "previously skipped quests stay completed");
+    }
+    assert.equal(plan.questSave.quests[plan.targetQuestId].state, "active");
+    assert.equal(plan.questSave.quests.QUEST_CH03_MAIN_001.state === "active", i === expected.length - 1);
+  }
+});
+
+test("Next resolves and settles the same active quest when chapters are interleaved", () => {
+  const secondChapter = build({ kind: "goto", questRef: "QUEST_CH02_MAIN_002" });
+  const thirdChapter = build({ kind: "goto", questRef: "QUEST_CH03_MAIN_001" });
+  secondChapter.questSave.quests.QUEST_CH03_MAIN_001 = thirdChapter.questSave.quests.QUEST_CH03_MAIN_001;
+  const next = build({ kind: "stage-next" }, { ...createState(), ...secondChapter });
+  assert.equal(next.targetStageId, "QUEST_CH02_MAIN_002_STAGE_02");
+  assert.notEqual(next.questSave.quests.QUEST_CH03_MAIN_001.state, "completed");
+});
+
+test("explicit numeric Goto retains document aliases while Next uses chapter order", () => {
+  const mainQuests = questDocument.quests.filter(q => q.type === "main");
+  assert.equal(build({ kind: "goto", questRef: "2" }).targetQuestId, mainQuests[1].id);
+  const first = build({ kind: "goto", questRef: "QUEST_CH02_MAIN_001" });
+  assert.equal(build({ kind: "next" }, { ...createState(), ...first }).targetQuestId, "QUEST_CH02_MAIN_002");
+});
+
 test("Quest debug commands accept next, numeric goto, and stable IDs", () => {
   assert.equal(isQuestDebugCommand("Quest Goto 5 Stage 3"), true);
   assert.equal(isQuestDebugCommand("Item R0001"), false);
@@ -70,14 +114,11 @@ test("Quest debug commands accept next, numeric goto, and stable IDs", () => {
   assert.equal(parseQuestDebugCommand("Quest Goto"), null);
 });
 
-test("movement lab exposes Quest commands and the ] short/long press hotkey", () => {
+test("movement lab exposes Quest commands and the ] Stage-only hotkey", () => {
   assert.match(movementLabSource, /parseQuestDebugCommand\(command\)/);
   assert.match(movementLabSource, /event\.code === "BracketRight"/);
   assert.match(movementLabSource, /createQuestSkipKeyController\(/);
-  assert.match(
-    movementLabSource,
-    /debugItemSpawnHandlerRef\.current\("Quest Next"\)/,
-  );
+  assert.doesNotMatch(movementLabSource, /onQuestNext:/);
   assert.match(
     movementLabSource,
     /debugItemSpawnHandlerRef\.current\("Quest Stage Next"\)/,
@@ -108,8 +149,8 @@ test("the first Quest debug jump applies Item All once", () => {
   assert.equal(Object.keys(freshGoto.inventory).length, ITEM_DEFINITIONS.length - 1);
 });
 
-test("Quest Goto 3 builds the skipped outcomes without replaying quest flows", () => {
-  const plan = build({ kind: "goto", questRef: "3" });
+test("Quest Goto by ID builds the skipped outcomes without replaying quest flows", () => {
+  const plan = build({ kind: "goto", questRef: "QUEST_CH03_MAIN_003" });
   assert.equal(plan.targetQuestId, "QUEST_CH03_MAIN_003");
   assert.equal(plan.targetStageId, "QUEST_CH03_MAIN_003_STAGE_01");
   assert.deepEqual(plan.completedQuestIds, [
@@ -128,7 +169,7 @@ test("Quest Goto 3 builds the skipped outcomes without replaying quest flows", (
 });
 
 test("Quest Goto stage number uses displayed stage order including 02B", () => {
-  const plan = build({ kind: "goto", questRef: "5", stageRef: "3" });
+  const plan = build({ kind: "goto", questRef: "QUEST_CH03_MAIN_005", stageRef: "3" });
   assert.equal(plan.targetStageId, "QUEST_CH03_MAIN_005_STAGE_02B");
   const entry = plan.questSave.quests.QUEST_CH03_MAIN_005;
   assert.equal(entry.currentStageId, "QUEST_CH03_MAIN_005_STAGE_02B");
@@ -138,7 +179,7 @@ test("Quest Goto stage number uses displayed stage order including 02B", () => {
 });
 
 test("Quest Stage Next completes only the current stage and preserves completion order", () => {
-  const firstStage = build({ kind: "goto", questRef: "5", stageRef: "1" });
+  const firstStage = build({ kind: "goto", questRef: "QUEST_CH03_MAIN_005", stageRef: "1" });
   const originalFirstQuestOrder =
     firstStage.questSave.quests.QUEST_CH03_MAIN_001.completedOrder;
   const secondStage = build({ kind: "stage-next" }, {
@@ -170,7 +211,7 @@ test("Quest Stage Next completes only the current stage and preserves completion
 });
 
 test("Quest Stage Next crosses from a final stage to the next quest Stage 1", () => {
-  const finalStage = build({ kind: "goto", questRef: "5", stageRef: "7" });
+  const finalStage = build({ kind: "goto", questRef: "QUEST_CH03_MAIN_005", stageRef: "7" });
   const nextQuest = build({ kind: "stage-next" }, {
     ...createState(),
     questSave: finalStage.questSave,
@@ -186,7 +227,7 @@ test("Quest Stage Next crosses from a final stage to the next quest Stage 1", ()
 });
 
 test("Quest Stage Next crosses Chapter 3 into Chapter 4 and settles every Stage 1 requirement", async () => {
-  const chapterThreeFinalStage = build({ kind: "goto", questRef: "6", stageRef: "3" });
+  const chapterThreeFinalStage = build({ kind: "goto", questRef: "QUEST_CH03_MAIN_006", stageRef: "3" });
   const chapterFourStageOne = build({ kind: "stage-next" }, {
     ...createState(),
     questSave: chapterThreeFinalStage.questSave,
@@ -264,8 +305,8 @@ test("Quest Stage Next crosses Chapter 3 into Chapter 4 and settles every Stage 
   assert.equal(replayedFlows.includes("chapter04-section-1"), false);
 });
 
-test("Quest Goto 6 Stage 2 materializes the implicit chain and required welding items", () => {
-  const plan = build({ kind: "goto", questRef: "6", stageRef: "2" });
+test("Chapter 3 Quest 6 Stage 2 materializes the implicit chain and required welding items", () => {
+  const plan = build({ kind: "goto", questRef: "QUEST_CH03_MAIN_006", stageRef: "2" });
   assert.deepEqual(plan.completedQuestIds, [
     "QUEST_CH03_MAIN_001",
     "QUEST_CH03_MAIN_002",
@@ -285,8 +326,8 @@ test("Quest Goto 6 Stage 2 materializes the implicit chain and required welding 
   assert.ok(plan.interactionUsage.completedOnceIds.includes("scene3-interaction-023"));
 });
 
-test("Quest Goto 6 Stage 3 settles welding and section-8 before enabling calibration", () => {
-  const plan = build({ kind: "goto", questRef: "6", stageRef: "3" });
+test("Chapter 3 Quest 6 Stage 3 settles welding and section-8 before enabling calibration", () => {
+  const plan = build({ kind: "goto", questRef: "QUEST_CH03_MAIN_006", stageRef: "3" });
   assert.equal(plan.targetStageId, "QUEST_CH03_MAIN_006_STAGE_03");
   assert.equal(
     plan.questSave.quests.QUEST_CH03_MAIN_006.objectives
@@ -306,7 +347,7 @@ test("explicit Scenario metadata covers interaction, survival, time, spawn, and 
   const state = createState();
   const plan = buildQuestDebugScenarioPlan(
     questDocument,
-    { kind: "goto", questRef: "1" },
+    { kind: "goto", questRef: "QUEST_CH03_MAIN_001" },
     state,
     {
       itemSurvivalEffects: survivalEffects,
@@ -331,7 +372,7 @@ test("explicit Scenario metadata covers interaction, survival, time, spawn, and 
 });
 
 test("Quest Next advances from the current active main quest", () => {
-  const first = build({ kind: "goto", questRef: "1" });
+  const first = build({ kind: "goto", questRef: "QUEST_CH03_MAIN_001" });
   const next = build(
     { kind: "next" },
     {
@@ -352,7 +393,7 @@ test("Quest Next advances from the current active main quest", () => {
 test("Quest Next does not reapply outcomes from quests already completed in the save", () => {
   const state = createState();
   state.survival.values.thirst = 40;
-  const first = build({ kind: "goto", questRef: "1" }, state);
+  const first = build({ kind: "goto", questRef: "QUEST_CH03_MAIN_001" }, state);
   const toSecond = build({ kind: "next" }, {
     ...state,
     questSave: first.questSave,
@@ -382,7 +423,7 @@ test("Quest Next does not reapply outcomes from quests already completed in the 
 });
 
 test("scenario snapshot can replace runtime state without firing start/completion callbacks", () => {
-  const plan = build({ kind: "goto", questRef: "5", stageRef: "3" });
+  const plan = build({ kind: "goto", questRef: "QUEST_CH03_MAIN_005", stageRef: "3" });
   const starts = [];
   const completions = [];
   const changes = [];
@@ -464,7 +505,7 @@ test("registered plant puzzle passes Debug validation even though it is not an I
     const issues = validateQuestDebugConfiguration(questDocument, undefined, { ...context, itemIds: new Set(ITEM_DEFINITIONS.map(item => item.id)) });
     assert.equal(issues.some(issue => issue.objectiveId === "QUEST_CH04_MAIN_001_OBJ_20" && issue.severity === "error"), false);
   }
-  assert.match(movementLabSource, /puzzleIds: new Set\(\[PLANT_PUZZLE_ID\]\)/);
+  assert.match(movementLabSource, /puzzleIds: new Set\(\[PLANT_PUZZLE_ID(?:, [A-Z_]+)*\]\)/);
 });
 
 test("puzzle validation retains legacy Interaction targets but rejects unknown puzzle IDs and warns on empty targets", () => {

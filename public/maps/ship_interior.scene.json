@@ -1642,6 +1642,27 @@
         "spirit": 0,
         "timeMinutes": 0
       },
+      "useRequirements": [
+        {
+          "dialogueId": "",
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH02_MAIN_001",
+          "stageId": "QUEST_CH02_MAIN_001_STAGE_01",
+          "stageMode": "UnlockUntilCondition",
+          "objectiveId": "QUEST_CH02_MAIN_001_OBJ_01",
+          "objectiveState": "unlocked",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "removeQuestId": "QUEST_CH02_MAIN_004",
+          "removeStageId": "QUEST_CH02_MAIN_004_STAGE_02",
+          "removeObjectiveId": "QUEST_CH02_MAIN_004_OBJ_01",
+          "removeObjectiveState": "unlocked",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
       "interactionPoints": [
         {
           "facing": "NW",
@@ -1842,6 +1863,27 @@
         "spirit": 0,
         "timeMinutes": 0
       },
+      "useRequirements": [
+        {
+          "dialogueId": "",
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH02_MAIN_001",
+          "stageId": "QUEST_CH02_MAIN_001_STAGE_01",
+          "stageMode": "UnlockUntilCondition",
+          "objectiveId": "QUEST_CH02_MAIN_001_OBJ_01",
+          "objectiveState": "unlocked",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "removeQuestId": "QUEST_CH02_MAIN_004",
+          "removeStageId": "QUEST_CH02_MAIN_004_STAGE_02",
+          "removeObjectiveId": "QUEST_CH02_MAIN_004_OBJ_01",
+          "removeObjectiveState": "unlocked",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
       "interactionPoints": [
         {
           "facing": "NW",
@@ -1862,23 +1904,23 @@
         ],
         "lines": [
           {
-            "lineId": "shipinterior-interaction-004-line-001",
-            "speaker": "Sbaak",
-            "text": "\u7787\u4E00\u4E0B\u5C31\u597D\u2026\u2026\u5F15\u64CE\u53EA\u8981\u6709\u4E00\u9EDE\u602A\u8072\uFF0C\u6211\u4E00\u5B9A\u807D\u5F97\u898B\u3002",
-            "randomGroupId": "random-group-1",
-            "weight": 1
-          },
-          {
             "lineId": "shipinterior-interaction-004-line-002",
             "speaker": "Sbaak",
-            "text": "\u9577\u7A0B\u822A\u7DDA\u6700\u96E3\u71AC\u7684\u4E0D\u662F\u5DE5\u4F5C\uFF0C\n\u662F\u4E00\u76F4\u5F85\u5728\u540C\u4E00\u500B\u5730\u65B9\u3002",
+            "text": "\u9577\u7A0B\u822A\u7DDA\u6700\u96E3\u71AC\u7684\u4E0D\u662F\u5DE5\u4F5C\uFF0C\n\u800C\u662F\u64E0\u5728\u9019\u9EBC\u5C0F\u7684\u5E8A\u4F4D\u4E2D\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
           {
             "lineId": "shipinterior-interaction-004-line-003",
             "speaker": "Sbaak",
-            "text": "\u5E8A\u4F4D\u6BD4\u4E0A\u4E00\u8258\u8239\u5BEC\u4E00\u9EDE\u2026\u2026\u9019\u9EDE\u6211\u5F88\u6EFF\u610F\u3002",
+            "text": "\u597D\u60F3\u8981\u6709\u500B\u4EBA\u55AE\u9593\u7684\u5E8A\u4F4D\u5594\u3002",
+            "randomGroupId": "random-group-1",
+            "weight": 1
+          },
+          {
+            "lineId": "shipinterior-interaction-004-line-004",
+            "speaker": "Sbaak",
+            "text": "\u5E8A\u4F4D\u6BCF\u5929\u90FD\u6703\u6574\u7406\u5F97\u5F88\u6574\u9F4A\uFF0C\u8239\u9577\u5F88\u8981\u6C42\u5167\u52D9\u3002",
             "randomGroupId": "random-group-1",
             "weight": 1
           }
@@ -1892,7 +1934,7 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "shipinterior-interaction-004-failure-line-001",
             "speaker": "Sbaak",
             "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }
@@ -3834,6 +3876,231 @@
         "lines": [
           {
             "lineId": "shipinterior-interaction-021-failure-line-001",
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
+      }
+    },
+    {
+      "id": "shipinterior-interaction-022",
+      "label": "\u6D17\u624B\u53F0",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 882,
+          "y": 1118
+        },
+        {
+          "x": 906,
+          "y": 1104
+        },
+        {
+          "x": 946,
+          "y": 1120
+        },
+        {
+          "x": 984,
+          "y": 1150
+        },
+        {
+          "x": 984,
+          "y": 1190
+        },
+        {
+          "x": 904,
+          "y": 1236
+        },
+        {
+          "x": 854,
+          "y": 1198
+        },
+        {
+          "x": 854,
+          "y": 1166
+        },
+        {
+          "x": 880,
+          "y": 1148
+        }
+      ],
+      "type": "use",
+      "verb": "\u4F7F\u7528",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "useRequirements": [
+        {
+          "dialogueId": "",
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH02_MAIN_004",
+          "stageId": "QUEST_CH02_MAIN_004_STAGE_02",
+          "stageMode": "CurrentStageOnly",
+          "objectiveId": "QUEST_CH02_MAIN_004_OBJ_01",
+          "objectiveState": "unlocked",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 900.46844,
+        "y": 1113.3418
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-022-line-001",
+            "speaker": "",
+            "text": "(\u84B8\u993E\u6C34\u5F9E\u6C34\u9F8D\u982D\u4E2D\u6D41\u51FA)"
+          },
+          {
+            "lineId": "shipinterior-interaction-022-line-002",
+            "speaker": "",
+            "text": "(\u6211\u505A\u4E86\u7C21\u55AE\u7684\u76E5\u6D17\u6574\u7406)"
+          },
+          {
+            "lineId": "shipinterior-interaction-022-line-003",
+            "speaker": "Sbaak",
+            "text": "\u597D\u4E86\uFF0C\u53BB\u4F11\u606F\u5427\u3002"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-022-failure-line-001",
+            "speaker": "Sbaak",
+            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
+      }
+    },
+    {
+      "id": "shipinterior-interaction-023",
+      "label": "\u81E5\u92EA",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 1010,
+          "y": 1310
+        },
+        {
+          "x": 1100,
+          "y": 1258
+        },
+        {
+          "x": 1230,
+          "y": 1354
+        },
+        {
+          "x": 1144,
+          "y": 1412
+        }
+      ],
+      "type": "use",
+      "verb": "\u4F7F\u7528",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "useRequirements": [
+        {
+          "dialogueId": "",
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH02_MAIN_004",
+          "stageId": "QUEST_CH02_MAIN_004_STAGE_02",
+          "stageMode": "CurrentStageOnly",
+          "objectiveId": "QUEST_CH02_MAIN_004_OBJ_02",
+          "objectiveState": "unlocked",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
+      "interactionHintPoint": {
+        "x": 1073.0255,
+        "y": 1300.8695
+      },
+      "activationDistance": 52,
+      "dialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-023-line-001",
+            "speaker": "",
+            "text": "(\u6211\u947D\u9032\u72F9\u5C0F\u7684\u81E5\u92EA\u7576\u4E2D)"
+          },
+          {
+            "lineId": "shipinterior-interaction-023-line-002",
+            "speaker": "",
+            "text": "(\u4E00\u908A\u601D\u8003\u8457\u4ECA\u5929\u9047\u5230\u7684\u602A\u7570\u72C0\u6CC1)"
+          },
+          {
+            "lineId": "shipinterior-interaction-023-line-003",
+            "speaker": "Sbaak",
+            "text": "\u66F2\u901F\u5F15\u64CE\u8A18\u61B6\u9AD4\u6EA2\u4F4D\u3001\u98DB\u822A\u8A18\u9304\u7684\u6D6E\u9EDE\u6578\u8AA4\u5DEE\u3001\u822A\u7DDA\u76E3\u6E2C\u7684\u5EF6\u9072...\n\u9019\u4E9B\u771F\u7684\u90FD\u662F\u5DE7\u5408\u55CE?"
+          },
+          {
+            "lineId": "shipinterior-interaction-023-line-004",
+            "speaker": "Sbaak",
+            "text": "\u4F0A\u85A9\u5361\u865F\u662F\u4E00\u8258\u5F88\u53EF\u9760\u7684\u8CA8\u904B\u63A2\u52D8\u8239\uFF0C\u7B97\u662F\u65B0\u4E16\u4EE3\u4E2D\u6700\u65E9\u51FA\u5EE0\u7684\u4E00\u6279\u8266\u8247\uFF0C\n\u642D\u8F09\u7684\u90FD\u662F\u65B0\u578B\u865F\u7684\u8A2D\u5099\uFF0C\u65E2\u7701\u71C3\u6599\uFF0C\u904B\u4F5C\u53C8\u7A69\u5B9A\u3002"
+          },
+          {
+            "lineId": "shipinterior-interaction-023-line-005",
+            "speaker": "Sbaak",
+            "text": "(\u5E0C\u671B\u53EA\u662F\u6211\u591A\u616E\u4E86)"
+          },
+          {
+            "lineId": "shipinterior-interaction-023-line-006",
+            "speaker": "Sbaak",
+            "text": "\u4F86\u7761\u5427\uFF0C\u665A\u5B89\u3002"
+          }
+        ]
+      },
+      "failureDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "shipinterior-interaction-023-failure-line-001",
             "speaker": "Sbaak",
             "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
           }

@@ -201,8 +201,8 @@ export function buildQuestDebugScenarioPlan(
         completedQuestIdSet.add(quest.id);
       }
     }
-    const activeMainQuest = document.quests.find(
-      (quest) => quest.type === "main" && state.questSave?.quests[quest.id]?.state === "active",
+    const activeMainQuest = getOrderedMainQuests(document).find(
+      (quest) => state.questSave?.quests[quest.id]?.state === "active",
     );
     if (activeMainQuest && activeMainQuest.id !== target.quest.id) {
       completedQuestIdSet.add(activeMainQuest.id);
@@ -484,17 +484,28 @@ export function validateQuestDebugConfiguration(
   return issues;
 }
 
+function getOrderedMainQuests(document: QuestDocument): QuestDefinition[] {
+  const chapterOrder = new Map(document.chapters.map((chapter, index) => [chapter.id, index]));
+  // MapEditor/QuestEditor may append a new quest at the end of the document.
+  // Group by chapter order, keeping the authored quest order within each chapter.
+  return document.quests.filter((quest) => quest.type === "main").sort((left, right) =>
+    (chapterOrder.get(left.chapterId) ?? document.chapters.length) -
+    (chapterOrder.get(right.chapterId) ?? document.chapters.length),
+  );
+}
+
 function resolveQuestDebugTarget(
   document: QuestDocument,
   command: QuestDebugCommand,
   save: QuestSaveData | undefined,
   metadataByQuestId: ReadonlyMap<string, QuestDebugScenarioMetadata>,
 ) {
-  const mainQuests = document.quests.filter((quest) => quest.type === "main");
+  const mainQuests = getOrderedMainQuests(document);
   let quest: QuestDefinition | undefined;
   let stage: QuestDefinition["stages"][number] | undefined;
   if (command.kind === "goto") {
-    quest = resolveQuestReference(mainQuests, command.questRef);
+    // Keep explicit numeric Goto aliases compatible with the existing document order.
+    quest = resolveQuestReference(document.quests.filter((candidate) => candidate.type === "main"), command.questRef);
   } else if (command.kind === "stage-next") {
     const activeQuest = mainQuests.find(
       (candidate) => save?.quests[candidate.id]?.state === "active",

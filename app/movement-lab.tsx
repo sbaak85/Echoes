@@ -10845,9 +10845,6 @@ export function MovementLab() {
     const questSkipKeyController = createQuestSkipKeyController({
       canTrigger: canUseQuestSkipHotkey,
       onStageNext: () => debugItemSpawnHandlerRef.current("Quest Stage Next"),
-      onQuestNext: () => debugItemSpawnHandlerRef.current("Quest Next"),
-      setTimer: (callback, delayMs) => window.setTimeout(callback, delayMs),
-      clearTimer: (timerId) => window.clearTimeout(timerId),
     });
 
     const onKeyDown = (event: KeyboardEvent) => {
