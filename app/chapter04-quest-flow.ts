@@ -1,4 +1,5 @@
 import type { ChapterFlowDefinition } from "./chapter-flow-manager";
+import { CHAPTER02_EMERGENCY_FLOW_ID, createChapter02EmergencyFlow } from "./chapter02-emergency-flow.ts";
 import type { QuestObjectiveCompletionRule } from "./quest-runtime-manager";
 
 export const CHAPTER04_START_FLOW_ID = "chapter04-start-flow";
@@ -107,6 +108,8 @@ export const QUEST_STAGE_EVENT_FLOWS: Readonly<
       { type: "activateObjective", objectiveId: "QUEST_CH04_MAIN_001_OBJ_16" },
     ],
   },
+  // QUEST_CH02_MAIN_004_OBJ_02 核取後：緊急事件黑幕字幕 → chapter02-section-11
+  [CHAPTER02_EMERGENCY_FLOW_ID]: createChapter02EmergencyFlow(),
   [CHAPTER04_START_FLOW.id]: CHAPTER04_START_FLOW,
   [CHAPTER04_SIGNAL_SAMPLES_FLOW.id]: CHAPTER04_SIGNAL_SAMPLES_FLOW,
 };

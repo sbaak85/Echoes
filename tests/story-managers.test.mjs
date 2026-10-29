@@ -288,6 +288,8 @@ test("chapter04-Open 完整歸屬第四章頁籤", async () => {
     holdMs: 2000,
     fadeOutMs: 2000,
     delayAfterMs: 100,
+    subtitleDelayMs: 0,
+    subtitleDurationMs: 0,
     keepBlack: false,
     lockInput: true,
     chapterStartTimeMode: "clock",

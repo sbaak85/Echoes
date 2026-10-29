@@ -178,6 +178,8 @@ public static class StoryContentCodec
                     subtitle.HoldMs,
                     subtitle.FadeOutMs,
                     subtitle.DelayAfterMs,
+                    subtitle.SubtitleDelayMs,
+                    subtitle.SubtitleDurationMs,
                 })
                 {
                     if (duration < 0 || duration > 600000)

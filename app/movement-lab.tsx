@@ -203,6 +203,9 @@ import { WeldingRoutePuzzle } from "./welding-route-puzzle.tsx";
 import { BusCardPuzzle } from "./bus-card-puzzle.tsx";
 import { BUS_CARD_INTERACTION_ID } from "./bus-card-puzzle.ts";
 import { NavTerminalMinigame } from "./nav-terminal-minigame.tsx";
+import { RedAlertLighting, RED_ALERT_SCENE_ID, RED_ALERT_STORY_FLAG } from "./red-alert-lighting.ts";
+import { resolveBridgeAssemblyPlacement } from "./chapter02-bridge-assembly.ts";
+import { CHAPTER02_SHAKE_AUDIO_EVENTS, CHAPTER02_SHAKE_FLAG, CHAPTER02_SHAKE_LEVELS, CHAPTER02_SHAKE_STRONG_FLAG, LoopingCameraShake } from "./camera-shake.ts";
 import { NAV_TERMINAL_INTERACTION_ID, NAV_TERMINAL_MESSAGE_CHANNEL } from "./nav-terminal-minigame.ts";
 import { STAR_CARDS_INTERACTION_ID, STAR_CARDS_REPLAY_INTERACTION_ID, STAR_CARDS_TUTORIAL_STARTED_FLAG, STAR_CARDS_QUEST_ID, STAR_CARDS_OBJECTIVE_ID, STAR_CARDS_INTRO_DIALOGUE_ID, STAR_CARDS_INTRO_PLAYED_FLAG, shouldStartStarCardsTutorial, completeStarCardsQuestMatch, getStarCardsPostMatchDialogueId, getStarCardsInteractionPlan } from "./star-cards-quest-flow.ts";
 import { getStarCardsMatchWinner, type StarCardsMatchResult } from "./star-cards-game.ts";
@@ -8066,6 +8069,13 @@ export function MovementLab() {
         if (storySkipBlackoutGuardRef.current) return;
         fadeBlackScreen(255, durationMs);
       },
+      triggerBgmEvent: (eventId) => bgmDirectorRef.current?.triggerEvent(eventId),
+      setStoryFlag: (flagId, value) => setStoryFlag(flagId, value),
+      playAudioEvent: (eventName, delayMs) => {
+        if (!(eventName in AUDIO_EVENT_CONFIG)) return;
+        window.setTimeout(() => playOneShotAudio(eventName as AudioEventName), delayMs);
+      },
+      clearBgmEvent: (eventId) => bgmDirectorRef.current?.clearEvent(eventId),
       fadeFromBlack: (durationMs) => {
         if (storySkipBlackoutGuardRef.current) return;
         fadeBlackScreen(0, durationMs);
@@ -10078,6 +10088,16 @@ export function MovementLab() {
         ? isSceneNpcVisible(requirements, npcStageQuery)
         : isSceneNpcPresent(requirements, npcStageQuery);
     };
+    // 第二章緊急事件：紅色警戒旗標開啟後（黑畫面全黑時），4 名 NPC 改站到駕駛艙的 TeleportPoint
+    const placeSceneNpc = (scene: SceneFile, npc: SceneNpcDefinition): SceneNpcDefinition => {
+      if (
+        scene.sceneId !== RED_ALERT_SCENE_ID || scene.sceneId !== SCENE_DATA.sceneId ||
+        currentStoryChapterRef.current !== 2 ||
+        storyProgressRef.current.storyFlags[RED_ALERT_STORY_FLAG] !== true
+      ) return npc;
+      const placement = resolveBridgeAssemblyPlacement(npc.id, SCENE_TELEPORT_POINTS);
+      return placement ? { ...npc, x: placement.x, y: placement.y, facing: placement.facing as SceneNpcDefinition["facing"] } : npc;
+    };
     const getBoundSceneNpc = (interactable: SceneInteractable) => {
       const { npcs, bindings } = getSceneNpcs(SCENE_DATA);
       const npcId = bindings.get(interactable.id);
@@ -10090,8 +10110,9 @@ export function MovementLab() {
     };
     // 點擊判定：點到在場 NPC 的身體也算點到綁定它的對話（實際觸發哪一段仍由對話條件決定）
     const isPointOnBoundNpcBody = (point: Point, interactable: SceneInteractable) => {
-      const npc = getBoundSceneNpc(interactable);
-      if (!npc || !isSceneNpcOnStage(npc)) return false;
+      const boundNpc = getBoundSceneNpc(interactable);
+      if (!boundNpc || !isSceneNpcOnStage(boundNpc)) return false;
+      const npc = placeSceneNpc(SCENE_DATA, boundNpc);
       const facing = npcRuntimeFacing.get(`${SCENE_DATA.sceneId}:${npc.id}`)?.facing ?? npc.facing;
       const render = getSceneNpcRenderData({ ...npc, facing },
         NPC_CATALOG, sizeRef.current);
@@ -13927,8 +13948,9 @@ export function MovementLab() {
         const layout = getSceneWorldLayout(scene);
         if ((layout.layer ?? 0) !== activeLayer) continue;
         const offset = { x: layout.x - originLayout.x, y: layout.y - originLayout.y };
-        for (const npc of getSceneNpcs(scene).npcs.values()) {
-          if (!isSceneNpcOnStage(npc)) continue;
+        for (const sceneNpc of getSceneNpcs(scene).npcs.values()) {
+          if (!isSceneNpcOnStage(sceneNpc)) continue;
+          const npc = placeSceneNpc(scene, sceneNpc);
           const sprites = NPC_CATALOG.characters[npc.characterId]?.sprites;
           if (!sprites) continue;
           const x = npc.x + offset.x, y = npc.y + offset.y;
@@ -14013,6 +14035,38 @@ export function MovementLab() {
 
     const drawMap = () => {
       drawStreamedSceneImages(SCENE_DATA);
+    };
+
+    // 第二章緊急事件的鏡頭震動：黑畫面亮回後每 5～10 秒震一次，section-11 播完後加強（只動地圖鏡頭，介面不晃）
+    const emergencyCameraShake = new LoopingCameraShake();
+    // 每震一下隨機播一支撞擊聲
+    emergencyCameraShake.onShakeStart = () => playOneShotAudio(
+      CHAPTER02_SHAKE_AUDIO_EVENTS[Math.floor(Math.random() * CHAPTER02_SHAKE_AUDIO_EVENTS.length)],
+    );
+    const getEmergencyShakeOffset = (time: number) => {
+      const flags = storyProgressRef.current.storyFlags;
+      const settings = SCENE_DATA.sceneId === RED_ALERT_SCENE_ID && currentStoryChapterRef.current === 2 && flags[CHAPTER02_SHAKE_FLAG] === true
+        ? (flags[CHAPTER02_SHAKE_STRONG_FLAG] === true ? CHAPTER02_SHAKE_LEVELS.strong : CHAPTER02_SHAKE_LEVELS.normal)
+        : null;
+      return emergencyCameraShake.offset(time, settings);
+    };
+
+    // 第二章緊急事件後的船艙紅色警戒光照：旗標開啟（黑畫面全黑時）後才烘焙一次，之後每幀合成
+    let redAlertLighting: RedAlertLighting | null = null;
+    const drawRedAlertLighting = (time: number) => {
+      if (
+        SCENE_DATA.sceneId !== RED_ALERT_SCENE_ID ||
+        currentStoryChapterRef.current !== 2 ||
+        storyProgressRef.current.storyFlags[RED_ALERT_STORY_FLAG] !== true
+      ) return;
+      if (!redAlertLighting) {
+        const wallLayer = SCENE_DATA.foregroundLayers?.find((layer) => layer.visible !== false && layer.file);
+        const wallImage = wallLayer?.file ? getSceneForegroundImage(wallLayer.file) : null;
+        if (!activeSceneImage?.complete || !activeSceneImage.naturalWidth || !wallImage?.complete || !wallImage.naturalWidth) return;
+        redAlertLighting = new RedAlertLighting(SCENE_DATA.world.width);
+        redAlertLighting.prepare(activeSceneImage, wallImage);
+      }
+      redAlertLighting.draw(context, time);
     };
 
     // 畫在角色之後：道具屬性文字永遠疊在角色上層
@@ -17485,7 +17539,8 @@ export function MovementLab() {
         player.x = previousPlayerX;
         player.y = previousPlayerY;
       } else {
-        context.translate(-camera.x, -camera.y);
+        const shake = getEmergencyShakeOffset(time);
+        context.translate(-camera.x + shake.x, -camera.y + shake.y);
         // 船身流動光痕：後層在底圖下（被船殼遮住一部分），前層在牆面等前景圖層之上
         sceneHullStreams.draw(context, SCENE_DATA.hullStreams, "back", time, SCENE_DATA.backdrop?.mode);
         drawMap();
@@ -17493,6 +17548,7 @@ export function MovementLab() {
         drawSceneCollision();
         drawSceneCharacters(SCENE_DATA);
         drawSceneForegroundLayers();
+        drawRedAlertLighting(time);
         sceneHullStreams.draw(context, SCENE_DATA.hullStreams, "front", time, SCENE_DATA.backdrop?.mode);
         drawWorldItemLabels();
         drawInteractionHintPoints(time);

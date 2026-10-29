@@ -30,6 +30,12 @@ export type ChapterFlowAction =
   | { type: "startQuest"; questId: string }
   | { type: "activateObjective"; objectiveId: string }
   | { type: "fadeFromBlack"; durationMs: number }
+  | { type: "fadeToBlack"; durationMs: number }
+  /** 觸發（或 clear: true 時解除）AudioEventManager 的 BGM 控制規則 event。 */
+  | { type: "bgmEvent"; eventId: string; clear?: boolean }
+  | { type: "setStoryFlag"; flagId: string; value: boolean }
+  /** 不等待：排程 delayMs 毫秒後播放 AudioEventManager 的音效事件，流程立即往下走 */
+  | { type: "audioEvent"; eventName: string; delayMs?: number }
   | { type: "showMainObjectiveMarker"; durationMs: number };
 
 export type ChapterFlowDefinition = {
@@ -51,6 +57,10 @@ export type ChapterFlowHost = {
     { type: "showCenteredText" | "showBlackSubtitle" }
   >) => void;
   restartCenteredTextFadeOut?: (durationMs: number) => void;
+  triggerBgmEvent?: (eventId: string) => void;
+  setStoryFlag?: (flagId: string, value: boolean) => void;
+  playAudioEvent?: (eventName: string, delayMs: number) => void;
+  clearBgmEvent?: (eventId: string) => void;
   hideCenteredText: () => void;
   setCenteredTextHoldSkipPrompt?: (visible: boolean) => void;
   playDialogue: (dialogueId: string) => Promise<unknown>;
@@ -334,6 +344,22 @@ export class ChapterFlowManager {
           this.host.fadeFromBlack(action.durationMs);
           await this.wait(action.durationMs, allowSkip);
           this.host.setBlack(false);
+          break;
+        case "fadeToBlack":
+          this.host.fadeToBlack(action.durationMs);
+          await this.wait(action.durationMs, allowSkip);
+          // 動畫影格若被中斷，計時完成時仍要確實全黑
+          if (!(allowSkip && this.skipRequested)) this.host.setBlack(true);
+          break;
+        case "audioEvent":
+          this.host.playAudioEvent?.(action.eventName, Math.max(0, action.delayMs ?? 0));
+          break;
+        case "setStoryFlag":
+          this.host.setStoryFlag?.(action.flagId, action.value);
+          break;
+        case "bgmEvent":
+          if (action.clear) this.host.clearBgmEvent?.(action.eventId);
+          else this.host.triggerBgmEvent?.(action.eventId);
           break;
         case "showMainObjectiveMarker":
           this.host.showMainObjectiveMarker?.(action.durationMs);

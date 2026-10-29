@@ -712,7 +712,11 @@ public sealed class MainForm : Form
         foreach (var item in chapter.SubtitleEvents)
         {
             var trigger = TriggerTypeItem.All.FirstOrDefault(type => type.Id == item.TriggerType)?.Label ?? item.TriggerType;
-            var duration = (item.DelayBeforeMs + item.FadeInMs + item.HoldMs + item.FadeOutMs + item.DelayAfterMs) / 1000d;
+            // 「字幕持續」大於 0 時黑幕會等字幕結束才淡出
+            var blackHoldMs = item.SubtitleDurationMs > 0
+                ? Math.Max(item.HoldMs, item.SubtitleDelayMs + item.SubtitleDurationMs)
+                : item.HoldMs;
+            var duration = (item.DelayBeforeMs + item.FadeInMs + blackHoldMs + item.FadeOutMs + item.DelayAfterMs) / 1000d;
             var preview = item.Text.Replace("\r", " ").Replace("\n", "　");
             grid.Rows.Add(item.Name, $"{trigger} × {item.TriggerCount}", $"{duration:0.##} 秒", preview);
         }
@@ -930,6 +934,8 @@ public sealed class MainForm : Form
         HoldMs = source.HoldMs,
         FadeOutMs = source.FadeOutMs,
         DelayAfterMs = source.DelayAfterMs,
+        SubtitleDelayMs = source.SubtitleDelayMs,
+        SubtitleDurationMs = source.SubtitleDurationMs,
         KeepBlack = source.KeepBlack,
         LockInput = source.LockInput,
         ChapterStartTimeMode = source.ChapterStartTimeMode,

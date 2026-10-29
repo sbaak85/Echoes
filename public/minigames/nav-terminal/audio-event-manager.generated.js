@@ -301,6 +301,48 @@ export const AUDIO_EVENT_CONFIG = ({
         "fadeInPercent": 0,
         "fadeOutPercent": 0
     },
+    "chapter02ShakeImpact1": {
+        "label": "第二章緊急事件：震動撞擊聲 1",
+        "trigger": "第二章緊急事件期間，鏡頭每震動一下（每 5～10 秒一次）時，從 chapter02ShakeImpact1／chapter02ShakeImpact2 隨機抽一支播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/FX_Mon_Dead02.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-explosion-finish-2.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "chapter02ShakeImpact2": {
+        "label": "第二章緊急事件：震動撞擊聲 2",
+        "trigger": "第二章緊急事件期間，鏡頭每震動一下（每 5～10 秒一次）時，從 chapter02ShakeImpact1／chapter02ShakeImpact2 隨機抽一支播放。",
+        "sourceAssetPaths": [
+            "Assets/Audio/FX_Mon_Dead03.mp3"
+        ],
+        "sources": [
+            "./audio/star-cards-explosion-finish-3.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "chapter02EmergencyAlarm": {
+        "label": "第二章緊急事件：警報聲",
+        "trigger": "上臥鋪後的 chapter02-Emergency 黑畫面字幕中，字幕出現後第 5 秒播放一次（暫時寫在 app/chapter02-emergency-flow.ts）。",
+        "sourceAssetPaths": [
+            "Assets/Audio/Alarm.mp3"
+        ],
+        "sources": [
+            "./audio/Alarm.mp3"
+        ],
+        "volume": 0.85,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
     "navTerminalMatrixScan": {
         "label": "航線監測終端：訊號矩陣刷動",
         "trigger": "訊號矩陣每輪數字刷動（SCAN 3 秒）開始時從頭播放一次，不循環：音檔約 2.78 秒，頭尾各 18%（約 0.5 秒）淡入淡出，播完後安靜等下一輪刷動再重播。三組都校對完成或離開小遊戲而刷動中途結束時，以 0.5 秒提前淡出（NAV_TERMINAL_MATRIX_SCAN_MIX）。",
@@ -1440,6 +1482,21 @@ export const BGM_CONTROL_RULES = ([
         "fadeOutSeconds": 1.5,
         "fadeInSeconds": 1.5,
         "priority": 1000,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    },
+    {
+        "id": "chapter02-emergency-bgm-fadeout",
+        "label": "第二章緊急事件：黑畫面淡入的同時地圖曲淡出",
+        "enabled": true,
+        "triggerType": "event",
+        "targetId": "chapter02-emergency",
+        "state": "triggered",
+        "action": "mute",
+        "targetVolume": 0,
+        "fadeOutSeconds": 2,
+        "fadeInSeconds": 1.5,
+        "priority": 5000,
         "durationSeconds": 0,
         "restoreMode": "resume"
     },

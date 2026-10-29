@@ -57,18 +57,23 @@ test('MAIN_004 STAGE_01 completes after the cockpit (021), the nav terminal mini
   assert.equal(manager.getObjectiveProgress(questId, 'QUEST_CH02_MAIN_004_OBJ_04').completed, true);
 });
 
-test('MAIN_004 STAGE_02 completes after washing up (022) and going to bed (023)', () => {
+test('MAIN_004 STAGE_02 only needs going to bed (023); washing up (022) is optional and the old morning sink/bed retire on the same OBJ', () => {
   const stage = doc.quests.find(q => q.id === questId).stages[1];
   assert.deepEqual(Object.fromEntries(stage.objectives.map(o => [o.id, [o.type, o.targetId]])), {
-    QUEST_CH02_MAIN_004_OBJ_01: ['interactionSucceeded', 'shipinterior-interaction-022'],
     QUEST_CH02_MAIN_004_OBJ_02: ['interactionSucceeded', 'shipinterior-interaction-023'],
   });
+  const scene = JSON.parse(readFileSync(new URL('../public/maps/ship_interior.scene.json', import.meta.url), 'utf8'));
+  const reqs = id => scene.interactables.find(i => i.id === id).useRequirements[0];
+  assert.equal(reqs('shipinterior-interaction-022').objectiveId, 'QUEST_CH02_MAIN_004_OBJ_02');
+  for (const id of ['shipinterior-interaction-002', 'shipinterior-interaction-004']) assert.equal(reqs(id).removeObjectiveId, 'QUEST_CH02_MAIN_004_OBJ_02');
+  assert.ok(!JSON.stringify(scene).includes('QUEST_CH02_MAIN_004_OBJ_01'));
   const manager = new QuestRuntimeManager(doc);
   manager.startQuest(questId);
   for (const targetId of ['shipinterior-interaction-021', 'shipinterior-interaction-020']) manager.handleEvent({ type: 'interactionSucceeded', targetId });
   manager.handleEvent({ type: 'puzzleCompleted', targetId: NAV_TERMINAL_INTERACTION_ID });
-  for (const [targetId, objectiveId] of [['shipinterior-interaction-022', 'QUEST_CH02_MAIN_004_OBJ_01'], ['shipinterior-interaction-023', 'QUEST_CH02_MAIN_004_OBJ_02']]) {
-    manager.handleEvent({ type: 'interactionSucceeded', targetId });
-    assert.equal(manager.getObjectiveProgress(questId, objectiveId).completed, true, objectiveId);
-  }
+  assert.equal(manager.isObjectiveInProgress(questId, 'QUEST_CH02_MAIN_004_OBJ_02'), true);
+  manager.handleEvent({ type: 'interactionSucceeded', targetId: 'shipinterior-interaction-022' });
+  assert.equal(manager.getObjectiveProgress(questId, 'QUEST_CH02_MAIN_004_OBJ_02').completed, false, 'washing up does not count');
+  manager.handleEvent({ type: 'interactionSucceeded', targetId: 'shipinterior-interaction-023' });
+  assert.equal(manager.getObjectiveProgress(questId, 'QUEST_CH02_MAIN_004_OBJ_02').completed, true);
 });

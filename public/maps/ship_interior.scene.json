@@ -892,7 +892,48 @@
     "y": 1016.15,
     "facing": "S"
   },
-  "teleportPoints": [],
+  "teleportPoints": [
+    {
+      "id": "bridge-captain",
+      "label": "\u8266\u9577\uFF08\u7DCA\u6025\u96C6\u5408\uFF09",
+      "facing": "NW",
+      "blackoutEnabled": false,
+      "blackoutFadeSeconds": 0.3,
+      "blackoutHoldSeconds": 0,
+      "x": 650,
+      "y": 765
+    },
+    {
+      "id": "bridge-ian",
+      "label": "\u4F0A\u6069\uFF08\u7DCA\u6025\u96C6\u5408\uFF09",
+      "facing": "NW",
+      "blackoutEnabled": false,
+      "blackoutFadeSeconds": 0.3,
+      "blackoutHoldSeconds": 0,
+      "x": 585,
+      "y": 815
+    },
+    {
+      "id": "bridge-rena",
+      "label": "\u857E\u5A1C\uFF08\u7DCA\u6025\u96C6\u5408\uFF09",
+      "facing": "N",
+      "blackoutEnabled": false,
+      "blackoutFadeSeconds": 0.3,
+      "blackoutHoldSeconds": 0,
+      "x": 640,
+      "y": 805
+    },
+    {
+      "id": "bridge-owen",
+      "label": "\u6B50\u6587\uFF08\u7DCA\u6025\u96C6\u5408\uFF09",
+      "facing": "W",
+      "blackoutEnabled": false,
+      "blackoutFadeSeconds": 0.3,
+      "blackoutHoldSeconds": 0,
+      "x": 715,
+      "y": 732
+    }
+  ],
   "entryPoints": [],
   "navMesh": [
     {
@@ -1495,11 +1536,17 @@
           "itemId": "",
           "questId": "QUEST_CH02_MAIN_001",
           "stageId": "QUEST_CH02_MAIN_001_STAGE_01",
-          "stageMode": "CurrentStageOnly",
+          "stageMode": "UnlockUntilCondition",
           "objectiveId": "QUEST_CH02_MAIN_001_OBJ_02",
           "objectiveState": "unlocked",
-          "disableQuestId": "",
-          "disableStageId": "",
+          "disableQuestId": "QUEST_CH02_MAIN_001",
+          "disableStageId": "QUEST_CH02_MAIN_001_STAGE_01",
+          "disableObjectiveId": "QUEST_CH02_MAIN_001_OBJ_02",
+          "disableObjectiveState": "completed",
+          "removeQuestId": "QUEST_CH02_MAIN_004",
+          "removeStageId": "QUEST_CH02_MAIN_004_STAGE_02",
+          "removeObjectiveId": "QUEST_CH02_MAIN_004_OBJ_02",
+          "removeObjectiveState": "unlocked",
           "quantity": 1,
           "chapter": 1
         }
@@ -1526,9 +1573,7 @@
           {
             "lineId": "shipinterior-interaction-001-line-001",
             "speaker": "Sbaak",
-            "text": "\u4ECA\u5929\u7684\u5408\u6210\u9910\u662F\u300C\u96DC\u71C9\u8089\u6CE5\u300D\u2026\u2026\n\u805E\u8D77\u4F86\u5012\u662F\u883B\u50CF\u56DE\u4E8B\u7684\u3002",
-            "randomGroupId": "random-group-1",
-            "weight": 1
+            "text": "\u4ECA\u5929\u7684\u5408\u6210\u9910\u662F\u300C\u96DC\u71C9\u8089\u6CE5\u300D\u2026\u2026\n\u805E\u8D77\u4F86\u5012\u662F\u883B\u50CF\u56DE\u4E8B\u7684\u3002"
           },
           {
             "lineId": "shipinterior-interaction-001-line-002",
@@ -1538,17 +1583,10 @@
             "weight": 1
           },
           {
-            "lineId": "shipinterior-interaction-001-line-004",
-            "speaker": "Sbaak",
-            "text": "...\u4ECA\u5929\u7684\u5408\u6210\u9910\u662F\u300C\u96DC\u71C9\u8089\u6CE5\u300D\u2026\u2026\n\u805E\u8D77\u4F86\u5012\u662F\u883B\u50CF\u56DE\u4E8B\u7684\u3002",
-            "randomGroupId": "random-group-2",
-            "weight": 1
-          },
-          {
             "lineId": "shipinterior-interaction-001-line-003",
             "speaker": "Sbaak",
             "text": "\u71B1\u4E00\u4EFD\u5408\u6210\u9910\uFF0C\u586B\u98FD\u809A\u5B50\u624D\u6709\u529B\u6C23\u5E79\u6D3B\u3002",
-            "randomGroupId": "random-group-2",
+            "randomGroupId": "random-group-1",
             "weight": 1
           }
         ]
@@ -1657,7 +1695,7 @@
           "disableStageId": "",
           "removeQuestId": "QUEST_CH02_MAIN_004",
           "removeStageId": "QUEST_CH02_MAIN_004_STAGE_02",
-          "removeObjectiveId": "QUEST_CH02_MAIN_004_OBJ_01",
+          "removeObjectiveId": "QUEST_CH02_MAIN_004_OBJ_02",
           "removeObjectiveState": "unlocked",
           "quantity": 1,
           "chapter": 1
@@ -1766,6 +1804,25 @@
         "spirit": 0,
         "timeMinutes": 0
       },
+      "useRequirements": [
+        {
+          "dialogueId": "",
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH02_MAIN_001",
+          "stageId": "QUEST_CH02_MAIN_001_STAGE_01",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "removeQuestId": "QUEST_CH02_MAIN_004",
+          "removeStageId": "QUEST_CH02_MAIN_004_STAGE_01",
+          "removeObjectiveId": "QUEST_CH02_MAIN_004_OBJ_03",
+          "removeObjectiveState": "unlocked",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
       "interactionPoints": [
         {
           "facing": "NW",
@@ -1878,7 +1935,7 @@
           "disableStageId": "",
           "removeQuestId": "QUEST_CH02_MAIN_004",
           "removeStageId": "QUEST_CH02_MAIN_004_STAGE_02",
-          "removeObjectiveId": "QUEST_CH02_MAIN_004_OBJ_01",
+          "removeObjectiveId": "QUEST_CH02_MAIN_004_OBJ_02",
           "removeObjectiveState": "unlocked",
           "quantity": 1,
           "chapter": 1
@@ -2570,6 +2627,25 @@
         "spirit": 0,
         "timeMinutes": 0
       },
+      "useRequirements": [
+        {
+          "dialogueId": "",
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH02_MAIN_001",
+          "stageId": "QUEST_CH02_MAIN_001_STAGE_01",
+          "stageMode": "CurrentStageOnly",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "removeQuestId": "QUEST_CH02_MAIN_004",
+          "removeStageId": "QUEST_CH02_MAIN_004_STAGE_01",
+          "removeObjectiveId": "QUEST_CH02_MAIN_004_OBJ_03",
+          "removeObjectiveState": "unlocked",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ],
       "interactionPoints": [
         {
           "facing": "NE",
@@ -3454,6 +3530,10 @@
           "objectiveState": "completed",
           "disableQuestId": "",
           "disableStageId": "",
+          "removeQuestId": "QUEST_CH02_MAIN_004",
+          "removeStageId": "QUEST_CH02_MAIN_004_STAGE_02",
+          "removeObjectiveId": "QUEST_CH02_MAIN_004_OBJ_02",
+          "removeObjectiveState": "completed",
           "quantity": 1,
           "chapter": 1
         }
@@ -3609,7 +3689,7 @@
           {
             "lineId": "shipinterior-interaction-019-line-004",
             "speaker": "Sbaak",
-            "text": "\u54A6...\u9019\u500B\u61C9\u8A72\u4E0D\u662F\u6211\u770B\u932F\u5427?\n(\u6211\u7A0D\u5FAE\u5C08\u6CE8\u7684\u89C0\u5BDF\u8A08\u7B97\u77E9\u9663\u7684\u8A08\u7B97\u6578\u503C)"
+            "text": "\u54A6...\u9019\u500B\u61C9\u8A72\u4E0D\u662F\u6211\u770B\u932F\u5427?\n(\u6211\u7A0D\u5FAE\u5C08\u6CE8\u7684\u89C0\u5BDF\u8A08\u7B97\u77E9\u9663\u7684\u6578\u503C)"
           },
           {
             "lineId": "shipinterior-interaction-019-line-005",
@@ -3618,7 +3698,7 @@
           },
           {
             "lineId": "shipinterior-interaction-019-line-006",
-            "speaker": "Sbaak",
+            "speaker": "",
             "text": "(\u6211\u66F4\u52A0\u8B39\u614E\u7684\u8ABF\u67E5\u9019\u9644\u8FD1\u661F\u57DF\u7684\u5F15\u529B\u5E38\u6578\uFF0C\u537B\u6C92\u767C\u73FE\u4EFB\u4F55\u73FE\u8C61)"
           },
           {
@@ -3644,6 +3724,20 @@
             "lineId": "shipinterior-interaction-019-failure-line-001",
             "speaker": "Sbaak",
             "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+          }
+        ]
+      },
+      "completionDialogue": {
+        "characterDelaySeconds": 0.02,
+        "speakers": [
+          "Sbaak",
+          "Echo"
+        ],
+        "lines": [
+          {
+            "lineId": "",
+            "speaker": "Sbaak",
+            "text": "\u6821\u5C0D\u5B8C\u6210\u3002\n\u9019\u6A23\u660E\u5929\u7D93\u904E\u8C61\u9650Block_B\u6642\u5C31\u4E0D\u6703\u518D\u51FA\u73FE\u932F\u8AA4\u8A0A\u606F\u4E86\u3002"
           }
         ]
       }
@@ -3686,6 +3780,7 @@
         "spirit": 0,
         "timeMinutes": 0
       },
+      "interactionLimitMode": "once",
       "useRequirements": [
         {
           "dialogueId": "",
@@ -3805,6 +3900,8 @@
           "questId": "QUEST_CH02_MAIN_004",
           "stageId": "QUEST_CH02_MAIN_004_STAGE_01",
           "stageMode": "CurrentStageOnly",
+          "objectiveId": "QUEST_CH02_MAIN_004_OBJ_03",
+          "objectiveState": "unlocked",
           "disableQuestId": "",
           "disableStageId": "",
           "quantity": 1,
@@ -3945,7 +4042,7 @@
           "questId": "QUEST_CH02_MAIN_004",
           "stageId": "QUEST_CH02_MAIN_004_STAGE_02",
           "stageMode": "CurrentStageOnly",
-          "objectiveId": "QUEST_CH02_MAIN_004_OBJ_01",
+          "objectiveId": "QUEST_CH02_MAIN_004_OBJ_02",
           "objectiveState": "unlocked",
           "disableQuestId": "",
           "disableStageId": "",
@@ -4155,7 +4252,72 @@
     }
   ],
   "movementGuides": [],
-  "storyTriggers": [],
+  "storyTriggers": [
+    {
+      "id": "story-trigger-001",
+      "label": "\u5287\u60C5\u89F8\u767C\u5340 1",
+      "points": [
+        {
+          "x": 718,
+          "y": 896
+        },
+        {
+          "x": 804,
+          "y": 844
+        },
+        {
+          "x": 804,
+          "y": 810
+        },
+        {
+          "x": 880,
+          "y": 762
+        },
+        {
+          "x": 770,
+          "y": 696
+        },
+        {
+          "x": 564,
+          "y": 822
+        },
+        {
+          "x": 664,
+          "y": 898
+        }
+      ],
+      "once": true,
+      "dialogueId": "chapter02-section-12",
+      "survivalRequirements": {
+        "mode": "all"
+      },
+      "survivalEffects": {
+        "stamina": 0,
+        "hunger": 0,
+        "thirst": 0,
+        "spirit": 0,
+        "timeMinutes": 0
+      },
+      "interactionLimitMode": "once",
+      "useRequirements": [
+        {
+          "dialogueId": "",
+          "kind": "questStage",
+          "scope": "both",
+          "itemId": "",
+          "questId": "QUEST_CH02_MAIN_005",
+          "stageId": "QUEST_CH02_MAIN_005_STAGE_01",
+          "stageMode": "UnlockUntilCondition",
+          "objectiveId": "QUEST_CH02_MAIN_005_OBJ_01",
+          "objectiveState": "unlocked",
+          "disableQuestId": "",
+          "disableStageId": "",
+          "quantity": 1,
+          "chapter": 1
+        }
+      ]
+    }
+  ],
   "itemPoints": [],
   "worldLayout": {
     "x": 0,

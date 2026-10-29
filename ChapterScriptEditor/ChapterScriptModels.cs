@@ -33,6 +33,10 @@ public sealed class SubtitleEventDefinition
     public int HoldMs { get; set; } = 8000;
     public int FadeOutMs { get; set; } = 1500;
     public int DelayAfterMs { get; set; } = 2000;
+    /// <summary>黑畫面完全淡入後，延遲多久才開始顯示字幕。只在「字幕持續」大於 0 時使用。</summary>
+    public int SubtitleDelayMs { get; set; }
+    /// <summary>字幕顯示多久（含字幕自身的淡入淡出），與黑畫面停留分開計算；0 = 字幕跟著黑畫面一起淡入淡出。</summary>
+    public int SubtitleDurationMs { get; set; }
     public bool KeepBlack { get; set; }
     public bool LockInput { get; set; } = true;
     public string ChapterStartTimeMode { get; set; } = ChapterStartTimeModeItem.Inherit;

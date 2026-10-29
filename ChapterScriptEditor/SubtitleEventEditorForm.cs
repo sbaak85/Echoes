@@ -17,6 +17,8 @@ public sealed class SubtitleEventEditorForm : Form
     private readonly NumericUpDown _hold = CreateSeconds(8m);
     private readonly NumericUpDown _fadeOut = CreateSeconds(1.5m);
     private readonly NumericUpDown _delayAfter = CreateSeconds(2m);
+    private readonly NumericUpDown _subtitleDelay = CreateSeconds(0m);
+    private readonly NumericUpDown _subtitleDuration = CreateSeconds(0m);
     private readonly ComboBox _chapterStartTimeMode = new() { Name = "chapterStartTimeMode" };
     private readonly NumericUpDown _chapterStartElapsedHours = CreateHours();
     private readonly NumericUpDown _chapterStartClockHour = CreateNumber(0, 23, 6);
@@ -81,7 +83,9 @@ public sealed class SubtitleEventEditorForm : Form
         AddTiming(timing, "停留", _hold);
         AddTiming(timing, "淡出", _fadeOut);
         AddTiming(timing, "結束後等待", _delayAfter);
-        AddRow(fields, 6, "演出時間（秒）", timing, 92);
+        AddTiming(timing, "字幕延遲", _subtitleDelay);
+        AddTiming(timing, "字幕持續", _subtitleDuration);
+        AddRow(fields, 6, "演出時間（秒）", timing, 132);
 
         AddRow(fields, 7, "章節起始時間", CreateChapterStartTimeEditor(), 84);
 
@@ -93,12 +97,14 @@ public sealed class SubtitleEventEditorForm : Form
         var hint = new Label
         {
             Text = "章節開始、指定對話結束、劇情事件、經過天數或手動觸發都可先記錄在這裡。\n" +
-                   "選擇『章節開始時』可設定延續時間、經過時數或推進至指定時刻；時間會在黑幕中完成結算。",
+                   "選擇『章節開始時』可設定延續時間、經過時數或推進至指定時刻；時間會在黑幕中完成結算。\n" +
+                   "『字幕持續』為 0 時，字幕跟著黑幕一起淡入淡出；大於 0 時改為先全黑：黑幕淡入完成後等『字幕延遲』，" +
+                   "字幕才淡入並顯示『字幕持續』秒（含各 1 秒的字幕淡入淡出），黑幕依『停留』（從全黑起算）結束後再淡出。",
             AutoSize = true,
             ForeColor = Theme.Muted,
             MaximumSize = new Size(590, 0),
         };
-        AddRow(fields, 9, "說明", hint, 66);
+        AddRow(fields, 9, "說明", hint, 110);
 
         var buttons = new FlowLayoutPanel
         {
@@ -149,6 +155,8 @@ public sealed class SubtitleEventEditorForm : Form
         _hold.Value = MillisecondsToSeconds(Result.HoldMs);
         _fadeOut.Value = MillisecondsToSeconds(Result.FadeOutMs);
         _delayAfter.Value = MillisecondsToSeconds(Result.DelayAfterMs);
+        _subtitleDelay.Value = MillisecondsToSeconds(Result.SubtitleDelayMs);
+        _subtitleDuration.Value = MillisecondsToSeconds(Result.SubtitleDurationMs);
         _chapterStartTimeMode.SelectedItem = ChapterStartTimeModeItem.All.FirstOrDefault(
             item => item.Id == Result.ChapterStartTimeMode) ?? ChapterStartTimeModeItem.All[0];
         _chapterStartElapsedHours.Value = Math.Clamp(
@@ -203,6 +211,8 @@ public sealed class SubtitleEventEditorForm : Form
         Result.HoldMs = SecondsToMilliseconds(_hold.Value);
         Result.FadeOutMs = SecondsToMilliseconds(_fadeOut.Value);
         Result.DelayAfterMs = SecondsToMilliseconds(_delayAfter.Value);
+        Result.SubtitleDelayMs = SecondsToMilliseconds(_subtitleDelay.Value);
+        Result.SubtitleDurationMs = SecondsToMilliseconds(_subtitleDuration.Value);
         Result.KeepBlack = _keepBlack.Checked;
         Result.LockInput = _lockInput.Checked;
         Result.ChapterStartTimeMode =
@@ -552,6 +562,8 @@ public sealed class SubtitleEventEditorForm : Form
         HoldMs = source.HoldMs,
         FadeOutMs = source.FadeOutMs,
         DelayAfterMs = source.DelayAfterMs,
+        SubtitleDelayMs = source.SubtitleDelayMs,
+        SubtitleDurationMs = source.SubtitleDurationMs,
         KeepBlack = source.KeepBlack,
         LockInput = source.LockInput,
         ChapterStartTimeMode = source.ChapterStartTimeMode,
