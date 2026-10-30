@@ -196,12 +196,12 @@ test("looping camera shake: ±amplitude over the duration with the given count, 
 });
 
 
-test("each shake plays one of two impact sounds at 20% volume, registered in AudioEventManager", async () => {
+test("each shake plays one of two impact sounds, registered in AudioEventManager", async () => {
   const { CHAPTER02_SHAKE_AUDIO_EVENTS } = await import("../app/camera-shake.ts");
   const { AUDIO_EVENT_CONFIG } = await import("../app/audio-event-manager.ts");
   assert.deepEqual(CHAPTER02_SHAKE_AUDIO_EVENTS.map(id => [AUDIO_EVENT_CONFIG[id].sources[0], AUDIO_EVENT_CONFIG[id].volume, AUDIO_EVENT_CONFIG[id].loop]), [
-    ["./audio/star-cards-explosion-finish-2.mp3", 0.2, undefined],
-    ["./audio/star-cards-explosion-finish-3.mp3", 0.2, undefined],
+    ["./audio/star-cards-explosion-finish-2.mp3", AUDIO_EVENT_CONFIG.chapter02ShakeImpact1.volume, undefined],
+    ["./audio/star-cards-explosion-finish-3.mp3", AUDIO_EVENT_CONFIG.chapter02ShakeImpact2.volume, undefined],
   ]);
 });
 

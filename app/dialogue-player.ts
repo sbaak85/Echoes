@@ -21,6 +21,7 @@ type DialoguePlayerHost<T extends DialogueContext> = {
   setTimer: (callback: () => void, delay: number) => number; clearTimer: (timer: number) => void;
   onTypingStart?: (restart: boolean) => void; onTypingStop?: () => void;
   onLineSe?: (lineId: string) => void; onLineBgm?: (lineId: string) => void;
+  onLineStarted?: (dialogueId: string, lineId: string) => void;
   onStart?: () => void; onClose?: () => void; onHistoryOpen?: () => void; onHistoryClose?: () => void;
 };
 
@@ -125,7 +126,11 @@ export function createDialoguePlayer<T extends DialogueContext>(host: DialoguePl
     const line = playback.interactable.dialogue?.lines[playback.lineIndex];
     if (!line) { finish(); return; }
     const lineId = line.lineId?.trim() ?? "";
-    if (playback.lastLineSeLineId !== lineId) { playback.lastLineSeLineId = lineId; host.onLineSe?.(lineId); }
+    if (playback.lastLineSeLineId !== lineId) {
+      playback.lastLineSeLineId = lineId;
+      host.onLineStarted?.(playback.dialogueId, lineId);
+      host.onLineSe?.(lineId);
+    }
     if (lineId && playback.lastBgmCueLineId !== lineId) { playback.lastBgmCueLineId = lineId; host.onLineBgm?.(lineId); }
     stopTyping();
     const typing: DialogueTyping = {

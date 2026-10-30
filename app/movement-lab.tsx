@@ -1,5 +1,7 @@
 "use client";
 import { createChapter02StartFlow, CHAPTER02_START_FLOW_ID } from "./chapter02-start-flow";
+import { Chapter02WhiteRift, CHAPTER02_WHITE_RIFT_FLOW, CHAPTER02_WHITE_RIFT_PENDING_FLAG, CHAPTER02_WHITE_RIFT_TRIGGER, CHAPTER02_WARP_EXITED_FLAG, resolveChapter02Backdrop, resolveChapter02HullStreams, shouldResumeChapter02WhiteRift } from "./chapter02-white-rift";
+import { WhiteRiftOverlay, type WhiteRiftOverlayHandle } from "./white-rift-overlay";
 import { getIdleSpriteSources, makeTransparentIdleSprite } from "./player-idle-sprites";
 import npcCatalogData from "../public/characters/npc-catalog.json";
 import {
@@ -4119,6 +4121,9 @@ export function MovementLab() {
   );
   const requestStoryTriggerContactCheckRef = useRef<() => void>(() => {});
   const chapterFlowManagerRef = useRef<ChapterFlowManager | null>(null);
+  const whiteRiftRef = useRef<Chapter02WhiteRift | null>(null);
+  const whiteRiftOverlayRef = useRef<WhiteRiftOverlayHandle>(null);
+  const shipEmergencySuspendedRef = useRef(false);
   const storyReadyEmittedRef = useRef(false);
   const storyInputLockedRef = useRef(false);
   const storyFlowActiveRef = useRef(false);
@@ -4147,6 +4152,12 @@ export function MovementLab() {
   const [storyInputLocked, setStoryInputLocked] = useState(false);
   const [storyFlowActive, setStoryFlowActive] = useState(false);
   const [storyFlowPaused, setStoryFlowPaused] = useState(false);
+  useEffect(() => () => {
+    if (whiteRiftRef.current?.isActive()) {
+      whiteRiftRef.current.cancel();
+      chapterFlowManagerRef.current?.requestSkip();
+    }
+  }, []);
   const [storyCenteredText, setStoryCenteredText] = useState<{
     lines: string[];
     fontSizesPx?: number[];
@@ -7819,6 +7830,7 @@ export function MovementLab() {
     onTypingStart: requestDialogueTypingAudioPlayback, onTypingStop: stopDialogueTypingAudio,
     onLineSe: lineId => audioEventManagerRef.current?.triggerDialogueLineSe(lineId),
     onLineBgm: lineId => bgmDirectorRef.current?.triggerDialogueLine(lineId),
+    onLineStarted: (dialogueId, lineId) => whiteRiftRef.current?.lineStarted(dialogueId, lineId),
     onStart: () => { hideHotbarSelectionHint(); document.documentElement.classList.add("dialogue-cursor-active"); playOneShotAudio("dialogueOpened"); },
     onClose: () => { audioEventManagerRef.current?.clearDialogueLineSe(); document.documentElement.classList.remove("dialogue-cursor-active"); },
     onHistoryOpen: () => {
@@ -7881,7 +7893,17 @@ export function MovementLab() {
       await chapterFlowManagerRef.current?.run(flow);
     }
   };
+  const startChapter02WhiteRift = () => {
+    // Saved before anything is shown; cleared only once section-13 ends and the white layer is clear.
+    setStoryFlag(CHAPTER02_WHITE_RIFT_PENDING_FLAG, true);
+    void chapterFlowManagerRef.current?.run(CHAPTER02_WHITE_RIFT_FLOW)
+      .then(() => runAfterDialogueSubtitleEvents(CHAPTER02_WHITE_RIFT_TRIGGER))
+      .catch(error => console.error("[Chapter02 white rift]", error));
+  };
   dialogueManager.setCompletionListener((request) => {
+    const startsWhiteRift = request.id === CHAPTER02_WHITE_RIFT_TRIGGER && currentStoryChapterRef.current === 2;
+    // Acquire the existing story input lock synchronously, before this completion returns.
+    if (startsWhiteRift) startChapter02WhiteRift();
     if (request.id === STARSHIP_CRAFTING_RETURN_DIALOGUE) {
       storyProgressRef.current = completeStarshipCraftingReturnDialogue(storyProgressRef.current);
       try { saveStoryProgress(storyProgressRef.current); } catch { /* Preserve session completion if local storage is unavailable. */ }
@@ -7905,7 +7927,7 @@ export function MovementLab() {
       );
       saveQuestSaveData(manager.exportSave());
     }
-    void runAfterDialogueSubtitleEvents(request.id);
+    if (!startsWhiteRift) void runAfterDialogueSubtitleEvents(request.id);
   });
   Object.entries(STORY_DIALOGUES).forEach(([dialogueId, script]) => {
     dialogueManager.register(dialogueId, script);
@@ -8053,8 +8075,24 @@ export function MovementLab() {
     requestStoryTriggerContactCheckRef.current();
   };
 
+  if (!whiteRiftRef.current) {
+    whiteRiftRef.current = new Chapter02WhiteRift({
+      setOpacity: value => whiteRiftOverlayRef.current?.setOpacity(value),
+      setEmergencySuspended: suspended => {
+        shipEmergencySuspendedRef.current = suspended;
+        if (suspended) for (const event of CHAPTER02_SHAKE_AUDIO_EVENTS) audioEventManagerRef.current?.stop(event);
+      },
+      playDialogue: dialogueId => dialogueManager.playRegistered(dialogueId, {
+        id: `story:${dialogueId}`, label: dialogueId, type: "dialogue",
+      }),
+      onFullWhite: () => setStoryFlag(CHAPTER02_WARP_EXITED_FLAG, true),
+      onCompleted: () => setStoryFlag(CHAPTER02_WHITE_RIFT_PENDING_FLAG, false),
+    });
+  }
   if (!chapterFlowManagerRef.current) {
     chapterFlowManagerRef.current = new ChapterFlowManager({
+      playWhiteRiftTransition: () => whiteRiftRef.current!.run(),
+      cancelWhiteRiftTransition: () => whiteRiftRef.current?.cancel(),
       setInputLocked: (locked) => {
         storyInputLockedRef.current = locked;
         setStoryInputLocked(locked);
@@ -8189,7 +8227,7 @@ export function MovementLab() {
           setBlackScreenOpacity(0);
         }
       },
-      onPausedChanged: setStoryFlowPaused,
+      onPausedChanged: paused => { setStoryFlowPaused(paused); whiteRiftRef.current?.setPaused(paused); },
     });
   }
   const chapterFlowManager = chapterFlowManagerRef.current;
@@ -8266,6 +8304,10 @@ export function MovementLab() {
         } catch (error) {
           console.error("[Chapter02] 開場流程未完成：", error);
           resumeAfterSkippedChapterOpen();
+        }
+        // 白畫面或 section-13 播到一半時重新整理／讀檔：從白畫面淡入重播一次
+        if (shouldResumeChapter02WhiteRift(storyProgressRef.current.storyFlags, chapter, SCENE_DATA.sceneId)) {
+          startChapter02WhiteRift();
         }
         return;
       }
@@ -14045,7 +14087,7 @@ export function MovementLab() {
     );
     const getEmergencyShakeOffset = (time: number) => {
       const flags = storyProgressRef.current.storyFlags;
-      const settings = SCENE_DATA.sceneId === RED_ALERT_SCENE_ID && currentStoryChapterRef.current === 2 && flags[CHAPTER02_SHAKE_FLAG] === true
+      const settings = !shipEmergencySuspendedRef.current && SCENE_DATA.sceneId === RED_ALERT_SCENE_ID && currentStoryChapterRef.current === 2 && flags[CHAPTER02_SHAKE_FLAG] === true
         ? (flags[CHAPTER02_SHAKE_STRONG_FLAG] === true ? CHAPTER02_SHAKE_LEVELS.strong : CHAPTER02_SHAKE_LEVELS.normal)
         : null;
       return emergencyCameraShake.offset(time, settings);
@@ -17491,7 +17533,10 @@ export function MovementLab() {
       context.fillStyle = "#06101b";
       context.fillRect(0, 0, viewportWidth, viewportHeight);
       // 場景背景星空（畫面座標，不隨地圖捲動）：底圖透明處會露出來
-      const sceneBackdrop = SCENE_DATA.backdrop;
+      // 第二章脫離曲速後（白畫面全白時切換）：星空保留曲速光痕但流速降為 ×0.2
+      const sceneBackdrop = resolveChapter02Backdrop(
+        SCENE_DATA.backdrop, storyProgressRef.current.storyFlags, currentStoryChapterRef.current, SCENE_DATA.sceneId,
+      );
       if (sceneBackdrop?.type === "starfield") {
         sceneStarfield.draw(context, viewportWidth, viewportHeight, time, sceneBackdrop);
       } else {
@@ -17542,14 +17587,18 @@ export function MovementLab() {
         const shake = getEmergencyShakeOffset(time);
         context.translate(-camera.x + shake.x, -camera.y + shake.y);
         // 船身流動光痕：後層在底圖下（被船殼遮住一部分），前層在牆面等前景圖層之上
-        sceneHullStreams.draw(context, SCENE_DATA.hullStreams, "back", time, SCENE_DATA.backdrop?.mode);
+        // 第二章脫離曲速後與星空同比例減速
+        const hullStreams = resolveChapter02HullStreams(
+          SCENE_DATA.hullStreams, SCENE_DATA.backdrop, storyProgressRef.current.storyFlags, currentStoryChapterRef.current, SCENE_DATA.sceneId,
+        );
+        sceneHullStreams.draw(context, hullStreams, "back", time, SCENE_DATA.backdrop?.mode);
         drawMap();
         drawWorldItemPickups(time);
         drawSceneCollision();
         drawSceneCharacters(SCENE_DATA);
         drawSceneForegroundLayers();
         drawRedAlertLighting(time);
-        sceneHullStreams.draw(context, SCENE_DATA.hullStreams, "front", time, SCENE_DATA.backdrop?.mode);
+        sceneHullStreams.draw(context, hullStreams, "front", time, SCENE_DATA.backdrop?.mode);
         drawWorldItemLabels();
         drawInteractionHintPoints(time);
         drawPlayerStatuses(time);
@@ -18337,6 +18386,7 @@ export function MovementLab() {
         ref={blackScreenOverlayRef}
         virtualCursorControlsEnabled={virtualCursorControlsEnabled}
       />
+      <WhiteRiftOverlay ref={whiteRiftOverlayRef} paused={storyFlowPaused} />
 
       {storyCenteredText ? (
         <section

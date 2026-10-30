@@ -368,7 +368,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/star-cards-explosion-finish-2.mp3"
       ],
-      "volume": 0.2,
+      "volume": 0.1,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0
@@ -382,7 +382,7 @@ export const AUDIO_EVENT_CONFIG = (
       "sources": [
         "./audio/star-cards-explosion-finish-3.mp3"
       ],
-      "volume": 0.2,
+      "volume": 0.1,
       "delaySeconds": 0,
       "fadeInPercent": 0,
       "fadeOutPercent": 0

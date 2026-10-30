@@ -1,6 +1,7 @@
 export type ChapterFlowAction =
   | { type: "lockInput" }
   | { type: "unlockInput" }
+  | { type: "whiteRiftTransition" }
   | { type: "setBlack"; visible: boolean }
   | { type: "wait"; durationMs: number }
   | {
@@ -48,6 +49,8 @@ export type ChapterFlowDefinition = {
 };
 
 export type ChapterFlowHost = {
+  playWhiteRiftTransition?: () => Promise<void>;
+  cancelWhiteRiftTransition?: () => void;
   setInputLocked: (locked: boolean) => void;
   setBlack: (visible: boolean) => void;
   fadeToBlack: (durationMs: number) => void;
@@ -144,6 +147,7 @@ export class ChapterFlowManager {
       this.host.onPausedChanged?.(false);
     }
     try {
+      this.host.cancelWhiteRiftTransition?.();
       this.host.cancelDialogue();
     } finally {
       // A presentation cleanup failure must never leave the chapter flow asleep.
@@ -199,6 +203,7 @@ export class ChapterFlowManager {
       if (flow.once) this.host.markCompleted(flow.id);
       return true;
     } finally {
+      this.host.cancelWhiteRiftTransition?.();
       this.clearActiveCenteredTextHoldSkip();
       this.host.hideCenteredText();
       if (flow.keepBlackAfterComplete !== true) {
@@ -226,6 +231,10 @@ export class ChapterFlowManager {
     for (const action of actions) {
       if (allowSkip && this.skipRequested) return;
       switch (action.type) {
+        case "whiteRiftTransition":
+          if (!this.host.playWhiteRiftTransition) throw new Error("White rift presentation is unavailable");
+          await this.host.playWhiteRiftTransition();
+          break;
         case "lockInput":
           this.host.setInputLocked(true);
           break;
