@@ -2,6 +2,28 @@
 import { createChapter02StartFlow, CHAPTER02_START_FLOW_ID } from "./chapter02-start-flow";
 import { Chapter02WhiteRift, CHAPTER02_WHITE_RIFT_FLOW, CHAPTER02_WHITE_RIFT_PENDING_FLAG, CHAPTER02_WHITE_RIFT_TRIGGER, CHAPTER02_WARP_EXITED_FLAG, resolveChapter02Backdrop, resolveChapter02HullStreams, shouldResumeChapter02WhiteRift } from "./chapter02-white-rift";
 import { WhiteRiftOverlay, type WhiteRiftOverlayHandle } from "./white-rift-overlay";
+import {
+  CHAPTER02_COUNTDOWN_ACTIVE_FLAG,
+  CHAPTER02_COUNTDOWN_CHECKPOINT_KEY,
+  CHAPTER02_COUNTDOWN_DELAY_MS,
+  CHAPTER02_COUNTDOWN_FREEZE_AT_MS,
+  CHAPTER02_COUNTDOWN_START_MS,
+  CHAPTER02_COUNTDOWN_STOPPED_FLAG,
+  CHAPTER02_COUNTDOWN_STOP_DIALOGUE,
+  CHAPTER02_COUNTDOWN_TRIGGER_DIALOGUE,
+  CHAPTER02_CRASH_GAME_OVER_IMAGE,
+  CHAPTER02_CRASH_GAME_OVER_REASON,
+  CHAPTER02_COUNTDOWN_ALARM_EVENT,
+  CHAPTER02_COUNTDOWN_FOLLOW_UP_DIALOGUE,
+  CHAPTER02_COUNTDOWN_FOLLOW_UP_DONE_FLAG,
+  getChapter02CountdownRemaining,
+  shouldPlayChapter02CountdownFollowUp,
+  isChapter02CountdownRunning,
+  resolveChapter02CountdownView,
+  withChapter02CountdownRemaining,
+  type Chapter02CountdownView,
+} from "./chapter02-crash-countdown";
+import { Chapter02CountdownOverlay } from "./chapter02-countdown-overlay";
 import { getIdleSpriteSources, makeTransparentIdleSprite } from "./player-idle-sprites";
 import npcCatalogData from "../public/characters/npc-catalog.json";
 import {
@@ -206,8 +228,22 @@ import { BusCardPuzzle } from "./bus-card-puzzle.tsx";
 import { BUS_CARD_INTERACTION_ID } from "./bus-card-puzzle.ts";
 import { NavTerminalMinigame } from "./nav-terminal-minigame.tsx";
 import { RedAlertLighting, RED_ALERT_SCENE_ID, RED_ALERT_STORY_FLAG } from "./red-alert-lighting.ts";
-import { resolveBridgeAssemblyPlacement } from "./chapter02-bridge-assembly.ts";
-import { CHAPTER02_SHAKE_AUDIO_EVENTS, CHAPTER02_SHAKE_FLAG, CHAPTER02_SHAKE_LEVELS, CHAPTER02_SHAKE_STRONG_FLAG, LoopingCameraShake } from "./camera-shake.ts";
+import { CHAPTER02_ESCAPE_ASSEMBLY_FLAG, CHAPTER02_ESCAPE_ASSEMBLY_FLOW, resolveBridgeAssemblyPlacement } from "./chapter02-bridge-assembly.ts";
+import { CHAPTER02_EMERGENCY_BGM_EVENT_ID, CHAPTER02_ZERO_HOUR_BGM_EVENT_ID, isChapter02ZeroHourActive } from "./chapter02-emergency-flow.ts";
+import {
+  CHAPTER02_CIRCUIT_BLACKOUT_FLOW,
+  CHAPTER02_CIRCUIT_BLACKOUT_LINE_ID,
+  CHAPTER02_CIRCUIT_DIALOGUE,
+  CHAPTER02_CIRCUIT_DIALOGUE_DELAY_MS,
+  CHAPTER02_CIRCUIT_FAIL_DELAY_MS,
+  CHAPTER02_CIRCUIT_FAILED_OBJECTIVE_IDS,
+  CHAPTER02_CIRCUIT_ITEM_ID,
+  CHAPTER02_CIRCUIT_QUEST_ID,
+  CHAPTER02_CIRCUIT_SHAKE_LINE_ID,
+  CHAPTER02_CIRCUIT_STAGE_ID,
+  resolveChapter02CircuitStep,
+} from "./chapter02-circuit-failure.ts";
+import { CHAPTER02_CIRCUIT_SHAKE, CHAPTER02_CIRCUIT_SHAKE_FADE_PORTION, CHAPTER02_SHAKE_AUDIO_EVENTS, CHAPTER02_SHAKE_FLAG, CHAPTER02_SHAKE_LEVELS, CHAPTER02_SHAKE_STRONG_FLAG, LoopingCameraShake, ScriptedCameraShake } from "./camera-shake.ts";
 import { NAV_TERMINAL_INTERACTION_ID, NAV_TERMINAL_MESSAGE_CHANNEL } from "./nav-terminal-minigame.ts";
 import { STAR_CARDS_INTERACTION_ID, STAR_CARDS_REPLAY_INTERACTION_ID, STAR_CARDS_TUTORIAL_STARTED_FLAG, STAR_CARDS_QUEST_ID, STAR_CARDS_OBJECTIVE_ID, STAR_CARDS_INTRO_DIALOGUE_ID, STAR_CARDS_INTRO_PLAYED_FLAG, shouldStartStarCardsTutorial, completeStarCardsQuestMatch, getStarCardsPostMatchDialogueId, getStarCardsInteractionPlan } from "./star-cards-quest-flow.ts";
 import { getStarCardsMatchWinner, type StarCardsMatchResult } from "./star-cards-game.ts";
@@ -377,6 +413,7 @@ import {
   SAVE_DATA_SCHEMA_VERSION,
   applySaveDataToRuntimeStorage,
   deleteSaveDataSlot,
+  normalizeEchoesSaveData,
   getManualSaveSlotId,
   listSaveDataSlots,
   readSaveDataSlot,
@@ -405,6 +442,8 @@ type QuestHudObjectiveView = {
   current: number;
   required: number;
   completed: boolean;
+  /** 失敗：核取框打叉、整項變灰 */
+  failed: boolean;
   showProgress: boolean;
 };
 type QuestPromptInputMode = "keyboard-mouse" | "gamepad" | "mobile";
@@ -470,6 +509,9 @@ function getQuestObjectiveTweenKey(questId: string, objectiveId: string) {
   return `${questId}:${objectiveId}`;
 }
 
+/** OBJ 失敗動畫：打叉 → 整項變紅 → 變灰（與 globals.css 的 quest-objective-failure-* 同長） */
+const QUEST_OBJECTIVE_FAILURE_TWEEN_MS = 1800;
+
 function buildQuestHudView(
   questId: string,
   entry: QuestRuntimeEntry,
@@ -503,6 +545,7 @@ function buildQuestHudView(
       current: entry.objectives[objective.id]?.currentAmount ?? 0,
       required: getQuestObjectiveRequiredAmount(objective),
       completed: isQuestObjectiveCheckmarkVisible(entry.objectives[objective.id], objective.completionPresentationDelaySeconds, now),
+      failed: entry.objectives[objective.id]?.failed === true,
       showProgress: objective.showProgress === true,
     })),
   };
@@ -4122,8 +4165,28 @@ export function MovementLab() {
   const requestStoryTriggerContactCheckRef = useRef<() => void>(() => {});
   const chapterFlowManagerRef = useRef<ChapterFlowManager | null>(null);
   const whiteRiftRef = useRef<Chapter02WhiteRift | null>(null);
+  // 白畫面開始淡出時的指定震動（進行中蓋過紅光船艙的循環震動）
+  const warpExitCameraShakeRef = useRef<ScriptedCameraShake | null>(null);
+  if (!warpExitCameraShakeRef.current) warpExitCameraShakeRef.current = new ScriptedCameraShake();
+  // section-16 line-003 的指定震動（同樣蓋過紅光船艙的循環震動）
+  const circuitCameraShakeRef = useRef<ScriptedCameraShake | null>(null);
+  if (!circuitCameraShakeRef.current) {
+    circuitCameraShakeRef.current = new ScriptedCameraShake(CHAPTER02_CIRCUIT_SHAKE, CHAPTER02_CIRCUIT_SHAKE_FADE_PORTION);
+  }
   const whiteRiftOverlayRef = useRef<WhiteRiftOverlayHandle>(null);
   const shipEmergencySuspendedRef = useRef(false);
+  const [chapter02CountdownView, setChapter02CountdownView] = useState<Chapter02CountdownView>("hidden");
+  const [chapter02CountdownIntroKey, setChapter02CountdownIntroKey] = useState(0);
+  const chapter02CountdownRemainingRef = useRef(CHAPTER02_COUNTDOWN_START_MS);
+  /** performance.now() 時間：刷出動畫定格前不倒數 */
+  const chapter02CountdownCountFromRef = useRef(0);
+  const chapter02CountdownPersistElapsedRef = useRef(0);
+  const chapter02CountdownFollowUpPendingRef = useRef(false);
+  // 拾取迴路模組後的 section-16 → 1 秒後 OBJ 失敗，進行中不重複觸發
+  const chapter02CircuitPendingRef = useRef(false);
+  // section-16 line-011 起的黑畫面流程；OBJ 失敗要等它淡出結束
+  const chapter02CircuitBlackoutRef = useRef<Promise<unknown> | null>(null);
+  const chapter02CountdownRetryInProgressRef = useRef(false);
   const storyReadyEmittedRef = useRef(false);
   const storyInputLockedRef = useRef(false);
   const storyFlowActiveRef = useRef(false);
@@ -5741,6 +5804,7 @@ export function MovementLab() {
   const triggerQuestObjectiveTween = (
     view: QuestHudView,
     objectiveId: string,
+    failed = false,
   ) => {
     const currentView = getFirstActiveQuestHud();
     const heldStage = questHudStageTransitionPresentationRef.current;
@@ -5750,7 +5814,7 @@ export function MovementLab() {
       // play its delayed visual; the NEXT presentation owns that transition.
       return;
     }
-    playOneShotAudio("questObjectiveCompleted");
+    if (!failed) playOneShotAudio("questObjectiveCompleted");
     const unlockTweenKey = getQuestObjectiveTweenKey(view.id, objectiveId);
     const existingTimer = questObjectiveTweenTimerRefs.current.get(unlockTweenKey);
     if (existingTimer !== undefined) window.clearTimeout(existingTimer);
@@ -5784,7 +5848,7 @@ export function MovementLab() {
         delete next[unlockTweenKey];
         return next;
       });
-    }, 1000);
+    }, failed ? QUEST_OBJECTIVE_FAILURE_TWEEN_MS : 1000);
     questObjectiveTweenTimerRefs.current.set(unlockTweenKey, timer);
   };
 
@@ -6226,6 +6290,10 @@ export function MovementLab() {
           },
           onObjectiveProgressed: () => {
             playOneShotAudio("questObjectiveProgressed");
+          },
+          onObjectiveFailed: (questId, objectiveId, _stageId, entry) => {
+            const view = buildQuestHudView(questId, entry);
+            if (view) triggerQuestObjectiveTween(view, objectiveId, true);
           },
           onObjectiveActivated: (questId, objectiveId, _stageId, entry) => {
             if (questId === PLANT_QUEST_ID && objectiveId === PLANT_OBJECTIVE_ID && plantController.state.solved) {
@@ -7830,7 +7898,17 @@ export function MovementLab() {
     onTypingStart: requestDialogueTypingAudioPlayback, onTypingStop: stopDialogueTypingAudio,
     onLineSe: lineId => audioEventManagerRef.current?.triggerDialogueLineSe(lineId),
     onLineBgm: lineId => bgmDirectorRef.current?.triggerDialogueLine(lineId),
-    onLineStarted: (dialogueId, lineId) => whiteRiftRef.current?.lineStarted(dialogueId, lineId),
+    onLineStarted: (dialogueId, lineId) => {
+      whiteRiftRef.current?.lineStarted(dialogueId, lineId);
+      if (dialogueId === CHAPTER02_COUNTDOWN_STOP_DIALOGUE) stopChapter02Countdown();
+      if (dialogueId === CHAPTER02_CIRCUIT_DIALOGUE && lineId === CHAPTER02_CIRCUIT_SHAKE_LINE_ID) {
+        circuitCameraShakeRef.current?.request();
+      }
+      if (dialogueId === CHAPTER02_CIRCUIT_DIALOGUE && lineId === CHAPTER02_CIRCUIT_BLACKOUT_LINE_ID) {
+        chapter02CircuitBlackoutRef.current = chapterFlowManagerRef.current?.run(CHAPTER02_CIRCUIT_BLACKOUT_FLOW)
+          .catch(error => console.error("[Chapter02 section-16 blackout]", error)) ?? null;
+      }
+    },
     onStart: () => { hideHotbarSelectionHint(); document.documentElement.classList.add("dialogue-cursor-active"); playOneShotAudio("dialogueOpened"); },
     onClose: () => { audioEventManagerRef.current?.clearDialogueLineSe(); document.documentElement.classList.remove("dialogue-cursor-active"); },
     onHistoryOpen: () => {
@@ -7900,10 +7978,203 @@ export function MovementLab() {
       .then(() => runAfterDialogueSubtitleEvents(CHAPTER02_WHITE_RIFT_TRIGGER))
       .catch(error => console.error("[Chapter02 white rift]", error));
   };
+  // ---------- 第二章墜落倒數 ----------
+  const commitChapter02CountdownStory = (next: StoryProgress, persist: boolean) => {
+    storyProgressRef.current = next;
+    if (!persist) return;
+    saveStoryProgress(next);
+    requestPortableAutosaveRef.current("chapter02-countdown");
+  };
+  const showChapter02Countdown = (view: Chapter02CountdownView) => {
+    setChapter02CountdownView(view);
+    if (view === "intro") {
+      setChapter02CountdownIntroKey(key => key + 1);
+      chapter02CountdownCountFromRef.current = performance.now() + CHAPTER02_COUNTDOWN_FREEZE_AT_MS;
+      void audioEventManagerRef.current?.play(CHAPTER02_COUNTDOWN_ALARM_EVENT, { restart: true }).catch(() => {
+        // Audio availability must never block the countdown.
+      });
+    } else {
+      chapter02CountdownCountFromRef.current = 0;
+    }
+  };
+  const startChapter02Countdown = () => {
+    const current = storyProgressRef.current;
+    if (current.currentChapter !== 2 || current.storyFlags[CHAPTER02_COUNTDOWN_ACTIVE_FLAG] === true) return;
+    const next = withChapter02CountdownRemaining({
+      ...current,
+      storyFlags: { ...current.storyFlags, [CHAPTER02_COUNTDOWN_ACTIVE_FLAG]: true, [CHAPTER02_COUNTDOWN_STOPPED_FLAG]: false },
+    }, CHAPTER02_COUNTDOWN_START_MS);
+    chapter02CountdownRemainingRef.current = CHAPTER02_COUNTDOWN_START_MS;
+    commitChapter02CountdownStory(next, true);
+    // Game Over 重試時讀回的檢查點：倒數剛出現、剩 06:00:00 的完整存檔
+    try {
+      const checkpoint = buildPortableSave("auto", next);
+      if (checkpoint) window.localStorage.setItem(CHAPTER02_COUNTDOWN_CHECKPOINT_KEY, JSON.stringify(checkpoint));
+    } catch (error) {
+      console.warn("[Chapter02 countdown] 無法寫入重試檢查點", error);
+    }
+    showChapter02Countdown("intro");
+  };
+  // ---------- 第二章任務 6：拾取迴路模組 → section-16 → OBJ_01 失敗 ----------
+  const failChapter02CircuitObjectives = () => {
+    const questManager = questRuntimeManagerRef.current;
+    if (!questManager?.isQuestAtStage(CHAPTER02_CIRCUIT_QUEST_ID, CHAPTER02_CIRCUIT_STAGE_ID)) return;
+    let changed = false;
+    for (const objectiveId of CHAPTER02_CIRCUIT_FAILED_OBJECTIVE_IDS) {
+      changed = questManager.failObjective(CHAPTER02_CIRCUIT_QUEST_ID, objectiveId) || changed;
+    }
+    if (changed) saveQuestSaveData(questManager.exportSave());
+  };
+  const advanceChapter02Circuit = (hasCircuitItem: boolean) => {
+    const questManager = questRuntimeManagerRef.current;
+    if (!questManager || chapter02CircuitPendingRef.current) return;
+    const step = resolveChapter02CircuitStep(questManager, hasCircuitItem);
+    if (step === "failObjectives") {
+      failChapter02CircuitObjectives();
+      return;
+    }
+    if (step !== "playDialogue") return;
+    chapter02CircuitPendingRef.current = true;
+    window.setTimeout(() => {
+      // 剛好有別的對話在播：放棄這次，讀檔時會再補播
+      if (dialogueManager.isPlaying()) {
+        chapter02CircuitPendingRef.current = false;
+        return;
+      }
+      chapter02CircuitBlackoutRef.current = null;
+      void dialogueManager.playRegistered(CHAPTER02_CIRCUIT_DIALOGUE, {
+        id: `story:${CHAPTER02_CIRCUIT_DIALOGUE}`,
+        label: CHAPTER02_CIRCUIT_DIALOGUE,
+        type: "dialogue",
+      }).then(async result => {
+        if (!result.completed) {
+          chapter02CircuitPendingRef.current = false;
+          return;
+        }
+        // 等 line-011 的黑畫面（播完後再停 2 秒、淡出 1.5 秒）完全亮回，再過 1 秒才失敗
+        await chapter02CircuitBlackoutRef.current;
+        chapter02CircuitBlackoutRef.current = null;
+        window.setTimeout(() => {
+          chapter02CircuitPendingRef.current = false;
+          failChapter02CircuitObjectives();
+        }, CHAPTER02_CIRCUIT_FAIL_DELAY_MS);
+      });
+    }, CHAPTER02_CIRCUIT_DIALOGUE_DELAY_MS);
+  };
+  const restoreChapter02Countdown = () => {
+    // section-14 播完但黑畫面傳送前就讀檔：直接補上傳送
+    if (
+      storyProgressRef.current.storyFlags[CHAPTER02_COUNTDOWN_FOLLOW_UP_DONE_FLAG] === true &&
+      storyProgressRef.current.storyFlags[CHAPTER02_ESCAPE_ASSEMBLY_FLAG] !== true
+    ) setStoryFlag(CHAPTER02_ESCAPE_ASSEMBLY_FLAG, true);
+    const story = storyProgressRef.current;
+    chapter02CountdownRemainingRef.current = getChapter02CountdownRemaining(story);
+    showChapter02Countdown(resolveChapter02CountdownView(story));
+  };
+  const stopChapter02Countdown = () => {
+    const current = storyProgressRef.current;
+    if (!isChapter02CountdownRunning(current)) return;
+    commitChapter02CountdownStory(withChapter02CountdownRemaining({
+      ...current,
+      storyFlags: { ...current.storyFlags, [CHAPTER02_COUNTDOWN_STOPPED_FLAG]: true },
+    }, chapter02CountdownRemainingRef.current), true);
+  };
+  const expireChapter02Countdown = () => {
+    chapter02CountdownRemainingRef.current = 0;
+    commitChapter02CountdownStory(withChapter02CountdownRemaining(storyProgressRef.current, 0), true);
+    const next = { ...survivalStateRef.current, gameOverReason: CHAPTER02_CRASH_GAME_OVER_REASON };
+    survivalStateRef.current = next;
+    setSurvivalState(next);
+    saveSurvivalState(next);
+  };
+  /** 每幀呼叫：對話、劇情演出、選單開啟或刷出動畫定格前不倒數；約每秒寫回存檔 */
+  const advanceChapter02Countdown = (paused: boolean, deltaSeconds: number) => {
+    if (!isChapter02CountdownRunning(storyProgressRef.current) || survivalStateRef.current.gameOverReason) return;
+    if (paused || performance.now() < chapter02CountdownCountFromRef.current) return;
+    const elapsedMs = Math.min(deltaSeconds, 0.1) * 1000;
+    chapter02CountdownRemainingRef.current = Math.max(0, chapter02CountdownRemainingRef.current - elapsedMs);
+    if (chapter02CountdownRemainingRef.current <= 0) {
+      expireChapter02Countdown();
+      return;
+    }
+    chapter02CountdownPersistElapsedRef.current += elapsedMs;
+    const persist = chapter02CountdownPersistElapsedRef.current >= 1000;
+    if (persist) chapter02CountdownPersistElapsedRef.current = 0;
+    commitChapter02CountdownStory(
+      withChapter02CountdownRemaining(storyProgressRef.current, chapter02CountdownRemainingRef.current),
+      persist,
+    );
+    // 倒數走到 05:56:50 時自動播 section-14（播放期間倒數跟著對話暫停）
+    if (
+      !chapter02CountdownFollowUpPendingRef.current &&
+      !dialogueManager.isPlaying() &&
+      shouldPlayChapter02CountdownFollowUp(storyProgressRef.current)
+    ) {
+      chapter02CountdownFollowUpPendingRef.current = true;
+      void dialogueManager.playRegistered(CHAPTER02_COUNTDOWN_FOLLOW_UP_DIALOGUE, {
+        id: `story:${CHAPTER02_COUNTDOWN_FOLLOW_UP_DIALOGUE}`,
+        label: CHAPTER02_COUNTDOWN_FOLLOW_UP_DIALOGUE,
+        type: "dialogue",
+      }).then(result => {
+        chapter02CountdownFollowUpPendingRef.current = false;
+        if (!result.completed) return;
+        setStoryFlag(CHAPTER02_COUNTDOWN_FOLLOW_UP_DONE_FLAG, true);
+        // 短暫黑畫面，全黑時 4 名 NPC 傳送到逃生通道出口旁
+        void chapterFlowManagerRef.current?.run(CHAPTER02_ESCAPE_ASSEMBLY_FLOW)
+          .catch(error => console.error("[Chapter02 escape assembly]", error));
+      });
+    }
+  };
+  /** 倒數歸零的 Game Over：讀回倒數出現時的檢查點，從 06:00:00 重來 */
+  const retryChapter02Countdown = async () => {
+    if (chapter02CountdownRetryInProgressRef.current) return;
+    chapter02CountdownRetryInProgressRef.current = true;
+    let checkpoint: EchoesSaveData | null = null;
+    try {
+      const saved = window.localStorage.getItem(CHAPTER02_COUNTDOWN_CHECKPOINT_KEY);
+      checkpoint = saved ? normalizeEchoesSaveData(JSON.parse(saved)) : null;
+    } catch {
+      checkpoint = null;
+    }
+    if (!checkpoint) {
+      // 沒有檢查點（例如換了瀏覽器）：保留目前進度，只把倒數重設回 06:00:00
+      const story = withChapter02CountdownRemaining({
+        ...storyProgressRef.current,
+        storyFlags: { ...storyProgressRef.current.storyFlags, [CHAPTER02_COUNTDOWN_STOPPED_FLAG]: false },
+      }, CHAPTER02_COUNTDOWN_START_MS);
+      const fallback = buildPortableSave("auto", story);
+      if (fallback) checkpoint = { ...fallback, progress: { ...fallback.progress, survival: { ...fallback.progress.survival, gameOverReason: null } } };
+    }
+    // 停掉之後的自動存檔，避免 Game Over 狀態蓋過檢查點
+    portableSaveHydratedRef.current = false;
+    if (portableAutosaveTimerRef.current !== null) {
+      window.clearTimeout(portableAutosaveTimerRef.current);
+      portableAutosaveTimerRef.current = null;
+    }
+    try {
+      await portableSaveWriteRef.current;
+      if (checkpoint) {
+        await writeSaveDataSlot("autosave", { ...checkpoint, savedAt: new Date().toISOString(), slotKind: "auto" });
+        applySaveDataToRuntimeStorage(checkpoint);
+      }
+    } catch (error) {
+      console.error("[Chapter02 countdown] 重試檢查點讀回失敗：", error);
+    } finally {
+      window.location.reload();
+    }
+  };
+  const confirmGameOverAction = () => {
+    if (survivalStateRef.current.gameOverReason === CHAPTER02_CRASH_GAME_OVER_REASON) void retryChapter02Countdown();
+    else void confirmRestartNewGame();
+  };
+
   dialogueManager.setCompletionListener((request) => {
     const startsWhiteRift = request.id === CHAPTER02_WHITE_RIFT_TRIGGER && currentStoryChapterRef.current === 2;
     // Acquire the existing story input lock synchronously, before this completion returns.
     if (startsWhiteRift) startChapter02WhiteRift();
+    if (request.id === CHAPTER02_COUNTDOWN_TRIGGER_DIALOGUE && currentStoryChapterRef.current === 2) {
+      window.setTimeout(startChapter02Countdown, CHAPTER02_COUNTDOWN_DELAY_MS);
+    }
     if (request.id === STARSHIP_CRAFTING_RETURN_DIALOGUE) {
       storyProgressRef.current = completeStarshipCraftingReturnDialogue(storyProgressRef.current);
       try { saveStoryProgress(storyProgressRef.current); } catch { /* Preserve session completion if local storage is unavailable. */ }
@@ -8087,6 +8358,7 @@ export function MovementLab() {
       }),
       onFullWhite: () => setStoryFlag(CHAPTER02_WARP_EXITED_FLAG, true),
       onCompleted: () => setStoryFlag(CHAPTER02_WHITE_RIFT_PENDING_FLAG, false),
+      onRevealStart: () => warpExitCameraShakeRef.current?.request(),
     });
   }
   if (!chapterFlowManagerRef.current) {
@@ -8153,6 +8425,13 @@ export function MovementLab() {
       },
       hideCenteredText: () => setStoryCenteredText(null),
       setCenteredTextHoldSkipPrompt: setCenteredTextHoldSkipPromptVisible,
+      waitForDialogueEnd: () => new Promise<void>((resolve) => {
+        const check = () => {
+          if (dialogueManager.isPlaying()) window.setTimeout(check, 50);
+          else resolve();
+        };
+        check();
+      }),
       playDialogue: (dialogueId) => dialogueManager.playRegistered(
         dialogueId,
         {
@@ -8309,6 +8588,9 @@ export function MovementLab() {
         if (shouldResumeChapter02WhiteRift(storyProgressRef.current.storyFlags, chapter, SCENE_DATA.sceneId)) {
           startChapter02WhiteRift();
         }
+        restoreChapter02Countdown();
+        // 拾取迴路模組後 section-16 沒播完就讀檔：重播；播完但還沒失敗：直接補上失敗
+        advanceChapter02Circuit((playerInventoryRef.current[CHAPTER02_CIRCUIT_ITEM_ID] ?? 0) > 0);
         return;
       }
 
@@ -10137,7 +10419,11 @@ export function MovementLab() {
         currentStoryChapterRef.current !== 2 ||
         storyProgressRef.current.storyFlags[RED_ALERT_STORY_FLAG] !== true
       ) return npc;
-      const placement = resolveBridgeAssemblyPlacement(npc.id, SCENE_TELEPORT_POINTS);
+      const placement = resolveBridgeAssemblyPlacement(
+        npc.id,
+        SCENE_TELEPORT_POINTS,
+        storyProgressRef.current.storyFlags[CHAPTER02_ESCAPE_ASSEMBLY_FLAG] === true,
+      );
       return placement ? { ...npc, x: placement.x, y: placement.y, facing: placement.facing as SceneNpcDefinition["facing"] } : npc;
     };
     const getBoundSceneNpc = (interactable: SceneInteractable) => {
@@ -10997,7 +11283,7 @@ export function MovementLab() {
           (event.code === "Enter" || event.code === "Space") &&
           !event.repeat
         ) {
-          void confirmRestartNewGame();
+          confirmGameOverAction();
         }
         return;
       }
@@ -11678,6 +11964,11 @@ export function MovementLab() {
           manager.syncCurrentInventory(plan.inventory, false);
           const appliedQuestSave = manager.exportSave();
           bgmDirector.syncQuestSnapshot(appliedQuestSave.quests);
+          // 跳到第二章紅色警戒（含之後）的 Stage 一併切到 Zero Hour（一般流程在警報黑畫面亮回時切換）；
+          // 跳回警戒前則解除，回到原本的曲目
+          bgmDirector.clearEvent(CHAPTER02_EMERGENCY_BGM_EVENT_ID);
+          if (isChapter02ZeroHourActive(plan.story)) bgmDirector.triggerEvent(CHAPTER02_ZERO_HOUR_BGM_EVENT_ID);
+          else bgmDirector.clearEvent(CHAPTER02_ZERO_HOUR_BGM_EVENT_ID);
           saveQuestSaveData(appliedQuestSave);
           applyDroppedWorldItems(droppedWorldItemsRef.current);
           requestStoryTriggerContactCheckRef.current();
@@ -12388,6 +12679,8 @@ export function MovementLab() {
             });
             saveQuestSaveData(questManager.exportSave());
           }
+          // 第二章任務 6：拾取迴路模組（OBJ_02 已由 itemCollected 打勾）0.5 秒後播 section-16，播完 1 秒 OBJ_01 失敗
+          if (item.id === CHAPTER02_CIRCUIT_ITEM_ID) advanceChapter02Circuit(true);
           if (interactable.position) {
             worldItemPickupFlashesRef.current.push({
               item,
@@ -14085,11 +14378,32 @@ export function MovementLab() {
     emergencyCameraShake.onShakeStart = () => playOneShotAudio(
       CHAPTER02_SHAKE_AUDIO_EVENTS[Math.floor(Math.random() * CHAPTER02_SHAKE_AUDIO_EVENTS.length)],
     );
+    const warpExitCameraShake = warpExitCameraShakeRef.current!;
+    const scriptedCameraShakes = [warpExitCameraShake, circuitCameraShakeRef.current!];
+    warpExitCameraShake.onShakeStart = emergencyCameraShake.onShakeStart;
+    let warpExitShakeWasActive = false;
     const getEmergencyShakeOffset = (time: number) => {
       const flags = storyProgressRef.current.storyFlags;
-      const settings = !shipEmergencySuspendedRef.current && SCENE_DATA.sceneId === RED_ALERT_SCENE_ID && currentStoryChapterRef.current === 2 && flags[CHAPTER02_SHAKE_FLAG] === true
+      const inEmergencyScene = SCENE_DATA.sceneId === RED_ALERT_SCENE_ID && currentStoryChapterRef.current === 2;
+      if (!inEmergencyScene) for (const shake of scriptedCameraShakes) shake.cancel();
+      const settings = !shipEmergencySuspendedRef.current && inEmergencyScene && flags[CHAPTER02_SHAKE_FLAG] === true
         ? (flags[CHAPTER02_SHAKE_STRONG_FLAG] === true ? CHAPTER02_SHAKE_LEVELS.strong : CHAPTER02_SHAKE_LEVELS.normal)
         : null;
+      // 指定震動進行中以它為主；結束後循環震動重新隨機等一段間隔才接著震
+      let scripted = { x: 0, y: 0, active: false };
+      for (const shake of scriptedCameraShakes) {
+        const offset = shake.offset(time);
+        if (offset.active && !scripted.active) scripted = offset;
+      }
+      if (scripted.active) {
+        warpExitShakeWasActive = true;
+        emergencyCameraShake.offset(time, null);
+        return scripted;
+      }
+      if (warpExitShakeWasActive) {
+        warpExitShakeWasActive = false;
+        if (settings) emergencyCameraShake.restartAfterGap(time, settings);
+      }
       return emergencyCameraShake.offset(time, settings);
     };
 
@@ -16931,7 +17245,7 @@ export function MovementLab() {
           gamepadInput.actionPressed &&
           !wasGamepadActionPressed
         ) {
-          void confirmRestartNewGame();
+          confirmGameOverAction();
         } else if (
           !startJustPressed &&
           !timePassInputLockedRef.current &&
@@ -17366,6 +17680,7 @@ export function MovementLab() {
         sceneConnectionConfirmationOpenRef.current ||
         debugItemSpawnerOpenRef.current ||
         Boolean(dialoguePlaybackRef.current);
+      advanceChapter02Countdown(survivalPaused, survivalDeltaSeconds);
       if (!survivalPaused && !survivalStateRef.current.gameOverReason) {
         const ready = survivalTick.accumulate(
           survivalDeltaSeconds,
@@ -18269,7 +18584,7 @@ export function MovementLab() {
       } as CSSProperties)
     : undefined;
   const questCompletedObjectiveCount = activeQuestHud?.objectives.filter(
-    (objective) => objective.current >= objective.required,
+    (objective) => !objective.failed && objective.current >= objective.required,
   ).length ?? 0;
   const questObjectiveCount = activeQuestHud?.objectives.length ?? 0;
   const activeQuestHudEvent = questHudEvent?.questId === activeQuestHud?.id
@@ -18387,6 +18702,11 @@ export function MovementLab() {
         virtualCursorControlsEnabled={virtualCursorControlsEnabled}
       />
       <WhiteRiftOverlay ref={whiteRiftOverlayRef} paused={storyFlowPaused} />
+      <Chapter02CountdownOverlay
+        view={chapter02CountdownView}
+        introKey={chapter02CountdownIntroKey}
+        getRemainingMs={() => chapter02CountdownRemainingRef.current}
+      />
 
       {storyCenteredText ? (
         <section
@@ -18789,14 +19109,14 @@ export function MovementLab() {
               const isUnlockEnter = objectiveUnlockTween !== undefined;
               return (
                 <div
-                  className={`quest-objective${isCompletionPop ? " is-completion-pop" : ""}${isUnlockEnter ? " is-unlock-enter" : ""}`}
+                  className={`quest-objective${isCompletionPop ? (objective.failed ? " is-failure-pop" : " is-completion-pop") : ""}${objective.failed ? " is-failed" : ""}${isUnlockEnter ? " is-unlock-enter" : ""}`}
                   key={`${objective.id}-${objectiveCompletionTween?.sequence ?? 0}-${objectiveUnlockTween?.sequence ?? 0}`}
                 >
                   <span
-                    className={`quest-objective-check${objective.completed ? " is-complete" : ""}`}
+                    className={`quest-objective-check${objective.completed ? " is-complete" : ""}${objective.failed ? " is-failed" : ""}`}
                     aria-hidden="true"
                   >
-                    {objective.completed ? "☑" : "☐"}
+                    {objective.failed ? "☒" : objective.completed ? "☑" : "☐"}
                   </span>
                   <span className="quest-objective-label">
                     {renderQuestObjectiveLabel(objective.label, questPromptInputMode)}
@@ -20518,7 +20838,11 @@ export function MovementLab() {
           <div className="survival-game-over-blackout" aria-hidden="true" />
           <img
             className="survival-game-over-image"
-            src={uiAssetUrl("gameover.png")}
+            src={uiAssetUrl(
+              survivalState.gameOverReason === CHAPTER02_CRASH_GAME_OVER_REASON
+                ? CHAPTER02_CRASH_GAME_OVER_IMAGE
+                : "gameover.png",
+            )}
             alt=""
             aria-hidden="true"
           />
@@ -20531,15 +20855,31 @@ export function MovementLab() {
             >
               GAME OVER
             </h2>
-            <p>生命跡象中止</p>
-            <small>SIGNAL LOST</small>
-            <button
-              type="button"
-              data-gamepad-selected="true"
-              onClick={confirmRestartNewGame}
-            >
-              重新開始冒險旅程
-            </button>
+            {survivalState.gameOverReason === CHAPTER02_CRASH_GAME_OVER_REASON ? (
+              <>
+                <p>未能在墜毀前撤離</p>
+                <small>IMPACT</small>
+                <button
+                  type="button"
+                  data-gamepad-selected="true"
+                  onClick={confirmGameOverAction}
+                >
+                  從倒數開始重新挑戰
+                </button>
+              </>
+            ) : (
+              <>
+                <p>生命跡象中止</p>
+                <small>SIGNAL LOST</small>
+                <button
+                  type="button"
+                  data-gamepad-selected="true"
+                  onClick={confirmRestartNewGame}
+                >
+                  重新開始冒險旅程
+                </button>
+              </>
+            )}
           </div>
         </section>
       ) : null}

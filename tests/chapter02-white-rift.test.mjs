@@ -83,7 +83,7 @@ test("runtime wiring preserves red lighting, stops only the shake impacts, and r
   const source=readFileSync(new URL("../app/movement-lab.tsx",import.meta.url),"utf8");
   assert.match(source,/request.id === CHAPTER02_WHITE_RIFT_TRIGGER && currentStoryChapterRef.current === 2/);
   assert.match(source,/if \(suspended\) for \(const event of CHAPTER02_SHAKE_AUDIO_EVENTS\) audioEventManagerRef.current\?\.stop\(event\)/);
-  assert.match(source,/!shipEmergencySuspendedRef.current && SCENE_DATA.sceneId === RED_ALERT_SCENE_ID/);
+  assert.match(source,/!shipEmergencySuspendedRef.current && inEmergencyScene/);
   const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
   assert.match(css,/\.white-rift-overlay \{[^}]*z-index: 91/);
   assert.match(css,/\.game-shell.is-story-flow \.dialogue-box \{[^}]*z-index: 93/);
@@ -162,4 +162,32 @@ test("warp exit: hull streaks outside the ship slow down by the same ratio as th
   assert.equal(lanes[0].speed, undefined, "scene data is not mutated");
   const source = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
   assert.equal((source.match(/sceneHullStreams\.draw\(context, hullStreams,/g) ?? []).length, 2);
+});
+
+test("warp-exit shake: first (normal) shake strength for 2 s, full strength then fades out over the last 20%", async () => {
+  const { ScriptedCameraShake, CHAPTER02_WARP_EXIT_SHAKE, CHAPTER02_SHAKE_LEVELS } = await import("../app/camera-shake.ts");
+  assert.equal(CHAPTER02_WARP_EXIT_SHAKE.durationSeconds, 2);
+  assert.equal(CHAPTER02_WARP_EXIT_SHAKE.amplitudeX, CHAPTER02_SHAKE_LEVELS.normal.amplitudeX);
+  assert.equal(CHAPTER02_WARP_EXIT_SHAKE.count, 20, "same back-and-forth rate as the normal shake");
+  const shake = new ScriptedCameraShake(undefined, undefined, () => 0.25);
+  let starts = 0; shake.onShakeStart = () => starts++;
+  assert.equal(shake.offset(0).active, false, "idle until requested");
+  shake.request();
+  const durationMs = CHAPTER02_WARP_EXIT_SHAKE.durationSeconds * 1000;
+  const peak = (from, to) => { let m = 0; for (let t = from; t < to; t += 2) m = Math.max(m, Math.abs(shake.offset(1000 + t).x)); return m; };
+  const early = peak(0, durationMs * 0.8);
+  assert.equal(starts, 1);
+  assert.ok(early > CHAPTER02_WARP_EXIT_SHAKE.amplitudeX * 0.95, "continuous full strength before the fade");
+  const lateMid = peak(durationMs * 0.8, durationMs * 0.9);
+  const tail = peak(durationMs * 0.97, durationMs);
+  assert.ok(lateMid < early && tail < lateMid && tail < 1, "eases down to a stop");
+  assert.equal(shake.offset(1000 + durationMs).active, false);
+});
+
+test("white rift fires onRevealStart when the fade-out begins; the scripted shake overrides the looping one", () => {
+  const rift = readFileSync(new URL("../app/chapter02-white-rift.ts", import.meta.url), "utf8");
+  assert.match(rift, /setEmergencySuspended\(false\);\s*this\.host\.onRevealStart\?\.\(\);\s*this\.fadeOut = this\.animate\(0/);
+  const lab = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(lab, /onRevealStart: \(\) => warpExitCameraShakeRef\.current\?\.request\(\)/);
+  assert.match(lab, /if \(scripted\.active\) \{[^}]*emergencyCameraShake\.offset\(time, null\);\s*return scripted;/);
 });

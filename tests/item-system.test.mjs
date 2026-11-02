@@ -110,11 +110,11 @@ test("Item All 會加入可存放的道具，10kg 基礎背包只留在裝備格
   });
 });
 
-test("中央道具資料庫固定保留 100 欄，現有 69 項道具都有分類流水號與英文名稱", () => {
+test("中央道具資料庫固定保留 100 欄，現有 70 項道具都有分類流水號與英文名稱", () => {
   assert.equal(validateItemDatabase(), true);
   assert.equal(ITEM_DATABASE.length, ITEM_DATABASE_CAPACITY);
   assert.equal(ITEM_DATABASE_CAPACITY, 100);
-  assert.equal(ITEM_DEFINITIONS.length, 69);
+  assert.equal(ITEM_DEFINITIONS.length, 70);
   ITEM_DEFINITIONS.forEach((item) => {
     assert.match(item.id, /^[RTQM]\d{4}$/);
     assert.ok(item.englishName.length > 0);
@@ -233,6 +233,23 @@ test("藍色晶體碎片標記為裝置互動使用，不會被玩家直接吃�
   );
   assert.equal(result.status, "interaction-only");
   assert.equal(result.inventory.R0001, 1);
+});
+
+test("Q0005 迴路模組只供互動維修，保留 R0016 並提供兩種尺寸圖示", async () => {
+  const component = ITEM_DEFINITIONS.find(item => item.id === "Q0005");
+  assert.equal(resolveItemId("emergency-circuit-component"), "Q0005");
+  assert.equal(ITEM_DEFINITIONS.find(item => item.id === "R0016")?.name, "精神專注劑");
+  assert.equal(component.category, "quest");
+  assert.equal(component.inventoryRules.discardable, false);
+  const result = useSurvivalInventoryItem({ Q0005: 1 }, createInitialSurvivalState(), "Q0005");
+  assert.equal(result.status, "interaction-only");
+  assert.equal(result.inventory.Q0005, 1);
+  for (const [kind, size] of [["icon", 280], ["inspect", 640]]) {
+    const png = await readFile(new URL(`../public/ui/items/${component.artworkStem}-${kind}-${size}.png`, import.meta.url));
+    assert.equal(png.readUInt32BE(16), size);
+    assert.equal(png.readUInt32BE(20), size);
+    assert.equal(png[25], 6, "PNG 必須包含 RGBA 透明通道");
+  }
 });
 
 test("每項道具都有轉移、丟棄與每格堆疊量標籤", () => {

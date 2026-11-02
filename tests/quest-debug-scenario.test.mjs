@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { isChapter02ZeroHourActive } from "../app/chapter02-emergency-flow.ts";
 import { ITEM_DEFINITIONS } from "../app/item-database.ts";
 import { createNewGameProgress } from "../app/new-game-reset.ts";
 import {
@@ -57,7 +58,8 @@ test("Stage Next follows all Chapter 2 stages before entering Chapter 3 despite 
     ["QUEST_CH02_MAIN_002", "01"], ["QUEST_CH02_MAIN_002", "02"],
     ["QUEST_CH02_MAIN_003", "01"], ["QUEST_CH02_MAIN_003", "02"],
     ["QUEST_CH02_MAIN_004", "01"], ["QUEST_CH02_MAIN_004", "02"],
-    ["QUEST_CH02_MAIN_005", "01"], ["QUEST_CH02_MAIN_005", "02"], ["QUEST_CH02_MAIN_005", "03"],
+    ["QUEST_CH02_MAIN_005", "01"],
+    ["QUEST_CH02_MAIN_006", "01"], ["QUEST_CH02_MAIN_006", "02"],
     ["QUEST_CH03_MAIN_001", "01"],
   ];
   let plan = build({ kind: "goto", questRef: expected[0][0] });
@@ -208,6 +210,36 @@ test("Quest Stage Next completes only the current stage and preserves completion
     secondStage.questSave.quests.QUEST_CH03_MAIN_001.completedOrder,
     originalFirstQuestOrder,
   );
+});
+
+test("Stage Next past the Chapter 2 bunk sleep applies the emergency red alert, NPC assembly and shake flags", () => {
+  const sleep = build({ kind: "goto", questRef: "QUEST_CH02_MAIN_004", stageRef: "2" });
+  assert.notEqual(sleep.story.storyFlags["chapter02-red-alert"], true, "not before the emergency");
+  const next = build({ kind: "stage-next" }, {
+    ...createState(),
+    questSave: sleep.questSave,
+    inventory: sleep.inventory,
+    survival: sleep.survival,
+    story: sleep.story,
+    interactionUsage: sleep.interactionUsage,
+    campPowerCurrent: sleep.campPowerCurrent,
+  });
+  assert.equal(next.targetStageId, "QUEST_CH02_MAIN_005_STAGE_01");
+  assert.equal(next.story.storyFlags["chapter02-red-alert"], true);
+  assert.equal(next.story.storyFlags["chapter02-emergency-shake"], true);
+  assert.equal(next.story.storyFlags["chapter02-emergency-shake-strong"], true);
+  assert.ok(next.story.completedEventIds.includes("chapter02-emergency-flow"));
+  const direct = build({ kind: "goto", questRef: "QUEST_CH02_MAIN_005" });
+  assert.equal(direct.story.storyFlags["chapter02-red-alert"], true, "Goto straight into Quest 5 too");
+  const after = build({ kind: "goto", questRef: "QUEST_CH02_MAIN_006" });
+  assert.equal(after.story.storyFlags["chapter02-red-alert"], true, "Quest 6 settles Quest 5 as its prerequisite");
+  // 紅色警戒的 Stage 同步切到 Zero Hour；警戒前不切（Debug 不改目前章節，遊戲中是在第二章按 ]）
+  const inChapter2 = plan => ({ ...plan.story, currentChapter: 2 });
+  assert.equal(isChapter02ZeroHourActive(inChapter2(sleep)), false);
+  for (const plan of [next, direct, after]) assert.equal(isChapter02ZeroHourActive(inChapter2(plan)), true);
+  assert.equal(isChapter02ZeroHourActive({ ...after.story, currentChapter: 3 }), false);
+  const source = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(source, /bgmDirector\.syncQuestSnapshot\(appliedQuestSave\.quests\);[\s\S]{0,300}bgmDirector\.clearEvent\(CHAPTER02_EMERGENCY_BGM_EVENT_ID\);\s*if \(isChapter02ZeroHourActive\(plan\.story\)\) bgmDirector\.triggerEvent\(CHAPTER02_ZERO_HOUR_BGM_EVENT_ID\);\s*else bgmDirector\.clearEvent\(CHAPTER02_ZERO_HOUR_BGM_EVENT_ID\);/);
 });
 
 test("Quest Stage Next crosses from a final stage to the next quest Stage 1", () => {

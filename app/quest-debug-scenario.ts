@@ -23,6 +23,9 @@ import {
 } from "./survival-manager.ts";
 import type { StoryProgress } from "./story-progress.ts";
 import { PLANT_PUZZLE_ID } from "./phototropic-puzzle.ts";
+import { RED_ALERT_STORY_FLAG } from "./red-alert-lighting.ts";
+import { CHAPTER02_SHAKE_FLAG, CHAPTER02_SHAKE_STRONG_FLAG } from "./camera-shake.ts";
+import { CHAPTER02_ESCAPE_ASSEMBLY_FLAG } from "./chapter02-bridge-assembly.ts";
 
 // Shared puzzles have their own identity; legacy puzzles may use an Interaction ID.
 const REGISTERED_PUZZLE_IDS: ReadonlySet<string> = new Set([PLANT_PUZZLE_ID]);
@@ -110,6 +113,24 @@ export function prepareQuestDebugItemAllInventory(
 }
 
 export const CHAPTER_3_QUEST_DEBUG_SCENARIOS: readonly QuestDebugScenarioMetadata[] = [
+  {
+    // 睡覺後的緊急事件（chapter02-emergency-flow）已演完：船艙紅色警戒光照、NPC 集合到駕駛艙、
+    // section-11 之後的強震動。跳過演出時直接補上旗標，畫面瞬間切換。
+    questId: "QUEST_CH02_MAIN_005",
+    startOutcome: {
+      completedEventIds: ["chapter02-emergency-flow"],
+      storyFlags: {
+        [RED_ALERT_STORY_FLAG]: true,
+        [CHAPTER02_SHAKE_FLAG]: true,
+        [CHAPTER02_SHAKE_STRONG_FLAG]: true,
+      },
+    },
+  },
+  {
+    // section-14 播完才開始：NPC 已集合到逃生通道出口旁
+    questId: "QUEST_CH02_MAIN_006",
+    startOutcome: { storyFlags: { [CHAPTER02_ESCAPE_ASSEMBLY_FLAG]: true } },
+  },
   {
     questId: "QUEST_CH03_MAIN_001",
     startOutcome: {

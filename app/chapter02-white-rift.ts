@@ -51,6 +51,8 @@ type Host = {
   onFullWhite?: () => void;
   /** section-13 finished and the white layer is fully clear. */
   onCompleted?: () => void;
+  /** 白畫面開始淡出（指定震動從這裡開始） */
+  onRevealStart?: () => void;
 };
 
 /** Transient presentation only: no save flags are changed while the ship is obscured. */
@@ -119,6 +121,7 @@ export class Chapter02WhiteRift {
     if (!this.fadeOut) {
       this.phase = "fade-out";
       this.host.setEmergencySuspended(false);
+      this.host.onRevealStart?.();
       this.fadeOut = this.animate(0, WHITE_RIFT_TIMING.fadeOutMs);
     }
     return this.fadeOut;

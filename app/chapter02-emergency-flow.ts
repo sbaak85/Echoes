@@ -9,6 +9,11 @@ export const CHAPTER02_EMERGENCY_SUBTITLE_ID = "chapter02-Emergency";
 export const CHAPTER02_EMERGENCY_DIALOGUE_ID = "chapter02-section-11";
 /** BGM_CONTROL_RULES 的 event ID：黑畫面淡入的同時 main_BGM 淡出 */
 export const CHAPTER02_EMERGENCY_BGM_EVENT_ID = "chapter02-emergency";
+export const CHAPTER02_ZERO_HOUR_BGM_EVENT_ID = "chapter02-zero-hour";
+/** 紅色警戒期間（第二章、警戒旗標已開）應該播 Zero Hour；Debug 跳 Stage 時用來同步 BGM */
+export function isChapter02ZeroHourActive(story: { currentChapter: number; storyFlags: Record<string, boolean> }) {
+  return story.currentChapter === 2 && story.storyFlags[RED_ALERT_STORY_FLAG] === true;
+}
 /** 警報聲：字幕出現後第幾毫秒播放（暫時硬寫） */
 export const CHAPTER02_EMERGENCY_ALARM_EVENT = "chapter02EmergencyAlarm";
 export const CHAPTER02_EMERGENCY_ALARM_DELAY_MS = 5000;
@@ -21,6 +26,10 @@ export function createChapter02EmergencyFlow(): ChapterFlowDefinition {
   if (!found) throw new Error(`Missing subtitle event: ${CHAPTER02_EMERGENCY_SUBTITLE_ID}`);
   const base = createStorySubtitleFlow(found.chapterNumber, found.event, 1);
   const bgmFadeOut: ChapterFlowAction = { type: "bgmEvent", eventId: CHAPTER02_EMERGENCY_BGM_EVENT_ID };
+  const startEmergencyBgm: ChapterFlowAction[] = [
+    { type: "bgmEvent", eventId: CHAPTER02_EMERGENCY_BGM_EVENT_ID, clear: true },
+    { type: "bgmEvent", eventId: CHAPTER02_ZERO_HOUR_BGM_EVENT_ID },
+  ];
   const playDialogue: ChapterFlowAction = { type: "playDialogue", dialogueId: CHAPTER02_EMERGENCY_DIALOGUE_ID };
   // 全黑時開啟船艙紅色警戒光照（在黑畫面後方烘焙，亮回來時已是紅色警戒），第二章期間維持
   const redAlertOn: ChapterFlowAction = { type: "setStoryFlag", flagId: RED_ALERT_STORY_FLAG, value: true };
@@ -38,7 +47,12 @@ export function createChapter02EmergencyFlow(): ChapterFlowDefinition {
   // 警報聲：字幕開始顯示後第 5 秒（不阻擋流程）
   const isSubtitle = (action: ChapterFlowAction) => action.type === "showCenteredText" || action.type === "showBlackSubtitle";
   const alarm: ChapterFlowAction = { type: "audioEvent", eventName: CHAPTER02_EMERGENCY_ALARM_EVENT, delayMs: CHAPTER02_EMERGENCY_ALARM_DELAY_MS };
-  const withAlarm = insertBefore(withRedAlert, isSubtitle, alarm);
+  const alarmActions = insertBefore(withRedAlert, isSubtitle, alarm);
+  // 警報後畫面開始亮起時切換；先解除黑幕靜音，避免新曲仍被 mute 規則壓住。
+  const revealIndex = alarmActions.findLastIndex(action => action.type === "fadeFromBlack");
+  const withAlarm = revealIndex < 0
+    ? [...alarmActions, ...startEmergencyBgm]
+    : [...alarmActions.slice(0, revealIndex), ...startEmergencyBgm, ...alarmActions.slice(revealIndex)];
   // 鏡頭震動：黑畫面亮回後開始；section-11 播完後改成較強的震動
   const shakeOn: ChapterFlowAction = { type: "setStoryFlag", flagId: CHAPTER02_SHAKE_FLAG, value: true };
   const shakeStrong: ChapterFlowAction = { type: "setStoryFlag", flagId: CHAPTER02_SHAKE_STRONG_FLAG, value: true };
@@ -48,8 +62,13 @@ export function createChapter02EmergencyFlow(): ChapterFlowDefinition {
   const actions = unlockIndex < 0
     ? [...withShake, playDialogue, shakeStrong]
     : [...withShake.slice(0, unlockIndex), playDialogue, shakeStrong, ...withShake.slice(unlockIndex)];
-  // 跳過字幕時：BGM 一樣保持淡出，畫面亮回後仍接上警報對話
-  const skipBase = [bgmFadeOut, redAlertOn, ...(base.skipActions ?? []), shakeOn];
+  // 跳過字幕也在亮回畫面時接上相同的警戒 BGM。
+  const skipReveal = base.skipActions ?? [];
+  const skipRevealIndex = skipReveal.findIndex(action => action.type === "fadeFromBlack" || (action.type === "setBlack" && !action.visible));
+  const skipWithBgm = skipRevealIndex < 0
+    ? [...skipReveal, ...startEmergencyBgm]
+    : [...skipReveal.slice(0, skipRevealIndex), ...startEmergencyBgm, ...skipReveal.slice(skipRevealIndex)];
+  const skipBase = [bgmFadeOut, redAlertOn, ...skipWithBgm, shakeOn];
   const skipUnlock = skipBase.findLastIndex(isUnlock);
   const skipActions = skipUnlock < 0
     ? [...skipBase, playDialogue, shakeStrong]

@@ -310,7 +310,7 @@ export const AUDIO_EVENT_CONFIG = ({
         "sources": [
             "./audio/star-cards-explosion-finish-2.mp3"
         ],
-        "volume": 0.2,
+        "volume": 0.1,
         "delaySeconds": 0,
         "fadeInPercent": 0,
         "fadeOutPercent": 0
@@ -324,14 +324,14 @@ export const AUDIO_EVENT_CONFIG = ({
         "sources": [
             "./audio/star-cards-explosion-finish-3.mp3"
         ],
-        "volume": 0.2,
+        "volume": 0.1,
         "delaySeconds": 0,
         "fadeInPercent": 0,
         "fadeOutPercent": 0
     },
     "chapter02EmergencyAlarm": {
         "label": "第二章緊急事件：警報聲",
-        "trigger": "上臥鋪後的 chapter02-Emergency 黑畫面字幕中，字幕出現後第 5 秒播放一次（暫時寫在 app/chapter02-emergency-flow.ts）。",
+        "trigger": "上臥鋪後的 chapter02-Emergency 黑畫面字幕中，字幕出現後第 5 秒播放一次（暫時寫在 app/chapter02-emergency-flow.ts）；第二章墜落倒數出現時再播一次（app/chapter02-crash-countdown.ts）。",
         "sourceAssetPaths": [
             "Assets/Audio/Alarm.mp3"
         ],
@@ -1302,6 +1302,18 @@ export const LINE_SE_CONFIG = ([
 ]);
 export const DEFAULT_BGM_USER_VOLUME = 0.35;
 export const BGM_TRACK_CONFIG = ({
+    "chapter02-zero-hour": {
+        "label": "第二章紅色警戒 BGM：Zero Hour",
+        "sourceAssetPaths": [
+            "Assets/Audio/Zero Hour_1.mp3"
+        ],
+        "sources": [
+            "./audio/Zero Hour_1.mp3"
+        ],
+        "volume": 0.8,
+        "loop": true,
+        "rememberPosition": true
+    },
     "default": {
         "label": "常駐播放 BGM",
         "sourceAssetPaths": [
@@ -1497,6 +1509,22 @@ export const BGM_CONTROL_RULES = ([
         "fadeOutSeconds": 2,
         "fadeInSeconds": 1.5,
         "priority": 5000,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    },
+    {
+        "id": "chapter02-zero-hour-bgm",
+        "label": "第二章警報後畫面亮起：循環播放 Zero Hour",
+        "enabled": true,
+        "triggerType": "event",
+        "targetId": "chapter02-zero-hour",
+        "state": "triggered",
+        "action": "switch",
+        "trackId": "chapter02-zero-hour",
+        "targetVolume": 1,
+        "fadeOutSeconds": 0,
+        "fadeInSeconds": 0,
+        "priority": 500,
         "durationSeconds": 0,
         "restoreMode": "resume"
     },

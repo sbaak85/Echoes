@@ -743,6 +743,175 @@ button {
 .white-rift-overlay[data-input-blocking="true"] { pointer-events: auto; }
 .white-rift-overlay canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
 
+/* 第二章墜落倒數（預覽：output/countdown-timer） */
+.chapter02-countdown {
+  --countdown-red: 255, 72, 58;
+  --countdown-red-soft: 255, 120, 105;
+  position: absolute;
+  z-index: 7;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  transform-origin: 50% 0;
+  pointer-events: none;
+  user-select: none;
+  transition: top 520ms cubic-bezier(0.65, 0, 0.35, 1), transform 520ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+.chapter02-countdown.is-stage-docked {
+  top: 64px;
+  transform: translate(-50%, 0) scale(0.55);
+}
+.chapter02-countdown.is-instant { transition: none; }
+.chapter02-countdown.is-stage-pop .chapter02-countdown-frame { animation: chapter02-countdown-pop 180ms ease-out; }
+.chapter02-countdown-frame {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  min-width: 380px;
+  padding: 14px 40px 16px;
+  overflow: hidden;
+  border: 1px solid rgba(var(--countdown-red), 0.75);
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 3px),
+    linear-gradient(135deg, rgba(70, 14, 12, 0.55), rgba(14, 8, 10, 0.78) 60%);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.45),
+    0 0 22px rgba(var(--countdown-red), 0.35),
+    inset 0 0 26px rgba(var(--countdown-red), 0.16),
+    0 20px 50px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+}
+.chapter02-countdown.is-stage-line .chapter02-countdown-frame { clip-path: inset(50% 0 50% 0); }
+.chapter02-countdown.is-stage-open .chapter02-countdown-frame { animation: chapter02-countdown-open 280ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+/* 框內文字在框伸展到一半後才淡入 */
+.chapter02-countdown.is-stage-line .chapter02-countdown-frame > :not(.chapter02-countdown-corner) { opacity: 0; }
+.chapter02-countdown.is-stage-open .chapter02-countdown-frame > :not(.chapter02-countdown-corner) { animation: chapter02-countdown-content-in 160ms ease-out 120ms both; }
+.chapter02-countdown-backdrop-blur {
+  position: absolute;
+  z-index: 6;
+  inset: 0;
+  pointer-events: none;
+  animation: chapter02-countdown-backdrop-blur 400ms ease-in-out both;
+}
+.chapter02-countdown-frame::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(var(--countdown-red-soft), 0.16), transparent);
+  content: "";
+  transform: translateX(-100%);
+  animation: chapter02-countdown-sweep 2.6s linear infinite;
+}
+.chapter02-countdown-line {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: calc(100% + 56px);
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgb(var(--countdown-red-soft)) 18%, #fff 50%, rgb(var(--countdown-red-soft)) 82%, transparent);
+  box-shadow: 0 0 14px rgba(var(--countdown-red), 0.95);
+  opacity: 0;
+  transform: translate(-50%, -50%) scaleX(0);
+}
+.chapter02-countdown.is-stage-line .chapter02-countdown-line { animation: chapter02-countdown-line 160ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.chapter02-countdown.is-stage-open .chapter02-countdown-line.is-top { animation: chapter02-countdown-line-up 280ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.chapter02-countdown.is-stage-open .chapter02-countdown-line.is-bottom { animation: chapter02-countdown-line-down 280ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.chapter02-countdown-corner {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 0 solid rgb(var(--countdown-red-soft));
+  filter: drop-shadow(0 0 4px rgba(var(--countdown-red), 0.9));
+}
+.chapter02-countdown-corner.is-tl { top: 4px; left: 4px; border-top-width: 2px; border-left-width: 2px; }
+.chapter02-countdown-corner.is-tr { top: 4px; right: 4px; border-top-width: 2px; border-right-width: 2px; }
+.chapter02-countdown-corner.is-bl { bottom: 4px; left: 4px; border-bottom-width: 2px; border-left-width: 2px; }
+.chapter02-countdown-corner.is-br { right: 4px; bottom: 4px; border-right-width: 2px; border-bottom-width: 2px; }
+.chapter02-countdown-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgb(var(--countdown-red-soft));
+  font-size: 13px;
+  letter-spacing: 0.32em;
+  text-shadow: 0 0 8px rgba(var(--countdown-red), 0.7);
+}
+.chapter02-countdown-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgb(var(--countdown-red));
+  box-shadow: 0 0 8px rgb(var(--countdown-red));
+  animation: chapter02-countdown-blink 0.8s steps(1) infinite;
+}
+.chapter02-countdown-label-en {
+  color: rgba(var(--countdown-red-soft), 0.7);
+  font-family: "Arial Narrow", "Segoe UI", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+}
+.chapter02-countdown-digits {
+  margin-top: 2px;
+  color: #ffe9e4;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 64px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.05;
+  text-shadow: 0 0 6px rgba(var(--countdown-red), 0.95), 0 0 22px rgba(var(--countdown-red), 0.6);
+}
+.chapter02-countdown-sep { opacity: 0.85; }
+.chapter02-countdown-cs { color: rgba(255, 210, 200, 0.85); font-size: 0.62em; }
+.chapter02-countdown-bar {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(var(--countdown-red), 0.18);
+}
+.chapter02-countdown-bar i {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(var(--countdown-red), 0.6), rgb(var(--countdown-red-soft)));
+  box-shadow: 0 0 8px rgb(var(--countdown-red));
+  transform: scaleX(var(--countdown-progress, 1));
+  transform-origin: 0 50%;
+}
+.chapter02-countdown.is-critical .chapter02-countdown-frame { animation: chapter02-countdown-critical 0.5s ease-in-out infinite; }
+.chapter02-countdown.is-zero .chapter02-countdown-digits { animation: chapter02-countdown-blink 0.5s steps(1) infinite; }
+@keyframes chapter02-countdown-line { from { opacity: 1; transform: translate(-50%, -50%) scaleX(0); } to { opacity: 1; transform: translate(-50%, -50%) scaleX(1); } }
+/* 上下兩條光線貼著框的上下緣伸展，到位後淡入框線 */
+@keyframes chapter02-countdown-line-up {
+  0% { top: 50%; opacity: 1; transform: translate(-50%, -50%) scaleX(1); }
+  70% { top: 0%; opacity: 1; transform: translate(-50%, -50%) scaleX(1); }
+  100% { top: 0%; opacity: 0; transform: translate(-50%, -50%) scaleX(0.92); }
+}
+@keyframes chapter02-countdown-line-down {
+  0% { top: 50%; opacity: 1; transform: translate(-50%, -50%) scaleX(1); }
+  70% { top: 100%; opacity: 1; transform: translate(-50%, -50%) scaleX(1); }
+  100% { top: 100%; opacity: 0; transform: translate(-50%, -50%) scaleX(0.92); }
+}
+@keyframes chapter02-countdown-open { from { clip-path: inset(50% 0 50% 0); } 70% { clip-path: inset(0 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes chapter02-countdown-content-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes chapter02-countdown-backdrop-blur {
+  0% { backdrop-filter: blur(0); }
+  50% { backdrop-filter: blur(7px); }
+  100% { backdrop-filter: blur(0); }
+}
+@keyframes chapter02-countdown-pop { 50% { transform: scale(1.06); } }
+@keyframes chapter02-countdown-sweep { to { transform: translateX(100%); } }
+@keyframes chapter02-countdown-blink { 50% { opacity: 0.15; } }
+@keyframes chapter02-countdown-critical {
+  50% {
+    border-color: rgb(var(--countdown-red-soft));
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 0 34px rgba(var(--countdown-red), 0.75), inset 0 0 34px rgba(var(--countdown-red), 0.3), 0 20px 50px rgba(0, 0, 0, 0.55);
+  }
+}
+
 .story-centered-text {
   position: absolute;
   z-index: 92;
@@ -2255,6 +2424,27 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   transform-origin: center;
 }
 
+/* OBJ 失敗：核取框跳出 X → 整項變紅 → 變灰；之後一直保持打叉變灰 */
+.quest-objective.is-failed .quest-objective-label,
+.quest-objective.is-failed output {
+  color: rgba(158, 166, 163, 0.62);
+}
+
+.quest-objective-check.is-failed {
+  color: rgba(158, 166, 163, 0.62);
+  text-shadow: none;
+}
+
+.quest-objective.is-failure-pop .quest-objective-check {
+  transform-origin: center;
+  animation: quest-objective-failure-check 1.8s cubic-bezier(0.2, 0.82, 0.24, 1) both;
+}
+
+.quest-objective.is-failure-pop .quest-objective-label,
+.quest-objective.is-failure-pop output {
+  animation: quest-objective-failure-label 1.8s ease-out both;
+}
+
 .quest-objective output {
   color: #f1e9da;
   font-family: Consolas, "SFMono-Regular", monospace;
@@ -2461,6 +2651,20 @@ html.gamepad-input-active.dialogue-cursor-active .dialogue-history-overlay * {
   43% { filter: brightness(1.14); transform: scale(0.975); }
   68% { filter: brightness(1.24); transform: scale(1.065); }
   100% { filter: brightness(1); transform: scale(1); }
+}
+
+@keyframes quest-objective-failure-check {
+  0% { color: rgba(223, 232, 228, 0.78); text-shadow: none; transform: scale(1); }
+  12% { color: #ff5a4f; text-shadow: 0 0 9px rgba(255, 82, 70, 0.7); transform: scale(1.32); }
+  24% { transform: scale(0.94); }
+  34%, 62% { color: #ff5a4f; text-shadow: 0 0 9px rgba(255, 82, 70, 0.7); transform: scale(1); }
+  100% { color: rgba(158, 166, 163, 0.62); text-shadow: none; transform: scale(1); }
+}
+
+@keyframes quest-objective-failure-label {
+  0%, 14% { color: #d7e1de; text-shadow: none; }
+  30%, 62% { color: #ff6a5f; text-shadow: 0 0 7px rgba(255, 82, 70, 0.45); }
+  100% { color: rgba(158, 166, 163, 0.62); text-shadow: none; }
 }
 
 @keyframes quest-result-label-reveal {

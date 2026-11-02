@@ -2,6 +2,8 @@ export type StoryProgress = {
   currentChapter: number;
   completedEventIds: string[];
   storyFlags: Record<string, boolean>;
+  /** 劇情計時器的剩餘毫秒（例如第二章墜落倒數）；沒有計時器時省略 */
+  storyTimers?: Record<string, number>;
 };
 
 // v2 introduces chapter-flow completion flags and starts map_test01 at Chapter 3.
@@ -33,12 +35,20 @@ export function normalizeStoryProgress(value: unknown): StoryProgress {
           typeof entry[1] === "boolean"),
       )
     : {};
+  const rawTimers = (value as Partial<StoryProgress>).storyTimers;
+  const storyTimers = rawTimers && typeof rawTimers === "object" && !Array.isArray(rawTimers)
+    ? Object.fromEntries(
+        Object.entries(rawTimers).filter((entry): entry is [string, number] =>
+          typeof entry[1] === "number" && Number.isFinite(entry[1]) && entry[1] >= 0),
+      )
+    : {};
   return {
     currentChapter: Number.isFinite(chapter)
       ? Math.min(99, Math.max(1, Math.floor(chapter)))
       : initial.currentChapter,
     completedEventIds,
     storyFlags,
+    ...(Object.keys(storyTimers).length ? { storyTimers } : {}),
   };
 }
 

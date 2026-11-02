@@ -713,6 +713,7 @@ public static class ItemCatalog
             ["memory-charm"] = "Q0002",
             ["ancient-plate"] = "Q0003",
             ["ruin-key"] = "Q0004",
+            ["emergency-circuit-component"] = "Q0005",
             ["time-crystal"] = "M0001",
         };
 
@@ -786,6 +787,7 @@ public static class ItemCatalog
         new("Q0002", "遺留下的記憶物"),
         new("Q0003", "古代符號板"),
         new("Q0004", "遺跡鑰匙"),
+        new("Q0005", "迴路模組"),
         new("M0001", "時間定位晶體"),
     };
 

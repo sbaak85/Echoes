@@ -28,6 +28,8 @@ export type ChapterFlowAction =
       afterSubtitleFadeOutCheckpointId?: string;
     }
   | { type: "playDialogue"; dialogueId: string; requireCompleted?: boolean }
+  /** 等到目前播放中的對話結束（沒有對話在播就立即往下走） */
+  | { type: "waitForDialogueEnd" }
   | { type: "startQuest"; questId: string }
   | { type: "activateObjective"; objectiveId: string }
   | { type: "fadeFromBlack"; durationMs: number }
@@ -67,6 +69,7 @@ export type ChapterFlowHost = {
   hideCenteredText: () => void;
   setCenteredTextHoldSkipPrompt?: (visible: boolean) => void;
   playDialogue: (dialogueId: string) => Promise<unknown>;
+  waitForDialogueEnd?: () => Promise<void>;
   startQuest?: (questId: string) => void | Promise<void>;
   activateObjective?: (objectiveId: string) => void | Promise<void>;
   showMainObjectiveMarker?: (durationMs: number) => void;
@@ -333,6 +336,10 @@ export class ChapterFlowManager {
             // 最後一格；流程計時完成時仍必須強制回到完全點亮。
             this.host.setBlack(false);
           }
+          break;
+        case "waitForDialogueEnd":
+          await this.host.waitForDialogueEnd?.();
+          if (allowSkip && this.skipRequested) return;
           break;
         case "playDialogue": {
           const result = await this.host.playDialogue(action.dialogueId);

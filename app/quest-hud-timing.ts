@@ -2,7 +2,7 @@ import type { QuestObjectiveRuntime } from "./quest-runtime-manager";
 
 export function isQuestObjectiveVisible(progress: QuestObjectiveRuntime | undefined, now: number): boolean {
   if (!progress) return false;
-  const unlocked = progress.state === "active" || progress.state === "completed" ||
+  const unlocked = progress.state === "active" || progress.state === "completed" || progress.state === "failed" ||
     (progress.state == null && progress.unlocked !== false);
   return unlocked && (progress.availableAtEpochMs ?? 0) <= now &&
     (progress.startPresentationAvailableAtEpochMs ?? 0) <= now;

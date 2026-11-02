@@ -473,7 +473,9 @@ internal static class EditorSelfTest
         var scene = SceneJson.Load(scenePath);
         SceneJson.Validate(scene);
         if (
-            ItemCatalog.All.Count != 69 ||
+            ItemCatalog.All.Count != 70 ||
+            ItemCatalog.Find("emergency-circuit-component")?.Id != "Q0005" ||
+            ItemCatalog.Find("Q0005")?.Name != "迴路模組" ||
             ItemCatalog.Find("uc-cargo-clamp")?.Id != "T0015" ||
             ItemCatalog.Find("T0015")?.Name != "UC型扣具" ||
             ItemCatalog.Find("faint-torch")?.Id != "T0014" ||

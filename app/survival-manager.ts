@@ -30,7 +30,8 @@ export type UnmetSurvivalRequirement = SurvivalRequirementRule & {
   actual: number;
 };
 
-export type SurvivalGameOverReason = "hunger" | "thirst" | "spirit";
+/** crash：第二章墜落倒數歸零（不是生存數值造成，但共用 Game Over 畫面與輸入阻擋） */
+export type SurvivalGameOverReason = "hunger" | "thirst" | "spirit" | "crash";
 
 export type SurvivalDeathWarning = {
   reason: SurvivalGameOverReason;
@@ -68,7 +69,7 @@ export const MEAL_CENTERS = [8, 12, 18] as const;
 const METRICS: SurvivalMetric[] = ["stamina", "hunger", "thirst", "spirit"];
 const CRITICAL_THRESHOLD = 20;
 export const SURVIVAL_GAME_OVER_ZERO_MINUTES: Record<
-  SurvivalGameOverReason,
+  Exclude<SurvivalGameOverReason, "crash">,
   number
 > = {
   hunger: 5 * 24 * 60,
@@ -193,7 +194,7 @@ export function normalizeSurvivalState(value: unknown): SurvivalGameState {
       : GAME_START_TIME_MINUTES,
     zeroDurationMinutes,
     gameOverReason:
-      reason === "hunger" || reason === "thirst" || reason === "spirit"
+      reason === "hunger" || reason === "thirst" || reason === "spirit" || reason === "crash"
         ? reason
         : null,
   };
@@ -268,7 +269,7 @@ export function getSurvivalDeathWarning(
 
 export function prepareDebugNaturalDeathFinalMoment(
   current: SurvivalGameState,
-  reason: SurvivalGameOverReason = "thirst",
+  reason: Exclude<SurvivalGameOverReason, "crash"> = "thirst",
 ) {
   return {
     values: { ...current.values, [reason]: 0 },

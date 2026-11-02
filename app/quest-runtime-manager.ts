@@ -178,7 +178,9 @@ export type QuestGameEvent = {
 export type QuestObjectiveRuntime = {
   currentAmount: number;
   completed: boolean;
-  state?: "locked" | "active" | "completed";
+  state?: "locked" | "active" | "completed" | "failed";
+  /** OBJ 失敗：保留在清單上（打叉變灰），不再接受進度，也不會完成 */
+  failed?: boolean;
   unlocked?: boolean;
   /** Snapshot of the activation rule used when this progress was last normalized. */
   activationDefinitionKey?: string;
@@ -300,6 +302,13 @@ export type QuestRuntimeHost = {
     objective: QuestObjectiveDefinition,
   ) => void;
   onObjectiveActivated?: (
+    questId: string,
+    objectiveId: string,
+    stageId: string,
+    entry: QuestRuntimeEntry,
+    objective: QuestObjectiveDefinition,
+  ) => void;
+  onObjectiveFailed?: (
     questId: string,
     objectiveId: string,
     stageId: string,
@@ -794,6 +803,25 @@ export class QuestRuntimeManager {
     return true;
   }
 
+  /** 讓目前 Stage 內的 OBJ 失敗：保留在清單上（打叉變灰），不再接受進度；已完成（打勾）的 OBJ 也會改成失敗 */
+  failObjective(questId: string, objectiveId: string): boolean {
+    const definition = this.requireDefinition(questId);
+    const entry = this.requireEntry(questId);
+    if (entry.state !== "active") return false;
+    const stage = definition.stages.find(candidate => candidate.id === entry.currentStageId);
+    const objective = stage?.objectives.find(candidate => candidate.id === objectiveId);
+    const progress = entry.objectives[objectiveId];
+    if (!stage || !objective || !progress || progress.failed) return false;
+    progress.completed = false;
+    progress.failed = true;
+    progress.state = "failed";
+    progress.unlocked = true;
+    progress.dialogueActivationDue = undefined;
+    this.host.onObjectiveFailed?.(questId, objectiveId, stage.id, structuredClone(entry), structuredClone(objective));
+    this.notify(questId);
+    return true;
+  }
+
   abandonQuest(questId: string): boolean {
     const definition = this.requireDefinition(questId);
     const entry = this.requireEntry(questId);
@@ -1239,7 +1267,7 @@ export class QuestRuntimeManager {
         }
         const eventActivated = this.isConditionallyActivatedObjective(objective);
         const activationEventId = this.objectiveActivationEventId(objective);
-        const hasObjectiveProgress = progress.completed || progress.currentAmount > 0;
+        const hasObjectiveProgress = progress.completed || progress.failed === true || progress.currentAmount > 0;
         const hasConfirmedActivation =
           progress.activatedByEventId === activationEventId ||
           (objective.activationMode === "event" &&
@@ -1267,7 +1295,9 @@ export class QuestRuntimeManager {
         progress.activationDefinitionKey = activationDefinitionKey;
         progress.state = progress.completed
           ? "completed"
-          : progress.unlocked === false
+          : progress.failed === true
+            ? "failed"
+            : progress.unlocked === false
             ? "locked"
             : "active";
         if (objective.type === "compoundCollectItem") {
@@ -1433,7 +1463,8 @@ export class QuestRuntimeManager {
     entry: QuestRuntimeEntry,
     progress: QuestObjectiveRuntime,
   ): boolean {
-    return this.isObjectiveUnlocked(progress) &&
+    return progress.failed !== true &&
+      this.isObjectiveUnlocked(progress) &&
       this.isStageActive(entry) &&
       (progress.availableAtEpochMs ?? 0) <= this.now();
   }
@@ -1441,6 +1472,7 @@ export class QuestRuntimeManager {
   private isObjectiveUnlocked(progress?: QuestObjectiveRuntime): boolean {
     return progress?.state === "completed" ||
       progress?.state === "active" ||
+      progress?.state === "failed" ||
       (progress?.state == null && progress?.unlocked !== false);
   }
 

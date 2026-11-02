@@ -2336,8 +2336,8 @@
     },
     {
       "id": "QUEST_CH02_MAIN_005",
-      "name": "\u4E0D\u5728\u9019\u88E1\u7684\u661F\u661F",
-      "description": "\u767C\u751F\u4E8B\u6545\u812B\u96E2\u4E26\u8FEB\u964D",
+      "name": "\u7DCA\u6025\u4E8B\u4EF6",
+      "description": "\u767C\u751F\u4E8B\u6545\u812B\u96E2\u66F2\u901F",
       "chapterId": "CH02",
       "type": "main",
       "grantMethod": "afterDialogue",
@@ -2372,7 +2372,7 @@
           "completionMode": "all",
           "startEventFlowId": "",
           "completionEventFlowId": "",
-          "nextStageId": "QUEST_CH02_MAIN_005_STAGE_02",
+          "nextStageId": "",
           "objectives": [
             {
               "id": "QUEST_CH02_MAIN_005_OBJ_01",
@@ -2398,9 +2398,41 @@
               "unlockDialogueId": ""
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "QUEST_CH02_MAIN_006",
+      "name": "\u4E0D\u5728\u9019\u88E1\u7684\u661F\u661F",
+      "description": "\u767C\u751F\u4E8B\u6545\u812B\u96E2\u4E26\u8FEB\u964D",
+      "chapterId": "CH02",
+      "type": "main",
+      "grantMethod": "afterDialogue",
+      "grantSourceId": "chapter02-section-14",
+      "grantCondition": "",
+      "prerequisiteQuestIds": [
+        "QUEST_CH02_MAIN_005"
+      ],
+      "startDelaySeconds": 0,
+      "startPresentationDelaySeconds": 0,
+      "canAbandon": false,
+      "canReaccept": false,
+      "displayMode": "standard",
+      "completionFlagId": "",
+      "completionTriggerType": "none",
+      "completionTriggerId": "",
+      "completionTriggerDelaySeconds": 0,
+      "completionPresentationDelaySeconds": 0,
+      "completionEventFlowId": "",
+      "rewardItemId": "",
+      "rewardItemAmount": 0,
+      "failureDeadline": "",
+      "failureEventId": "",
+      "failureMode": "permanent",
+      "onFailedEventFlowId": "",
+      "stages": [
         {
-          "id": "QUEST_CH02_MAIN_005_STAGE_02",
+          "id": "QUEST_CH02_MAIN_006_STAGE_01",
           "name": "\u7DCA\u6025\u9003\u751F",
           "startDelaySeconds": 0,
           "startPresentationDelaySeconds": 0,
@@ -2409,10 +2441,10 @@
           "completionMode": "all",
           "startEventFlowId": "",
           "completionEventFlowId": "",
-          "nextStageId": "QUEST_CH02_MAIN_005_STAGE_03",
+          "nextStageId": "QUEST_CH02_MAIN_006_STAGE_02",
           "objectives": [
             {
-              "id": "QUEST_CH02_MAIN_005_OBJ_02",
+              "id": "QUEST_CH02_MAIN_006_OBJ_01",
               "displayText": "\u524D\u5F80\u9003\u751F\u8259",
               "startDelaySeconds": 0,
               "startPresentationDelaySeconds": 0,
@@ -2421,7 +2453,7 @@
               "activationMode": "immediate",
               "activationEventId": "",
               "blocksStageCompletion": true,
-              "type": "interactionSucceeded",
+              "type": "dialogueCompleted",
               "targetId": "",
               "targetIds": [],
               "itemRequirements": [],
@@ -2435,17 +2467,17 @@
               "unlockDialogueId": ""
             },
             {
-              "id": "QUEST_CH02_MAIN_005_OBJ_03",
+              "id": "QUEST_CH02_MAIN_006_OBJ_02",
               "displayText": "\u524D\u5F80\u5DE5\u4F5C\u8259\u53D6\u5F97\u8FF4\u8DEF\u6A21\u7D44",
               "startDelaySeconds": 0,
               "startPresentationDelaySeconds": 0,
               "completionDelaySeconds": 0,
               "completionPresentationDelaySeconds": 0,
-              "activationMode": "event",
-              "activationEventId": "",
+              "activationMode": "dialogueCompleted",
+              "activationEventId": "chapter02-section-15",
               "blocksStageCompletion": true,
-              "type": "enterArea",
-              "targetId": "",
+              "type": "collectItem",
+              "targetId": "Q0005",
               "targetIds": [],
               "itemRequirements": [],
               "targetState": "",
@@ -2460,7 +2492,7 @@
           ]
         },
         {
-          "id": "QUEST_CH02_MAIN_005_STAGE_03",
+          "id": "QUEST_CH02_MAIN_006_STAGE_02",
           "name": "\u7DCA\u6025\u8FEB\u964D",
           "startDelaySeconds": 0,
           "startPresentationDelaySeconds": 0,
@@ -2472,7 +2504,7 @@
           "nextStageId": "",
           "objectives": [
             {
-              "id": "QUEST_CH02_MAIN_005_OBJ_04",
+              "id": "QUEST_CH02_MAIN_006_OBJ_03",
               "displayText": "\u64CD\u4F5C\u4F0A\u85A9\u5361\u865F\u9032\u884C\u8FEB\u964D",
               "startDelaySeconds": 0,
               "startPresentationDelaySeconds": 0,

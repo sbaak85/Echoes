@@ -218,3 +218,18 @@ test("bridge assembly: the 4 NPCs stand on the ship_interior bridge TeleportPoin
   assert.equal(resolveBridgeAssemblyPlacement("npc-captain", []), null, "missing point keeps the NPC where it was");
   assert.equal(resolveBridgeAssemblyPlacement("npc-someone-else", scene.teleportPoints), null);
 });
+
+test("escape assembly: after section-14, black 0.25s -> teleport + 0.15s hold -> lights back 0.3s onto the escape-* TeleportPoints", async () => {
+  const { CHAPTER02_ESCAPE_ASSEMBLY_POINTS, CHAPTER02_ESCAPE_ASSEMBLY_FLOW, CHAPTER02_ESCAPE_ASSEMBLY_FLAG, resolveBridgeAssemblyPlacement } = await import("../app/chapter02-bridge-assembly.ts");
+  assert.deepEqual(CHAPTER02_ESCAPE_ASSEMBLY_FLOW.actions.map(a => a.type === "setStoryFlag" ? `flag ${a.flagId}` : a.durationMs ? `${a.type} ${a.durationMs}` : a.type), [
+    "lockInput", "fadeToBlack 250", `flag ${CHAPTER02_ESCAPE_ASSEMBLY_FLAG}`, "wait 150", "fadeFromBlack 300", "unlockInput",
+  ]);
+  const scene = JSON.parse(readFileSync(new URL("../public/maps/ship_interior.scene.json", import.meta.url), "utf8"));
+  for (const [npcId, pointId] of Object.entries(CHAPTER02_ESCAPE_ASSEMBLY_POINTS)) {
+    const point = scene.teleportPoints.find(p => p.id === pointId);
+    assert.ok(point, `${pointId} placed in the scene`);
+    assert.deepEqual(resolveBridgeAssemblyPlacement(npcId, scene.teleportPoints, true), { x: point.x, y: point.y, facing: point.facing });
+  }
+  const lab = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(lab, /storyFlags\[CHAPTER02_ESCAPE_ASSEMBLY_FLAG\] === true,\s*\);/, "placement switches on the saved flag");
+});
