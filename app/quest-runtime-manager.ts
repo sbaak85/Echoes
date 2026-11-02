@@ -22,7 +22,9 @@ export type QuestObjectiveType =
   | "objectStateReached"
   | "dayOrTimeReached"
   | "flagCondition"
-  | "customProgress";
+  | "customProgress"
+  /** 劇情控制：不由玩家行動完成，只由劇情程式或失敗條件改變狀態 */
+  | "scripted";
 
 export type QuestItemRequirement = {
   itemId: string;
@@ -68,6 +70,14 @@ export type QuestObjectiveDefinition = {
     | "dialogueCompleted";
   activationEventId?: string;
   blocksStageCompletion?: boolean;
+  /** 失敗條件：Stage 進行中此事件／對話發生後，等 failureDelaySeconds 讓 OBJ 失敗 */
+  failureTriggerType?: "none" | "event" | "dialogueStarted" | "dialogueCompleted";
+  failureTriggerId?: string;
+  failureDelaySeconds?: number;
+  /** OBJ 失敗後（不論原因）只觸發一次的對話或事件流程 */
+  failedTriggerType?: "none" | "dialogue" | "eventFlow";
+  failedTriggerId?: string;
+  failedTriggerDelaySeconds?: number;
   /** Keep this objective hidden and inactive until this dialogue finishes. */
   unlockDialogueId?: string;
 };
@@ -86,6 +96,9 @@ export type QuestStageDefinition = {
   completionMode: "all" | "any";
   startEventFlowId?: string;
   completionEventFlowId?: string;
+  /** 提前結束：Stage 進行中此事件／對話發生時，不論 OBJ 完成或失敗都結束此 Stage（仍套用完成延遲） */
+  endTriggerType?: "none" | "event" | "dialogueStarted" | "dialogueCompleted";
+  endTriggerId?: string;
   nextStageId?: string;
   objectives: QuestObjectiveDefinition[];
 };
@@ -181,6 +194,11 @@ export type QuestObjectiveRuntime = {
   state?: "locked" | "active" | "completed" | "failed";
   /** OBJ 失敗：保留在清單上（打叉變灰），不再接受進度，也不會完成 */
   failed?: boolean;
+  /** 失敗條件已成立、等待失敗延遲的到期時間（存檔，讀檔後接著倒數） */
+  failureDueAtEpochMs?: number;
+  failedTriggerAvailableAtEpochMs?: number;
+  /** false：失敗後觸發還沒完整跑完，讀檔時重試 */
+  failedTriggerCompleted?: boolean;
   unlocked?: boolean;
   /** Snapshot of the activation rule used when this progress was last normalized. */
   activationDefinitionKey?: string;
@@ -223,6 +241,8 @@ export type QuestRuntimeEntry = {
   stageStartEventExecutedForId?: string;
   stageCompletionAvailableAtEpochMs?: number;
   stageCompletionEventExecutedForId?: string;
+  /** 這個 Stage 的提前結束條件已成立（存檔，讀檔後仍會切換） */
+  stageEndTriggeredForId?: string;
   questCompletionPresented?: boolean;
   completionTriggerAvailableAtEpochMs?: number;
   completionTriggerCompleted?: boolean;
@@ -237,6 +257,8 @@ export type QuestRuntimeEntry = {
 
 export type QuestSaveData = {
   completedDialogueIds?: string[];
+  /** 這份存檔由會記錄 OBJ 失敗倒數的版本寫出；沒有這個標記就是舊版存檔，讀取時補排失敗 */
+  objectiveFailureTriggersTracked?: true;
   schemaVersion: 1;
   quests: Record<string, QuestRuntimeEntry>;
   processedEventIds?: string[];
@@ -342,11 +364,15 @@ export class QuestRuntimeManager {
   private readonly definitions = new Map<string, QuestDefinition>();
   private readonly host: QuestRuntimeHost;
   private readonly startingQuestIds = new Set<string>();
-  private readonly pendingStageCompletionDelays = new Set<string>();
   private readonly pendingQuestStarts = new Set<string>();
-  private readonly pendingCompletionTriggers = new Set<string>();
-  private readonly pendingObjectiveCompletionEvents = new Set<string>();
   private readonly pendingObjectiveCompletionRules = new Map<string, QuestRuntimeEntry>();
+  // 以任務實例（Quest / OBJ 進度物件）識別：重新開始任務或讀檔後是新的物件，
+  // 舊實例的排程不會擋住新排程，也不會替新實例標記完成。
+  /** 值為正在等待完成延遲的 Stage ID */
+  private pendingStageCompletionDelays = new WeakMap<QuestRuntimeEntry, string>();
+  private pendingCompletionTriggers = new WeakSet<QuestRuntimeEntry>();
+  private pendingObjectiveCompletionEvents = new WeakSet<QuestObjectiveRuntime>();
+  private pendingObjectiveFailedTriggers = new WeakSet<QuestObjectiveRuntime>();
   private currentInventorySnapshot: Readonly<Record<string, number>> | null = null;
   private schedulingGeneration = 0;
   private saveData: QuestSaveData;
@@ -362,6 +388,8 @@ export class QuestRuntimeManager {
       ? structuredClone(restoredSave)
       : emptySave();
     this.saveData.processedEventIds ??= [];
+    const legacyFailureSave = restoredSave !== undefined && restoredSave.objectiveFailureTriggersTracked !== true;
+    this.saveData.objectiveFailureTriggersTracked = true;
     for (const quest of document.quests) this.ensureEntry(quest);
     this.saveData.completionSequence = Math.max(
       this.saveData.completionSequence ?? 0,
@@ -374,6 +402,7 @@ export class QuestRuntimeManager {
       this.reconcileObjectiveLifecycleActivations(definition, entry);
       if (entry.state === "active") this.restoreStageActivation(definition, entry);
       this.restoreCompletionScheduling(definition, entry);
+      this.restoreObjectiveFailureScheduling(definition, entry, legacyFailureSave);
       this.scheduleObjectiveCompletionRules(definition.id, entry);
     }
   }
@@ -415,13 +444,16 @@ export class QuestRuntimeManager {
    */
   replaceSaveData(saveData: QuestSaveData, notify = true): void {
     this.schedulingGeneration += 1;
-    this.pendingStageCompletionDelays.clear();
     this.pendingQuestStarts.clear();
-    this.pendingCompletionTriggers.clear();
-    this.pendingObjectiveCompletionEvents.clear();
     this.pendingObjectiveCompletionRules.clear();
+    this.pendingStageCompletionDelays = new WeakMap();
+    this.pendingCompletionTriggers = new WeakSet();
+    this.pendingObjectiveCompletionEvents = new WeakSet();
+    this.pendingObjectiveFailedTriggers = new WeakSet();
     this.saveData = structuredClone(saveData);
     this.saveData.processedEventIds ??= [];
+    // Debug 情境直接指定最終狀態，不補播也不補排舊版存檔的失敗
+    this.saveData.objectiveFailureTriggersTracked = true;
     for (const definition of this.definitions.values()) {
       this.ensureEntry(definition);
       this.reconcileObjectiveLifecycleActivations(
@@ -772,9 +804,8 @@ export class QuestRuntimeManager {
     const completePresentation = () => {
       if (presentationCompleted) return;
       presentationCompleted = true;
-      const current = this.saveData.quests[definition.id];
-      if (!current || current.state !== "completed") return;
-      this.armQuestCompletionTrigger(definition, current);
+      if (this.saveData.quests[definition.id] !== entry || entry.state !== "completed") return;
+      this.armQuestCompletionTrigger(definition, entry);
     };
     if (this.host.onQuestCompleted) {
       this.host.onQuestCompleted(
@@ -817,8 +848,15 @@ export class QuestRuntimeManager {
     progress.state = "failed";
     progress.unlocked = true;
     progress.dialogueActivationDue = undefined;
+    progress.failureDueAtEpochMs = undefined;
+    if (getObjectiveFailedTrigger(objective)) {
+      progress.failedTriggerCompleted = false;
+      progress.failedTriggerAvailableAtEpochMs = this.now() +
+        this.delayMilliseconds(objective.failedTriggerDelaySeconds);
+    }
     this.host.onObjectiveFailed?.(questId, objectiveId, stage.id, structuredClone(entry), structuredClone(objective));
     this.notify(questId);
+    this.scheduleObjectiveFailedTrigger(definition, objective);
     return true;
   }
 
@@ -904,9 +942,25 @@ export class QuestRuntimeManager {
       if (entry.state !== "active") continue;
       const stage = definition.stages.find(candidate => candidate.id === entry.currentStageId);
       if (!stage || !this.isStageActive(entry)) continue;
+      if (entry.stageEndTriggeredForId !== stage.id &&
+          matchesQuestTriggerEvent(stage.endTriggerType, stage.endTriggerId, event)) {
+        entry.stageEndTriggeredForId = stage.id;
+        matchedObjective = true;
+        this.advanceIfComplete(definition, entry);
+        this.notify(definition.id);
+        if (entry.currentStageId !== stage.id) continue;
+      }
       for (const objective of stage.objectives) {
         const progress = entry.objectives[objective.id];
         if (!progress) continue;
+        if (!progress.failed && progress.failureDueAtEpochMs == null &&
+            matchesObjectiveFailureEvent(objective, event)) {
+          // 先存下到期時間再倒數：延遲中讀檔會接著倒數，不會漏掉失敗。
+          progress.failureDueAtEpochMs = this.now() + this.delayMilliseconds(objective.failureDelaySeconds);
+          matchedObjective = true;
+          this.notify(definition.id);
+          this.scheduleObjectiveFailure(definition, entry, stage, objective);
+        }
         const dialogueMode = objective.activationMode === "dialogueStarted" ||
           objective.activationMode === "dialogueCompleted";
         if (dialogueMode && !this.isObjectiveUnlocked(progress) &&
@@ -1081,7 +1135,8 @@ export class QuestRuntimeManager {
     this.scheduleAt(due, () => {
       const current = this.saveData.quests[definition.id];
       const progress = current?.objectives[objective.id];
-      if (!current || !progress || !progress.completed || progress.completionPresented) return;
+      // 重新開始任務後是新的實例，由新實例自己的排程依它的延遲演出
+      if (current !== entry || !progress || !progress.completed || progress.completionPresented) return;
       if (current.state !== "active" && current.state !== "completed") return;
       // This is an Objective completion presentation, not a Stage completion
       // presentation. It must still run if another Objective already advanced
@@ -1115,16 +1170,20 @@ export class QuestRuntimeManager {
 
   private advanceIfComplete(definition: QuestDefinition, entry: QuestRuntimeEntry) {
     const stage = definition.stages.find(candidate => candidate.id === entry.currentStageId);
-    if (!stage || stage.objectives.length === 0) return;
+    if (!stage) return;
+    // 提前結束條件成立時不看 OBJ（失敗或未完成的也一樣），只套用完成延遲。
+    const endTriggered = entry.stageEndTriggeredForId === stage.id;
+    if (stage.objectives.length === 0 && !endTriggered) return;
     const completionObjectives = stage.objectives.filter((objective) => {
       const progress = entry.objectives[objective.id];
       return this.isObjectiveUnlocked(progress) || objective.blocksStageCompletion !== false;
     });
-    if (completionObjectives.length === 0) return;
+    if (completionObjectives.length === 0 && !endTriggered) return;
     const states = completionObjectives.map(
       objective => entry.objectives[objective.id]?.completed === true,
     );
-    const completed = stage.completionMode === "any" ? states.some(Boolean) : states.every(Boolean);
+    const completed = endTriggered ||
+      (stage.completionMode === "any" ? states.some(Boolean) : states.every(Boolean));
     if (!completed) return;
     const next = definition.stages.find(candidate => candidate.id === stage.nextStageId)
       ?? definition.stages[definition.stages.indexOf(stage) + 1];
@@ -1143,21 +1202,22 @@ export class QuestRuntimeManager {
         progress.completionPresented !== false &&
         progress.completionEventCompleted !== false;
     });
-    const completionPresented = stage.completionMode === "any"
+    const completionPresented = endTriggered || (stage.completionMode === "any"
       ? presentationStates.some(Boolean)
-      : presentationStates.every(Boolean);
+      : presentationStates.every(Boolean));
     if (!completionPresented) return;
 
     const remainingDelay = (entry.stageCompletionAvailableAtEpochMs ?? 0) - this.now();
     if (remainingDelay > 1) {
-      if (!this.pendingStageCompletionDelays.has(definition.id)) {
-        this.pendingStageCompletionDelays.add(definition.id);
+      if (this.pendingStageCompletionDelays.get(entry) !== stage.id) {
+        this.pendingStageCompletionDelays.set(entry, stage.id);
         this.scheduleAt(entry.stageCompletionAvailableAtEpochMs ?? 0, () => {
-          this.pendingStageCompletionDelays.delete(definition.id);
-          const current = this.saveData.quests[definition.id];
-          if (!current || current.currentStageId !== stage.id) return;
-          if (current.state !== "active" && current.state !== "completed") return;
-          this.advanceIfComplete(definition, current);
+          if (this.pendingStageCompletionDelays.get(entry) === stage.id) {
+            this.pendingStageCompletionDelays.delete(entry);
+          }
+          if (this.saveData.quests[definition.id] !== entry || entry.currentStageId !== stage.id) return;
+          if (entry.state !== "active" && entry.state !== "completed") return;
+          this.advanceIfComplete(definition, entry);
         });
       }
       return;
@@ -1367,27 +1427,119 @@ export class QuestRuntimeManager {
     const eventFlowId = (objective.completionEventFlowId ?? "").trim();
     const progress = this.saveData.quests[definition.id]?.objectives[objective.id];
     if (!eventFlowId || !progress || progress.completionEventCompleted !== false) return;
-    const key = `${definition.id}:${objective.id}`;
-    if (this.pendingObjectiveCompletionEvents.has(key)) return;
+    if (this.pendingObjectiveCompletionEvents.has(progress)) return;
     const runner = this.host.runEventFlow;
     if (!runner) return;
 
-    this.pendingObjectiveCompletionEvents.add(key);
+    this.pendingObjectiveCompletionEvents.add(progress);
     void Promise.resolve(runner(eventFlowId))
       .then((completed) => {
-        this.pendingObjectiveCompletionEvents.delete(key);
+        this.pendingObjectiveCompletionEvents.delete(progress);
         if (completed === false) return;
-        const latest = this.saveData.quests[definition.id]?.objectives[objective.id];
-        if (!latest?.completed) return;
-        latest.completionEventCompleted = true;
+        // 重新開始任務後，舊實例的事件流程播完不算新 OBJ 的完成事件
         const latestEntry = this.saveData.quests[definition.id];
-        if (latestEntry) this.advanceIfComplete(definition, latestEntry);
+        if (latestEntry?.objectives[objective.id] !== progress || !progress.completed) return;
+        progress.completionEventCompleted = true;
+        this.advanceIfComplete(definition, latestEntry);
         this.notify(definition.id);
       })
       .catch(() => {
         // Keep the incomplete flag. Restoring this save will safely retry the event.
-        this.pendingObjectiveCompletionEvents.delete(key);
+        this.pendingObjectiveCompletionEvents.delete(progress);
       });
+  }
+
+  private scheduleObjectiveFailure(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+    stage: QuestStageDefinition,
+    objective: QuestObjectiveDefinition,
+  ) {
+    const progress = entry.objectives[objective.id];
+    const due = progress?.failureDueAtEpochMs;
+    if (due == null) return;
+    this.scheduleAt(due, () => {
+      if (this.saveData.quests[definition.id] !== entry || entry.state !== "active" ||
+          entry.currentStageId !== stage.id || progress.failed ||
+          progress.failureDueAtEpochMs !== due) return;
+      this.failObjective(definition.id, objective.id);
+    });
+  }
+
+  private scheduleObjectiveFailedTrigger(
+    definition: QuestDefinition,
+    objective: QuestObjectiveDefinition,
+  ) {
+    const trigger = getObjectiveFailedTrigger(objective);
+    const progress = this.saveData.quests[definition.id]?.objectives[objective.id];
+    if (!trigger || !progress?.failed || progress.failedTriggerCompleted !== false) return;
+    if (this.pendingObjectiveFailedTriggers.has(progress)) return;
+
+    this.pendingObjectiveFailedTriggers.add(progress);
+    this.scheduleAt(progress.failedTriggerAvailableAtEpochMs ?? this.now(), () => {
+      const runner = this.host.runCompletionTrigger ?? (
+        trigger.type === "eventFlow" && this.host.runEventFlow
+          ? (_type: "dialogue" | "eventFlow", triggerId: string) => this.host.runEventFlow?.(triggerId)
+          : undefined
+      );
+      const isCurrent = () => this.saveData.quests[definition.id]?.objectives[objective.id] === progress &&
+        progress.failed === true && progress.failedTriggerCompleted === false;
+      if (!runner || !isCurrent()) {
+        this.pendingObjectiveFailedTriggers.delete(progress);
+        return;
+      }
+      // 對話播放中時 DialogueManager 會排隊，等目前的對話播完再播。
+      void Promise.resolve(runner(trigger.type, trigger.id, definition.id))
+        .then((completed) => {
+          this.pendingObjectiveFailedTriggers.delete(progress);
+          if (completed === false || !isCurrent()) return;
+          progress.failedTriggerCompleted = true;
+          this.notify(definition.id);
+        })
+        .catch(() => {
+          // Keep the incomplete flag in the save. A later reload can safely retry it.
+          this.pendingObjectiveFailedTriggers.delete(progress);
+        });
+    });
+  }
+
+  private restoreObjectiveFailureScheduling(
+    definition: QuestDefinition,
+    entry: QuestRuntimeEntry,
+    legacySave: boolean,
+  ) {
+    for (const stage of definition.stages) {
+      for (const objective of stage.objectives) {
+        const progress = entry.objectives[objective.id];
+        if (!progress) continue;
+        if (!progress.failed) {
+          if (entry.state === "active" && entry.currentStageId === stage.id) {
+            // 舊版存檔沒有失敗倒數：觸發對話若已播完（例如 section-16 播完、OBJ 還沒失敗時存檔），
+            // 讀檔就立即失敗，與舊版讀檔補上失敗的行為相同。新版存檔只看倒數，不靠對話紀錄補算。
+            if (legacySave && progress.failureDueAtEpochMs == null &&
+                (objective.failureTriggerType ?? "none") === "dialogueCompleted" &&
+                this.hasDialogueCompleted((objective.failureTriggerId ?? "").trim())) {
+              progress.failureDueAtEpochMs = this.now();
+            }
+            this.scheduleObjectiveFailure(definition, entry, stage, objective);
+          }
+          continue;
+        }
+        const trigger = getObjectiveFailedTrigger(objective);
+        if (!trigger) continue;
+        if (progress.failedTriggerCompleted == null) {
+          // Saves failed before this setting existed: replay only a dialogue
+          // that has never finished; never replay an unknown event flow.
+          const pending = trigger.type === "dialogue" && !this.hasDialogueCompleted(trigger.id);
+          progress.failedTriggerCompleted = !pending;
+          if (pending) {
+            progress.failedTriggerAvailableAtEpochMs = this.now() +
+              this.delayMilliseconds(objective.failedTriggerDelaySeconds);
+          }
+        }
+        this.scheduleObjectiveFailedTrigger(definition, objective);
+      }
+    }
   }
 
   private hasAvailableAfterDialogueQuest(dialogueId: string): boolean {
@@ -1407,14 +1559,14 @@ export class QuestRuntimeManager {
   ) {
     const trigger = this.getCompletionTrigger(definition);
     if (!trigger || entry.state !== "completed" || entry.completionTriggerCompleted !== false) return;
-    if (this.pendingCompletionTriggers.has(definition.id)) return;
+    if (this.pendingCompletionTriggers.has(entry)) return;
 
-    this.pendingCompletionTriggers.add(definition.id);
+    this.pendingCompletionTriggers.add(entry);
     const due = entry.completionTriggerAvailableAtEpochMs ?? this.now();
+    const isCurrent = () => this.saveData.quests[definition.id] === entry && entry.state === "completed";
     this.scheduleAt(due, () => {
-      const current = this.saveData.quests[definition.id];
-      if (!current || current.state !== "completed" || current.completionTriggerCompleted !== false) {
-        this.pendingCompletionTriggers.delete(definition.id);
+      if (!isCurrent() || entry.completionTriggerCompleted !== false) {
+        this.pendingCompletionTriggers.delete(entry);
         return;
       }
 
@@ -1424,22 +1576,20 @@ export class QuestRuntimeManager {
           : undefined
       );
       if (!runner) {
-        this.pendingCompletionTriggers.delete(definition.id);
+        this.pendingCompletionTriggers.delete(entry);
         return;
       }
 
       void Promise.resolve(runner(trigger.type, trigger.id, definition.id))
         .then((completed) => {
-          this.pendingCompletionTriggers.delete(definition.id);
-          if (completed === false) return;
-          const latest = this.saveData.quests[definition.id];
-          if (!latest || latest.state !== "completed") return;
-          latest.completionTriggerCompleted = true;
+          this.pendingCompletionTriggers.delete(entry);
+          if (completed === false || !isCurrent()) return;
+          entry.completionTriggerCompleted = true;
           this.notify(definition.id);
         })
         .catch(() => {
           // Keep the incomplete flag in the save. A later reload can safely retry it.
-          this.pendingCompletionTriggers.delete(definition.id);
+          this.pendingCompletionTriggers.delete(entry);
         });
     });
   }
@@ -1705,9 +1855,9 @@ export class QuestRuntimeManager {
     const rawStates = completionObjectives.map(
       objective => entry.objectives[objective.id]?.completed === true,
     );
-    const rawCompleted = stage.completionMode === "any"
+    const rawCompleted = entry.stageEndTriggeredForId === stage.id || (stage.completionMode === "any"
       ? rawStates.some(Boolean)
-      : rawStates.length > 0 && rawStates.every(Boolean);
+      : rawStates.length > 0 && rawStates.every(Boolean));
     if (!rawCompleted) return;
 
     if (entry.stageCompletionAvailableAtEpochMs == null) {
@@ -1956,6 +2106,36 @@ export class QuestRuntimeManager {
   }
 }
 
+function matchesObjectiveFailureEvent(
+  objective: QuestObjectiveDefinition,
+  event: QuestGameEvent,
+): boolean {
+  return matchesQuestTriggerEvent(objective.failureTriggerType, objective.failureTriggerId, event);
+}
+
+/** OBJ 失敗條件與 Stage 提前結束共用：對話模式只比對同類對話事件，事件模式與「事件啟用」相同。 */
+function matchesQuestTriggerEvent(
+  triggerType: "none" | "event" | "dialogueStarted" | "dialogueCompleted" | undefined,
+  rawTriggerId: string | undefined,
+  event: QuestGameEvent,
+): boolean {
+  const type = triggerType ?? "none";
+  const triggerId = (rawTriggerId ?? "").trim();
+  if (type === "none" || !triggerId || triggerId !== event.targetId) return false;
+  if (type === "dialogueStarted" || type === "dialogueCompleted") return event.type === type;
+  return event.type !== "objectiveActivated" && event.type !== "objectiveCompleted" &&
+    event.type !== "dialogueStarted";
+}
+
+function getObjectiveFailedTrigger(objective: QuestObjectiveDefinition): {
+  type: "dialogue" | "eventFlow";
+  id: string;
+} | null {
+  const type = objective.failedTriggerType ?? "none";
+  const id = (objective.failedTriggerId ?? "").trim();
+  return (type === "dialogue" || type === "eventFlow") && id ? { type, id } : null;
+}
+
 function normalizeItemRequirements(
   objective: QuestObjectiveDefinition,
 ): QuestItemRequirement[] {
@@ -2093,5 +2273,7 @@ export function evaluateQuestObjective(
         : null;
     case "customProgress":
       return event.type === "customQuestProgressAdded" ? { mode: "add", amount: event.amount ?? 0 } : null;
+    case "scripted":
+      return null;
   }
 }

@@ -22,6 +22,58 @@ test('Zero Hour is a managed looping BGM and its deployed bytes match the source
   assert.equal(minigame.trackId,'star-cards','minigame rules retain their priority');
 });
 
+test('section-16 line-012 fades the current BGM out over 2 s and keeps it stopped', () => {
+  const rule=BGM_CONTROL_RULES.find(r=>r.id==='chapter02-section-16-line-012-bgm-stop');
+  assert.ok(rule&&rule.enabled);
+  assert.equal(rule.triggerType,'dialogueLine');
+  assert.equal(rule.targetId,'chapter02-section-16-line-012');
+  assert.equal(rule.action,'pause');
+  assert.equal(rule.fadeOutSeconds,2);
+  assert.equal(rule.durationSeconds,0,'stays until a later rule replaces it');
+  assert.match(readFileSync(new URL('../app/story-content.ts',import.meta.url),'utf8'),/"lineId": "chapter02-section-16-line-012"/);
+  const zeroHour=(type,id)=>type==='event'&&id===CHAPTER02_ZERO_HOUR_BGM_EVENT_ID?'triggered':null;
+  const silenced=(type,id)=>type==='dialogueLine'&&id==='chapter02-section-16-line-012'?'triggered':zeroHour(type,id);
+  const plan=resolveBgmControlPlan(BGM_CONTROL_RULES,silenced);
+  assert.equal(plan.volumeMultiplier,0);
+  assert.equal(plan.pausePlayback,true,'stopped, not merely muted');
+  assert.equal(plan.fadeOutSeconds,2);
+  const minigame=resolveBgmControlPlan(BGM_CONTROL_RULES,(type,id)=>type==='minigame'&&id==='star-cards'?'playing':silenced(type,id));
+  assert.equal(minigame.trackId,'star-cards','minigame music still plays above the silence');
+  assert.equal(minigame.volumeMultiplier,1);
+});
+
+test('line-012 stop: Zero Hour fades out within 2 s, then later lines do not revive it', async t => {
+  let now=0,nextFrame=0;const frames=new Map(),audios=[];
+  class FakeAudio extends EventTarget {
+    currentTime=0;duration=300;readyState=1;paused=true;volume=0;
+    constructor(){super();audios.push(this);}
+    play(){this.paused=false;return Promise.resolve();}
+    pause(){this.paused=true;}
+    load(){this.currentTime=0;}
+    removeAttribute(){}
+  }
+  const replacements={Audio:FakeAudio,document:{hidden:false},window:{clearTimeout(){},setTimeout(){return 0;}},requestAnimationFrame:fn=>{frames.set(++nextFrame,fn);return nextFrame;},cancelAnimationFrame:id=>frames.delete(id)};
+  const restore=Object.entries(replacements).map(([key,value])=>{const old=Object.getOwnPropertyDescriptor(globalThis,key);Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});return()=>old?Object.defineProperty(globalThis,key,old):delete globalThis[key];});
+  t.mock.method(performance,'now',()=>now);
+  const bgm=new BgmDirector();t.after(()=>{bgm.dispose();restore.forEach(fn=>fn());});
+  const advance=async ms=>{for(let e=0;e<ms;e+=16){await Promise.resolve();now+=16;const pending=[...frames.values()];frames.clear();pending.forEach(fn=>fn(now));}};
+  bgm.setUserVolume(.35);await bgm.play();
+  bgm.triggerEvent(CHAPTER02_ZERO_HOUR_BGM_EVENT_ID);
+  await advance(500);
+  const music=audios.find(a=>a.src==='./audio/Zero Hour_1.mp3');
+  assert.equal(music.paused,false);
+  const fullVolume=music.volume;
+  bgm.triggerDialogueLine('chapter02-section-16-line-012');
+  await advance(1000);
+  assert.ok(music.volume>0&&music.volume<fullVolume,`fading at 1 s: ${music.volume}`);
+  await advance(1200);
+  assert.equal(music.volume,0);
+  assert.equal(music.paused,true,'stopped after the 2 s fade');
+  bgm.triggerDialogueLine('chapter02-section-16-line-013');
+  await advance(2000);
+  assert.equal(music.paused,true,'unconfigured later lines keep the silence');
+});
+
 for(const skip of [false,true]) test(`red-alert reveal starts Zero Hour immediately, without reviving main BGM (${skip?'skip':'normal'})`,async t=>{
   t.mock.timers.enable({apis:['setTimeout']});
   let now=0,nextFrame=0;const frames=new Map(),audios=[],events=[];

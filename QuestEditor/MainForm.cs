@@ -604,7 +604,26 @@ internal sealed partial class MainForm : Form
             var isTeleportProperty = property?.Name is
                 nameof(QuestDefinition.StartTeleportPointId) or
                 nameof(QuestDefinition.CompletionTeleportPointId);
-            var kind = isSourceSceneProperty
+            var isFailureTriggerProperty = objective is not null && property?.Name is
+                nameof(QuestObjectiveDefinition.FailureTriggerType) or
+                nameof(QuestObjectiveDefinition.FailureTriggerId) or
+                nameof(QuestObjectiveDefinition.FailureDelaySeconds);
+            var isFailedTriggerProperty = objective is not null && property?.Name is
+                nameof(QuestObjectiveDefinition.FailedTriggerType) or
+                nameof(QuestObjectiveDefinition.FailedTriggerId) or
+                nameof(QuestObjectiveDefinition.FailedTriggerDelaySeconds);
+            // A stage only uses the external list for its early-end trigger.
+            var endStage = _propertyGrid.SelectedObject as QuestStageDefinition;
+            var isStageEndProperty = endStage is not null && property?.Name is
+                nameof(QuestStageDefinition.EndTriggerType) or
+                nameof(QuestStageDefinition.EndTriggerId);
+            var kind = isStageEndProperty
+                ? QuestValidator.StageEndTriggerReferenceKind(endStage!.EndTriggerType)
+                : isFailureTriggerProperty
+                ? QuestValidator.FailureTriggerReferenceKind(objective!.FailureTriggerType)
+                : isFailedTriggerProperty
+                ? QuestValidator.FailedTriggerReferenceKind(objective!.FailedTriggerType)
+                : isSourceSceneProperty
                 ? "Scene"
                 : isSourceConnectionProperty
                 ? $"SceneConnection:{objective?.SourceSceneId?.Trim()}"
@@ -622,9 +641,15 @@ internal sealed partial class MainForm : Form
                         QuestCompletionTriggerType.EventFlow => "EventFlow",
                         _ => null,
                     };
-            var currentId = (isActivationEventProperty || isTeleportProperty ||
-                isSourceSceneProperty || isSourceConnectionProperty) &&
-                _propertyGrid.SelectedObject is { } selectedObject
+            var currentId = isStageEndProperty
+                ? endStage!.EndTriggerId ?? ""
+                : isFailureTriggerProperty
+                ? objective!.FailureTriggerId ?? ""
+                : isFailedTriggerProperty
+                ? objective!.FailedTriggerId ?? ""
+                : (isActivationEventProperty || isTeleportProperty ||
+                    isSourceSceneProperty || isSourceConnectionProperty) &&
+                    _propertyGrid.SelectedObject is { } selectedObject
                 ? property?.GetValue(selectedObject)?.ToString() ?? ""
                 : objective?.TargetId ?? quest?.CompletionTriggerId ?? "";
             var label = kind is null
@@ -690,6 +715,29 @@ internal sealed partial class MainForm : Form
             property.SetValue(objective, reference.Id);
             if (objective.ActivationMode == ObjectiveActivationMode.Immediate)
                 objective.ActivationMode = ObjectiveActivationMode.Event;
+        }
+        else if (_propertyGrid.SelectedObject is QuestStageDefinition endStage &&
+            property?.Name is nameof(QuestStageDefinition.EndTriggerType) or
+                nameof(QuestStageDefinition.EndTriggerId))
+        {
+            if (endStage.EndTriggerId == reference.Id) return;
+            endStage.EndTriggerId = reference.Id;
+        }
+        else if (_propertyGrid.SelectedObject is QuestObjectiveDefinition failureObjective &&
+            property?.Name is nameof(QuestObjectiveDefinition.FailureTriggerType) or
+                nameof(QuestObjectiveDefinition.FailureTriggerId) or
+                nameof(QuestObjectiveDefinition.FailureDelaySeconds))
+        {
+            if (failureObjective.FailureTriggerId == reference.Id) return;
+            failureObjective.FailureTriggerId = reference.Id;
+        }
+        else if (_propertyGrid.SelectedObject is QuestObjectiveDefinition failedObjective &&
+            property?.Name is nameof(QuestObjectiveDefinition.FailedTriggerType) or
+                nameof(QuestObjectiveDefinition.FailedTriggerId) or
+                nameof(QuestObjectiveDefinition.FailedTriggerDelaySeconds))
+        {
+            if (failedObjective.FailedTriggerId == reference.Id) return;
+            failedObjective.FailedTriggerId = reference.Id;
         }
         else if (property?.Name is nameof(QuestDefinition.StartTeleportPointId) or
             nameof(QuestDefinition.CompletionTeleportPointId))
@@ -1436,8 +1484,50 @@ internal sealed partial class MainForm : Form
         var groups = TypeDescriptor.GetConverter(incompleteObjective)
             .GetProperties(null, incompleteObjective, new Attribute[] { BrowsableAttribute.Yes })!
             .Cast<PropertyDescriptor>().Select(property => property.Category).Distinct().ToArray();
-        if (!groups.SequenceEqual(new[] { PropertyGroup.Basic, PropertyGroup.Criteria, PropertyGroup.Activation, PropertyGroup.Completion, PropertyGroup.Display }))
+        if (!groups.SequenceEqual(new[] { PropertyGroup.Basic, PropertyGroup.Criteria, PropertyGroup.Activation, PropertyGroup.Completion, PropertyGroup.Display, PropertyGroup.ObjectiveFailure }))
             throw new InvalidOperationException($"OBJ 屬性分組順序不正確：{string.Join("、", groups)}");
+
+        // Failure settings use the external ID list that matches their trigger type.
+        _propertyGrid.SelectedObject = incompleteObjective;
+        incompleteObjective.FailureTriggerType = ObjectiveFailureTriggerType.DialogueCompleted;
+        incompleteObjective.FailedTriggerType = QuestCompletionTriggerType.EventFlow;
+        _propertyGrid.Refresh();
+        void SelectProperty(string name)
+        {
+            var root = _propertyGrid.SelectedGridItem;
+            while (root?.Parent is not null) root = root.Parent;
+            GridItem? Find(GridItem item) => item.PropertyDescriptor?.Name == name
+                ? item
+                : item.GridItems.Cast<GridItem>().Select(Find).FirstOrDefault(found => found is not null);
+            (root is null ? null : Find(root))?.Select();
+            Application.DoEvents();
+            UpdateReferenceList();
+        }
+        SelectProperty(nameof(QuestObjectiveDefinition.FailureTriggerId));
+        if (_referenceLabel.Text != "外部對話 ID 清單")
+            throw new InvalidOperationException($"失敗觸發 ID 沒有列出對話清單：{_referenceLabel.Text}");
+        ApplySelectedReference(new QuestReference("chapter02-section-16", ""));
+        SelectProperty(nameof(QuestObjectiveDefinition.FailedTriggerId));
+        if (_referenceLabel.Text != "外部事件流程 ID 清單")
+            throw new InvalidOperationException($"失敗後觸發 ID 沒有列出事件流程清單：{_referenceLabel.Text}");
+        if (incompleteObjective.FailureTriggerId != "chapter02-section-16" || incompleteObjective.TargetId.Length != 0)
+            throw new InvalidOperationException("從外部清單選取失敗觸發 ID 時寫錯欄位。");
+        incompleteObjective.FailureTriggerType = ObjectiveFailureTriggerType.None;
+        incompleteObjective.FailureTriggerId = null;
+        incompleteObjective.FailedTriggerType = QuestCompletionTriggerType.None;
+        var endStage = newQuest.Stages[0];
+        _propertyGrid.SelectedObject = endStage;
+        endStage.EndTriggerType = StageEndTriggerType.DialogueCompleted;
+        _propertyGrid.Refresh();
+        SelectProperty(nameof(QuestStageDefinition.EndTriggerId));
+        if (_referenceLabel.Text != "外部對話 ID 清單")
+            throw new InvalidOperationException($"提前結束觸發 ID 沒有列出對話清單：{_referenceLabel.Text}");
+        ApplySelectedReference(new QuestReference("chapter02-section-17", ""));
+        if (endStage.EndTriggerId != "chapter02-section-17")
+            throw new InvalidOperationException("從外部清單選取提前結束觸發 ID 失敗。");
+        endStage.EndTriggerType = StageEndTriggerType.None;
+        endStage.EndTriggerId = null;
+        _propertyGrid.SelectedObject = incompleteObjective;
         var stringList = TypeDescriptor.GetProperties(incompleteObjective)[nameof(QuestObjectiveDefinition.TargetIds)];
         if (stringList?.GetEditor(typeof(System.Drawing.Design.UITypeEditor)) is not StringListEditor)
             throw new InvalidOperationException("指定互動 ID 清單沒有使用可新增字串的編輯器。");

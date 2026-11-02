@@ -1207,6 +1207,20 @@ export const AUDIO_EVENT_CONFIG = (
       "fadeInPercent": 0,
       "fadeOutPercent": 0
     },
+    "questObjectiveFailed": {
+      "label": "任務 OBJ 失敗打叉",
+      "trigger": "任務 OBJ 進入失敗狀態、核取方塊開始播放打叉 Tween 時，每一項 OBJ 各播放一次；多項同時或短間隔連續打叉時各自獨立重疊播放，新的不會中斷舊的。讀檔還原已失敗狀態，或延遲期間已切換至其他 Stage 時不播放。",
+      "sourceAssetPaths": [
+        "Assets/Audio/互動否定.mp3"
+      ],
+      "sources": [
+        "./audio/interaction-denied.mp3"
+      ],
+      "volume": 0.3,
+      "delaySeconds": 0,
+      "fadeInPercent": 0,
+      "fadeOutPercent": 0
+    },
     "hotbarItemAssigned": {
       "label": "道具置入快捷工具列",
       "trigger": "玩家從背包的「快捷」指令確認將仍持有的道具指派或取代至快捷工具列時播放一次；選格、取消、道具已不存在或重複確認不播放。",
@@ -1659,6 +1673,21 @@ export const BGM_CONTROL_RULES = (
       "fadeOutSeconds": 0,
       "fadeInSeconds": 0,
       "priority": 500,
+      "durationSeconds": 0,
+      "restoreMode": "resume"
+    },
+    {
+      "id": "chapter02-section-16-line-012-bgm-stop",
+      "label": "Section 16 line-012 開始：目前 BGM 於 2 秒內淡出並停止（之後保持無 BGM）",
+      "enabled": true,
+      "triggerType": "dialogueLine",
+      "targetId": "chapter02-section-16-line-012",
+      "state": "triggered",
+      "action": "pause",
+      "targetVolume": 0,
+      "fadeOutSeconds": 2,
+      "fadeInSeconds": 1.5,
+      "priority": 600,
       "durationSeconds": 0,
       "restoreMode": "resume"
     },

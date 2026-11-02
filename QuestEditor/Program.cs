@@ -208,6 +208,89 @@ internal static class Program
         Console.WriteLine("Script-activated OBJs and multi-interaction item submission passed.");
     }
 
+    private static void ValidateObjectiveFailureSettings(string projectRoot, QuestReferenceCatalog references)
+    {
+        var typeConverter = TypeDescriptor.GetConverter(typeof(ObjectiveType));
+        var failureConverter = TypeDescriptor.GetConverter(typeof(ObjectiveFailureTriggerType));
+        if (typeConverter.ConvertToString(ObjectiveType.Scripted) != "劇情控制（不由玩家完成）" ||
+            failureConverter.ConvertToString(ObjectiveFailureTriggerType.DialogueCompleted) != "對話播完後失敗")
+            throw new InvalidDataException("劇情控制目標類型或失敗條件的中文選項未正確顯示。");
+
+        // The chapter 2 escape-pod OBJ is a scripted, data-driven failure with no red errors.
+        var document = QuestDataStore.Load(Path.Combine(projectRoot, "public", "quests", "quest-data.json"));
+        var objectives = document.Quests.SelectMany(quest => quest.Stages).SelectMany(stage => stage.Objectives).ToList();
+        var escapePod = objectives.Single(objective => objective.Id == "QUEST_CH02_MAIN_006_OBJ_01");
+        var circuit = objectives.Single(objective => objective.Id == "QUEST_CH02_MAIN_006_OBJ_02");
+        if (escapePod.Type != ObjectiveType.Scripted ||
+            escapePod.FailureTriggerType != ObjectiveFailureTriggerType.DialogueCompleted ||
+            escapePod.FailureTriggerId != "chapter02-section-16" ||
+            escapePod.FailedTriggerType != QuestCompletionTriggerType.Dialogue ||
+            escapePod.FailedTriggerId != "chapter02-section-17" ||
+            circuit.FailureTriggerType != ObjectiveFailureTriggerType.DialogueCompleted ||
+            circuit.FailedTriggerType != QuestCompletionTriggerType.None)
+            throw new InvalidDataException("第二章逃生艙 OBJ 的失敗設定不符。");
+        // section-17 finished → STAGE_01 ends despite its failed OBJs; OBJ_03 starts 0.5 s into STAGE_02.
+        var escapeQuest = document.Quests.Single(quest => quest.Id == "QUEST_CH02_MAIN_006");
+        var escapeStage = escapeQuest.Stages.Single(stage => stage.Id == "QUEST_CH02_MAIN_006_STAGE_01");
+        var landing = objectives.Single(objective => objective.Id == "QUEST_CH02_MAIN_006_OBJ_03");
+        if (escapeStage.EndTriggerType != StageEndTriggerType.DialogueCompleted ||
+            escapeStage.EndTriggerId != "chapter02-section-17" ||
+            Math.Abs(landing.StartDelaySeconds - 0.5) > 0.001 ||
+            !escapeQuest.Stages[1].Objectives.Contains(landing))
+            throw new InvalidDataException("第二章 STAGE_01 提前結束或 OBJ_03 啟動延遲設定不符。");
+        var issues = QuestValidator.Validate(document, references);
+        if (issues.Any(issue => ReferenceEquals(issue.Target, escapeStage)))
+            throw new InvalidDataException("提前結束設定的 Stage 不應出現驗證問題。");
+        escapeStage.EndTriggerId = " ";
+        if (!QuestValidator.Validate(document, references).Any(issue => ReferenceEquals(issue.Target, escapeStage) &&
+                issue.Message.Contains("已設定提前結束條件，但尚未指定觸發 ID")))
+            throw new InvalidDataException("提前結束條件沒有觸發 ID 時必須被驗證攔截。");
+        escapeStage.EndTriggerId = "chapter02-section-17";
+        if (issues.Any(issue => issue.Severity == ValidationSeverity.Error &&
+                                (ReferenceEquals(issue.Target, escapePod) || ReferenceEquals(issue.Target, circuit))))
+            throw new InvalidDataException("劇情控制／失敗設定的 OBJ 不應出現驗證錯誤：" + string.Join("；", issues
+                .Where(issue => ReferenceEquals(issue.Target, escapePod) || ReferenceEquals(issue.Target, circuit))));
+
+        escapePod.FailureTriggerId = "";
+        if (!QuestValidator.Validate(document, references).Any(issue => ReferenceEquals(issue.Target, escapePod) &&
+                issue.Message.Contains("已設定失敗條件，但尚未指定觸發 ID")))
+            throw new InvalidDataException("失敗條件沒有觸發 ID 時必須被驗證攔截。");
+        escapePod.FailureTriggerId = "missing-dialogue";
+        if (!QuestValidator.Validate(document, references).Any(issue => ReferenceEquals(issue.Target, escapePod) &&
+                issue.Message.Contains("找不到 Dialogue ID：missing-dialogue")))
+            throw new InvalidDataException("不存在的失敗對話必須被驗證攔截。");
+        escapePod.FailureTriggerId = "chapter02-section-16";
+        escapePod.FailedTriggerDelaySeconds = -1;
+        if (!QuestValidator.Validate(document, references).Any(issue => ReferenceEquals(issue.Target, escapePod) &&
+                issue.Message.Contains("失敗後觸發延遲必須介於")))
+            throw new InvalidDataException("失敗後觸發延遲超出範圍時必須被驗證攔截。");
+        escapePod.FailedTriggerDelaySeconds = 3;
+
+        // Unused failure settings stay out of the JSON; configured ones round-trip.
+        var path = Path.Combine(projectRoot, "output", "quest-editor-tests", "quest-failure.json");
+        QuestDataStore.Save(path, document);
+        var json = File.ReadAllText(path);
+        var roundtrip = QuestDataStore.Load(path).Quests.SelectMany(quest => quest.Stages)
+            .SelectMany(stage => stage.Objectives).Single(objective => objective.Id == escapePod.Id);
+        if (!json.Contains("\"type\": \"scripted\"") || !json.Contains("\"failureTriggerType\": \"dialogueCompleted\"") ||
+            !json.Contains("\"endTriggerType\": \"dialogueCompleted\"") ||
+            !json.Contains("\"failedTriggerType\": \"dialogue\"") ||
+            Math.Abs(roundtrip.FailureDelaySeconds - escapePod.FailureDelaySeconds) > 0.001 ||
+            Math.Abs(roundtrip.FailedTriggerDelaySeconds - 3) > 0.001 ||
+            roundtrip.FailedTriggerId != "chapter02-section-17")
+            throw new InvalidDataException("OBJ 失敗設定 JSON 往返測試失敗。");
+        var untouched = objectives.First(objective => objective.FailureTriggerType == ObjectiveFailureTriggerType.None &&
+                                                      objective.FailedTriggerType == QuestCompletionTriggerType.None);
+        var untouchedJson = System.Text.Json.JsonSerializer.Serialize(untouched, new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+        });
+        if (untouchedJson.Contains("failure", StringComparison.OrdinalIgnoreCase) ||
+            untouchedJson.Contains("failedTrigger", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("沒有失敗設定的 OBJ 不應寫出失敗欄位。");
+        Console.WriteLine("Objective failure settings passed: scripted type, failure trigger, failed follow-up, stage early end.");
+    }
+
     private static void RunSelfTest(string projectRoot)
     {
         if (new QuestObjectiveDefinition().ShowProgress)
@@ -352,6 +435,7 @@ internal static class Program
         var references = QuestReferenceProvider.Load(projectRoot);
         ValidatePuzzleReferences(projectRoot, references);
         ValidateScriptActivationAndSubmitTargets(projectRoot, references);
+        ValidateObjectiveFailureSettings(projectRoot, references);
         if (!references.Contains("Puzzle", "chapter04-phototropic-plant"))
             throw new InvalidDataException("植物解謎系統必須從 runtime 登記到完成解謎選項。");
         if (QuestValidator.Validate(compoundRoundtrip, references).Any(issue => issue.Severity == ValidationSeverity.Error))

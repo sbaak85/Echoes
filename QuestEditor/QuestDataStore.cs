@@ -63,10 +63,19 @@ internal static class QuestDataStore
 
     private static void NormalizeObjectiveActivation(QuestDocument document)
     {
+        foreach (var stage in document.Quests.SelectMany(quest => quest.Stages))
+            stage.EndTriggerId = string.IsNullOrWhiteSpace(stage.EndTriggerId) ? null : stage.EndTriggerId.Trim();
         foreach (var objective in document.Quests
                      .SelectMany(quest => quest.Stages)
                      .SelectMany(stage => stage.Objectives))
         {
+            // Blank failure IDs are omitted from JSON, like unused teleport points.
+            objective.FailureTriggerId = string.IsNullOrWhiteSpace(objective.FailureTriggerId)
+                ? null
+                : objective.FailureTriggerId.Trim();
+            objective.FailedTriggerId = string.IsNullOrWhiteSpace(objective.FailedTriggerId)
+                ? null
+                : objective.FailedTriggerId.Trim();
             if (objective.ActivationMode is ObjectiveActivationMode.ObjectiveActivated or
                 ObjectiveActivationMode.ObjectiveCompleted or
                 ObjectiveActivationMode.DialogueStarted or ObjectiveActivationMode.DialogueCompleted)

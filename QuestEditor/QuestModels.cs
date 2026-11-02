@@ -84,6 +84,25 @@ public enum ObjectiveType
     [Description("到達指定日期或時間")] DayOrTimeReached,
     [Description("旗標條件成立")] FlagCondition,
     [Description("自訂進度")] CustomProgress,
+    [Description("劇情控制（不由玩家完成）")] Scripted,
+}
+
+[TypeConverter(typeof(LocalizedEnumConverter))]
+public enum ObjectiveFailureTriggerType
+{
+    [Description("無")] None,
+    [Description("事件觸發時失敗")] Event,
+    [Description("對話開始時失敗")] DialogueStarted,
+    [Description("對話播完後失敗")] DialogueCompleted,
+}
+
+[TypeConverter(typeof(LocalizedEnumConverter))]
+public enum StageEndTriggerType
+{
+    [Description("無")] None,
+    [Description("事件觸發時結束")] Event,
+    [Description("對話開始時結束")] DialogueStarted,
+    [Description("對話播完後結束")] DialogueCompleted,
 }
 
 [TypeConverter(typeof(LocalizedEnumConverter))]
@@ -178,6 +197,7 @@ internal static class PropertyGroup
     public const string Reward = "4. 獎勵";
     public const string Rules = "5. 規則與失敗";
     public const string Display = "5. 介面顯示";
+    public const string ObjectiveFailure = "6. 失敗設定";
     public const string ChapterFlow = "2. 章節流程";
 }
 
@@ -427,6 +447,16 @@ public sealed class QuestStageDefinition
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public double CompletionTeleportDelaySeconds { get; set; }
 
+    [Category(PropertyGroup.StageCompletion), DisplayName("提前結束條件"), DisplayOrder(25)]
+    [Description("條件成立時（此 Stage 進行中），不論 OBJ 是否完成或已失敗都結束此階段，套用完成延遲後切換下一階段。選「無」則只依完成方式判定。")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public StageEndTriggerType EndTriggerType { get; set; }
+
+    [Category(PropertyGroup.StageCompletion), DisplayName("提前結束觸發 ID"), DisplayOrder(26)]
+    [Description("對話模式填對話腳本 ID（例如 chapter02-section-17）；事件模式填事件 ID。也可從視窗下方的外部 ID 清單選取。")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? EndTriggerId { get; set; }
+
     [Category(PropertyGroup.Basic), DisplayName("完成方式"), DisplayOrder(3)]
     public StageCompletionMode CompletionMode { get; set; } = StageCompletionMode.All;
 
@@ -562,6 +592,36 @@ public sealed class QuestObjectiveDefinition
     [TypeConverter(typeof(RegisteredInterfaceIdConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CompletionInterfaceId { get; set; }
+
+    [Category(PropertyGroup.ObjectiveFailure), DisplayName("失敗條件"), DisplayOrder(50)]
+    [Description("條件成立時（此 OBJ 所在 Stage 進行中），等待失敗延遲後讓此 OBJ 失敗：核取框打叉、變灰並保存在存檔中；已核取的 OBJ 也會改成失敗。選「無」則只能由劇情程式改成失敗。")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ObjectiveFailureTriggerType FailureTriggerType { get; set; }
+
+    [Category(PropertyGroup.ObjectiveFailure), DisplayName("失敗觸發 ID"), DisplayOrder(51)]
+    [Description("對話模式填對話腳本 ID（例如 chapter02-section-16）；事件模式填事件 ID。也可從視窗下方的外部 ID 清單選取。")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FailureTriggerId { get; set; }
+
+    [Category(PropertyGroup.ObjectiveFailure), DisplayName("失敗延遲（秒）"), DisplayOrder(52)]
+    [Description("失敗條件成立後，等待指定的現實秒數才讓 OBJ 失敗。倒數會存檔，讀檔後接著倒數。0 代表立即失敗。")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double FailureDelaySeconds { get; set; }
+
+    [Category(PropertyGroup.ObjectiveFailure), DisplayName("失敗後觸發類型"), DisplayOrder(53)]
+    [Description("OBJ 失敗後可播放一段對話，或執行一個事件流程（不論是失敗條件或劇情程式造成的失敗）。只觸發一次；未播完就讀檔會重新觸發。選擇「無」即不觸發。")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public QuestCompletionTriggerType FailedTriggerType { get; set; }
+
+    [Category(PropertyGroup.ObjectiveFailure), DisplayName("失敗後觸發 ID"), DisplayOrder(54)]
+    [Description("依觸發類型填入 Dialogue ID 或 Event Flow ID；也可從視窗下方的外部 ID 清單選取。")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FailedTriggerId { get; set; }
+
+    [Category(PropertyGroup.ObjectiveFailure), DisplayName("失敗後觸發延遲（秒）"), DisplayOrder(55)]
+    [Description("OBJ 失敗後，等待指定的現實秒數才觸發對話或事件流程。剛好有別的對話在播時，會排在它之後播放。0 代表失敗後立即觸發。")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double FailedTriggerDelaySeconds { get; set; }
 
     [Browsable(false)]
     public string UnlockDialogueId { get; set; } = "";

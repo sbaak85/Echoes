@@ -119,6 +119,9 @@ internal static class QuestValidator
                     $"{stage.Id} 啟動", stage, references, issues);
                 ValidateTeleport(stage.CompletionTeleportPointId, stage.CompletionTeleportDelaySeconds,
                     $"{stage.Id} 完成", stage, references, issues);
+                if (stage.EndTriggerType != StageEndTriggerType.None)
+                    ValidateTriggerReference(stage.Id, stage, StageEndTriggerReferenceKind(stage.EndTriggerType),
+                        stage.EndTriggerId, "提前結束條件", references, issues);
                 if (!stage.Id.StartsWith($"{quest.Id}_STAGE_", StringComparison.OrdinalIgnoreCase))
                     issues.Add(new(
                         ValidationSeverity.Error,
@@ -145,6 +148,7 @@ internal static class QuestValidator
                             ValidationSeverity.Error,
                             $"{objective.Id} 必須使用 {quest.Id}_OBJ_XX 格式",
                             objective));
+                    ValidateObjectiveFailure(objective, references, issues);
                     ValidateObjective(objective, references, objectiveIds, issues);
                 }
             }
@@ -351,6 +355,70 @@ internal static class QuestValidator
         if (objective.ShowHintIcon)
             issues.Add(new(ValidationSeverity.Warning, $"{objective.Id} 需要 HintIcon；請在 MapEditor 綁定場景物件", objective));
     }
+
+    private static void ValidateObjectiveFailure(
+        QuestObjectiveDefinition objective,
+        QuestReferenceCatalog references,
+        List<QuestValidationIssue> issues)
+    {
+        if (objective.FailureTriggerType != ObjectiveFailureTriggerType.None)
+        {
+            if (!double.IsFinite(objective.FailureDelaySeconds) ||
+                objective.FailureDelaySeconds < 0 || objective.FailureDelaySeconds > 3600)
+                issues.Add(new(ValidationSeverity.Error, $"{objective.Id} 的失敗延遲必須介於 0 至 3600 秒。", objective));
+            ValidateTriggerReference(objective.Id, objective, FailureTriggerReferenceKind(objective.FailureTriggerType),
+                objective.FailureTriggerId, "失敗條件", references, issues);
+        }
+        if (objective.FailedTriggerType != QuestCompletionTriggerType.None)
+        {
+            if (!double.IsFinite(objective.FailedTriggerDelaySeconds) ||
+                objective.FailedTriggerDelaySeconds < 0 || objective.FailedTriggerDelaySeconds > 3600)
+                issues.Add(new(ValidationSeverity.Error, $"{objective.Id} 的失敗後觸發延遲必須介於 0 至 3600 秒。", objective));
+            ValidateTriggerReference(objective.Id, objective, FailedTriggerReferenceKind(objective.FailedTriggerType),
+                objective.FailedTriggerId, "失敗後觸發類型", references, issues);
+        }
+    }
+
+    private static void ValidateTriggerReference(
+        string ownerId,
+        object target,
+        string? kind,
+        string? id,
+        string label,
+        QuestReferenceCatalog references,
+        List<QuestValidationIssue> issues)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            issues.Add(new(ValidationSeverity.Error, $"{ownerId} 已設定{label}，但尚未指定觸發 ID", target));
+            return;
+        }
+        // Event IDs come from many systems (flags, interactions, flows); only typed IDs are checked.
+        if (kind is null or "StoryTrigger") return;
+        if (references.Get(kind).Count > 0 && !references.Contains(kind, id.Trim()))
+            issues.Add(new(ValidationSeverity.Error, $"找不到 {kind} ID：{id}", target));
+    }
+
+    public static string? FailureTriggerReferenceKind(ObjectiveFailureTriggerType type) => type switch
+    {
+        ObjectiveFailureTriggerType.Event => "StoryTrigger",
+        ObjectiveFailureTriggerType.DialogueStarted or ObjectiveFailureTriggerType.DialogueCompleted => "Dialogue",
+        _ => null,
+    };
+
+    public static string? StageEndTriggerReferenceKind(StageEndTriggerType type) => type switch
+    {
+        StageEndTriggerType.Event => "StoryTrigger",
+        StageEndTriggerType.DialogueStarted or StageEndTriggerType.DialogueCompleted => "Dialogue",
+        _ => null,
+    };
+
+    public static string? FailedTriggerReferenceKind(QuestCompletionTriggerType type) => type switch
+    {
+        QuestCompletionTriggerType.Dialogue => "Dialogue",
+        QuestCompletionTriggerType.EventFlow => "EventFlow",
+        _ => null,
+    };
 
     private static void ValidateCompletionInterfaceAction(
         QuestObjectiveDefinition objective,

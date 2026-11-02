@@ -235,15 +235,11 @@ import {
   CHAPTER02_CIRCUIT_BLACKOUT_LINE_ID,
   CHAPTER02_CIRCUIT_DIALOGUE,
   CHAPTER02_CIRCUIT_DIALOGUE_DELAY_MS,
-  CHAPTER02_CIRCUIT_FAIL_DELAY_MS,
-  CHAPTER02_CIRCUIT_FAILED_OBJECTIVE_IDS,
   CHAPTER02_CIRCUIT_ITEM_ID,
-  CHAPTER02_CIRCUIT_QUEST_ID,
   CHAPTER02_CIRCUIT_SHAKE_LINE_ID,
-  CHAPTER02_CIRCUIT_STAGE_ID,
-  resolveChapter02CircuitStep,
+  shouldPlayChapter02CircuitDialogue,
 } from "./chapter02-circuit-failure.ts";
-import { CHAPTER02_CIRCUIT_SHAKE, CHAPTER02_CIRCUIT_SHAKE_FADE_PORTION, CHAPTER02_SHAKE_AUDIO_EVENTS, CHAPTER02_SHAKE_FLAG, CHAPTER02_SHAKE_LEVELS, CHAPTER02_SHAKE_STRONG_FLAG, LoopingCameraShake, ScriptedCameraShake } from "./camera-shake.ts";
+import { CHAPTER02_CIRCUIT_SHAKE, CHAPTER02_CIRCUIT_SHAKE_FADE_PORTION, CHAPTER02_SHAKE_AUDIO_EVENTS, CHAPTER02_SHAKE_FLAG, CHAPTER02_SHAKE_LEVELS, CHAPTER02_SHAKE_STRONG_FLAG, LoopingCameraShake, RepeatingCameraShake, ScriptedCameraShake } from "./camera-shake.ts";
 import { NAV_TERMINAL_INTERACTION_ID, NAV_TERMINAL_MESSAGE_CHANNEL } from "./nav-terminal-minigame.ts";
 import { STAR_CARDS_INTERACTION_ID, STAR_CARDS_REPLAY_INTERACTION_ID, STAR_CARDS_TUTORIAL_STARTED_FLAG, STAR_CARDS_QUEST_ID, STAR_CARDS_OBJECTIVE_ID, STAR_CARDS_INTRO_DIALOGUE_ID, STAR_CARDS_INTRO_PLAYED_FLAG, shouldStartStarCardsTutorial, completeStarCardsQuestMatch, getStarCardsPostMatchDialogueId, getStarCardsInteractionPlan } from "./star-cards-quest-flow.ts";
 import { getStarCardsMatchWinner, type StarCardsMatchResult } from "./star-cards-game.ts";
@@ -4173,6 +4169,9 @@ export function MovementLab() {
   if (!circuitCameraShakeRef.current) {
     circuitCameraShakeRef.current = new ScriptedCameraShake(CHAPTER02_CIRCUIT_SHAKE, CHAPTER02_CIRCUIT_SHAKE_FADE_PORTION);
   }
+  // line-003 主震動結束後的持續餘震（±3px、3 秒、間隔 0.5～1.5 秒），到 line-011 黑畫面為止
+  const circuitAftershockRef = useRef<RepeatingCameraShake | null>(null);
+  if (!circuitAftershockRef.current) circuitAftershockRef.current = new RepeatingCameraShake();
   const whiteRiftOverlayRef = useRef<WhiteRiftOverlayHandle>(null);
   const shipEmergencySuspendedRef = useRef(false);
   const [chapter02CountdownView, setChapter02CountdownView] = useState<Chapter02CountdownView>("hidden");
@@ -4182,10 +4181,8 @@ export function MovementLab() {
   const chapter02CountdownCountFromRef = useRef(0);
   const chapter02CountdownPersistElapsedRef = useRef(0);
   const chapter02CountdownFollowUpPendingRef = useRef(false);
-  // 拾取迴路模組後的 section-16 → 1 秒後 OBJ 失敗，進行中不重複觸發
+  // 拾取迴路模組後排定的 section-16，進行中不重複觸發（OBJ 失敗與 section-17 由任務資料的失敗設定處理）
   const chapter02CircuitPendingRef = useRef(false);
-  // section-16 line-011 起的黑畫面流程；OBJ 失敗要等它淡出結束
-  const chapter02CircuitBlackoutRef = useRef<Promise<unknown> | null>(null);
   const chapter02CountdownRetryInProgressRef = useRef(false);
   const storyReadyEmittedRef = useRef(false);
   const storyInputLockedRef = useRef(false);
@@ -5431,6 +5428,7 @@ export function MovementLab() {
   // 外框接近新尺寸時再用 0.2 秒交叉淡入淡出，避免外框動畫中是空的或文字先跳到定位
   const questFadeSnapshotRef = useRef<{ html: string; height: number } | null>(null);
   const questFadeAnimatingRef = useRef(false);
+  const questFadeStageRef = useRef<{ questId?: string; stageId?: string }>({});
   const captureQuestFadeSnapshot = useCallback(() => {
     const questHud = questHudRef.current;
     if (!questHud || questFadeAnimatingRef.current) return;
@@ -5449,7 +5447,14 @@ export function MovementLab() {
   useLayoutEffect(() => {
     const questHud = questHudRef.current;
     if (!questHud) return;
-    const snapshot = questFadeSnapshotRef.current;
+    const previousStage = questFadeStageRef.current;
+    questFadeStageRef.current = { questId: activeQuestHud?.id, stageId: activeQuestHud?.stageId };
+    // 同一任務換 Stage：NEXT 已讓舊 OBJ 淡出、新 Stage 有自己的進場動畫；
+    // 再疊舊狀態的複本會讓已消失的舊 OBJ 又閃出來一次，所以只做外框補間
+    const isStageSwitch = previousStage.questId !== undefined &&
+      previousStage.questId === activeQuestHud?.id &&
+      previousStage.stageId !== activeQuestHud?.stageId;
+    const snapshot = isStageSwitch ? null : questFadeSnapshotRef.current;
     questHud.parentElement?.querySelectorAll(".quest-fade-ghost").forEach((ghost) => ghost.remove());
     let ghost: HTMLElement | null = null;
     if (snapshot && questHud.parentElement) {
@@ -5815,6 +5820,8 @@ export function MovementLab() {
       return;
     }
     if (!failed) playOneShotAudio("questObjectiveCompleted");
+    // 每項 OBJ 打叉各播一聲：獨立音軌重疊播放，同時或連續打叉都不會互相截斷
+    else void audioEventManagerRef.current?.play("questObjectiveFailed", { overlap: true }).catch(() => {});
     const unlockTweenKey = getQuestObjectiveTweenKey(view.id, objectiveId);
     const existingTimer = questObjectiveTweenTimerRefs.current.get(unlockTweenKey);
     if (existingTimer !== undefined) window.clearTimeout(existingTimer);
@@ -7903,10 +7910,13 @@ export function MovementLab() {
       if (dialogueId === CHAPTER02_COUNTDOWN_STOP_DIALOGUE) stopChapter02Countdown();
       if (dialogueId === CHAPTER02_CIRCUIT_DIALOGUE && lineId === CHAPTER02_CIRCUIT_SHAKE_LINE_ID) {
         circuitCameraShakeRef.current?.request();
+        // 主震動（1.5 秒）結束後接著持續餘震
+        circuitAftershockRef.current?.start(CHAPTER02_CIRCUIT_SHAKE.durationSeconds * 1000);
       }
       if (dialogueId === CHAPTER02_CIRCUIT_DIALOGUE && lineId === CHAPTER02_CIRCUIT_BLACKOUT_LINE_ID) {
-        chapter02CircuitBlackoutRef.current = chapterFlowManagerRef.current?.run(CHAPTER02_CIRCUIT_BLACKOUT_FLOW)
-          .catch(error => console.error("[Chapter02 section-16 blackout]", error)) ?? null;
+        circuitAftershockRef.current?.stop();
+        void chapterFlowManagerRef.current?.run(CHAPTER02_CIRCUIT_BLACKOUT_FLOW)
+          .catch(error => console.error("[Chapter02 section-16 blackout]", error));
       }
     },
     onStart: () => { hideHotbarSelectionHint(); document.documentElement.classList.add("dialogue-cursor-active"); playOneShotAudio("dialogueOpened"); },
@@ -8015,25 +8025,11 @@ export function MovementLab() {
     }
     showChapter02Countdown("intro");
   };
-  // ---------- 第二章任務 6：拾取迴路模組 → section-16 → OBJ_01 失敗 ----------
-  const failChapter02CircuitObjectives = () => {
-    const questManager = questRuntimeManagerRef.current;
-    if (!questManager?.isQuestAtStage(CHAPTER02_CIRCUIT_QUEST_ID, CHAPTER02_CIRCUIT_STAGE_ID)) return;
-    let changed = false;
-    for (const objectiveId of CHAPTER02_CIRCUIT_FAILED_OBJECTIVE_IDS) {
-      changed = questManager.failObjective(CHAPTER02_CIRCUIT_QUEST_ID, objectiveId) || changed;
-    }
-    if (changed) saveQuestSaveData(questManager.exportSave());
-  };
+  // ---------- 第二章任務 6：拾取迴路模組 → section-16（OBJ 失敗與 section-17 見任務資料的失敗設定） ----------
   const advanceChapter02Circuit = (hasCircuitItem: boolean) => {
     const questManager = questRuntimeManagerRef.current;
     if (!questManager || chapter02CircuitPendingRef.current) return;
-    const step = resolveChapter02CircuitStep(questManager, hasCircuitItem);
-    if (step === "failObjectives") {
-      failChapter02CircuitObjectives();
-      return;
-    }
-    if (step !== "playDialogue") return;
+    if (!shouldPlayChapter02CircuitDialogue(questManager, hasCircuitItem)) return;
     chapter02CircuitPendingRef.current = true;
     window.setTimeout(() => {
       // 剛好有別的對話在播：放棄這次，讀檔時會再補播
@@ -8041,23 +8037,14 @@ export function MovementLab() {
         chapter02CircuitPendingRef.current = false;
         return;
       }
-      chapter02CircuitBlackoutRef.current = null;
       void dialogueManager.playRegistered(CHAPTER02_CIRCUIT_DIALOGUE, {
         id: `story:${CHAPTER02_CIRCUIT_DIALOGUE}`,
         label: CHAPTER02_CIRCUIT_DIALOGUE,
         type: "dialogue",
-      }).then(async result => {
-        if (!result.completed) {
-          chapter02CircuitPendingRef.current = false;
-          return;
-        }
-        // 等 line-011 的黑畫面（播完後再停 2 秒、淡出 1.5 秒）完全亮回，再過 1 秒才失敗
-        await chapter02CircuitBlackoutRef.current;
-        chapter02CircuitBlackoutRef.current = null;
-        window.setTimeout(() => {
-          chapter02CircuitPendingRef.current = false;
-          failChapter02CircuitObjectives();
-        }, CHAPTER02_CIRCUIT_FAIL_DELAY_MS);
+      }).then(() => {
+        // 保險：對話中斷或跳過、沒經過 line-011 時，餘震也要停
+        circuitAftershockRef.current?.stop();
+        chapter02CircuitPendingRef.current = false;
       });
     }, CHAPTER02_CIRCUIT_DIALOGUE_DELAY_MS);
   };
@@ -14379,7 +14366,8 @@ export function MovementLab() {
       CHAPTER02_SHAKE_AUDIO_EVENTS[Math.floor(Math.random() * CHAPTER02_SHAKE_AUDIO_EVENTS.length)],
     );
     const warpExitCameraShake = warpExitCameraShakeRef.current!;
-    const scriptedCameraShakes = [warpExitCameraShake, circuitCameraShakeRef.current!];
+    // 順序＝優先序：主震動進行中蓋過餘震；餘震循環期間（含空檔）都會暫停背景循環震動
+    const scriptedCameraShakes = [warpExitCameraShake, circuitCameraShakeRef.current!, circuitAftershockRef.current!];
     warpExitCameraShake.onShakeStart = emergencyCameraShake.onShakeStart;
     let warpExitShakeWasActive = false;
     const getEmergencyShakeOffset = (time: number) => {
