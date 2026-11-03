@@ -8,10 +8,14 @@ export const CHAPTER02_WHITE_RIFT_REVEAL_LINE = "chapter02-section-13-line-002";
 /** Accepted live preview values: 12 / 150% / 80%. Do not read preview localStorage in the game. */
 export const WHITE_RIFT_SETTINGS = { spotCount: 12, density: 1.5, spotSize: 0.8 } as const;
 /**
- * fadeInMs：曲速退出筆刷拉痕由無拉到峰值的時間；白畫面晚 whiteFadeInDelayMs 才開始淡入、
- * 花 whiteFadeInMs 淡到全白（一定在拉痕到峰值前就全白）。fadeOutMs：白畫面淡出，拉痕同時由峰值收回到無。
+ * 進場：曲速退出筆刷拉痕花 smearFadeInMs 由無拉到峰值；拉痕開始 whiteFadeInDelayMs 後白畫面才開始淡入，
+ * 花 whiteFadeInMs 淡到全白。全白後停 holdMs 再播對話。
+ * 退場：白畫面花 whiteFadeOutMs 淡出；淡出開始 smearFadeOutDelayMs 後，拉痕才花 smearFadeOutMs 由峰值收回到無。
  */
-export const WHITE_RIFT_TIMING = { fadeInMs: 2000, whiteFadeInDelayMs: 500, whiteFadeInMs: 1200, holdMs: 2000, fadeOutMs: 2000 } as const;
+export const WHITE_RIFT_TIMING = {
+  smearFadeInMs: 2000, whiteFadeInDelayMs: 1500, whiteFadeInMs: 1200, holdMs: 2000,
+  whiteFadeOutMs: 2000, smearFadeOutDelayMs: 1500, smearFadeOutMs: 2000,
+} as const;
 /** Saved while the transition is unfinished, so a reload or loaded save replays it instead of stranding the story. */
 export const CHAPTER02_WHITE_RIFT_PENDING_FLAG = "chapter02-white-rift-pending";
 /** Set at full white: the ship has left warp, so the starfield keeps warp streaks but flows slower until chapter 2 ends. */
@@ -88,11 +92,13 @@ export class Chapter02WhiteRift {
       this.phase = "fade-in";
       this.setOpacity(0);
       this.host.setSmear?.(0);
-      // 拉痕由無拉到峰值；白畫面晚一點開始淡入，拉痕到峰值前已經全白
-      const { fadeInMs, whiteFadeInDelayMs, whiteFadeInMs } = WHITE_RIFT_TIMING;
-      const builtUp = await this.wait(fadeInMs, progress => {
-        this.host.setSmear?.(smoothstep(progress));
-        this.setOpacity(smoothstep((progress * fadeInMs - whiteFadeInDelayMs) / whiteFadeInMs));
+      // 拉痕先由無拉到峰值；白畫面晚 whiteFadeInDelayMs 才開始淡入，兩者都到位才算進場結束
+      const { smearFadeInMs, whiteFadeInDelayMs, whiteFadeInMs } = WHITE_RIFT_TIMING;
+      const buildUpMs = Math.max(smearFadeInMs, whiteFadeInDelayMs + whiteFadeInMs);
+      const builtUp = await this.wait(buildUpMs, progress => {
+        const elapsed = progress * buildUpMs;
+        this.host.setSmear?.(smoothstep(elapsed / smearFadeInMs));
+        this.setOpacity(smoothstep((elapsed - whiteFadeInDelayMs) / whiteFadeInMs));
       });
       if (!builtUp) return;
       this.setOpacity(1);
@@ -140,11 +146,13 @@ export class Chapter02WhiteRift {
       this.phase = "fade-out";
       this.host.setEmergencySuspended(false);
       this.host.onRevealStart?.();
-      // 白畫面淡出的同時，拉痕由峰值收回到無
-      this.fadeOut = this.wait(WHITE_RIFT_TIMING.fadeOutMs, progress => {
-        const remaining = 1 - smoothstep(progress);
-        this.setOpacity(remaining);
-        this.host.setSmear?.(remaining);
+      // 白畫面先淡出；淡出開始 smearFadeOutDelayMs 後，拉痕才由峰值收回到無
+      const { whiteFadeOutMs, smearFadeOutDelayMs, smearFadeOutMs } = WHITE_RIFT_TIMING;
+      const revealMs = Math.max(whiteFadeOutMs, smearFadeOutDelayMs + smearFadeOutMs);
+      this.fadeOut = this.wait(revealMs, progress => {
+        const elapsed = progress * revealMs;
+        this.setOpacity(1 - smoothstep(elapsed / whiteFadeOutMs));
+        this.host.setSmear?.(1 - smoothstep((elapsed - smearFadeOutDelayMs) / smearFadeOutMs));
       });
     }
     return this.fadeOut;
