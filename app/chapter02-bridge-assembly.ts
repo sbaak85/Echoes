@@ -1,6 +1,7 @@
 // 第二章緊急事件：黑畫面全黑時（紅色警戒旗標開啟），4 名 NPC 改站到駕駛艙的 TeleportPoint 上；
 // section-14 播完後短暫黑畫面，再改站到逃生通道出口（shipinterior-interaction-024）旁。
 // 位置與面向在 MapEditor 調整 ship_interior 的 TeleportPoint（bridge-*、escape-*）即可。
+// 任務 6 OBJ_02（拾取迴路模組）完成當下，4 名 NPC 完全離場（hasChapter02CrewDeparted）。
 import type { ChapterFlowDefinition } from "./chapter-flow-manager";
 
 /** section-14 播完、黑畫面全黑時開啟（存檔中）：NPC 改站到逃生艙集合點 */
@@ -34,6 +35,29 @@ export const CHAPTER02_ESCAPE_ASSEMBLY_FLOW: ChapterFlowDefinition = {
   ],
   skipActions: [{ type: "setStoryFlag", flagId: CHAPTER02_ESCAPE_ASSEMBLY_FLAG, value: true }],
 };
+
+/** 拾取迴路模組、OBJ_02 完成的當下，4 名 NPC 從 ship_interior 完全離場（之後不再出現） */
+export const CHAPTER02_CREW_DEPARTURE_QUEST_ID = "QUEST_CH02_MAIN_006";
+export const CHAPTER02_CREW_DEPARTURE_OBJECTIVE_ID = "QUEST_CH02_MAIN_006_OBJ_02";
+export const CHAPTER02_CREW_DEPARTURE_NEXT_STAGE_ID = "QUEST_CH02_MAIN_006_STAGE_02";
+
+type CrewDepartureQuery = {
+  hasObjectiveReachedState(questId: string, objectiveId: string, state: "completed"): boolean;
+  hasObjectiveFailed(questId: string, objectiveId: string): boolean;
+  hasQuestReachedStage(questId: string, stageId: string): boolean;
+};
+
+/**
+ * OBJ_02 完成後，section-16 播完 4.5 秒會把它改成失敗（清掉已完成），
+ * 接著任務進到 STAGE_02，所以這三種狀態都算已離場。
+ */
+export function hasChapter02CrewDeparted(npcId: string, quest: CrewDepartureQuery): boolean {
+  if (!(npcId in CHAPTER02_BRIDGE_ASSEMBLY_POINTS)) return false;
+  const questId = CHAPTER02_CREW_DEPARTURE_QUEST_ID, objectiveId = CHAPTER02_CREW_DEPARTURE_OBJECTIVE_ID;
+  return quest.hasObjectiveReachedState(questId, objectiveId, "completed") ||
+    quest.hasObjectiveFailed(questId, objectiveId) ||
+    quest.hasQuestReachedStage(questId, CHAPTER02_CREW_DEPARTURE_NEXT_STAGE_ID);
+}
 
 type Placement = { x: number; y: number; facing: string };
 

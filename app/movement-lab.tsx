@@ -229,7 +229,7 @@ import { BusCardPuzzle } from "./bus-card-puzzle.tsx";
 import { BUS_CARD_INTERACTION_ID } from "./bus-card-puzzle.ts";
 import { NavTerminalMinigame } from "./nav-terminal-minigame.tsx";
 import { RedAlertLighting, RED_ALERT_SCENE_ID, RED_ALERT_STORY_FLAG } from "./red-alert-lighting.ts";
-import { CHAPTER02_ESCAPE_ASSEMBLY_FLAG, CHAPTER02_ESCAPE_ASSEMBLY_FLOW, resolveBridgeAssemblyPlacement } from "./chapter02-bridge-assembly.ts";
+import { CHAPTER02_ESCAPE_ASSEMBLY_FLAG, CHAPTER02_ESCAPE_ASSEMBLY_FLOW, hasChapter02CrewDeparted, resolveBridgeAssemblyPlacement } from "./chapter02-bridge-assembly.ts";
 import { CHAPTER02_EMERGENCY_BGM_EVENT_ID, CHAPTER02_ZERO_HOUR_BGM_EVENT_ID, isChapter02ZeroHourActive } from "./chapter02-emergency-flow.ts";
 import {
   CHAPTER02_CIRCUIT_BLACKOUT_FLOW,
@@ -10388,8 +10388,16 @@ export function MovementLab() {
     const npcPresenceRequirements = new WeakMap<SceneNpcDefinition, ReturnType<typeof normalizeInteractionUseRequirements>>();
     // 執行中的 NPC 面向（對話時轉向主角，一次轉 45°）；key 為 `${sceneId}:${npcId}`
     const npcRuntimeFacing = new Map<string, { facing: NpcDirection; lastStepAt: number }>();
+    const crewDepartureQuery = {
+      hasObjectiveReachedState: npcStageQuery.hasObjectiveReachedState,
+      hasQuestReachedStage: npcStageQuery.hasQuestReachedStage,
+      hasObjectiveFailed: (questId: string, objectiveId: string) =>
+        questRuntimeManagerRef.current?.hasObjectiveFailed(questId, objectiveId) ?? false,
+    };
     // NPC 自己的出場條件（與對話條件無關）；舊格式沿用原本所屬互動區的條件
-    const isSceneNpcOnStage = (npc: SceneNpcDefinition) => {
+    const isSceneNpcOnStage = (npc: SceneNpcDefinition, sceneId = SCENE_DATA.sceneId) => {
+      // 第二章任務 6 OBJ_02 完成當下，船艙的 4 名 NPC 完全離場
+      if (sceneId === RED_ALERT_SCENE_ID && hasChapter02CrewDeparted(npc.id, crewDepartureQuery)) return false;
       let requirements = npcPresenceRequirements.get(npc);
       if (!requirements) {
         requirements = normalizeInteractionUseRequirements(
@@ -14274,7 +14282,7 @@ export function MovementLab() {
         if ((layout.layer ?? 0) !== activeLayer) continue;
         const offset = { x: layout.x - originLayout.x, y: layout.y - originLayout.y };
         for (const sceneNpc of getSceneNpcs(scene).npcs.values()) {
-          if (!isSceneNpcOnStage(sceneNpc)) continue;
+          if (!isSceneNpcOnStage(sceneNpc, scene.sceneId)) continue;
           const npc = placeSceneNpc(scene, sceneNpc);
           const sprites = NPC_CATALOG.characters[npc.characterId]?.sprites;
           if (!sprites) continue;

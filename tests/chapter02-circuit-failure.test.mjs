@@ -262,6 +262,41 @@ test("section-17 finished → STAGE_01 ends despite its failed OBJs; OBJ_03 star
   assert.equal(restored.manager.getCurrentStage(CHAPTER02_CIRCUIT_QUEST_ID), LANDING_STAGE_ID);
 });
 
+test("the 4 crew NPCs leave the moment OBJ_02 completes and stay gone through its failure, STAGE_02 and a reload", async () => {
+  const { hasChapter02CrewDeparted, CHAPTER02_CREW_DEPARTURE_OBJECTIVE_ID, CHAPTER02_BRIDGE_ASSEMBLY_POINTS } = await import("../app/chapter02-bridge-assembly.ts");
+  assert.equal(CHAPTER02_CREW_DEPARTURE_OBJECTIVE_ID, OBJ_02);
+  const crew = Object.keys(CHAPTER02_BRIDGE_ASSEMBLY_POINTS);
+  assert.deepEqual(crew.sort(), ["npc-captain", "npc-ian", "npc-owen", "npc-rena"]);
+  const departed = manager => crew.map(id => hasChapter02CrewDeparted(id, manager));
+
+  const clock = createClock();
+  const run = createCircuitRun(clock);
+  run.manager.startQuest(CHAPTER02_CIRCUIT_QUEST_ID);
+  clock.advance(0);
+  run.manager.activateObjective(OBJ_02, "chapter02-section-15");
+  assert.deepEqual(departed(run.manager), [false, false, false, false], "still aboard before the pickup");
+  run.manager.handleEvent({ type: "itemCollected", targetId: CHAPTER02_CIRCUIT_ITEM_ID, amount: 1, eventId: "itemCollected:test" });
+  assert.deepEqual(departed(run.manager), [true, true, true, true], "gone on the same frame as the check");
+  assert.equal(hasChapter02CrewDeparted("npc-someone-else", run.manager), false, "only these 4");
+
+  // section-16 播完 4.5 秒 OBJ_02 改成失敗（清掉已完成），NPC 不可回來
+  run.manager.handleEvent({ type: "dialogueCompleted", targetId: CHAPTER02_CIRCUIT_DIALOGUE, eventId: "dialogueCompleted:test" });
+  clock.advance(FAIL_AFTER_SECTION_16_MS);
+  assert.equal(run.manager.getObjectiveProgress(CHAPTER02_CIRCUIT_QUEST_ID, OBJ_02).completed, false);
+  assert.deepEqual(departed(run.manager), [true, true, true, true], "the X does not bring them back");
+  assert.deepEqual(departed(createCircuitRun(clock, run.manager.exportSave()).manager), [true, true, true, true], "reload while failed");
+
+  clock.advance(3000);
+  await flush();
+  run.manager.handleEvent({ type: "dialogueCompleted", targetId: FOLLOW_UP_DIALOGUE, eventId: "dialogueCompleted:17" });
+  assert.equal(run.manager.getCurrentStage(CHAPTER02_CIRCUIT_QUEST_ID), LANDING_STAGE_ID);
+  assert.deepEqual(departed(createCircuitRun(clock, run.manager.exportSave()).manager), [true, true, true, true], "reload in STAGE_02");
+
+  const source = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(source, /const isSceneNpcOnStage = \(npc: SceneNpcDefinition, sceneId = SCENE_DATA\.sceneId\) => \{\s*\/\/[^\n]*\n\s*if \(sceneId === RED_ALERT_SCENE_ID && hasChapter02CrewDeparted\(npc\.id, crewDepartureQuery\)\) return false;/);
+  assert.match(source, /if \(!isSceneNpcOnStage\(sceneNpc, scene\.sceneId\)\) continue;/);
+});
+
 test("pickup / reload only plays section-16 while it is unfinished", () => {
   const quest = (atStage, played) => ({
     isQuestAtStage: (q, s) => atStage && q === CHAPTER02_CIRCUIT_QUEST_ID && s === CHAPTER02_CIRCUIT_STAGE_ID,

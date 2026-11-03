@@ -553,6 +553,11 @@ export class QuestRuntimeManager {
     return next;
   }
 
+  /** OBJ 已被判定失敗（失敗會清掉「已完成」，需要記住「曾經完成」時一併檢查） */
+  hasObjectiveFailed(questId: string, objectiveId: string): boolean {
+    return this.saveData.quests[questId]?.objectives[objectiveId]?.failed === true;
+  }
+
   getActiveItemSubmissionObjectives(interactionId: string): Array<{
     questId: string;
     stageId: string;
