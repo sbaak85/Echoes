@@ -8,16 +8,17 @@ import { STORY_DIALOGUES } from "../app/story-content.ts";
 
 function setup(t) {
   t.mock.timers.enable({ apis: ["setTimeout"] });
-  let now = 0, opacity = 0, suspended = false, finishDialogue;
+  let now = 0, opacity = 0, smear = 0, suspended = false, finishDialogue;
   const events = [];
   t.mock.method(performance, "now", () => now);
   const rift = new Chapter02WhiteRift({
     setOpacity: value => { opacity = value; },
+    setSmear: value => { smear = value; },
     setEmergencySuspended: value => { suspended = value; events.push([now, "suspend", value]); },
     playDialogue: id => { events.push([now, "dialogue", id]); return new Promise(resolve => { finishDialogue = resolve; }); },
   });
   const advance = async ms => { for(let elapsed=0;elapsed<ms;elapsed+=10) { now+=10;t.mock.timers.tick(10);for(let i=0;i<5;i++)await Promise.resolve(); } };
-  return {rift,events,advance,get now(){return now;},get opacity(){return opacity;},get suspended(){return suspended;},finish:()=>finishDialogue({completed:true})};
+  return {rift,events,advance,get now(){return now;},get opacity(){return opacity;},get smear(){return smear;},get suspended(){return suspended;},finish:()=>finishDialogue({completed:true})};
 }
 
 test("accepted preview parameters and exact authored dialogue line are retained", () => {
@@ -25,10 +26,12 @@ test("accepted preview parameters and exact authored dialogue line are retained"
   assert.equal(STORY_DIALOGUES[CHAPTER02_WHITE_RIFT_DIALOGUE].lines[1].lineId, CHAPTER02_WHITE_RIFT_REVEAL_LINE);
 });
 
-test("2s fade, suspend at full white, 2s hold, then section-13; only line-002 starts the 2s reveal", async t => {
+test("2s smear build (white starts 0.5s later, full by 1.7s), suspend at full white, 2s hold, then section-13; only line-002 starts the 2s reveal", async t => {
   const h=setup(t), run=h.rift.run();
-  await h.advance(1000);assert.ok(h.opacity>.45&&h.opacity<.55);assert.equal(h.suspended,false);
-  await h.advance(1020);assert.equal(h.opacity,1);assert.equal(h.suspended,true);assert.equal(h.events.filter(e=>e[1]==="dialogue").length,0);
+  await h.advance(400);assert.equal(h.opacity,0,"white waits 0.5s");assert.ok(h.smear>0&&h.smear<.2);
+  await h.advance(600);assert.ok(h.smear>.45&&h.smear<.55);assert.ok(h.opacity>.35&&h.opacity<.45);assert.equal(h.suspended,false);
+  await h.advance(710);assert.equal(h.opacity,1,"fully white before the smear peaks");assert.ok(h.smear<1);
+  await h.advance(310);assert.equal(h.opacity,1);assert.equal(h.smear,1);assert.equal(h.suspended,true);assert.equal(h.events.filter(e=>e[1]==="dialogue").length,0);
   await h.advance(1900);assert.equal(h.events.filter(e=>e[1]==="dialogue").length,0);
   await h.advance(100);assert.equal(h.events.find(e=>e[1]==="dialogue")[2],CHAPTER02_WHITE_RIFT_DIALOGUE);
   h.rift.lineStarted("other",CHAPTER02_WHITE_RIFT_REVEAL_LINE);
@@ -36,9 +39,9 @@ test("2s fade, suspend at full white, 2s hold, then section-13; only line-002 st
   await h.advance(500);assert.equal(h.opacity,1);assert.equal(h.suspended,true);
   h.rift.lineStarted(CHAPTER02_WHITE_RIFT_DIALOGUE,CHAPTER02_WHITE_RIFT_REVEAL_LINE);
   assert.equal(h.suspended,false);
-  await h.advance(1000);assert.ok(h.opacity>.45&&h.opacity<.55);
+  await h.advance(1000);assert.ok(h.opacity>.45&&h.opacity<.55);assert.equal(h.smear,h.opacity,"smear retracts with the white fade-out");
   h.rift.lineStarted(CHAPTER02_WHITE_RIFT_DIALOGUE,CHAPTER02_WHITE_RIFT_REVEAL_LINE); // another page must not restart the fade
-  await h.advance(1020);assert.equal(h.opacity,0);assert.equal(h.rift.isActive(),true,"dialogue keeps ownership after the scene is revealed");
+  await h.advance(1020);assert.equal(h.opacity,0);assert.equal(h.smear,0);assert.equal(h.rift.isActive(),true,"dialogue keeps ownership after the scene is revealed");
   h.finish();await run;assert.equal(h.rift.isActive(),false);
 });
 
@@ -186,8 +189,23 @@ test("warp-exit shake: first (normal) shake strength for 2 s, full strength then
 
 test("white rift fires onRevealStart when the fade-out begins; the scripted shake overrides the looping one", () => {
   const rift = readFileSync(new URL("../app/chapter02-white-rift.ts", import.meta.url), "utf8");
-  assert.match(rift, /setEmergencySuspended\(false\);\s*this\.host\.onRevealStart\?\.\(\);\s*this\.fadeOut = this\.animate\(0/);
+  assert.match(rift, /setEmergencySuspended\(false\);\s*this\.host\.onRevealStart\?\.\(\);\s*\/\/[^\n]*\n\s*this\.fadeOut = this\.wait\(WHITE_RIFT_TIMING\.fadeOutMs/);
   const lab = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
   assert.match(lab, /onRevealStart: \(\) => warpExitCameraShakeRef\.current\?\.request\(\)/);
   assert.match(lab, /if \(scripted\.active\) \{[^}]*emergencyCameraShake\.offset\(time, null\);\s*return scripted;/);
+});
+
+test("warp-exit brush smear: saved preview parameters, WebGL overlay above the game canvas", async () => {
+  const { WARP_EXIT_SMEAR_SETTINGS: S, WARP_EXIT_SMEAR_FRAGMENT } = await import("../app/warp-exit-smear.ts");
+  assert.equal(S.angleDegrees, 35);
+  assert.equal(S.length, 0.5);
+  assert.equal(S.variance, 0.5);
+  assert.equal(S.trail, 0.4);
+  assert.equal(S.direction, 1);
+  assert.match(WARP_EXIT_SMEAR_FRAGMENT, /for\(int k=0;k<40;k\+\+\)/);
+  const { WHITE_RIFT_TIMING } = await import("../app/chapter02-white-rift.ts");
+  assert.ok(WHITE_RIFT_TIMING.whiteFadeInDelayMs + WHITE_RIFT_TIMING.whiteFadeInMs < WHITE_RIFT_TIMING.fadeInMs, "white before smear peak");
+  const source = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(source, /setSmear: amount => warpExitSmearOverlayRef\.current\?\.setAmount\(amount\)/);
+  assert.match(source, /tabIndex=\{0\}\s*\/>\s*<WarpExitSmearOverlay ref=\{warpExitSmearOverlayRef\} source=\{canvasRef\} \/>/);
 });

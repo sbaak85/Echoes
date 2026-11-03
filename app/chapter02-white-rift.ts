@@ -7,7 +7,11 @@ export const CHAPTER02_WHITE_RIFT_DIALOGUE = "chapter02-section-13";
 export const CHAPTER02_WHITE_RIFT_REVEAL_LINE = "chapter02-section-13-line-002";
 /** Accepted live preview values: 12 / 150% / 80%. Do not read preview localStorage in the game. */
 export const WHITE_RIFT_SETTINGS = { spotCount: 12, density: 1.5, spotSize: 0.8 } as const;
-export const WHITE_RIFT_TIMING = { fadeInMs: 2000, holdMs: 2000, fadeOutMs: 2000 } as const;
+/**
+ * fadeInMs：曲速退出筆刷拉痕由無拉到峰值的時間；白畫面晚 whiteFadeInDelayMs 才開始淡入、
+ * 花 whiteFadeInMs 淡到全白（一定在拉痕到峰值前就全白）。fadeOutMs：白畫面淡出，拉痕同時由峰值收回到無。
+ */
+export const WHITE_RIFT_TIMING = { fadeInMs: 2000, whiteFadeInDelayMs: 500, whiteFadeInMs: 1200, holdMs: 2000, fadeOutMs: 2000 } as const;
 /** Saved while the transition is unfinished, so a reload or loaded save replays it instead of stranding the story. */
 export const CHAPTER02_WHITE_RIFT_PENDING_FLAG = "chapter02-white-rift-pending";
 /** Set at full white: the ship has left warp, so the starfield keeps warp streaks but flows slower until chapter 2 ends. */
@@ -53,7 +57,11 @@ type Host = {
   onCompleted?: () => void;
   /** 白畫面開始淡出（指定震動從這裡開始） */
   onRevealStart?: () => void;
+  /** 曲速退出筆刷拉痕的量（0 = 無、1 = 峰值） */
+  setSmear?: (amount: number) => void;
 };
+
+const smoothstep = (x: number) => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
 
 /** Transient presentation only: no save flags are changed while the ship is obscured. */
 export class Chapter02WhiteRift {
@@ -79,7 +87,16 @@ export class Chapter02WhiteRift {
     try {
       this.phase = "fade-in";
       this.setOpacity(0);
-      if (!await this.animate(1, WHITE_RIFT_TIMING.fadeInMs)) return;
+      this.host.setSmear?.(0);
+      // 拉痕由無拉到峰值；白畫面晚一點開始淡入，拉痕到峰值前已經全白
+      const { fadeInMs, whiteFadeInDelayMs, whiteFadeInMs } = WHITE_RIFT_TIMING;
+      const builtUp = await this.wait(fadeInMs, progress => {
+        this.host.setSmear?.(smoothstep(progress));
+        this.setOpacity(smoothstep((progress * fadeInMs - whiteFadeInDelayMs) / whiteFadeInMs));
+      });
+      if (!builtUp) return;
+      this.setOpacity(1);
+      this.host.setSmear?.(1);
       this.host.setEmergencySuspended(true);
       this.host.onFullWhite?.();
       this.phase = "hold";
@@ -114,6 +131,7 @@ export class Chapter02WhiteRift {
     this.fadeOut = null;
     this.phase = "idle";
     this.setOpacity(0);
+    this.host.setSmear?.(0);
     this.host.setEmergencySuspended(false);
   }
 
@@ -122,18 +140,16 @@ export class Chapter02WhiteRift {
       this.phase = "fade-out";
       this.host.setEmergencySuspended(false);
       this.host.onRevealStart?.();
-      this.fadeOut = this.animate(0, WHITE_RIFT_TIMING.fadeOutMs);
+      // 白畫面淡出的同時，拉痕由峰值收回到無
+      this.fadeOut = this.wait(WHITE_RIFT_TIMING.fadeOutMs, progress => {
+        const remaining = 1 - smoothstep(progress);
+        this.setOpacity(remaining);
+        this.host.setSmear?.(remaining);
+      });
     }
     return this.fadeOut;
   }
   private setOpacity(value: number) { this.opacity = value; this.host.setOpacity(value); }
-  private animate(target: number, duration: number) {
-    const from = this.opacity;
-    return this.wait(duration, progress => {
-      const smooth = progress * progress * (3 - 2 * progress);
-      this.setOpacity(from + (target - from) * smooth);
-    });
-  }
   private wait(duration: number, update?: (progress: number) => void) {
     return new Promise<boolean>(resolve => {
       let elapsed = 0, previous = performance.now();

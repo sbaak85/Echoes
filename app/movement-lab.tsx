@@ -2,6 +2,7 @@
 import { createChapter02StartFlow, CHAPTER02_START_FLOW_ID } from "./chapter02-start-flow";
 import { Chapter02WhiteRift, CHAPTER02_WHITE_RIFT_FLOW, CHAPTER02_WHITE_RIFT_PENDING_FLAG, CHAPTER02_WHITE_RIFT_TRIGGER, CHAPTER02_WARP_EXITED_FLAG, resolveChapter02Backdrop, resolveChapter02HullStreams, shouldResumeChapter02WhiteRift } from "./chapter02-white-rift";
 import { WhiteRiftOverlay, type WhiteRiftOverlayHandle } from "./white-rift-overlay";
+import { WarpExitSmearOverlay, type WarpExitSmearOverlayHandle } from "./warp-exit-smear-overlay";
 import {
   CHAPTER02_COUNTDOWN_ACTIVE_FLAG,
   CHAPTER02_COUNTDOWN_CHECKPOINT_KEY,
@@ -4173,6 +4174,7 @@ export function MovementLab() {
   const circuitAftershockRef = useRef<RepeatingCameraShake | null>(null);
   if (!circuitAftershockRef.current) circuitAftershockRef.current = new RepeatingCameraShake();
   const whiteRiftOverlayRef = useRef<WhiteRiftOverlayHandle>(null);
+  const warpExitSmearOverlayRef = useRef<WarpExitSmearOverlayHandle>(null);
   const shipEmergencySuspendedRef = useRef(false);
   const [chapter02CountdownView, setChapter02CountdownView] = useState<Chapter02CountdownView>("hidden");
   const [chapter02CountdownIntroKey, setChapter02CountdownIntroKey] = useState(0);
@@ -8336,6 +8338,7 @@ export function MovementLab() {
   if (!whiteRiftRef.current) {
     whiteRiftRef.current = new Chapter02WhiteRift({
       setOpacity: value => whiteRiftOverlayRef.current?.setOpacity(value),
+      setSmear: amount => warpExitSmearOverlayRef.current?.setAmount(amount),
       setEmergencySuspended: suspended => {
         shipEmergencySuspendedRef.current = suspended;
         if (suspended) for (const event of CHAPTER02_SHAKE_AUDIO_EVENTS) audioEventManagerRef.current?.stop(event);
@@ -18675,6 +18678,7 @@ export function MovementLab() {
         aria-label="八方向角色移動地圖測試場景"
         tabIndex={0}
       />
+      <WarpExitSmearOverlay ref={warpExitSmearOverlayRef} source={canvasRef} />
 
       {dayNightEffectEnabled ? (
         <div

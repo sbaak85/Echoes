@@ -940,18 +940,18 @@
       "blackoutEnabled": false,
       "blackoutFadeSeconds": 0.3,
       "blackoutHoldSeconds": 0,
-      "x": 650,
-      "y": 1040
+      "x": 654,
+      "y": 1018
     },
     {
       "id": "escape-ian",
       "label": "\u4F0A\u6069\uFF08\u9003\u751F\u8259\u96C6\u5408\uFF09",
-      "facing": "SE",
+      "facing": "SW",
       "blackoutEnabled": false,
       "blackoutFadeSeconds": 0.3,
       "blackoutHoldSeconds": 0,
-      "x": 600,
-      "y": 1080
+      "x": 726,
+      "y": 1072
     },
     {
       "id": "escape-rena",
@@ -960,18 +960,18 @@
       "blackoutEnabled": false,
       "blackoutFadeSeconds": 0.3,
       "blackoutHoldSeconds": 0,
-      "x": 700,
-      "y": 1080
+      "x": 706,
+      "y": 1036
     },
     {
       "id": "escape-owen",
       "label": "\u6B50\u6587\uFF08\u9003\u751F\u8259\u96C6\u5408\uFF09",
-      "facing": "N",
+      "facing": "S",
       "blackoutEnabled": false,
       "blackoutFadeSeconds": 0.3,
       "blackoutHoldSeconds": 0,
-      "x": 650,
-      "y": 1125
+      "x": 592,
+      "y": 1049
     }
   ],
   "entryPoints": [],
@@ -4278,6 +4278,7 @@
         "spirit": 0,
         "timeMinutes": 0
       },
+      "interactionLimitMode": "once",
       "useRequirements": [
         {
           "dialogueId": "",
@@ -4313,7 +4314,7 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "shipinterior-interaction-024-line-001",
             "speaker": "Sbaak",
             "text": "..."
           }
@@ -4327,9 +4328,9 @@
         ],
         "lines": [
           {
-            "lineId": "",
+            "lineId": "shipinterior-interaction-024-failure-line-001",
             "speaker": "Sbaak",
-            "text": "\u76EE\u524D\u7121\u6CD5\u4F7F\u7528\u3002"
+            "text": "\u5F48\u5C04\u8FF4\u8DEF\u6545\u969C\uFF0C\u5FC5\u9808\u5FEB\u9EDE\u4FEE\u597D!"
           }
         ]
       }
