@@ -229,6 +229,7 @@ import { BusCardPuzzle } from "./bus-card-puzzle.tsx";
 import { BUS_CARD_INTERACTION_ID } from "./bus-card-puzzle.ts";
 import { NavTerminalMinigame } from "./nav-terminal-minigame.tsx";
 import { RedAlertLighting, RED_ALERT_SCENE_ID, RED_ALERT_STORY_FLAG } from "./red-alert-lighting.ts";
+import { isShipFireActive, ShipFireEffect } from "./ship-fire.ts";
 import { CHAPTER02_ESCAPE_ASSEMBLY_FLAG, CHAPTER02_ESCAPE_ASSEMBLY_FLOW, hasChapter02CrewDeparted, resolveBridgeAssemblyPlacement } from "./chapter02-bridge-assembly.ts";
 import { CHAPTER02_EMERGENCY_BGM_EVENT_ID, CHAPTER02_ZERO_HOUR_BGM_EVENT_ID, isChapter02ZeroHourActive } from "./chapter02-emergency-flow.ts";
 import {
@@ -14424,6 +14425,22 @@ export function MovementLab() {
       redAlertLighting.draw(context, time);
     };
 
+    // 第二章 section-16 播完（黑畫面期間）後船艙各處著火、面板噴火星，之後一直維持（讀檔依對話紀錄恢復）
+    let shipFire: ShipFireEffect | null = null;
+    const drawShipFire = (time: number) => {
+      const active = isShipFireActive(
+        SCENE_DATA.sceneId,
+        currentStoryChapterRef.current,
+        (dialogueId) => questRuntimeManagerRef.current?.hasDialogueCompleted(dialogueId) ?? false,
+      );
+      if (!active) {
+        shipFire?.reset();
+        return;
+      }
+      shipFire ??= new ShipFireEffect(SCENE_DATA.world.width);
+      shipFire.draw(context, time);
+    };
+
     // 畫在角色之後：道具屬性文字永遠疊在角色上層
     const drawWorldItemLabels = () => {
       for (const label of worldItemLabelQueue) {
@@ -17912,6 +17929,7 @@ export function MovementLab() {
         drawSceneCharacters(SCENE_DATA);
         drawSceneForegroundLayers();
         drawRedAlertLighting(time);
+        drawShipFire(time);
         sceneHullStreams.draw(context, hullStreams, "front", time, SCENE_DATA.backdrop?.mode);
         drawWorldItemLabels();
         drawInteractionHintPoints(time);
