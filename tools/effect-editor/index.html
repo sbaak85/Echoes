@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>船艙火焰爆炸配置</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #07090c; color: #dfe8e6; font: 14px/1.4 "Segoe UI", "Noto Sans TC", sans-serif; overflow: hidden; }
+  #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
+  #panel { position: fixed; top: 12px; left: 12px; width: 330px; max-height: calc(100% - 24px); overflow-y: auto; padding: 12px 14px; border: 1px solid rgba(123, 224, 212, 0.25); border-radius: 8px; background: rgba(8, 16, 19, 0.92); box-sizing: border-box; }
+  #panel.is-hidden { display: none; }
+  h1 { margin: 0 0 4px; font-size: 14px; color: #7be0d4; letter-spacing: 0.06em; }
+  h2 { margin: 12px 0 4px; font-size: 12px; color: #f0bf69; font-weight: 600; border-top: 1px solid rgba(123, 224, 212, 0.15); padding-top: 8px; }
+  label.slider { display: grid; grid-template-columns: 96px 1fr 44px; align-items: center; gap: 6px; margin: 3px 0; font-size: 12px; }
+  label.slider output { text-align: right; font-family: Consolas, monospace; color: #f0bf69; }
+  label.field { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 6px; margin: 4px 0; font-size: 12px; }
+  input[type=range] { width: 100%; }
+  input[type=text], input[type=number], select { width: 100%; box-sizing: border-box; padding: 3px 5px; border: 1px solid rgba(123, 224, 212, 0.35); border-radius: 4px; background: #0d1d1f; color: #e9fffc; font: inherit; font-size: 12px; }
+  .row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  button { padding: 5px 9px; border: 1px solid rgba(123, 224, 212, 0.45); border-radius: 5px; background: #12302f; color: #e9fffc; cursor: pointer; font: inherit; font-size: 12px; }
+  button:hover { background: #1b4644; }
+  button.is-active { background: #7a4a12; border-color: #f0bf69; color: #fff3dc; }
+  button.primary { background: #6b3510; border-color: #f0bf69; }
+  /* 專案 UI 規範：不顯示瀏覽器原生 focus 框 */
+  #panel :focus, #panel :focus-visible { outline: none; box-shadow: none; }
+  #status { margin: 4px 0; font-size: 12px; color: #95a7ab; min-height: 1.4em; }
+  #status.is-dirty { color: #f0bf69; }
+  #status.is-error { color: #ff8a7a; }
+  .hint { margin-top: 6px; font-size: 11px; color: #95a7ab; }
+  .muted { color: #95a7ab; font-size: 12px; }
+  #fps { position: fixed; right: 12px; top: 10px; font: 12px Consolas, monospace; color: #95a7ab; }
+  #simBar { position: fixed; right: 12px; bottom: 12px; padding: 8px 10px; border: 1px solid rgba(240, 191, 105, 0.4); border-radius: 8px; background: rgba(20, 12, 6, 0.9); font-size: 12px; max-width: 360px; }
+  #simBar.is-hidden { display: none; }
+  #simBar :focus, #simBar :focus-visible { outline: none; box-shadow: none; }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<div id="fps"></div>
+<div id="panel">
+  <h1>船艙火焰・火星・爆炸配置</h1>
+  <div id="status">讀取中…</div>
+  <div class="row">
+    <button id="save" class="primary">儲存到遊戲（Ctrl+S）</button>
+    <button id="reload">重新讀取</button>
+    <button id="hide">隱藏面板（H）</button>
+  </div>
+
+  <h2>點擊模式</h2>
+  <div class="row" id="modes">
+    <button data-mode="select" class="is-active">選取／拖曳（1）</button>
+    <button data-mode="fire">放火焰（2）</button>
+    <button data-mode="spark">放火星（3）</button>
+    <button data-mode="boom">放爆炸（4）</button>
+    <button data-mode="remove">移除（5）</button>
+    <button data-mode="player">模擬玩家（6）</button>
+    <button data-mode="blocker">放阻擋圈（7）</button>
+  </div>
+
+  <h2>選取的物件</h2>
+  <div id="selection" class="muted">用「選取」模式點地圖上的火源或爆炸點。</div>
+
+  <h2>預覽</h2>
+  <div class="row">
+    <button id="viewEdit" class="is-active">編輯檢視（全部燒著）</button>
+    <button id="viewSim">從頭模擬遊戲</button>
+  </div>
+  <div class="hint">模擬：先全部熄滅 → 用右下按鈕依劇情順序觸發「白畫面淡入」「台詞起火」「section-16 播完」「台詞爆炸」，範圍爆炸用模式 6 拖著綠點走進圓圈（模擬時不檢查條件）。</div>
+
+  <h2>火焰</h2>
+  <div id="fireSliders"></div>
+  <h2>火星</h2>
+  <div id="sparkSliders"></div>
+  <h2>爆炸（所有爆炸共用）</h2>
+  <div id="boomSliders"></div>
+  <h2>畫面（只影響這個工具）</h2>
+  <div id="viewSliders"></div>
+  <div class="hint">
+    標記：橘點＝火焰、青點＝火星；白框＝section-16 播完後、紫虛線＝白畫面淡入後、黃虛線＝指定台詞（旁邊寫 LineID）、紅虛線＝被爆炸引燃（旁邊寫爆炸 ID）。<br>
+    紅圈＝爆炸點；實線圓＝玩家觸發範圍；選取爆炸時虛線橢圓＝引燃半徑。<br>
+    紅色斜線圓＝阻擋圈（模式 7 放置，可拖曳、可放很多個）：啟用時機成立後玩家走不進去；模擬時未成立的顯示成淡虛線。<br>
+    右鍵或中鍵拖曳平移、滾輪縮放、Delete 刪除選取的物件。
+  </div>
+</div>
+<div id="simBar" class="is-hidden"></div>
+
+<script type="module">
+import { normalizeShipEffectsData, ShipFireEffect } from "/app/ship-fire.ts";
+
+const canvas = document.getElementById("stage");
+const ctx = canvas.getContext("2d");
+const statusEl = document.getElementById("status");
+const panel = document.getElementById("panel");
+const simBar = document.getElementById("simBar");
+
+const background = Object.assign(new Image(), { src: "/maps/ship_interior.png" });
+const wall = Object.assign(new Image(), { src: "/maps/ship_interior_Wall.png" });
+
+let data = null;
+let lines = [];
+let dialogues = [];
+let dirty = false;
+let mode = "select";
+let selected = null; // { kind: "emitter" | "boom", id }
+let preview = "edit"; // "edit" | "sim"
+let effect = null;
+let sim = { fireStarted: false, warpExited: false, lines: new Set(), done: new Set(), player: null };
+let shake = 0;
+const view = { zoom: 1.45, panX: -101, panY: -326, dim: 0.35, red: 0.12 };
+
+function setStatus(text, kind = "") {
+  statusEl.textContent = text;
+  statusEl.className = kind;
+}
+function markDirty() {
+  dirty = true;
+  setStatus("有未儲存的修改", "is-dirty");
+}
+addEventListener("beforeunload", (event) => { if (dirty) event.preventDefault(); });
+
+// ---- 讀取與儲存 ----
+async function load() {
+  try {
+    const [effectsResponse, linesResponse] = await Promise.all([fetch("/api/ship-effects"), fetch("/api/ship-effects/lines")]);
+    const effects = await effectsResponse.json();
+    if (!effects.ok) throw new Error(effects.message);
+    data = effects.data;
+    const lineResult = await linesResponse.json();
+    lines = lineResult.ok ? lineResult.lines : [];
+    dialogues = lineResult.ok ? lineResult.dialogues ?? [] : [];
+    dirty = false;
+    selected = null;
+    buildSliders();
+    renderSelection();
+    resetPreview();
+    setStatus(`已讀取：${data.emitters.length} 個火源、${data.booms.length} 個爆炸`);
+  } catch (error) {
+    setStatus(`讀取失敗：${error.message}`, "is-error");
+  }
+}
+async function save() {
+  try {
+    const response = await fetch("/api/ship-effects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    const result = await response.json();
+    if (!result.ok) throw new Error(result.message);
+    data = result.data;
+    dirty = false;
+    renderSelection();
+    resetPreview();
+    setStatus(`已儲存到 ${result.path}（遊戲會自動重新載入）`);
+  } catch (error) {
+    setStatus(`儲存失敗：${error.message}`, "is-error");
+  }
+}
+document.getElementById("save").addEventListener("click", save);
+document.getElementById("reload").addEventListener("click", () => {
+  if (!dirty || confirm("放棄未儲存的修改並重新讀取？")) load();
+});
+document.getElementById("hide").addEventListener("click", () => togglePanel());
+function togglePanel() {
+  panel.classList.toggle("is-hidden");
+  simBar.classList.toggle("is-hidden", panel.classList.contains("is-hidden") || preview !== "sim");
+}
+
+// ---- 參數滑桿 ----
+const FIRE_FIELDS = [
+  ["fireSize", "火焰大小", 0.3, 2.5, 0.05], ["fireRate", "火焰密度", 5, 120, 1], ["fireHeight", "火焰高度", 0.3, 2.5, 0.05],
+  ["fireSway", "搖曳", 0, 2, 0.05], ["glow", "地面火光", 0, 2, 0.05], ["smoke", "黑煙", 0, 1, 0.05],
+];
+const SPARK_FIELDS = [
+  ["sparkInterval", "噴發間隔(秒)", 0.3, 8, 0.1], ["sparkCount", "每次顆數", 3, 80, 1], ["sparkSpeed", "噴射速度", 0.3, 2.5, 0.05],
+  ["gravity", "重力", 0, 2.5, 0.05], ["sparkTrail", "拖尾長度", 0.2, 3, 0.05], ["embers", "火焰飄火星", 0, 2, 0.05],
+];
+const BOOM_FIELDS = [
+  ["duration", "火球持續", 0.3, 3, 0.05], ["flash", "閃光強度", 0, 2, 0.05], ["ring", "衝擊波", 0, 2, 0.05],
+  ["debris", "碎片數量", 0, 2, 0.05], ["smoke", "爆炸黑煙", 0, 2, 0.05], ["shake", "畫面震動", 0, 2, 0.05],
+  ["scorch", "焦痕", 0, 1, 0.05], ["igniteDelay", "起火延遲(秒)", 0, 3, 0.05], ["igniteRamp", "起火漸強(秒)", 0.1, 5, 0.1],
+];
+const VIEW_FIELDS = [["dim", "環境變暗", 0, 0.85, 0.01], ["red", "紅色警戒", 0, 0.6, 0.01], ["zoom", "畫面縮放", 0.5, 4, 0.05]];
+
+function slider(container, target, [key, label, min, max, step], onChange) {
+  const el = document.createElement("label");
+  el.className = "slider";
+  el.innerHTML = `${label} <input type="range" min="${min}" max="${max}" step="${step}"><output></output>`;
+  const input = el.querySelector("input");
+  const out = el.querySelector("output");
+  input.value = target[key];
+  out.textContent = target[key];
+  input.addEventListener("input", () => {
+    target[key] = Number(input.value);
+    out.textContent = input.value;
+    onChange?.();
+  });
+  input.addEventListener("change", () => input.blur());
+  container.appendChild(el);
+  return input;
+}
+let zoomInput = null;
+function buildSliders() {
+  for (const id of ["fireSliders", "sparkSliders", "boomSliders", "viewSliders"]) document.getElementById(id).innerHTML = "";
+  for (const f of FIRE_FIELDS) slider(document.getElementById("fireSliders"), data.fire, f, markDirty);
+  for (const f of SPARK_FIELDS) slider(document.getElementById("sparkSliders"), data.fire, f, markDirty);
+  for (const f of BOOM_FIELDS) slider(document.getElementById("boomSliders"), data.explosion, f, markDirty);
+  for (const f of VIEW_FIELDS) {
+    const input = slider(document.getElementById("viewSliders"), view, f);
+    if (f[0] === "zoom") zoomInput = input;
+  }
+}
+
+// ---- 模式 ----
+function setMode(next) {
+  mode = next;
+  for (const b of document.querySelectorAll("#modes button")) b.classList.toggle("is-active", b.dataset.mode === next);
+  if (next === "player" && preview !== "sim") startSim();
+}
+for (const b of document.querySelectorAll("#modes button")) b.addEventListener("click", () => setMode(b.dataset.mode));
+for (const b of document.querySelectorAll("button")) b.addEventListener("click", () => b.blur());
+
+// ---- 預覽 / 模擬 ----
+function newEffect() {
+  effect = new ShipFireEffect(data.referenceSize, data);
+  effect.onLineIgnite = (lineId) => {
+    if (preview === "sim") { sim.lines.add(lineId); renderSimBar(); }
+  };
+  effect.onBoom = (boom) => {
+    shake = Math.max(shake, data.explosion.shake);
+    if (preview === "sim") {
+      sim.done.add(boom.id);
+      if (boom.dialogueId) sim.note = `${boom.id} 炸開 → ${(boom.dialogueDelayMs / 1000).toFixed(1)} 秒後遊戲會播放對話「${boom.dialogueId}」`;
+      renderSimBar();
+    }
+  };
+}
+function resetPreview() {
+  if (!data) return;
+  newEffect();
+  if (preview === "sim") { sim = { fireStarted: false, warpExited: false, lines: new Set(), done: new Set(), player: sim.player }; renderSimBar(); }
+}
+function startSim() {
+  preview = "sim";
+  document.getElementById("viewSim").classList.add("is-active");
+  document.getElementById("viewEdit").classList.remove("is-active");
+  simBar.classList.toggle("is-hidden", panel.classList.contains("is-hidden"));
+  sim.player ??= { x: data.referenceSize * 0.3, y: data.referenceSize * 0.5 };
+  resetPreview();
+}
+document.getElementById("viewEdit").addEventListener("click", () => {
+  preview = "edit";
+  document.getElementById("viewEdit").classList.add("is-active");
+  document.getElementById("viewSim").classList.remove("is-active");
+  simBar.classList.add("is-hidden");
+  if (mode === "player") setMode("select");
+  resetPreview();
+});
+document.getElementById("viewSim").addEventListener("click", startSim);
+
+function renderSimBar() {
+  if (!data) return;
+  const lineBooms = data.booms.filter((b) => b.trigger === "line");
+  const areaBooms = data.booms.filter((b) => b.trigger === "area");
+  const igniteLines = [...new Set([...data.emitters, ...data.blockers].filter((e) => e.ignite === "line" && e.igniteLineId).map((e) => e.igniteLineId))];
+  simBar.innerHTML = `
+    <div style="color:#f0bf69;margin-bottom:4px">模擬遊戲</div>
+    ${sim.note ? `<div style="color:#9fe6ff;margin-bottom:4px">💬 ${escapeHtml(sim.note)}</div>` : ""}
+    <div class="row">
+      <button data-act="warp" ${sim.warpExited ? "class=is-active" : ""}>白畫面淡入（section-13）</button>
+      <button data-act="start" ${sim.fireStarted ? "class=is-active" : ""}>section-16 播完</button>
+      <button data-act="restart">重來</button>
+    </div>
+    ${igniteLines.length ? `<div class="muted" style="margin-top:6px">台詞起火：</div><div class="row">${igniteLines.map((id) => `<button data-ignite-line="${escapeHtml(id)}" ${sim.lines.has(id) ? "class=is-active" : ""}>${escapeHtml(id)}</button>`).join("")}</div>` : ""}
+    ${lineBooms.length ? `<div class="muted" style="margin-top:6px">台詞爆炸：</div><div class="row">${lineBooms.map((b) => `<button data-line="${b.id}" ${sim.done.has(b.id) ? "class=is-active" : ""}>${b.id}<br><span class="muted">${b.lineId || "（未指定台詞）"}</span></button>`).join("")}</div>` : ""}
+    ${areaBooms.length ? `<div class="muted" style="margin-top:6px">範圍爆炸：${areaBooms.map((b) => `${b.id}${sim.done.has(b.id) ? "（已炸）" : ""}`).join("、")}<br>模式 6 在地圖上拖曳綠點走進圓圈。</div>` : ""}
+  `;
+  simBar.querySelector('[data-act="start"]').addEventListener("click", () => { sim.fireStarted = true; renderSimBar(); });
+  simBar.querySelector('[data-act="restart"]').addEventListener("click", resetPreview);
+  simBar.querySelector('[data-act="warp"]').addEventListener("click", () => { sim.warpExited = true; renderSimBar(); });
+  for (const b of simBar.querySelectorAll("[data-ignite-line]")) {
+    b.addEventListener("click", () => effect.triggerLine(b.dataset.igniteLine, (id) => sim.done.has(id)));
+  }
+  for (const b of simBar.querySelectorAll("[data-line]")) {
+    b.addEventListener("click", () => {
+      const boom = data.booms.find((x) => x.id === b.dataset.line);
+      if (boom?.lineId) effect.triggerLine(boom.lineId, (id) => sim.done.has(id));
+      else if (boom) effect.testBoom(boom.id);
+    });
+  }
+  for (const b of simBar.querySelectorAll("button")) b.addEventListener("click", () => b.blur());
+}
+
+// ---- 編號 ----
+function nextId(prefix, list, digits) {
+  let n = 1;
+  const ids = new Set(list.map((x) => x.id));
+  while (ids.has(`${prefix}${String(n).padStart(digits, "0")}`)) n++;
+  return `${prefix}${String(n).padStart(digits, "0")}`;
+}
+function boomCovering(x, y) {
+  let best = null, bestD = Infinity;
+  for (const b of data.booms) {
+    const d = Math.hypot(x - b.x, (y - b.y) / 0.75);
+    if (d <= b.igniteRadius && d < bestD) { best = b; bestD = d; }
+  }
+  return best;
+}
+
+// ---- 選取物件的編輯欄位 ----
+const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function findSelected() {
+  if (!selected || !data) return null;
+  const list = selected.kind === "boom" ? data.booms : selected.kind === "blocker" ? data.blockers : data.emitters;
+  return list.find((x) => x.id === selected.id) ?? null;
+}
+function renderSelection() {
+  const box = document.getElementById("selection");
+  const item = findSelected();
+  if (!item) {
+    box.className = "muted";
+    box.innerHTML = "用「選取」模式點地圖上的火源、爆炸點或阻擋圈。";
+    return;
+  }
+  box.className = "";
+  if (selected.kind === "emitter" || selected.kind === "blocker") {
+    const isBlocker = selected.kind === "blocker";
+    box.innerHTML = `
+      <div class="muted">${isBlocker ? "阻擋圈" : item.type === "fire" ? "火焰" : "火星"}　${item.id}　(${Math.round(item.x)}, ${Math.round(item.y)})</div>
+      <label class="field">${isBlocker ? "啟用時機" : "起火方式"} <select data-ignite>
+        <option value="section16" ${item.ignite === "section16" ? "selected" : ""}>section-16 播完後</option>
+        <option value="warp" ${item.ignite === "warp" ? "selected" : ""}>白畫面淡入後（section-13）</option>
+        <option value="line" ${item.ignite === "line" ? "selected" : ""}>指定台詞（LineID）開始時</option>
+        ${data.booms.map((b) => `<option value="boom:${escapeHtml(b.id)}" ${item.ignite === "boom" && item.ignitedBy === b.id ? "selected" : ""}>被 ${escapeHtml(b.id)} 引燃</option>`).join("")}
+      </select></label>
+      ${item.ignite === "line" ? `
+        <datalist id="lineIdList">${lines.map((l) => `<option value="${escapeHtml(l.lineId)}">${escapeHtml(`${l.speaker ? l.speaker + "：" : ""}${l.text.replace(/\n/g, " ").slice(0, 30)}`)}</option>`).join("")}</datalist>
+        <label class="field">LineID <input type="text" data-line-id list="lineIdList" value="${escapeHtml(item.igniteLineId)}" placeholder="輸入或選擇，例：chapter02-section-16-line-005"></label>
+        <div class="muted" data-line-preview></div>` : ""}
+      <div class="muted">${isBlocker ? "條件成立後玩家就走不進這個圓，之後一直擋著。可拖曳移動。" : "起火後都會一直燒著。"}</div>`;
+    if (isBlocker) slider(box, item, ["radius", "半徑", 10, 400, 5], markDirty);
+    else slider(box, item, ["scale", "大小", 0.3, 3, 0.05], () => { markDirty(); });
+    const igniteSelect = box.querySelector("[data-ignite]");
+    igniteSelect.addEventListener("change", () => {
+      const value = igniteSelect.value;
+      if (value.startsWith("boom:")) { item.ignite = "boom"; item.ignitedBy = value.slice(5); item.igniteLineId = ""; }
+      else { item.ignite = value; item.ignitedBy = ""; if (value !== "line") item.igniteLineId = ""; }
+      markDirty();
+      renderSelection();
+      resetPreview();
+    });
+    const lineInput = box.querySelector("[data-line-id]");
+    if (lineInput) {
+      const linePreview = box.querySelector("[data-line-preview]");
+      const showPreview = () => {
+        const line = lines.find((l) => l.lineId === lineInput.value.trim());
+        linePreview.textContent = line ? `${line.speaker ? line.speaker + "：" : ""}${line.text.replace(/\n/g, " ")}` : (lineInput.value.trim() ? "（找不到這個 LineID，請確認拼字）" : "還沒填 LineID：存檔時會改回 section-16 播完後。");
+      };
+      showPreview();
+      lineInput.addEventListener("input", showPreview);
+      lineInput.addEventListener("change", () => {
+        item.igniteLineId = lineInput.value.trim();
+        markDirty();
+        if (preview === "sim") renderSimBar();
+      });
+    }
+  } else {
+    const lineOptions = [];
+    let group = "";
+    for (const line of lines) {
+      const dialogue = line.lineId.replace(/-line-\d+$/, "");
+      if (dialogue !== group) {
+        if (group) lineOptions.push("</optgroup>");
+        group = dialogue;
+        lineOptions.push(`<optgroup label="${escapeHtml(dialogue)}">`);
+      }
+      const label = `${line.lineId.replace(dialogue + "-", "")}｜${line.speaker ? line.speaker + "：" : ""}${line.text.replace(/\n/g, " ").slice(0, 28)}`;
+      lineOptions.push(`<option value="${escapeHtml(line.lineId)}" ${item.lineId === line.lineId ? "selected" : ""}>${escapeHtml(label)}</option>`);
+    }
+    if (group) lineOptions.push("</optgroup>");
+    // 「條件：對話已播完」的候選：台詞所屬的對話 ID ＋ 劇情多邊形台詞／劇情段落
+    const conditionDialogueIds = [...new Set([...lines.map((l) => l.lineId.replace(/-line-\d+$/, "")), ...dialogues.map((d) => d.id)])];
+    box.innerHTML = `
+      <label class="field">爆炸 ID <input type="text" data-k="id" value="${escapeHtml(item.id)}"></label>
+      <label class="field">觸發方式 <select data-k="trigger">
+        <option value="line" ${item.trigger === "line" ? "selected" : ""}>台詞開始時（LineID）</option>
+        <option value="area" ${item.trigger === "area" ? "selected" : ""}>玩家走進圓形範圍</option>
+      </select></label>
+      <div id="triggerFields"></div>
+      <label class="field">爆炸後播放對話 <select data-k="dialogueId">
+        <option value="">（不播放）</option>
+        ${[["storyTrigger", "劇情多邊形台詞"], ["section", "劇情段落"]].map(([group, label]) => {
+          const items = dialogues.filter((d) => d.group === group);
+          return items.length ? `<optgroup label="${label}">${items.map((d) => `<option value="${escapeHtml(d.id)}" ${item.dialogueId === d.id ? "selected" : ""}>${escapeHtml(d.id)}${d.name ? "｜" + escapeHtml(d.name) : ""}</option>`).join("")}</optgroup>` : "";
+        }).join("")}
+        ${item.dialogueId && !dialogues.some((d) => d.id === item.dialogueId) ? `<option value="${escapeHtml(item.dialogueId)}" selected>${escapeHtml(item.dialogueId)}（找不到）</option>` : ""}
+      </select></label>
+      <label class="field">爆炸後幾秒播對話 <input type="number" data-dialogue-delay min="0" max="60" step="0.1" value="${(item.dialogueDelayMs / 1000).toFixed(1)}" placeholder="秒"></label>
+      <div id="boomSizeSliders"></div>
+      <div class="row">
+        <button data-act="test">在這裡炸一次</button>
+        <button data-act="assign">引燃半徑內的火源改由它引燃</button>
+      </div>
+      <div class="muted" style="margin-top:4px">由它引燃的火源：${data.emitters.filter((e) => e.ignitedBy === item.id).map((e) => e.id).join("、") || "（無）"}</div>`;
+    const fields = box.querySelector("#triggerFields");
+    if (item.trigger === "line") {
+      fields.innerHTML = `
+        <label class="field">台詞 <select data-k="lineId"><option value="">（未指定）</option>${lineOptions.join("")}</select></label>
+        <label class="field">延遲(毫秒) <input type="number" data-k="delayMs" min="0" step="50" value="${item.delayMs}"></label>`;
+    } else {
+      fields.innerHTML = `
+        <datalist id="dialogueIds">${conditionDialogueIds.map((d) => `<option value="${escapeHtml(d)}">`).join("")}</datalist>
+        <label class="field">條件：對話已播完 <input type="text" data-k="requireDialogue" list="dialogueIds" value="${escapeHtml(item.requireDialogue)}" placeholder="空白＝不限"></label>
+        <label class="field">條件：任務 ID <input type="text" data-k="requireQuestId" value="${escapeHtml(item.requireQuestId)}" placeholder="空白＝不限"></label>
+        <label class="field">條件：已到階段 <input type="text" data-k="requireStageId" value="${escapeHtml(item.requireStageId)}" placeholder="例：QUEST_CH02_MAIN_006_STAGE_02"></label>`;
+      slider(fields, item, ["radius", "觸發半徑", 20, 500, 5], markDirty);
+    }
+    slider(box.querySelector("#boomSizeSliders"), item, ["size", "爆炸大小", 0.3, 3, 0.05], markDirty);
+    slider(box.querySelector("#boomSizeSliders"), item, ["igniteRadius", "引燃半徑", 50, 700, 10], markDirty);
+    const delayInput = box.querySelector("[data-dialogue-delay]");
+    delayInput.addEventListener("change", () => {
+      const seconds = Math.min(60, Math.max(0, Number(delayInput.value) || 0));
+      item.dialogueDelayMs = Math.round(seconds * 1000);
+      delayInput.value = seconds.toFixed(1);
+      markDirty();
+      delayInput.blur();
+    });
+    box.querySelector('[data-act="test"]').addEventListener("click", () => effect.testBoom(item.id));
+    box.querySelector('[data-act="assign"]').addEventListener("click", () => {
+      for (const e of data.emitters) {
+        if (Math.hypot(e.x - item.x, (e.y - item.y) / 0.75) <= item.igniteRadius) { e.ignite = "boom"; e.ignitedBy = item.id; e.igniteLineId = ""; }
+      }
+      markDirty();
+      renderSelection();
+      resetPreview();
+    });
+  }
+  for (const input of box.querySelectorAll("[data-k]")) {
+    input.addEventListener("change", () => {
+      const key = input.dataset.k;
+      let value = input.type === "number" ? Number(input.value) : input.value.trim();
+      if (key === "id") {
+        if (!/^[A-Za-z0-9_-]{1,40}$/.test(value) || data.booms.some((b) => b !== item && b.id === value)) {
+          setStatus("爆炸 ID 只能用英數字、底線、減號，且不能重複", "is-error");
+          input.value = item.id;
+          return;
+        }
+        for (const e of [...data.emitters, ...data.blockers]) if (e.ignite === "boom" && e.ignitedBy === item.id) e.ignitedBy = value;
+        selected.id = value;
+      }
+      item[key] = value;
+      markDirty();
+      if (key === "trigger" || key === "id" || key === "dialogueId") renderSelection();
+      if (key === "ignitedBy" || key === "id") resetPreview();
+      if (preview === "sim") renderSimBar();
+      input.blur();
+    });
+  }
+  for (const b of box.querySelectorAll("button")) b.addEventListener("click", () => b.blur());
+}
+
+// ---- 座標 ----
+function layout() {
+  const w = canvas.width, h = canvas.height;
+  const ref = data?.referenceSize ?? 1600;
+  const fit = Math.min(w, h) / ref * view.zoom;
+  const amp = shake * shake * 22 * fit;
+  const t = performance.now() / 1000;
+  const sx = amp ? (Math.sin(t * 91) + Math.sin(t * 57)) * 0.5 * amp : 0;
+  const sy = amp ? (Math.sin(t * 83 + 1) + Math.sin(t * 61)) * 0.5 * amp : 0;
+  return { fit, ox: w / 2 - ref / 2 * fit + view.panX + sx, oy: h / 2 - ref / 2 * fit + view.panY + sy };
+}
+function toWorld(clientX, clientY) {
+  const dpr = canvas.width / canvas.clientWidth;
+  const { fit, ox, oy } = layout();
+  return { x: (clientX * dpr - ox) / fit, y: (clientY * dpr - oy) / fit };
+}
+function hitTest(p) {
+  const { fit } = layout();
+  const radius = 22 / fit * (canvas.width / canvas.clientWidth);
+  let best = null, bestD = radius;
+  for (const b of data.booms) { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < bestD) { bestD = d; best = { kind: "boom", id: b.id }; } }
+  for (const e of data.emitters) { const d = Math.hypot(e.x - p.x, e.y - p.y); if (d < bestD) { bestD = d; best = { kind: "emitter", id: e.id }; } }
+  for (const k of data.blockers) { const d = Math.hypot(k.x - p.x, k.y - p.y); if (d < bestD) { bestD = d; best = { kind: "blocker", id: k.id }; } }
+  if (best) return best;
+  let inside = null, insideD = Infinity;
+  for (const k of data.blockers) { const d = Math.hypot(k.x - p.x, k.y - p.y); if (d <= k.radius && d < insideD) { insideD = d; inside = { kind: "blocker", id: k.id }; } }
+  return inside;
+}
+
+// ---- 滑鼠 ----
+let drag = null;
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+canvas.addEventListener("pointerdown", (event) => {
+  if (!data) return;
+  canvas.setPointerCapture(event.pointerId);
+  if (event.button === 1 || event.button === 2) {
+    drag = { kind: "pan", x: event.clientX, y: event.clientY, panX: view.panX, panY: view.panY };
+    return;
+  }
+  if (event.button !== 0) return;
+  const p = toWorld(event.clientX, event.clientY);
+  if (mode === "select") {
+    selected = hitTest(p);
+    renderSelection();
+    if (selected) drag = { kind: "move" };
+  } else if (mode === "fire" || mode === "spark") {
+    const cover = boomCovering(p.x, p.y);
+    const emitter = { id: nextId("E", data.emitters, 2), type: mode, x: Math.round(p.x), y: Math.round(p.y), scale: 1, ignite: cover ? "boom" : "section16", ignitedBy: cover ? cover.id : "", igniteLineId: "" };
+    data.emitters.push(emitter);
+    selected = { kind: "emitter", id: emitter.id };
+    effect.refreshEmitters();
+    markDirty();
+    renderSelection();
+  } else if (mode === "boom") {
+    const boom = {
+      id: nextId("BOOM_", data.booms, 2), x: Math.round(p.x), y: Math.round(p.y), size: 1, igniteRadius: 240,
+      trigger: "area", lineId: "", delayMs: 0, radius: 120, requireDialogue: data.startDialogue, requireQuestId: "", requireStageId: "",
+      dialogueId: "", dialogueDelayMs: 800,
+    };
+    data.booms.push(boom);
+    selected = { kind: "boom", id: boom.id };
+    markDirty();
+    renderSelection();
+    effect.testBoom(boom.id);
+    if (preview === "sim") renderSimBar();
+  } else if (mode === "remove") {
+    const hit = hitTest(p);
+    if (hit) removeItem(hit);
+  } else if (mode === "blocker") {
+    const cover = boomCovering(p.x, p.y);
+    const blocker = { id: nextId("K", data.blockers, 2), x: Math.round(p.x), y: Math.round(p.y), radius: 60, ignite: cover ? "boom" : "section16", ignitedBy: cover ? cover.id : "", igniteLineId: "" };
+    data.blockers.push(blocker);
+    selected = { kind: "blocker", id: blocker.id };
+    drag = { kind: "move" };
+    markDirty();
+    renderSelection();
+  } else if (mode === "player") {
+    sim.player = p;
+    drag = { kind: "player" };
+  }
+});
+canvas.addEventListener("pointermove", (event) => {
+  if (!drag) return;
+  if (drag.kind === "pan") {
+    const dpr = canvas.width / canvas.clientWidth;
+    view.panX = drag.panX + (event.clientX - drag.x) * dpr;
+    view.panY = drag.panY + (event.clientY - drag.y) * dpr;
+    return;
+  }
+  const p = toWorld(event.clientX, event.clientY);
+  if (drag.kind === "player") { sim.player = pushOutOfBlockers(p); return; }
+  const item = findSelected();
+  if (!item) return;
+  item.x = Math.round(p.x);
+  item.y = Math.round(p.y);
+  if (selected.kind === "emitter") effect.refreshEmitters();
+  drag.moved = true;
+});
+canvas.addEventListener("pointerup", () => {
+  if (drag?.moved) { markDirty(); renderSelection(); }
+  drag = null;
+});
+canvas.addEventListener("wheel", (event) => {
+  event.preventDefault();
+  view.zoom = Math.min(4, Math.max(0.5, view.zoom * (event.deltaY < 0 ? 1.1 : 1 / 1.1)));
+  if (zoomInput) { zoomInput.value = view.zoom; zoomInput.nextElementSibling.textContent = view.zoom.toFixed(2); }
+}, { passive: false });
+
+// 模擬玩家：成立中的阻擋圈走不進去（推到圈外）
+function pushOutOfBlockers(p) {
+  if (preview !== "sim" || !effect) return p;
+  let point = { ...p };
+  for (const k of effect.activeBlockers()) {
+    const d = Math.hypot(point.x - k.x, point.y - k.y);
+    if (d >= k.radius) continue;
+    const a = d > 0.001 ? Math.atan2(point.y - k.y, point.x - k.x) : Math.PI / 2;
+    point = { x: k.x + Math.cos(a) * (k.radius + 1), y: k.y + Math.sin(a) * (k.radius + 1) };
+  }
+  return point;
+}
+
+function removeItem(item) {
+  if (item.kind === "boom") {
+    data.booms = data.booms.filter((b) => b.id !== item.id);
+    for (const e of [...data.emitters, ...data.blockers]) if (e.ignite === "boom" && e.ignitedBy === item.id) { e.ignite = "section16"; e.ignitedBy = ""; }
+    resetPreview();
+  } else if (item.kind === "blocker") {
+    data.blockers = data.blockers.filter((k) => k.id !== item.id);
+  } else {
+    data.emitters = data.emitters.filter((e) => e.id !== item.id);
+    effect.refreshEmitters();
+  }
+  if (selected?.id === item.id) selected = null;
+  markDirty();
+  renderSelection();
+  if (preview === "sim") renderSimBar();
+}
+
+window.addEventListener("keydown", (event) => {
+  const typing = ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName) && document.activeElement.type !== "range";
+  if ((event.ctrlKey || event.metaKey) && event.code === "KeyS") { event.preventDefault(); save(); return; }
+  if (typing) return;
+  const modes = { Digit1: "select", Digit2: "fire", Digit3: "spark", Digit4: "boom", Digit5: "remove", Digit6: "player", Digit7: "blocker" };
+  if (modes[event.code]) setMode(modes[event.code]);
+  if (event.code === "KeyH") togglePanel();
+  if ((event.code === "Delete" || event.code === "Backspace") && selected) removeItem(selected);
+});
+
+// ---- 繪製 ----
+function resize() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = Math.round(innerWidth * dpr);
+  canvas.height = Math.round(innerHeight * dpr);
+}
+addEventListener("resize", resize);
+resize();
+
+function drawMarkers() {
+  const ref = data.referenceSize;
+  const { fit } = layout();
+  const px = 1 / fit * (canvas.width / canvas.clientWidth);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const sel = findSelected();
+  // 爆炸範圍與爆炸點
+  for (const b of data.booms) {
+    const isSel = sel === b;
+    if (b.trigger === "area") {
+      ctx.globalAlpha = isSel ? 0.9 : 0.5;
+      ctx.strokeStyle = "rgb(120,230,160)";
+      ctx.fillStyle = "rgba(120,230,160,0.08)";
+      ctx.lineWidth = 2 * px;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    if (isSel) {
+      ctx.globalAlpha = 0.55;
+      ctx.strokeStyle = "rgb(255,120,90)";
+      ctx.setLineDash([10 * px, 8 * px]);
+      ctx.lineWidth = 2 * px;
+      ctx.beginPath();
+      ctx.ellipse(b.x, b.y, b.igniteRadius, b.igniteRadius * 0.75, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 0.5;
+      for (const e of data.emitters) {
+        if (e.ignite !== "boom" || e.ignitedBy !== b.id) continue;
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y);
+        ctx.lineTo(e.x, e.y);
+        ctx.stroke();
+      }
+    }
+  }
+  // 阻擋圈：成立中＝實心斜線紅、未成立＝淡虛線
+  const activeIds = new Set((preview === "edit" ? [] : effect.activeBlockers()).map((k) => k.id));
+  for (const k of data.blockers) {
+    const isSel = sel === k;
+    const active = preview === "edit" || activeIds.has(k.id);
+    const igniteColor = { section16: "rgba(255,255,255,0.85)", warp: "rgb(190,160,255)", line: "rgb(255,215,90)", boom: "rgb(255,90,70)" }[k.ignite];
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = active ? "rgba(255,40,30,0.22)" : "rgba(255,40,30,0.06)";
+    ctx.beginPath();
+    ctx.arc(k.x, k.y, k.radius, 0, Math.PI * 2);
+    ctx.fill();
+    if (active) {
+      ctx.save();
+      ctx.clip();
+      ctx.strokeStyle = "rgba(255,80,60,0.35)";
+      ctx.lineWidth = 2 * px;
+      for (let o = -k.radius * 2; o < k.radius * 2; o += 14 * px) {
+        ctx.beginPath();
+        ctx.moveTo(k.x + o - k.radius, k.y - k.radius);
+        ctx.lineTo(k.x + o + k.radius, k.y + k.radius);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.strokeStyle = isSel ? "rgb(110,255,190)" : igniteColor;
+    ctx.lineWidth = (isSel ? 3 : 2) * px;
+    if (!active) ctx.setLineDash([8 * px, 6 * px]);
+    ctx.beginPath();
+    ctx.arc(k.x, k.y, k.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = isSel ? "rgb(110,255,190)" : "rgb(255,120,100)";
+    ctx.fillRect(k.x - 4 * px, k.y - 4 * px, 8 * px, 8 * px);
+    ctx.font = `${11 * px}px Consolas, "Segoe UI", monospace`;
+    ctx.fillStyle = igniteColor;
+    const kLabel = k.ignite === "boom" ? k.ignitedBy : k.ignite === "warp" ? "白畫面" : k.ignite === "line" ? k.igniteLineId.replace(/^chapter\d+-/, "") : "section-16";
+    ctx.fillText(`${k.id}・${kLabel}`, k.x, k.y + 14 * px);
+  }
+  // 火源
+  for (const e of data.emitters) {
+    const isSel = sel === e;
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = e.type === "fire" ? "rgb(255,140,50)" : "rgb(110,220,255)";
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, 5 * px, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = (isSel ? 3 : 1.5) * px;
+    const igniteColor = { section16: "rgba(255,255,255,0.85)", warp: "rgb(190,160,255)", line: "rgb(255,215,90)", boom: "rgb(255,90,70)" }[e.ignite];
+    ctx.strokeStyle = isSel ? "rgb(110,255,190)" : igniteColor;
+    if (e.ignite !== "section16" && !isSel) ctx.setLineDash([3 * px, 3 * px]);
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, 10 * px, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const igniteLabel = e.ignite === "boom" ? e.ignitedBy : e.ignite === "warp" ? "白畫面" : e.ignite === "line" ? e.igniteLineId.replace(/^chapter\d+-/, "") : "";
+    if (igniteLabel) {
+      ctx.font = `${11 * px}px Consolas, "Segoe UI", monospace`;
+      ctx.fillStyle = igniteColor;
+      ctx.fillText(igniteLabel, e.x, e.y + 20 * px);
+    }
+  }
+  for (const b of data.booms) {
+    const isSel = sel === b;
+    ctx.globalAlpha = 0.95;
+    ctx.fillStyle = "rgba(120,20,15,0.8)";
+    ctx.strokeStyle = isSel ? "rgb(255,230,90)" : "rgb(255,110,80)";
+    ctx.lineWidth = 3 * px;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 16 * px, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = `bold ${12 * px}px Consolas, monospace`;
+    ctx.fillStyle = "#fff1e0";
+    ctx.fillText(b.id.replace(/^BOOM_/, ""), b.x, b.y + px);
+    ctx.font = `${11 * px}px "Segoe UI", sans-serif`;
+    ctx.fillStyle = b.trigger === "line" ? "rgb(255,210,140)" : "rgb(140,240,180)";
+    ctx.fillText(`${b.id}・${b.trigger === "line" ? "台詞" : "範圍"}`, b.x, b.y - 26 * px);
+  }
+  if (preview === "sim" && sim.player) {
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "rgb(90,255,140)";
+    ctx.strokeStyle = "#062";
+    ctx.lineWidth = 2 * px;
+    ctx.beginPath();
+    ctx.arc(sim.player.x, sim.player.y, 9 * px, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  void ref;
+}
+
+let last = performance.now(), frames = 0, fpsAt = last;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  shake = Math.max(0, shake - dt * 1.4);
+  const w = canvas.width, h = canvas.height;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = "#07090c";
+  ctx.fillRect(0, 0, w, h);
+  if (!data || !effect) return;
+  const ref = data.referenceSize;
+  const { fit, ox, oy } = layout();
+  ctx.setTransform(fit, 0, 0, fit, ox, oy);
+  if (background.complete && background.naturalWidth) ctx.drawImage(background, 0, 0, ref, ref);
+  if (wall.complete && wall.naturalWidth) ctx.drawImage(wall, 0, 0, ref, ref);
+  // 環境變暗與紅色警戒：只蓋在船艙上
+  ctx.globalCompositeOperation = "source-atop";
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = `rgba(4,6,10,${view.dim})`;
+  ctx.fillRect(0, 0, w, h);
+  if (view.red > 0) {
+    ctx.fillStyle = `rgba(255,30,20,${view.red * (0.65 + 0.35 * Math.sin(now / 1000 * 2.4))})`;
+    ctx.fillRect(0, 0, w, h);
+  }
+  ctx.globalCompositeOperation = "source-over";
+  ctx.setTransform(fit, 0, 0, fit, ox, oy);
+  // 和遊戲一樣：阻擋圈成立時模擬玩家若在圈內就被推出去
+  if (preview === "sim" && sim.player) sim.player = pushOutOfBlockers(sim.player);
+  const env = preview === "edit"
+    ? { fireStarted: true, warpExited: true, isLineFired: () => true, isBoomDone: () => true, player: null, isAreaConditionMet: () => true }
+    : { fireStarted: sim.fireStarted, warpExited: sim.warpExited, isLineFired: (id) => sim.lines.has(id), isBoomDone: (id) => sim.done.has(id), player: sim.player, isAreaConditionMet: () => true };
+  effect.frame(ctx, now, env);
+  if (!panel.classList.contains("is-hidden")) drawMarkers();
+  frames++;
+  if (now - fpsAt > 500) {
+    document.getElementById("fps").textContent = `${Math.round(frames * 1000 / (now - fpsAt))} fps`;
+    frames = 0; fpsAt = now;
+  }
+}
+requestAnimationFrame(frame);
+void normalizeShipEffectsData;
+load();
+</script>
+</body>
+</html>

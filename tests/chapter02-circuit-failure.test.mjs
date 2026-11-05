@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { QuestRuntimeManager } from "../app/quest-runtime-manager.ts";
 import { isQuestObjectiveVisible } from "../app/quest-hud-timing.ts";
 import { ChapterFlowManager } from "../app/chapter-flow-manager.ts";
+import { AUDIO_EVENT_CONFIG } from "../app/audio-event-manager.ts";
 import {
   CHAPTER02_CIRCUIT_AFTERSHOCK,
   CHAPTER02_CIRCUIT_AFTERSHOCK_FADE_PORTION,
@@ -18,13 +19,15 @@ import {
   CHAPTER02_CIRCUIT_COLLECT_OBJECTIVE_ID,
   CHAPTER02_CIRCUIT_DIALOGUE,
   CHAPTER02_CIRCUIT_DIALOGUE_DELAY_MS,
+  CHAPTER02_CIRCUIT_HULL_BREACH_AUDIO_EVENTS,
+  CHAPTER02_CIRCUIT_HULL_BREACH_LINE_ID,
   CHAPTER02_CIRCUIT_ITEM_ID,
+  CHAPTER02_CIRCUIT_LINE_AUDIO_EVENTS,
   CHAPTER02_CIRCUIT_QUEST_ID,
   CHAPTER02_CIRCUIT_SHAKE_LINE_ID,
   CHAPTER02_CIRCUIT_STAGE_ID,
   shouldPlayChapter02CircuitDialogue,
 } from "../app/chapter02-circuit-failure.ts";
-import { CHAPTER02_COUNTDOWN_STOP_DIALOGUE } from "../app/chapter02-crash-countdown.ts";
 
 const doc = JSON.parse(readFileSync(new URL("../public/quests/quest-data.json", import.meta.url), "utf8"));
 const OBJ_01 = "QUEST_CH02_MAIN_006_OBJ_01";
@@ -39,10 +42,9 @@ const FAIL_AFTER_SECTION_16_MS = CHAPTER02_CIRCUIT_BLACKOUT_FLOW.actions
   .slice(CHAPTER02_CIRCUIT_BLACKOUT_FLOW.actions.findIndex(action => action.type === "waitForDialogueEnd") + 1)
   .reduce((total, action) => total + action.durationMs, 0) + 1000;
 
-test("constants match the quest data, item database, dialogue lines and countdown stop dialogue", () => {
+test("constants match the quest data, item database and dialogue lines", () => {
   assert.equal(CHAPTER02_CIRCUIT_ITEM_ID, "Q0005");
   assert.equal(CHAPTER02_CIRCUIT_DIALOGUE, "chapter02-section-16");
-  assert.equal(CHAPTER02_CIRCUIT_DIALOGUE, CHAPTER02_COUNTDOWN_STOP_DIALOGUE, "section-16 still stops the countdown when it starts");
   assert.equal(CHAPTER02_CIRCUIT_DIALOGUE_DELAY_MS, 500);
   assert.equal(CHAPTER02_CIRCUIT_COLLECT_OBJECTIVE_ID, OBJ_02);
   const obj02 = circuitStage().objectives.find(o => o.id === OBJ_02);
@@ -437,7 +439,7 @@ test("runtime wiring and HUD failure visuals", () => {
   assert.match(source, /\.then\(\(\) => \{\s*\/\/[^\n]*\n\s*circuitAftershockRef\.current\?\.stop\(\);\s*chapter02CircuitPendingRef\.current = false;/);
   // 失敗後觸發的對話用和任務完成後觸發相同的播放器（播放中時排隊）
   assert.match(source, /runCompletionTrigger: async \(type, triggerId\) => \{\s*if \(type === "dialogue"\) \{\s*const result = await dialogueManager\.playRegistered\(/);
-  assert.match(source, /const scriptedCameraShakes = \[warpExitCameraShake, circuitCameraShakeRef\.current!, circuitAftershockRef\.current!\];/);
+  assert.match(source, /const scriptedCameraShakes = \[shipBoomShakeRef\.current!, warpExitCameraShake, circuitCameraShakeRef\.current!, circuitAftershockRef\.current!\];/);
   assert.match(source, /waitForDialogueEnd: \(\) => new Promise<void>/);
   // 換 Stage 時不疊舊 HUD 複本：NEXT 已淡出的 OBJ_01／OBJ_02 不可再閃出來一次
   assert.match(source, /const isStageSwitch = previousStage\.questId !== undefined &&\s*previousStage\.questId === activeQuestHud\?\.id &&\s*previousStage\.stageId !== activeQuestHud\?\.stageId;\s*const snapshot = isStageSwitch \? null : questFadeSnapshotRef\.current;/);
@@ -448,4 +450,49 @@ test("runtime wiring and HUD failure visuals", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /\.quest-objective\.is-failure-pop \.quest-objective-check \{[^}]*quest-objective-failure-check 1\.8s/);
   assert.match(css, /\.quest-objective\.is-failed \.quest-objective-label,/);
+});
+
+test("line-009 hull breach: rupture at 0 s, breach 1/2/4 at 0.1/0.8/1.1 s with the requested volume and fades", () => {
+  assert.equal(CHAPTER02_CIRCUIT_HULL_BREACH_LINE_ID, "chapter02-section-16-line-009");
+  assert.ok(storyContent.includes(CHAPTER02_CIRCUIT_HULL_BREACH_LINE_ID));
+  const expected = {
+    chapter02HullRupture: ["./audio/Spaceship_hull_ruptu.mp3", 0.5, 0, 20, 10],
+    chapter02HullBreach1: ["./audio/Spaceship_breac_1.mp3", 0.3, 0.1, 10, 10],
+    chapter02HullBreach2: ["./audio/Spaceship_breac_2.mp3", 0.2, 0.8, 10, 10],
+    chapter02HullBreach4: ["./audio/Spaceship_breac_4.mp3", 0.2, 1.1, 10, 10],
+  };
+  assert.deepEqual([...CHAPTER02_CIRCUIT_HULL_BREACH_AUDIO_EVENTS], Object.keys(expected));
+  for (const [eventName, [source, volume, delay, fadeIn, fadeOut]] of Object.entries(expected)) {
+    const definition = AUDIO_EVENT_CONFIG[eventName];
+    assert.deepEqual(definition.sources, [source], eventName);
+    assert.equal(definition.volume, volume, eventName);
+    assert.equal(definition.delaySeconds, delay, eventName);
+    assert.equal(definition.fadeInPercent, fadeIn, eventName);
+    assert.equal(definition.fadeOutPercent, fadeOut, eventName);
+    assert.ok(!definition.loop, eventName);
+  }
+  const source = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.deepEqual(CHAPTER02_CIRCUIT_LINE_AUDIO_EVENTS[CHAPTER02_CIRCUIT_HULL_BREACH_LINE_ID], CHAPTER02_CIRCUIT_HULL_BREACH_AUDIO_EVENTS);
+  assert.match(source, /if \(dialogueId === CHAPTER02_CIRCUIT_DIALOGUE\) \{[^}]*for \(const eventName of CHAPTER02_CIRCUIT_LINE_AUDIO_EVENTS\[lineId\] \?\? \[\]\) \{\s*void audioEventManagerRef\.current\?\.play\(eventName as AudioEventName, \{ restart: true \}\)/);
+});
+
+test("line-005 / line-008 metal groans: volume 50, 10% fades, played once", () => {
+  const expected = {
+    "chapter02-section-16-line-005": ["chapter02MetalGroan", "./audio/agonizing_metal.mp3"],
+    "chapter02-section-16-line-008": ["chapter02MetalGroanSlow", "./audio/Slow_agonizing_metal.mp3"],
+  };
+  for (const [lineId, [eventName, source]] of Object.entries(expected)) {
+    assert.ok(storyContent.includes(lineId), lineId);
+    assert.deepEqual(CHAPTER02_CIRCUIT_LINE_AUDIO_EVENTS[lineId], [eventName]);
+    const definition = AUDIO_EVENT_CONFIG[eventName];
+    assert.deepEqual(definition.sources, [source]);
+    assert.equal(definition.volume, 0.5);
+    assert.equal(definition.delaySeconds, 0);
+    assert.equal(definition.fadeInPercent, 10);
+    assert.equal(definition.fadeOutPercent, 10);
+    assert.ok(!definition.loop);
+  }
+  for (const eventNames of Object.values(CHAPTER02_CIRCUIT_LINE_AUDIO_EVENTS)) {
+    for (const eventName of eventNames) assert.ok(AUDIO_EVENT_CONFIG[eventName], eventName);
+  }
 });

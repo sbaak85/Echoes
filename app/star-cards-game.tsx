@@ -424,7 +424,7 @@ function createOwnerDeck(owner: StarCardsOwner, gameNumber = 1, tutorial = false
 function getPhaseMessage(phase: StarCardsPhase) {
   switch (phase) {
     case "dealing":
-      return "OWEN 正在快速配置卡牌…";
+      return "OWEN 正在快速配置卡牌……";
     case "initial-placement":
       return "拖曳三張牌，分別放入 A／B／C";
     case "revealing":
@@ -1405,7 +1405,7 @@ export function StarCardsGame({
           setMatchResultBanner(
             resolvedMatchWinner === "PLAYER"
               ? { text: "你贏了！", outcome: "victory" }
-              : { text: "失敗了…", outcome: "defeat" },
+              : { text: "失敗了……", outcome: "defeat" },
           );
           schedule(() => setMatchResultBanner(null), 950);
           if (!matchReportedRef.current) {

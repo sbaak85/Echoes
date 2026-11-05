@@ -195,7 +195,7 @@ test("white rift fires onRevealStart when the fade-out begins; the scripted shak
   const rift = readFileSync(new URL("../app/chapter02-white-rift.ts", import.meta.url), "utf8");
   assert.match(rift, /setEmergencySuspended\(false\);\s*this\.host\.onRevealStart\?\.\(\);\s*\/\/[^\n]*\n[^\n]*= WHITE_RIFT_TIMING;\r?\n[^\n]*\n\s*this\.fadeOut = this\.wait\(revealMs/);
   const lab = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
-  assert.match(lab, /onRevealStart: \(\) => warpExitCameraShakeRef\.current\?\.request\(\)/);
+  assert.match(lab, /onRevealStart: \(\) => \{\s*warpExitCameraShakeRef\.current\?\.request\(\);/);
   assert.match(lab, /if \(scripted\.active\) \{[^}]*emergencyCameraShake\.offset\(time, null\);\s*return scripted;/);
 });
 
@@ -215,4 +215,24 @@ test("warp-exit brush smear: saved preview parameters, WebGL overlay above the g
   const source = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
   assert.match(source, /setSmear: amount => warpExitSmearOverlayRef\.current\?\.setAmount\(amount\)/);
   assert.match(source, /tabIndex=\{0\}\s*\/>\s*<WarpExitSmearOverlay ref=\{warpExitSmearOverlayRef\} source=\{canvasRef\} \/>/);
+});
+
+test("白畫面淡入／淡出開始時各播一次曲速退出音效（AudioEventManager）", async () => {
+  const { AUDIO_EVENT_CONFIG } = await import("../app/audio-event-manager.ts");
+  const { Chapter02WhiteRift, CHAPTER02_WARP_EXIT_FADE_IN_AUDIO_EVENT, CHAPTER02_WARP_EXIT_FADE_OUT_AUDIO_EVENT } = await import("../app/chapter02-white-rift.ts");
+  assert.deepEqual(AUDIO_EVENT_CONFIG[CHAPTER02_WARP_EXIT_FADE_IN_AUDIO_EVENT].sources, ["./audio/Sci-fi_warp_exit.mp3"]);
+  assert.deepEqual(AUDIO_EVENT_CONFIG[CHAPTER02_WARP_EXIT_FADE_OUT_AUDIO_EVENT].sources, ["./audio/Sci-fi_warp_out.mp3"]);
+  assert.equal(AUDIO_EVENT_CONFIG[CHAPTER02_WARP_EXIT_FADE_IN_AUDIO_EVENT].delaySeconds, 1.2);
+  assert.equal(AUDIO_EVENT_CONFIG[CHAPTER02_WARP_EXIT_FADE_OUT_AUDIO_EVENT].delaySeconds, 0.75);
+  const calls = [];
+  const rift = new Chapter02WhiteRift({
+    setOpacity() {}, setEmergencySuspended() {}, playDialogue: () => new Promise(() => {}),
+    onFadeInStart: () => calls.push("in"), onRevealStart: () => calls.push("out"),
+  });
+  void rift.run();
+  assert.deepEqual(calls, ["in"]);
+  rift.cancel();
+  const source = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(source, /onFadeInStart:[\s\S]{0,120}play\(CHAPTER02_WARP_EXIT_FADE_IN_AUDIO_EVENT/);
+  assert.match(source, /onRevealStart:[\s\S]{0,200}play\(CHAPTER02_WARP_EXIT_FADE_OUT_AUDIO_EVENT/);
 });

@@ -1,6 +1,6 @@
 "use client";
 import { createChapter02StartFlow, CHAPTER02_START_FLOW_ID } from "./chapter02-start-flow";
-import { Chapter02WhiteRift, CHAPTER02_WHITE_RIFT_FLOW, CHAPTER02_WHITE_RIFT_PENDING_FLAG, CHAPTER02_WHITE_RIFT_TRIGGER, CHAPTER02_WARP_EXITED_FLAG, resolveChapter02Backdrop, resolveChapter02HullStreams, shouldResumeChapter02WhiteRift } from "./chapter02-white-rift";
+import { Chapter02WhiteRift, CHAPTER02_WARP_EXIT_FADE_IN_AUDIO_EVENT, CHAPTER02_WARP_EXIT_FADE_OUT_AUDIO_EVENT, CHAPTER02_WHITE_RIFT_FLOW, CHAPTER02_WHITE_RIFT_PENDING_FLAG, CHAPTER02_WHITE_RIFT_TRIGGER, CHAPTER02_WARP_EXITED_FLAG, resolveChapter02Backdrop, resolveChapter02HullStreams, shouldResumeChapter02WhiteRift } from "./chapter02-white-rift";
 import { WhiteRiftOverlay, type WhiteRiftOverlayHandle } from "./white-rift-overlay";
 import { WarpExitSmearOverlay, type WarpExitSmearOverlayHandle } from "./warp-exit-smear-overlay";
 import {
@@ -9,8 +9,6 @@ import {
   CHAPTER02_COUNTDOWN_DELAY_MS,
   CHAPTER02_COUNTDOWN_FREEZE_AT_MS,
   CHAPTER02_COUNTDOWN_START_MS,
-  CHAPTER02_COUNTDOWN_STOPPED_FLAG,
-  CHAPTER02_COUNTDOWN_STOP_DIALOGUE,
   CHAPTER02_COUNTDOWN_TRIGGER_DIALOGUE,
   CHAPTER02_CRASH_GAME_OVER_IMAGE,
   CHAPTER02_CRASH_GAME_OVER_REASON,
@@ -95,6 +93,7 @@ import mapTest01Scene from "../public/maps/map_test01.scene.json";
 import mapTest02Scene from "../public/maps/map_test02.scene.json";
 import mapScene06BScene from "../public/maps/map_scene_06B.scene.json";
 import shipInteriorScene from "../public/maps/ship_interior.scene.json";
+import shipInteriorEffects from "../public/effects/ship_interior.effects.json";
 import questDocumentSource from "../public/quests/quest-data.json";
 import {
   AUDIO_EVENT_CONFIG,
@@ -229,7 +228,19 @@ import { BusCardPuzzle } from "./bus-card-puzzle.tsx";
 import { BUS_CARD_INTERACTION_ID } from "./bus-card-puzzle.ts";
 import { NavTerminalMinigame } from "./nav-terminal-minigame.tsx";
 import { RedAlertLighting, RED_ALERT_SCENE_ID, RED_ALERT_STORY_FLAG } from "./red-alert-lighting.ts";
-import { isShipFireActive, ShipFireEffect } from "./ship-fire.ts";
+import { AudioRelayScheduler, SHIP_AMBIENCE_AUDIO_EVENTS, SHIP_AMBIENCE_FIRST_FADE_IN_SECONDS, SHIP_AMBIENCE_HANDOFF_RATIO, SHIP_AMBIENCE_START_DIALOGUE_ID, isBoomConditionMet, isShipEffectsScene, isShipFireActive, normalizeShipEffectsData, pickShipBoomAudioEvent, shipBoomFlag, SHIP_EFFECTS_UPDATED_EVENT, SHIP_FIRE_LOOP_AUDIO_EVENTS, SHIP_FIRE_LOOP_START_BOOM_ID, SHIP_FIRE_LOOP_START_DIALOGUE_ID, ShipFireEffect, shipFireLineFlag, ShipFireLoopScheduler } from "./ship-fire.ts";
+
+// 船艙火焰／火星／爆炸配置（tools/effect-editor 編輯）
+let SHIP_EFFECTS_DATA = normalizeShipEffectsData(shipInteriorEffects);
+// 開發時：配置工具按「儲存到遊戲」後由開發伺服器推送新配置，開著的遊戲直接套用（爆炸震動強度要重新整理才更新）
+const shipEffectsHot = (import.meta as ImportMeta & { hot?: { on(event: string, callback: (data: unknown) => void): void } }).hot;
+shipEffectsHot?.on(SHIP_EFFECTS_UPDATED_EVENT, (payload) => {
+  try {
+    SHIP_EFFECTS_DATA = normalizeShipEffectsData(payload);
+  } catch (error) {
+    console.error("[ship effects] 無法套用新的火焰／爆炸配置", error);
+  }
+});
 import { CHAPTER02_ESCAPE_ASSEMBLY_FLAG, CHAPTER02_ESCAPE_ASSEMBLY_FLOW, hasChapter02CrewDeparted, resolveBridgeAssemblyPlacement } from "./chapter02-bridge-assembly.ts";
 import { CHAPTER02_EMERGENCY_BGM_EVENT_ID, CHAPTER02_ZERO_HOUR_BGM_EVENT_ID, isChapter02ZeroHourActive } from "./chapter02-emergency-flow.ts";
 import {
@@ -237,6 +248,7 @@ import {
   CHAPTER02_CIRCUIT_BLACKOUT_LINE_ID,
   CHAPTER02_CIRCUIT_DIALOGUE,
   CHAPTER02_CIRCUIT_DIALOGUE_DELAY_MS,
+  CHAPTER02_CIRCUIT_LINE_AUDIO_EVENTS,
   CHAPTER02_CIRCUIT_ITEM_ID,
   CHAPTER02_CIRCUIT_SHAKE_LINE_ID,
   shouldPlayChapter02CircuitDialogue,
@@ -1388,6 +1400,11 @@ let SCENE_COLLIDERS =
       points: collision.points ?? [],
     };
   }) ?? DEFAULT_SCENE_COLLIDERS;
+/** 地圖本身的碰撞；SCENE_COLLIDERS＝地圖碰撞＋動態阻擋（例：船艙起火後的阻擋圈） */
+let STATIC_SCENE_COLLIDERS = SCENE_COLLIDERS;
+function setDynamicSceneColliders(dynamic: SceneCollider[]) {
+  SCENE_COLLIDERS = dynamic.length ? [...STATIC_SCENE_COLLIDERS, ...dynamic] : STATIC_SCENE_COLLIDERS;
+}
 let MINI_MAP_GEOMETRY = buildMiniMapGeometry(
   WORLD,
   NAV_REGIONS,
@@ -1495,6 +1512,7 @@ function activateSceneRuntime(scene: SceneFile) {
         points: collision.points ?? [],
       };
     }) ?? DEFAULT_SCENE_COLLIDERS;
+  STATIC_SCENE_COLLIDERS = SCENE_COLLIDERS;
   const cachedMiniMapGeometry = MINI_MAP_GEOMETRY_CACHE.get(scene.sceneId);
   MINI_MAP_GEOMETRY =
     cachedMiniMapGeometry ??
@@ -4172,12 +4190,21 @@ export function MovementLab() {
     circuitCameraShakeRef.current = new ScriptedCameraShake(CHAPTER02_CIRCUIT_SHAKE, CHAPTER02_CIRCUIT_SHAKE_FADE_PORTION);
   }
   // line-003 主震動結束後的持續餘震（±3px、3 秒、間隔 0.5～1.5 秒），到 line-011 黑畫面為止
+  // 船艙爆炸的鏡頭震動（震幅依爆炸設定的「畫面震動」）
+  const shipBoomShakeRef = useRef<ScriptedCameraShake | null>(null);
+  if (!shipBoomShakeRef.current) {
+    const amplitude = 12 * SHIP_EFFECTS_DATA.explosion.shake;
+    shipBoomShakeRef.current = new ScriptedCameraShake({ amplitudeX: amplitude, amplitudeY: amplitude, durationSeconds: 0.9, count: 10 }, 0.6);
+  }
+  const shipFireRef = useRef<ShipFireEffect | null>(null);
   const circuitAftershockRef = useRef<RepeatingCameraShake | null>(null);
   if (!circuitAftershockRef.current) circuitAftershockRef.current = new RepeatingCameraShake();
   const whiteRiftOverlayRef = useRef<WhiteRiftOverlayHandle>(null);
   const warpExitSmearOverlayRef = useRef<WarpExitSmearOverlayHandle>(null);
   const shipEmergencySuspendedRef = useRef(false);
   const [chapter02CountdownView, setChapter02CountdownView] = useState<Chapter02CountdownView>("hidden");
+  /** 目前畫面上的倒數狀態（每幀比對劇情進度用） */
+  const chapter02CountdownViewRef = useRef<Chapter02CountdownView>("hidden");
   const [chapter02CountdownIntroKey, setChapter02CountdownIntroKey] = useState(0);
   const chapter02CountdownRemainingRef = useRef(CHAPTER02_COUNTDOWN_START_MS);
   /** performance.now() 時間：刷出動畫定格前不倒數 */
@@ -7910,11 +7937,22 @@ export function MovementLab() {
     onLineBgm: lineId => bgmDirectorRef.current?.triggerDialogueLine(lineId),
     onLineStarted: (dialogueId, lineId) => {
       whiteRiftRef.current?.lineStarted(dialogueId, lineId);
-      if (dialogueId === CHAPTER02_COUNTDOWN_STOP_DIALOGUE) stopChapter02Countdown();
+      // 綁定在這句台詞上的船艙爆炸
+      if (isShipEffectsScene(SHIP_EFFECTS_DATA, SCENE_DATA.sceneId, currentStoryChapterRef.current)) {
+        shipFireRef.current?.triggerLine(lineId, (boomId) => storyProgressRef.current.storyFlags[shipBoomFlag(boomId)] === true);
+      }
       if (dialogueId === CHAPTER02_CIRCUIT_DIALOGUE && lineId === CHAPTER02_CIRCUIT_SHAKE_LINE_ID) {
         circuitCameraShakeRef.current?.request();
         // 主震動（1.5 秒）結束後接著持續餘震
         circuitAftershockRef.current?.start(CHAPTER02_CIRCUIT_SHAKE.durationSeconds * 1000);
+      }
+      if (dialogueId === CHAPTER02_CIRCUIT_DIALOGUE) {
+        // section-16 各句的金屬哀鳴／船體破損音效
+        for (const eventName of CHAPTER02_CIRCUIT_LINE_AUDIO_EVENTS[lineId] ?? []) {
+          void audioEventManagerRef.current?.play(eventName as AudioEventName, { restart: true }).catch(() => {
+            // 瀏覽器暫時封鎖播放時維持安靜，不中斷對話
+          });
+        }
       }
       if (dialogueId === CHAPTER02_CIRCUIT_DIALOGUE && lineId === CHAPTER02_CIRCUIT_BLACKOUT_LINE_ID) {
         circuitAftershockRef.current?.stop();
@@ -7999,6 +8037,7 @@ export function MovementLab() {
     requestPortableAutosaveRef.current("chapter02-countdown");
   };
   const showChapter02Countdown = (view: Chapter02CountdownView) => {
+    chapter02CountdownViewRef.current = view;
     setChapter02CountdownView(view);
     if (view === "intro") {
       setChapter02CountdownIntroKey(key => key + 1);
@@ -8015,7 +8054,7 @@ export function MovementLab() {
     if (current.currentChapter !== 2 || current.storyFlags[CHAPTER02_COUNTDOWN_ACTIVE_FLAG] === true) return;
     const next = withChapter02CountdownRemaining({
       ...current,
-      storyFlags: { ...current.storyFlags, [CHAPTER02_COUNTDOWN_ACTIVE_FLAG]: true, [CHAPTER02_COUNTDOWN_STOPPED_FLAG]: false },
+      storyFlags: { ...current.storyFlags, [CHAPTER02_COUNTDOWN_ACTIVE_FLAG]: true },
     }, CHAPTER02_COUNTDOWN_START_MS);
     chapter02CountdownRemainingRef.current = CHAPTER02_COUNTDOWN_START_MS;
     commitChapter02CountdownStory(next, true);
@@ -8061,14 +8100,6 @@ export function MovementLab() {
     chapter02CountdownRemainingRef.current = getChapter02CountdownRemaining(story);
     showChapter02Countdown(resolveChapter02CountdownView(story));
   };
-  const stopChapter02Countdown = () => {
-    const current = storyProgressRef.current;
-    if (!isChapter02CountdownRunning(current)) return;
-    commitChapter02CountdownStory(withChapter02CountdownRemaining({
-      ...current,
-      storyFlags: { ...current.storyFlags, [CHAPTER02_COUNTDOWN_STOPPED_FLAG]: true },
-    }, chapter02CountdownRemainingRef.current), true);
-  };
   const expireChapter02Countdown = () => {
     chapter02CountdownRemainingRef.current = 0;
     commitChapter02CountdownStory(withChapter02CountdownRemaining(storyProgressRef.current, 0), true);
@@ -8079,6 +8110,13 @@ export function MovementLab() {
   };
   /** 每幀呼叫：對話、劇情演出、選單開啟或刷出動畫定格前不倒數；約每秒寫回存檔 */
   const advanceChapter02Countdown = (paused: boolean, deltaSeconds: number) => {
+    // 劇情進度被換掉（Quest 除錯跳回第二章開頭、換章等，不經過重新整理）而倒數已不存在時，收起倒數 UI
+    if (
+      chapter02CountdownViewRef.current !== "hidden" &&
+      resolveChapter02CountdownView(storyProgressRef.current) === "hidden"
+    ) {
+      showChapter02Countdown("hidden");
+    }
     if (!isChapter02CountdownRunning(storyProgressRef.current) || survivalStateRef.current.gameOverReason) return;
     if (paused || performance.now() < chapter02CountdownCountFromRef.current) return;
     const elapsedMs = Math.min(deltaSeconds, 0.1) * 1000;
@@ -8128,10 +8166,7 @@ export function MovementLab() {
     }
     if (!checkpoint) {
       // 沒有檢查點（例如換了瀏覽器）：保留目前進度，只把倒數重設回 06:00:00
-      const story = withChapter02CountdownRemaining({
-        ...storyProgressRef.current,
-        storyFlags: { ...storyProgressRef.current.storyFlags, [CHAPTER02_COUNTDOWN_STOPPED_FLAG]: false },
-      }, CHAPTER02_COUNTDOWN_START_MS);
+      const story = withChapter02CountdownRemaining(storyProgressRef.current, CHAPTER02_COUNTDOWN_START_MS);
       const fallback = buildPortableSave("auto", story);
       if (fallback) checkpoint = { ...fallback, progress: { ...fallback.progress, survival: { ...fallback.progress.survival, gameOverReason: null } } };
     }
@@ -8349,7 +8384,13 @@ export function MovementLab() {
       }),
       onFullWhite: () => setStoryFlag(CHAPTER02_WARP_EXITED_FLAG, true),
       onCompleted: () => setStoryFlag(CHAPTER02_WHITE_RIFT_PENDING_FLAG, false),
-      onRevealStart: () => warpExitCameraShakeRef.current?.request(),
+      onFadeInStart: () => {
+        void audioEventManagerRef.current?.play(CHAPTER02_WARP_EXIT_FADE_IN_AUDIO_EVENT, { restart: true }).catch(() => {});
+      },
+      onRevealStart: () => {
+        warpExitCameraShakeRef.current?.request();
+        void audioEventManagerRef.current?.play(CHAPTER02_WARP_EXIT_FADE_OUT_AUDIO_EVENT, { restart: true }).catch(() => {});
+      },
     });
   }
   if (!chapterFlowManagerRef.current) {
@@ -11686,7 +11727,10 @@ export function MovementLab() {
         bgmDirector.pause();
         audioEvents.stop("dialogueTyping", { reset: false });
         stopFrequencyFineTuningAudio(false);
+        // 環境音、循環音效、延遲觸發的音效等一併暫停（回到前景從原位置繼續）
+        audioEvents.setSuspended(true);
       } else {
+        audioEvents.setSuspended(false);
         bgmPlayBlocked = false;
         requestBgmPlayback();
         requestDialogueTypingAudioPlayback(false);
@@ -11912,6 +11956,8 @@ export function MovementLab() {
           storyProgressRef.current = plan.story;
           currentStoryChapterRef.current = plan.story.currentChapter;
           bgmDirector.setChapter(plan.story.currentChapter);
+          // 倒數 UI 跟著跳轉後的劇情進度（Game Over 後跳回第二章開頭時收起）
+          restoreChapter02Countdown();
           const baseCampPower = fixedProgress?.campPower ?? campPowerStateRef.current;
           const nextCampPower = activateCampPowerDailyConsumptionAfterQuest(
             {
@@ -14379,7 +14425,7 @@ export function MovementLab() {
     );
     const warpExitCameraShake = warpExitCameraShakeRef.current!;
     // 順序＝優先序：主震動進行中蓋過餘震；餘震循環期間（含空檔）都會暫停背景循環震動
-    const scriptedCameraShakes = [warpExitCameraShake, circuitCameraShakeRef.current!, circuitAftershockRef.current!];
+    const scriptedCameraShakes = [shipBoomShakeRef.current!, warpExitCameraShake, circuitCameraShakeRef.current!, circuitAftershockRef.current!];
     warpExitCameraShake.onShakeStart = emergencyCameraShake.onShakeStart;
     let warpExitShakeWasActive = false;
     const getEmergencyShakeOffset = (time: number) => {
@@ -14426,19 +14472,122 @@ export function MovementLab() {
     };
 
     // 第二章 section-16 播完（黑畫面期間）後船艙各處著火、面板噴火星，之後一直維持（讀檔依對話紀錄恢復）
-    let shipFire: ShipFireEffect | null = null;
-    const drawShipFire = (time: number) => {
-      const active = isShipFireActive(
-        SCENE_DATA.sceneId,
-        currentStoryChapterRef.current,
-        (dialogueId) => questRuntimeManagerRef.current?.hasDialogueCompleted(dialogueId) ?? false,
-      );
-      if (!active) {
-        shipFire?.reset();
+    // 船艙火焰／火星／爆炸：配置見 public/effects/ship_interior.effects.json
+    // 常駐火源在 startDialogue（section-16）播完後燒；爆炸由台詞或玩家走進範圍觸發，炸過記在劇情旗標
+    const isShipBoomDone = (boomId: string) => storyProgressRef.current.storyFlags[shipBoomFlag(boomId)] === true;
+    const hasDialogueCompleted = (dialogueId: string) => questRuntimeManagerRef.current?.hasDialogueCompleted(dialogueId) ?? false;
+    // chapter02-start 播完後的船艙環境音：同一支音檔兩條音軌接力（頭尾 20% 淡入淡出），第一支 1.8 秒淡入；
+    // section-16 之後照常持續，離開船艙或第二章結束就停
+    const shipAmbienceRelay = new AudioRelayScheduler(SHIP_AMBIENCE_AUDIO_EVENTS, SHIP_AMBIENCE_HANDOFF_RATIO);
+    let shipAmbienceRelayPlaying = false;
+    const updateShipAmbienceRelay = (inScene: boolean) => {
+      const audioEvents = audioEventManagerRef.current;
+      if (!audioEvents) return;
+      if (!inScene) {
+        if (!shipAmbienceRelayPlaying) return;
+        shipAmbienceRelayPlaying = false;
+        shipAmbienceRelay.reset();
+        for (const eventName of SHIP_AMBIENCE_AUDIO_EVENTS) audioEvents.stop(eventName);
         return;
       }
-      shipFire ??= new ShipFireEffect(SCENE_DATA.world.width);
-      shipFire.draw(context, time);
+      const active = hasDialogueCompleted(SHIP_AMBIENCE_START_DIALOGUE_ID);
+      const first = shipAmbienceRelay.idle;
+      const next = shipAmbienceRelay.update(active, (eventName) => audioEvents.getAudio(eventName));
+      if (!next) return;
+      shipAmbienceRelayPlaying = true;
+      void audioEvents.play(next, first ? { restart: true, fadeInSeconds: SHIP_AMBIENCE_FIRST_FADE_IN_SECONDS } : { restart: true }).catch(() => {
+        // 瀏覽器暫時封鎖自動播放時維持安靜
+      });
+    };
+    // BOOM_03 引爆後（section-16 播完後也一定）的火焰燃燒聲：三支隨機接力（每支頭尾 20% 淡入淡出），持續循環；離開船艙或第二章結束就停
+    const shipFireLoop = new ShipFireLoopScheduler();
+    let shipFireLoopPlaying = false;
+    const updateShipFireLoop = (inScene: boolean) => {
+      const audioEvents = audioEventManagerRef.current;
+      if (!audioEvents) return;
+      if (!inScene) {
+        if (!shipFireLoopPlaying) return;
+        shipFireLoopPlaying = false;
+        shipFireLoop.reset();
+        for (const eventName of SHIP_FIRE_LOOP_AUDIO_EVENTS) audioEvents.stop(eventName);
+        return;
+      }
+      const active = isShipBoomDone(SHIP_FIRE_LOOP_START_BOOM_ID) || hasDialogueCompleted(SHIP_FIRE_LOOP_START_DIALOGUE_ID);
+      const next = shipFireLoop.update(active, (eventName) => audioEvents.getAudio(eventName));
+      if (!next) return;
+      shipFireLoopPlaying = true;
+      void audioEvents.play(next, { restart: true }).catch(() => {
+        // 瀏覽器暫時封鎖自動播放時維持安靜
+      });
+    };
+    // 起火後的阻擋圈：加進碰撞（玩家無法通過、尋路會繞開）；剛成立時玩家若站在圈內就推到圈外最近可走的位置
+    let shipBlockerKey = "";
+    let shipBlockerBase = STATIC_SCENE_COLLIDERS;
+    const applyShipBlockers = (blockers: { id: string; x: number; y: number; radius: number }[]) => {
+      const key = blockers.map((b) => `${b.id}:${b.x}:${b.y}:${b.radius}`).join("|");
+      // 換地圖時地圖碰撞會整份重建（動態阻擋被清掉），回來要重新加
+      if (key === shipBlockerKey && shipBlockerBase === STATIC_SCENE_COLLIDERS) return;
+      shipBlockerKey = key;
+      shipBlockerBase = STATIC_SCENE_COLLIDERS;
+      setDynamicSceneColliders(blockers.map((b) => ({ kind: "circle", label: `ship-blocker:${b.id}`, x: b.x, y: b.y, radius: b.radius })));
+      const radius = sizeRef.current * 0.14;
+      for (const blocker of blockers) {
+        const center = getCollisionCenter(player, radius);
+        const distance = Math.hypot(center.x - blocker.x, center.y - blocker.y);
+        if (distance >= blocker.radius + radius) continue;
+        const baseAngle = distance > 0.001 ? Math.atan2(center.y - blocker.y, center.x - blocker.x) : Math.PI / 2;
+        for (let step = 0; step < 24; step++) {
+          const angle = baseAngle + (step % 2 ? 1 : -1) * Math.ceil(step / 2) * (Math.PI / 12);
+          const reach = blocker.radius + radius + 2;
+          const foot = { x: blocker.x + Math.cos(angle) * reach, y: blocker.y + Math.sin(angle) * reach + radius };
+          if (isWalkable(foot, radius)) {
+            player.x = foot.x;
+            player.y = foot.y;
+            playerPositionRef.current.x = foot.x;
+            playerPositionRef.current.y = foot.y;
+            break;
+          }
+        }
+      }
+    };
+    const drawShipFire = (time: number) => {
+      if (!isShipEffectsScene(SHIP_EFFECTS_DATA, SCENE_DATA.sceneId, currentStoryChapterRef.current)) {
+        shipFireRef.current?.reset();
+        updateShipAmbienceRelay(false);
+        updateShipFireLoop(false);
+        if (shipBlockerKey) applyShipBlockers([]);
+        return;
+      }
+      // 配置工具存檔後 SHIP_EFFECTS_DATA 會換成新的：重建特效直接套用（炸過的爆炸依旗標恢復）
+      if (!shipFireRef.current || shipFireRef.current.data !== SHIP_EFFECTS_DATA) {
+        shipFireRef.current = new ShipFireEffect(SCENE_DATA.world.width, SHIP_EFFECTS_DATA);
+      }
+      const shipFire = shipFireRef.current;
+      shipFire.onBoom = (boom) => {
+        setStoryFlag(shipBoomFlag(boom.id), true);
+        shipBoomShakeRef.current?.request();
+        void audioEventManagerRef.current?.play(pickShipBoomAudioEvent(), { overlap: true }).catch(() => {});
+        // 爆炸後播放指定對話（劇情多邊形台詞等已登記的對話 ID）；等待期間鎖住操作，播放中有其他對話時排隊
+        if (boom.dialogueId) scheduleRegisteredStoryDialogue(boom.dialogueId, boom.dialogueDelayMs);
+      };
+      shipFire.onLineIgnite = (lineId) => setStoryFlag(shipFireLineFlag(lineId), true);
+      const canTriggerArea = !dialoguePlaybackRef.current && !storyFlowActiveRef.current && !sceneTransitioningRef.current;
+      const fireStarted = isShipFireActive(SHIP_EFFECTS_DATA, SCENE_DATA.sceneId, currentStoryChapterRef.current, hasDialogueCompleted);
+      updateShipAmbienceRelay(true);
+      updateShipFireLoop(true);
+      shipFire.frame(context, time, {
+        fireStarted,
+        warpExited: storyProgressRef.current.storyFlags[CHAPTER02_WARP_EXITED_FLAG] === true,
+        isLineFired: (lineId) => storyProgressRef.current.storyFlags[shipFireLineFlag(lineId)] === true,
+        isBoomDone: isShipBoomDone,
+        player: canTriggerArea ? playerPositionRef.current : null,
+        isAreaConditionMet: (boom) => isBoomConditionMet(
+          boom,
+          hasDialogueCompleted,
+          (questId, stageId) => questRuntimeManagerRef.current?.hasQuestReachedStage(questId, stageId) ?? false,
+        ),
+      });
+      applyShipBlockers(shipFire.activeBlockers());
     };
 
     // 畫在角色之後：道具屬性文字永遠疊在角色上層

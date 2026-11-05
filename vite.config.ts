@@ -4,6 +4,7 @@ import hostingConfig from "./.openai/hosting.json";
 import { sites } from "./build/sites-vite-plugin";
 import { playerVisualConfigWriterPlugin } from "./scripts/player-visual-config-vite-plugin";
 import { saveDataFileApiPlugin } from "./scripts/save-data-vite-plugin";
+import { effectEditorPlugin } from "./scripts/effect-editor-vite-plugin";
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
@@ -57,6 +58,8 @@ export default defineConfig(async () => {
         // with EBUSY and leave the browser showing unstyled server HTML.
         ignored: [
           "**/Assets/**",
+          // public/audio 的音檔常在播放器／剪輯軟體裡開著；被鎖住時 watch 會 EBUSY 讓伺服器整個掛掉
+          "**/public/audio/**",
           "**/.runtime/**",
           "**/SaveData/**",
           "**/dist/**",
@@ -70,6 +73,7 @@ export default defineConfig(async () => {
     plugins: [
       saveDataFileApiPlugin(),
       playerVisualConfigWriterPlugin(),
+      effectEditorPlugin(),
       vinext(),
       sites(),
       cloudflare({

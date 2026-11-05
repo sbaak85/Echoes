@@ -407,7 +407,7 @@ test("StarCards component includes card back, tween phases, DRAW feedback, and i
   assert.match(source, /setGameBannerNumber\(null\), 950/);
   assert.match(source, /【第\{gameBannerNumber\}局】/);
   assert.match(source, /\{ text: "你贏了！", outcome: "victory" \}/);
-  assert.match(source, /\{ text: "失敗了…", outcome: "defeat" \}/);
+  assert.match(source, /\{ text: "失敗了……", outcome: "defeat" \}/);
   // 整場結束後自動返回船艙，不需要按 Esc／B（觸控與滑鼠玩家不會卡在牌桌）
   assert.match(source, /const STAR_CARDS_MATCH_END_RETURN_MS = 2600;/);
   // 沒有對位卡牌的 BATTLE 仍要結算，不能讓整局卡死

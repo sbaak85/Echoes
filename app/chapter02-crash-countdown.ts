@@ -1,11 +1,9 @@
 // 第二章墜落倒數：chapter02-section-13 播完 1 秒後出現，展開動畫刷完後從 06:00:00（分:秒:百分秒）開始倒數。
-// 對話、劇情演出與選單開啟時暫停；chapter02-section-16 開始播放時停止；歸零時 Game Over，
+// 對話、劇情演出與選單開啟時暫停；之後一路倒數（任務 6 STAGE_02 以後也照常跑），歸零時 Game Over，
 // 重試會讀回倒數出現當下存下的檢查點。
 
 /** 播完這段對話後出現倒數 */
 export const CHAPTER02_COUNTDOWN_TRIGGER_DIALOGUE = "chapter02-section-13";
-/** 這段對話開始播放時停止倒數（之後改成拾取道具後播放） */
-export const CHAPTER02_COUNTDOWN_STOP_DIALOGUE = "chapter02-section-16";
 export const CHAPTER02_COUNTDOWN_START_MS = 6 * 60 * 1000;
 export const CHAPTER02_COUNTDOWN_DELAY_MS = 1000;
 
@@ -29,16 +27,14 @@ export const CHAPTER02_COUNTDOWN_CRITICAL_MS = 60_000;
 
 /** 倒數已出現（存檔中） */
 export const CHAPTER02_COUNTDOWN_ACTIVE_FLAG = "chapter02-countdown-active";
-/** section-16 開始後停止（存檔中） */
-export const CHAPTER02_COUNTDOWN_STOPPED_FLAG = "chapter02-countdown-stopped";
 /** StoryProgress.storyTimers 內的剩餘毫秒 */
 export const CHAPTER02_COUNTDOWN_TIMER_ID = "chapter02-crash-countdown";
 /** 倒數出現當下的完整存檔（剩 06:00:00），Game Over 重試時讀回 */
 export const CHAPTER02_COUNTDOWN_CHECKPOINT_KEY = "echoes:chapter02-countdown-checkpoint:v1";
 /** SurvivalGameState.gameOverReason：倒數歸零 */
 export const CHAPTER02_CRASH_GAME_OVER_REASON = "crash" as const;
-/** Game Over 背景插圖（暫用共用的 gameover.png，之後換成墜毀專用圖） */
-export const CHAPTER02_CRASH_GAME_OVER_IMAGE = "gameover.png";
+/** Game Over 背景插圖：墜毀專用圖（Assets/BG/S1_Gameover.png 補成 gameover.png 的比例，上下黑邊以模糊漸層融入） */
+export const CHAPTER02_CRASH_GAME_OVER_IMAGE = "s1-gameover.jpg";
 
 /** 倒數縮小上移後，剩下這個時間時自動播放的對話（播完才記錄，讀檔或中斷後會重播） */
 export const CHAPTER02_COUNTDOWN_FOLLOW_UP_DIALOGUE = "chapter02-section-14";
@@ -67,14 +63,13 @@ export function getChapter02CountdownRemaining(story: CountdownStory) {
 export function resolveChapter02CountdownView(story: CountdownStory): Chapter02CountdownView {
   if (story.currentChapter !== 2 || story.storyFlags[CHAPTER02_COUNTDOWN_ACTIVE_FLAG] !== true) return "hidden";
   const remaining = getChapter02CountdownRemaining(story);
-  if (story.storyFlags[CHAPTER02_COUNTDOWN_STOPPED_FLAG] !== true && remaining >= CHAPTER02_COUNTDOWN_START_MS) return "intro";
+  if (remaining >= CHAPTER02_COUNTDOWN_START_MS) return "intro";
   return "docked";
 }
 
 export function isChapter02CountdownRunning(story: CountdownStory) {
   return story.currentChapter === 2 &&
     story.storyFlags[CHAPTER02_COUNTDOWN_ACTIVE_FLAG] === true &&
-    story.storyFlags[CHAPTER02_COUNTDOWN_STOPPED_FLAG] !== true &&
     getChapter02CountdownRemaining(story) > 0;
 }
 
@@ -100,4 +95,26 @@ export function formatChapter02Countdown(remainingMs: number) {
     seconds: pad(Math.floor(centiseconds / 100) % 60),
     centiseconds: pad(centiseconds % 100),
   };
+}
+
+/** 任務 6（section-14 給予）起倒數一定已經在跑；之前的任務還沒到 section-13 */
+export const CHAPTER02_COUNTDOWN_RUNNING_QUEST_ID = "QUEST_CH02_MAIN_006";
+
+/**
+ * Quest 除錯跳轉用：劇情進度沿用目前的旗標與計時，跳回倒數出現前的任務時要清掉倒數；
+ * 跳到任務 6 時若倒數已歸零（Game Over 後）就重設回 06:00:00。
+ */
+export function withChapter02CountdownForQuestTarget<T extends CountdownStory>(story: T, targetQuestId: string): T {
+  const flags = { ...story.storyFlags };
+  const timers = { ...story.storyTimers };
+  if (targetQuestId !== CHAPTER02_COUNTDOWN_RUNNING_QUEST_ID) {
+    delete flags[CHAPTER02_COUNTDOWN_ACTIVE_FLAG];
+    delete flags[CHAPTER02_COUNTDOWN_FOLLOW_UP_DONE_FLAG];
+    delete timers[CHAPTER02_COUNTDOWN_TIMER_ID];
+    return { ...story, storyFlags: flags, storyTimers: timers };
+  }
+  if (flags[CHAPTER02_COUNTDOWN_ACTIVE_FLAG] === true && getChapter02CountdownRemaining(story) <= 0) {
+    return withChapter02CountdownRemaining(story, CHAPTER02_COUNTDOWN_START_MS);
+  }
+  return story;
 }

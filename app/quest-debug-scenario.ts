@@ -26,6 +26,7 @@ import { PLANT_PUZZLE_ID } from "./phototropic-puzzle.ts";
 import { RED_ALERT_STORY_FLAG } from "./red-alert-lighting.ts";
 import { CHAPTER02_SHAKE_FLAG, CHAPTER02_SHAKE_STRONG_FLAG } from "./camera-shake.ts";
 import { CHAPTER02_ESCAPE_ASSEMBLY_FLAG } from "./chapter02-bridge-assembly.ts";
+import { CHAPTER02_CRASH_GAME_OVER_REASON, withChapter02CountdownForQuestTarget } from "./chapter02-crash-countdown.ts";
 
 // Shared puzzles have their own identity; legacy puzzles may use an Interaction ID.
 const REGISTERED_PUZZLE_IDS: ReadonlySet<string> = new Set([PLANT_PUZZLE_ID]);
@@ -382,6 +383,10 @@ export function buildQuestDebugScenarioPlan(
     story,
   );
 
+  // 墜落倒數跟著跳轉目標：倒數出現前的任務清掉倒數，Game Over（倒數歸零）後跳轉也一併解除
+  const scenarioStory = withChapter02CountdownForQuestTarget(story, target.quest.id);
+  if (survival.gameOverReason === CHAPTER02_CRASH_GAME_OVER_REASON) survival = { ...survival, gameOverReason: null };
+
   changes.push(
     completedQuestIds.length > 0
       ? `已結算前置任務 ${completedQuestIds.length} 個`
@@ -403,7 +408,7 @@ export function buildQuestDebugScenarioPlan(
     questSave,
     inventory: normalizeInventory(inventory),
     survival,
-    story,
+    story: scenarioStory,
     interactionUsage,
     campPowerCurrent,
     worldSpawns,
@@ -648,6 +653,10 @@ function createScenarioQuestSave(
     quests: {},
     processedEventIds: [...(currentSave?.processedEventIds ?? [])],
     completionSequence: currentSave?.completionSequence ?? 0,
+    // Quest next／stage next 保留已播完的對話紀錄（環境音、火焰等依對話紀錄判斷的演出才不會在跳關後中斷）；goto 從頭建立
+    ...(preserveUnrelatedProgress && currentSave?.completedDialogueIds
+      ? { completedDialogueIds: [...currentSave.completedDialogueIds] }
+      : {}),
   };
   let completionSequence = save.completionSequence ?? 0;
 

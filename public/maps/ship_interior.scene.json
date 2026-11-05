@@ -946,12 +946,12 @@
     {
       "id": "escape-ian",
       "label": "\u4F0A\u6069\uFF08\u9003\u751F\u8259\u96C6\u5408\uFF09",
-      "facing": "SW",
+      "facing": "S",
       "blackoutEnabled": false,
       "blackoutFadeSeconds": 0.3,
       "blackoutHoldSeconds": 0,
-      "x": 726,
-      "y": 1072
+      "x": 600,
+      "y": 1054
     },
     {
       "id": "escape-rena",
@@ -960,18 +960,18 @@
       "blackoutEnabled": false,
       "blackoutFadeSeconds": 0.3,
       "blackoutHoldSeconds": 0,
-      "x": 706,
-      "y": 1036
+      "x": 712,
+      "y": 1048
     },
     {
       "id": "escape-owen",
       "label": "\u6B50\u6587\uFF08\u9003\u751F\u8259\u96C6\u5408\uFF09",
-      "facing": "S",
+      "facing": "SW",
       "blackoutEnabled": false,
       "blackoutFadeSeconds": 0.3,
       "blackoutHoldSeconds": 0,
-      "x": 592,
-      "y": 1049
+      "x": 738,
+      "y": 1095
     }
   ],
   "entryPoints": [],
@@ -1891,7 +1891,7 @@
           {
             "lineId": "shipinterior-interaction-003-line-003",
             "speaker": "Sbaak",
-            "text": "\u98DB\u822A\u96FB\u8166\uFF0C\u4ECA\u5929\u7684\u822A\u884C\u6709\u4EC0\u9EBC\u7570\u72C0\u55CE?"
+            "text": "\u98DB\u822A\u96FB\u8166\uFF0C\u4ECA\u5929\u7684\u822A\u884C\u6709\u4EC0\u9EBC\u7570\u72C0\u55CE\uFF1F"
           },
           {
             "lineId": "shipinterior-interaction-003-line-004",
@@ -2219,7 +2219,7 @@
           {
             "lineId": "shipinterior-interaction-006-line-003",
             "speaker": "Sbaak",
-            "text": "\u5167\u90E8\u6709\u500B\u5361\u69AB\u4F3C\u4E4E\u65B7\u4E86\uFF0C\u5176\u4ED6\u9084\u67098\u7D44UC\u6263\u90FD\u5F88\u7262\u56FA\uFF0C\r\n\u6240\u4EE5\u554F\u984C\u4E00\u6642\u4E0D\u5927..."
+            "text": "\u5167\u90E8\u6709\u500B\u5361\u69AB\u4F3C\u4E4E\u65B7\u4E86\uFF0C\u5176\u4ED6\u9084\u67098\u7D44UC\u6263\u90FD\u5F88\u7262\u56FA\uFF0C\n\u6240\u4EE5\u554F\u984C\u4E00\u6642\u4E0D\u5927\u2026\u2026"
           },
           {
             "lineId": "shipinterior-interaction-006-line-002",
@@ -2335,12 +2335,12 @@
           {
             "lineId": "shipinterior-interaction-007-line-002",
             "speaker": "Sbaak",
-            "text": "\u8239\u4E0A\u53EA\u8981\u6709\u6771\u897F\u58DE\u4E86\uFF0C\u53EF\u4EE5\u8AAA\u5168\u90E8\u90FD\u662F\u6211\u7684\u9818\u57DF\u3002\n\u4E0D\u904E\u5C31\u63DB\u500B\u6263\u5177\u800C\u5DF2..."
+            "text": "\u8239\u4E0A\u53EA\u8981\u6709\u6771\u897F\u58DE\u4E86\uFF0C\u53EF\u4EE5\u8AAA\u5168\u90E8\u90FD\u662F\u6211\u7684\u9818\u57DF\u3002\n\u4E0D\u904E\u5C31\u63DB\u500B\u6263\u5177\u800C\u5DF2\u2026\u2026"
           },
           {
             "lineId": "shipinterior-interaction-007-line-003",
             "speaker": "Sbaak",
-            "text": "UC\u6263...\u9019\u88E1\u6709\u4E00\u500B\u5099\u54C1\uFF0C\u62FF\u9019\u500B\u5427!"
+            "text": "UC\u6263\u2026\u2026\u9019\u88E1\u6709\u4E00\u500B\u5099\u54C1\uFF0C\u62FF\u9019\u500B\u5427\uFF01"
           }
         ]
       },
@@ -2406,11 +2406,15 @@
           "itemId": "",
           "questId": "QUEST_CH02_MAIN_001",
           "stageId": "QUEST_CH02_MAIN_001_STAGE_01",
-          "stageMode": "CurrentStageOnly",
+          "stageMode": "UnlockUntilCondition",
           "objectiveId": "QUEST_CH02_MAIN_001_OBJ_03",
           "objectiveState": "unlocked",
           "disableQuestId": "",
           "disableStageId": "",
+          "removeQuestId": "QUEST_CH02_MAIN_005",
+          "removeStageId": "QUEST_CH02_MAIN_005_STAGE_01",
+          "removeObjectiveId": "QUEST_CH02_MAIN_005_OBJ_01",
+          "removeObjectiveState": "unlocked",
           "quantity": 1,
           "chapter": 1
         }
@@ -2457,12 +2461,12 @@
           {
             "lineId": "shipinterior-interaction-008-line-005",
             "speaker": "Sbaak",
-            "text": "\u54A6? \u9019\u4EC0\u9EBC\u932F\u8AA4\u8A0A\u606F\u55CE?\n\uFF08\u6211\u9EDE\u64CA\u90A3\u500B\u7D05\u8272\u7684\u53C9\u53C9\u8A0A\u606F\u5716\u793A\uFF09"
+            "text": "\u54A6\uFF1F\u9019\u4EC0\u9EBC\u932F\u8AA4\u8A0A\u606F\u55CE\uFF1F\n\uFF08\u6211\u9EDE\u64CA\u90A3\u500B\u7D05\u8272\u7684\u53C9\u53C9\u8A0A\u606F\u5716\u793A\uFF09"
           },
           {
             "lineId": "shipinterior-interaction-008-line-006",
             "speaker": "Sbaak",
-            "text": "\u5594\u5594...\u53C8\u662F\u8A18\u61B6\u9AD4\u7684\u5075\u932F\u4FDD\u8B77\u7A0B\u5F0F\uFF0C\n\u5076\u723E\u6703\u767C\u751F\u532F\u6D41\u6392\u7684\u7DE9\u885D\u6EFF\u4E86\uFF0C\u9700\u8981\u624B\u52D5\u6E05\u9664\u7684\u554F\u984C\u3002"
+            "text": "\u5594\u5594\u2026\u2026\u53C8\u662F\u8A18\u61B6\u9AD4\u7684\u5075\u932F\u4FDD\u8B77\u7A0B\u5F0F\uFF0C\n\u5076\u723E\u6703\u767C\u751F\u532F\u6D41\u6392\u7684\u7DE9\u885D\u6EFF\u4E86\uFF0C\u9700\u8981\u624B\u52D5\u6E05\u9664\u7684\u554F\u984C\u3002"
           },
           {
             "lineId": "shipinterior-interaction-008-line-007",
@@ -2601,7 +2605,7 @@
           {
             "lineId": "shipinterior-interaction-009-line-003",
             "speaker": "\u4F0A\u6069",
-            "text": "\u6211\u807D\u5230\u4E86\u2026"
+            "text": "\u6211\u807D\u5230\u4E86\u2026\u2026"
           }
         ]
       },
@@ -2824,12 +2828,12 @@
           {
             "lineId": "shipinterior-interaction-011-line-004",
             "speaker": "\u6B50\u6587",
-            "text": "\u9019\u6A23\u5427\uFF0C\u8266\u9577\u5429\u5490\u6211\u628A\u90A3\u500B\u8DF3\u812B\u7684\u6263\u5177\u518D\u91CD\u65B0\u56FA\u5B9A\u4E00\u6B21\uFF0C\n\u6211\u5148\u5E79\u9EDE\u6D3B\u2026\u4F60\u8D81\u9019\u6BB5\u6642\u9593\uFF0C\u53BB\u8DDF\u8266\u9577\u56DE\u5831\u4E00\u4E0B\u3002"
+            "text": "\u9019\u6A23\u5427\uFF0C\u8266\u9577\u5429\u5490\u6211\u628A\u90A3\u500B\u8DF3\u812B\u7684\u6263\u5177\u518D\u91CD\u65B0\u56FA\u5B9A\u4E00\u6B21\uFF0C\n\u6211\u5148\u5E79\u9EDE\u6D3B\u2026\u2026\u4F60\u8D81\u9019\u6BB5\u6642\u9593\uFF0C\u53BB\u8DDF\u8266\u9577\u56DE\u5831\u4E00\u4E0B\u3002"
           },
           {
             "lineId": "shipinterior-interaction-011-line-005",
             "speaker": "\u6B50\u6587",
-            "text": "\u9806\u4FBF\u518D\u8DDF\u5176\u4ED6\u8239\u54E1\u9592\u8A71\u5BB6\u5E38\u4E00\u756A\uFF0C\u597D\u55CE\uFF1F\n\u95DC\u5FC3\u4E00\u4E0B\u857E\u5A1C\uFF1F \u6211\u770B\u5979\u5927\u6982\u5169\u5929\u90FD\u6C92\u7761\u8D85\u904E3\u5C0F\u6642\u4E86\u3002"
+            "text": "\u9806\u4FBF\u518D\u8DDF\u5176\u4ED6\u8239\u54E1\u9592\u8A71\u5BB6\u5E38\u4E00\u756A\uFF0C\u597D\u55CE\uFF1F\n\u95DC\u5FC3\u4E00\u4E0B\u857E\u5A1C\uFF1F\u6211\u770B\u5979\u5927\u6982\u5169\u5929\u90FD\u6C92\u7761\u8D85\u904E3\u5C0F\u6642\u4E86\u3002"
           },
           {
             "lineId": "shipinterior-interaction-011-line-006",
@@ -2938,6 +2942,10 @@
           "disableStageId": "QUEST_CH02_MAIN_002_STAGE_01",
           "disableObjectiveId": "QUEST_CH02_MAIN_002_OBJ_02",
           "disableObjectiveState": "completed",
+          "removeQuestId": "QUEST_CH02_MAIN_005",
+          "removeStageId": "QUEST_CH02_MAIN_005_STAGE_01",
+          "removeObjectiveId": "QUEST_CH02_MAIN_005_OBJ_01",
+          "removeObjectiveState": "unlocked",
           "quantity": 1,
           "chapter": 1
         }
@@ -2959,7 +2967,7 @@
           {
             "lineId": "shipinterior-interaction-012-line-001",
             "speaker": "Sbaak",
-            "text": "..."
+            "text": "\u2026\u2026"
           }
         ]
       },
@@ -3044,6 +3052,10 @@
           "disableStageId": "QUEST_CH02_MAIN_002_STAGE_01",
           "disableObjectiveId": "QUEST_CH02_MAIN_002_OBJ_03",
           "disableObjectiveState": "completed",
+          "removeQuestId": "QUEST_CH02_MAIN_005",
+          "removeStageId": "QUEST_CH02_MAIN_005_STAGE_01",
+          "removeObjectiveId": "QUEST_CH02_MAIN_005_OBJ_01",
+          "removeObjectiveState": "unlocked",
           "quantity": 1,
           "chapter": 1
         }
@@ -3065,7 +3077,7 @@
           {
             "lineId": "shipinterior-interaction-013-line-001",
             "speaker": "Sbaak",
-            "text": "..."
+            "text": "\u2026\u2026"
           }
         ]
       },
@@ -3150,6 +3162,10 @@
           "disableStageId": "QUEST_CH02_MAIN_002_STAGE_01",
           "disableObjectiveId": "QUEST_CH02_MAIN_002_OBJ_04",
           "disableObjectiveState": "completed",
+          "removeQuestId": "QUEST_CH02_MAIN_005",
+          "removeStageId": "QUEST_CH02_MAIN_005_STAGE_01",
+          "removeObjectiveId": "QUEST_CH02_MAIN_005_OBJ_01",
+          "removeObjectiveState": "unlocked",
           "quantity": 1,
           "chapter": 1
         }
@@ -3171,7 +3187,7 @@
           {
             "lineId": "shipinterior-interaction-014-line-001",
             "speaker": "Sbaak",
-            "text": "..."
+            "text": "\u2026\u2026"
           }
         ]
       },
@@ -3269,12 +3285,12 @@
           {
             "lineId": "shipinterior-interaction-015-line-001",
             "speaker": "\u6B50\u6587",
-            "text": "\u563F\uFF0C\u8DDF\u5927\u5925\u90FD\u8AC7\u904E\u8A71\u4E86\u55CE?"
+            "text": "\u563F\uFF0C\u8DDF\u5927\u5925\u90FD\u8AC7\u904E\u8A71\u4E86\u55CE\uFF1F"
           },
           {
             "lineId": "shipinterior-interaction-015-line-002",
             "speaker": "\u6B50\u6587",
-            "text": "\u6211\u73FE\u5728\u624B\u908A\u6B63\u5FD9\uFF0C\u53EF\u4EE5\u5E6B\u6211\u62FF\u500BUC\u6263\u66FF\u8CA8\u6AC3\u63DB\u4E0A\u55CE?"
+            "text": "\u6211\u73FE\u5728\u624B\u908A\u6B63\u5FD9\uFF0C\u53EF\u4EE5\u5E6B\u6211\u62FF\u500BUC\u6263\u66FF\u8CA8\u6AC3\u63DB\u4E0A\u55CE\uFF1F"
           },
           {
             "lineId": "shipinterior-interaction-015-line-003",
@@ -3294,7 +3310,7 @@
           {
             "lineId": "shipinterior-interaction-015-failure-line-001",
             "speaker": "\u6B50\u6587",
-            "text": "\u6211\u73FE\u5728\u5206\u4E0D\u958B\u8EAB\uFF0C\u53EF\u4EE5\u5E6B\u6211\u4E00\u4E0B\u55CE?",
+            "text": "\u6211\u73FE\u5728\u5206\u4E0D\u958B\u8EAB\uFF0C\u53EF\u4EE5\u5E6B\u6211\u4E00\u4E0B\u55CE\uFF1F",
             "randomGroupId": "random-group-1",
             "weight": 1
           },
@@ -3493,12 +3509,12 @@
           {
             "lineId": "shipinterior-interaction-017-line-001",
             "speaker": "\u6B50\u6587",
-            "text": "\u563F\uFF0C\u8981\u4F86\u6253\u4E00\u5834\u661F\u969B\u724C\u55CE?"
+            "text": "\u563F\uFF0C\u8981\u4F86\u6253\u4E00\u5834\u661F\u969B\u724C\u55CE\uFF1F"
           },
           {
             "lineId": "shipinterior-interaction-017-line-002",
             "speaker": "Sbaak",
-            "text": "\u4F86\u5427! \u6211\u8981\u8B93\u4F60\u8F38\u5230\u7121\u5730\u81EA\u5BB9\u3002"
+            "text": "\u4F86\u5427\uFF01\u6211\u8981\u8B93\u4F60\u8F38\u5230\u7121\u5730\u81EA\u5BB9\u3002"
           }
         ]
       },
@@ -3594,7 +3610,7 @@
           {
             "lineId": "shipinterior-interaction-018-line-001",
             "speaker": "\u6B50\u6587",
-            "text": "\u563F\uFF0C\u8981\u4F86\u6253\u4E00\u5834\u661F\u969B\u724C\u55CE?"
+            "text": "\u563F\uFF0C\u8981\u4F86\u6253\u4E00\u5834\u661F\u969B\u724C\u55CE\uFF1F"
           }
         ],
         "choice": {
@@ -3714,42 +3730,42 @@
           {
             "lineId": "shipinterior-interaction-019-line-001",
             "speaker": "Sbaak",
-            "text": "\u822A\u7DDA\u8A18\u9304...Check\uFF0C\u6C92\u554F\u984C\u3002"
+            "text": "\u822A\u7DDA\u8A18\u9304\u2026\u2026Check\uFF0C\u6C92\u554F\u984C\u3002"
           },
           {
             "lineId": "shipinterior-interaction-019-line-002",
             "speaker": "Sbaak",
-            "text": "\u63A5\u4E0B\u4F86\u7684\u822A\u7A0B\u53EA\u8981\u518D\u7D93\u904E2\u584A\u66F2\u901F\u8C61\u9650\uFF0C\u5C31\u80FD\u62B5..."
+            "text": "\u63A5\u4E0B\u4F86\u7684\u822A\u7A0B\u53EA\u8981\u518D\u7D93\u904E2\u584A\u66F2\u901F\u8C61\u9650\uFF0C\u5C31\u80FD\u62B5\u2026\u2026"
           },
           {
             "lineId": "shipinterior-interaction-019-line-003",
             "speaker": "",
-            "text": "(\u6211\u89C0\u5BDF\u5230\u91CF\u5B50\u8A08\u7B97\u77E9\u9663\u7684\u986F\u793A\u6709\u8F15\u5FAE\u7684\u5EF6\u9072\u8AA4\u5DEE)"
+            "text": "\uFF08\u6211\u89C0\u5BDF\u5230\u91CF\u5B50\u8A08\u7B97\u77E9\u9663\u7684\u986F\u793A\u6709\u8F15\u5FAE\u7684\u5EF6\u9072\u8AA4\u5DEE\uFF09"
           },
           {
             "lineId": "shipinterior-interaction-019-line-004",
             "speaker": "Sbaak",
-            "text": "\u54A6...\u9019\u500B\u61C9\u8A72\u4E0D\u662F\u6211\u770B\u932F\u5427?\n(\u6211\u7A0D\u5FAE\u5C08\u6CE8\u7684\u89C0\u5BDF\u8A08\u7B97\u77E9\u9663\u7684\u6578\u503C)"
+            "text": "\u54A6\u2026\u2026\u9019\u500B\u61C9\u8A72\u4E0D\u662F\u6211\u770B\u932F\u5427\uFF1F\n\uFF08\u6211\u7A0D\u5FAE\u5C08\u6CE8\u7684\u89C0\u5BDF\u8A08\u7B97\u77E9\u9663\u7684\u6578\u503C\uFF09"
           },
           {
             "lineId": "shipinterior-interaction-019-line-005",
             "speaker": "Sbaak",
-            "text": "\u771F\u7684\u6709\u4E00\u7D44\u6578\u503C\u6709\u4E00\u9EDE\u9EDE\u7684\u5EF6\u9072\uFF0C\u70BA\u4EC0\u9EBC?\n\u96D6\u7136\u554F\u984C\u4E0D\u5927\uFF0C\u4F46\u901A\u5E38\u9019\u7A2E\u72C0\u6CC1\u90FD\u662F\u56E0\u70BA\u5F15\u529B\u7570\u5E38\u9020\u6210..."
+            "text": "\u771F\u7684\u6709\u4E00\u7D44\u6578\u503C\u6709\u4E00\u9EDE\u9EDE\u7684\u5EF6\u9072\uFF0C\u70BA\u4EC0\u9EBC\uFF1F\n\u96D6\u7136\u554F\u984C\u4E0D\u5927\uFF0C\u4F46\u901A\u5E38\u9019\u7A2E\u72C0\u6CC1\u90FD\u662F\u56E0\u70BA\u5F15\u529B\u7570\u5E38\u9020\u6210\u2026\u2026"
           },
           {
             "lineId": "shipinterior-interaction-019-line-006",
             "speaker": "",
-            "text": "(\u6211\u66F4\u52A0\u8B39\u614E\u7684\u8ABF\u67E5\u9019\u9644\u8FD1\u661F\u57DF\u7684\u5F15\u529B\u5E38\u6578\uFF0C\u537B\u6C92\u767C\u73FE\u4EFB\u4F55\u73FE\u8C61)"
+            "text": "\uFF08\u6211\u66F4\u52A0\u8B39\u614E\u7684\u8ABF\u67E5\u9019\u9644\u8FD1\u661F\u57DF\u7684\u5F15\u529B\u5E38\u6578\uFF0C\u537B\u6C92\u767C\u73FE\u4EFB\u4F55\u73FE\u8C61\uFF09"
           },
           {
             "lineId": "shipinterior-interaction-019-line-007",
             "speaker": "Sbaak",
-            "text": "\u96E3\u9053\u662F\u65E9\u4E0A\u90A3\u500B\u6D6E\u9EDE\u6578\u7684\u8AA4\u5DEE\u9020\u6210\u8A08\u7B97\u7684\u5EF6\u9072?"
+            "text": "\u96E3\u9053\u662F\u65E9\u4E0A\u90A3\u500B\u6D6E\u9EDE\u6578\u7684\u8AA4\u5DEE\u9020\u6210\u8A08\u7B97\u7684\u5EF6\u9072\uFF1F"
           },
           {
             "lineId": "shipinterior-interaction-019-line-008",
             "speaker": "Sbaak",
-            "text": "\u5982\u679C\u662F\u9019\u6A23\uFF0C\u90A3\u9EBC\u53EA\u8981\u63EA\u51FA\u90A3\u7D44\u56FA\u5B9A\u4E0D\u8B8A\u7684\u51FD\u6578\u8207\u5EF6\u9072\u7684\u6578\u503C\uFF0C\n\u518D\u8F38\u5165\u6821\u6B63\u5373\u53EF...\u6211\u4F86\u4ED4\u7D30\u627E\u627E\u770B\u3002"
+            "text": "\u5982\u679C\u662F\u9019\u6A23\uFF0C\u90A3\u9EBC\u53EA\u8981\u63EA\u51FA\u90A3\u7D44\u56FA\u5B9A\u4E0D\u8B8A\u7684\u51FD\u6578\u8207\u5EF6\u9072\u7684\u6578\u503C\uFF0C\n\u518D\u8F38\u5165\u6821\u6B63\u5373\u53EF\u2026\u2026\u6211\u4F86\u4ED4\u7D30\u627E\u627E\u770B\u3002"
           }
         ]
       },
@@ -3829,9 +3845,13 @@
           "itemId": "",
           "questId": "QUEST_CH02_MAIN_004",
           "stageId": "QUEST_CH02_MAIN_004_STAGE_01",
-          "stageMode": "CurrentStageOnly",
+          "stageMode": "UnlockUntilCondition",
           "disableQuestId": "",
           "disableStageId": "",
+          "removeQuestId": "QUEST_CH02_MAIN_005",
+          "removeStageId": "QUEST_CH02_MAIN_005_STAGE_01",
+          "removeObjectiveId": "QUEST_CH02_MAIN_005_OBJ_01",
+          "removeObjectiveState": "unlocked",
           "quantity": 1,
           "chapter": 1
         }
@@ -3984,7 +4004,7 @@
           {
             "lineId": "shipinterior-interaction-021-line-005",
             "speaker": "\u7C73\u62C9",
-            "text": "\u5F80\u5F80\u9019\u7A2E\u6642\u5019\uFF0C\u90FD\u6703\u767C\u751F\u4E00\u5806\u9CE5\u4E8B\uFF0C\u4E0D\u662F\u54EA\u53F0\u7CFB\u7D71\u53C8\u7576\u6A5F\uFF0C\n\u6216\u662F\u8CA8\u7269\u6E05\u55AE\u7684\u7D00\u9304\u6709\u554F\u984C...\u5509\u3002"
+            "text": "\u5F80\u5F80\u9019\u7A2E\u6642\u5019\uFF0C\u90FD\u6703\u767C\u751F\u4E00\u5806\u9CE5\u4E8B\uFF0C\u4E0D\u662F\u54EA\u53F0\u7CFB\u7D71\u53C8\u7576\u6A5F\uFF0C\n\u6216\u662F\u8CA8\u7269\u6E05\u55AE\u7684\u7D00\u9304\u6709\u554F\u984C\u2026\u2026\u5509\u3002"
           },
           {
             "lineId": "shipinterior-interaction-021-line-006",
@@ -4081,11 +4101,15 @@
           "itemId": "",
           "questId": "QUEST_CH02_MAIN_004",
           "stageId": "QUEST_CH02_MAIN_004_STAGE_02",
-          "stageMode": "CurrentStageOnly",
+          "stageMode": "UnlockUntilCondition",
           "objectiveId": "QUEST_CH02_MAIN_004_OBJ_02",
           "objectiveState": "unlocked",
           "disableQuestId": "",
           "disableStageId": "",
+          "removeQuestId": "QUEST_CH02_MAIN_005",
+          "removeStageId": "QUEST_CH02_MAIN_005_STAGE_01",
+          "removeObjectiveId": "QUEST_CH02_MAIN_005_OBJ_01",
+          "removeObjectiveState": "unlocked",
           "quantity": 1,
           "chapter": 1
         }
@@ -4105,12 +4129,12 @@
           {
             "lineId": "shipinterior-interaction-022-line-001",
             "speaker": "",
-            "text": "(\u84B8\u993E\u6C34\u5F9E\u6C34\u9F8D\u982D\u4E2D\u6D41\u51FA)"
+            "text": "\uFF08\u84B8\u993E\u6C34\u5F9E\u6C34\u9F8D\u982D\u4E2D\u6D41\u51FA\uFF09"
           },
           {
             "lineId": "shipinterior-interaction-022-line-002",
             "speaker": "",
-            "text": "(\u6211\u505A\u4E86\u7C21\u55AE\u7684\u76E5\u6D17\u6574\u7406)"
+            "text": "\uFF08\u6211\u505A\u4E86\u7C21\u55AE\u7684\u76E5\u6D17\u6574\u7406\uFF09"
           },
           {
             "lineId": "shipinterior-interaction-022-line-003",
@@ -4176,11 +4200,15 @@
           "itemId": "",
           "questId": "QUEST_CH02_MAIN_004",
           "stageId": "QUEST_CH02_MAIN_004_STAGE_02",
-          "stageMode": "CurrentStageOnly",
+          "stageMode": "UnlockUntilCondition",
           "objectiveId": "QUEST_CH02_MAIN_004_OBJ_02",
           "objectiveState": "unlocked",
           "disableQuestId": "",
           "disableStageId": "",
+          "removeQuestId": "QUEST_CH02_MAIN_005",
+          "removeStageId": "QUEST_CH02_MAIN_005_STAGE_01",
+          "removeObjectiveId": "QUEST_CH02_MAIN_005_OBJ_01",
+          "removeObjectiveState": "unlocked",
           "quantity": 1,
           "chapter": 1
         }
@@ -4200,17 +4228,17 @@
           {
             "lineId": "shipinterior-interaction-023-line-001",
             "speaker": "",
-            "text": "(\u6211\u947D\u9032\u72F9\u5C0F\u7684\u81E5\u92EA\u7576\u4E2D)"
+            "text": "\uFF08\u6211\u947D\u9032\u72F9\u5C0F\u7684\u81E5\u92EA\u7576\u4E2D\uFF09"
           },
           {
             "lineId": "shipinterior-interaction-023-line-002",
             "speaker": "",
-            "text": "(\u4E00\u908A\u601D\u8003\u8457\u4ECA\u5929\u9047\u5230\u7684\u602A\u7570\u72C0\u6CC1)"
+            "text": "\uFF08\u4E00\u908A\u601D\u8003\u8457\u4ECA\u5929\u9047\u5230\u7684\u602A\u7570\u72C0\u6CC1\uFF09"
           },
           {
             "lineId": "shipinterior-interaction-023-line-003",
             "speaker": "Sbaak",
-            "text": "\u66F2\u901F\u5F15\u64CE\u8A18\u61B6\u9AD4\u6EA2\u4F4D\u3001\u98DB\u822A\u8A18\u9304\u7684\u6D6E\u9EDE\u6578\u8AA4\u5DEE\u3001\u822A\u7DDA\u76E3\u6E2C\u7684\u5EF6\u9072...\n\u9019\u4E9B\u771F\u7684\u90FD\u662F\u5DE7\u5408\u55CE?"
+            "text": "\u66F2\u901F\u5F15\u64CE\u8A18\u61B6\u9AD4\u6EA2\u4F4D\u3001\u98DB\u822A\u8A18\u9304\u7684\u6D6E\u9EDE\u6578\u8AA4\u5DEE\u3001\u822A\u7DDA\u76E3\u6E2C\u7684\u5EF6\u9072\u2026\u2026\n\u9019\u4E9B\u771F\u7684\u90FD\u662F\u5DE7\u5408\u55CE\uFF1F"
           },
           {
             "lineId": "shipinterior-interaction-023-line-004",
@@ -4220,7 +4248,7 @@
           {
             "lineId": "shipinterior-interaction-023-line-005",
             "speaker": "Sbaak",
-            "text": "(\u5E0C\u671B\u53EA\u662F\u6211\u591A\u616E\u4E86)"
+            "text": "\uFF08\u5E0C\u671B\u53EA\u662F\u6211\u591A\u616E\u4E86\uFF09"
           },
           {
             "lineId": "shipinterior-interaction-023-line-006",
@@ -4316,7 +4344,7 @@
           {
             "lineId": "shipinterior-interaction-024-line-001",
             "speaker": "Sbaak",
-            "text": "..."
+            "text": "\u2026\u2026"
           }
         ]
       },
@@ -4330,7 +4358,7 @@
           {
             "lineId": "shipinterior-interaction-024-failure-line-001",
             "speaker": "Sbaak",
-            "text": "\u5F48\u5C04\u8FF4\u8DEF\u6545\u969C\uFF0C\u5FC5\u9808\u5FEB\u9EDE\u4FEE\u597D!"
+            "text": "\u5F48\u5C04\u8FF4\u8DEF\u6545\u969C\uFF0C\u5FC5\u9808\u5FEB\u9EDE\u4FEE\u597D\uFF01"
           }
         ]
       }
@@ -4413,22 +4441,22 @@
           {
             "lineId": "shipinterior-interaction-025-line-001",
             "speaker": "Sbaak",
-            "text": "\u8FF4\u8DEF\u96F6\u4EF6...\u8FF4\u8DEF\u96F6\u4EF6..."
+            "text": "\u8FF4\u8DEF\u96F6\u4EF6\u2026\u2026\u8FF4\u8DEF\u96F6\u4EF6\u2026\u2026"
           },
           {
             "lineId": "shipinterior-interaction-025-line-002",
             "speaker": "",
-            "text": "(\u6211\u7DCA\u5F35\u5F97\u72C2\u5192\u6C57! \u4F46\u53CD\u61C9\u537B\u7121\u6BD4\u7684\u654F\u6377)"
+            "text": "\uFF08\u6211\u7DCA\u5F35\u5F97\u72C2\u5192\u6C57\uFF01\u4F46\u53CD\u61C9\u537B\u7121\u6BD4\u7684\u654F\u6377\uFF09"
           },
           {
             "lineId": "shipinterior-interaction-025-line-003",
             "speaker": "",
-            "text": "(\u8239\u9AD4\u767C\u51FA\u626D\u66F2\u7684\u649E\u64CA\u8072\uFF0C\u4F46\u6211\u537B\u7CBE\u6E96\u60F3\u8D77\u76F8\u95DC\u96F6\u4EF6\u653E\u7F6E\u7684\u5C64\u67B6)"
+            "text": "\uFF08\u8239\u9AD4\u767C\u51FA\u626D\u66F2\u7684\u649E\u64CA\u8072\uFF0C\u4F46\u6211\u537B\u7CBE\u6E96\u60F3\u8D77\u76F8\u95DC\u96F6\u4EF6\u653E\u7F6E\u7684\u5C64\u67B6\uFF09"
           },
           {
             "lineId": "shipinterior-interaction-025-line-004",
             "speaker": "Sbaak",
-            "text": "\u627E\u5230\u4E86! \u5C31\u662F\u9019\u500B! \u8FF4\u8DEF\u6A21\u7D44..."
+            "text": "\u627E\u5230\u4E86\uFF01\u5C31\u662F\u9019\u500B\uFF01\u8FF4\u8DEF\u6A21\u7D44\u2026\u2026"
           }
         ]
       },

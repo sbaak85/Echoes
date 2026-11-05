@@ -16,6 +16,9 @@ export const WHITE_RIFT_TIMING = {
   smearFadeInMs: 2000, whiteFadeInDelayMs: 1500, whiteFadeInMs: 1200, holdMs: 2000,
   whiteFadeOutMs: 2000, smearFadeOutDelayMs: 1500, smearFadeOutMs: 2000,
 } as const;
+/** 白畫面淡入／淡出開始時各播一次（AudioEventManager 管理） */
+export const CHAPTER02_WARP_EXIT_FADE_IN_AUDIO_EVENT = "chapter02WarpExitFadeIn";
+export const CHAPTER02_WARP_EXIT_FADE_OUT_AUDIO_EVENT = "chapter02WarpExitFadeOut";
 /** Saved while the transition is unfinished, so a reload or loaded save replays it instead of stranding the story. */
 export const CHAPTER02_WHITE_RIFT_PENDING_FLAG = "chapter02-white-rift-pending";
 /** Set at full white: the ship has left warp, so the starfield keeps warp streaks but flows slower until chapter 2 ends. */
@@ -59,6 +62,8 @@ type Host = {
   onFullWhite?: () => void;
   /** section-13 finished and the white layer is fully clear. */
   onCompleted?: () => void;
+  /** 白畫面轉場開始淡入（拉痕開始拉出） */
+  onFadeInStart?: () => void;
   /** 白畫面開始淡出（指定震動從這裡開始） */
   onRevealStart?: () => void;
   /** 曲速退出筆刷拉痕的量（0 = 無、1 = 峰值） */
@@ -92,6 +97,7 @@ export class Chapter02WhiteRift {
       this.phase = "fade-in";
       this.setOpacity(0);
       this.host.setSmear?.(0);
+      this.host.onFadeInStart?.();
       // 拉痕先由無拉到峰值；白畫面晚 whiteFadeInDelayMs 才開始淡入，兩者都到位才算進場結束
       const { smearFadeInMs, whiteFadeInDelayMs, whiteFadeInMs } = WHITE_RIFT_TIMING;
       const buildUpMs = Math.max(smearFadeInMs, whiteFadeInDelayMs + whiteFadeInMs);

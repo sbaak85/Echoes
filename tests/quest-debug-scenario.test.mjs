@@ -636,3 +636,19 @@ test("duplicate IDs across quest stages produce a quest-wide blocking validation
   assert.equal(duplicate?.stageId, undefined, "must block debug entry even when the duplicate is in a future stage");
   assert.equal(validateQuestDebugConfiguration(questDocument, []).some(issue => issue.code === "duplicate-objective-id"), false);
 });
+
+test("Quest Stage Next keeps completed dialogue history; Goto starts fresh", () => {
+  const firstStage = build({ kind: "goto", questRef: "QUEST_CH03_MAIN_005", stageRef: "1" });
+  const questSave = { ...firstStage.questSave, completedDialogueIds: ["chapter02-start"] };
+  const state = {
+    ...createState(),
+    questSave,
+    inventory: firstStage.inventory,
+    survival: firstStage.survival,
+    story: firstStage.story,
+    interactionUsage: firstStage.interactionUsage,
+    campPowerCurrent: firstStage.campPowerCurrent,
+  };
+  assert.deepEqual(build({ kind: "stage-next" }, state).questSave.completedDialogueIds, ["chapter02-start"]);
+  assert.equal(build({ kind: "goto", questRef: "QUEST_CH03_MAIN_005", stageRef: "1" }, state).questSave.completedDialogueIds, undefined);
+});

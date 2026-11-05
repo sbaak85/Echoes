@@ -1,0 +1,404 @@
+{
+  "schemaVersion": 1,
+  "sceneId": "ship_interior",
+  "chapter": 2,
+  "referenceSize": 1600,
+  "startDialogue": "chapter02-section-16",
+  "fire": {
+    "fireSize": 1,
+    "fireRate": 45,
+    "fireHeight": 1,
+    "fireSway": 1,
+    "glow": 1,
+    "smoke": 0.45,
+    "sparkInterval": 2.5,
+    "sparkCount": 20,
+    "sparkSpeed": 1,
+    "gravity": 0.5,
+    "sparkTrail": 1,
+    "embers": 0.6
+  },
+  "explosion": {
+    "duration": 1,
+    "flash": 1,
+    "ring": 1,
+    "debris": 1,
+    "smoke": 1,
+    "shake": 1,
+    "scorch": 0.6,
+    "igniteDelay": 0.4,
+    "igniteRamp": 1.5
+  },
+  "emitters": [
+    {
+      "id": "E01",
+      "type": "spark",
+      "x": 1086,
+      "y": 791,
+      "scale": 1,
+      "ignite": "boom",
+      "ignitedBy": "BOOM_02",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E02",
+      "type": "spark",
+      "x": 966,
+      "y": 690,
+      "scale": 1,
+      "ignite": "warp",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E03",
+      "type": "spark",
+      "x": 809,
+      "y": 937,
+      "scale": 1,
+      "ignite": "warp",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E04",
+      "type": "spark",
+      "x": 814,
+      "y": 525,
+      "scale": 1,
+      "ignite": "section16",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E05",
+      "type": "spark",
+      "x": 605,
+      "y": 667,
+      "scale": 1,
+      "ignite": "warp",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E06",
+      "type": "spark",
+      "x": 650,
+      "y": 447,
+      "scale": 1,
+      "ignite": "warp",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E07",
+      "type": "spark",
+      "x": 447,
+      "y": 545,
+      "scale": 1,
+      "ignite": "section16",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E08",
+      "type": "spark",
+      "x": 446,
+      "y": 351,
+      "scale": 1,
+      "ignite": "warp",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E09",
+      "type": "fire",
+      "x": 1021,
+      "y": 1010,
+      "scale": 1,
+      "ignite": "section16",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E10",
+      "type": "fire",
+      "x": 843,
+      "y": 1010,
+      "scale": 1,
+      "ignite": "section16",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E11",
+      "type": "fire",
+      "x": 1180,
+      "y": 785,
+      "scale": 1,
+      "ignite": "section16",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E12",
+      "type": "fire",
+      "x": 693,
+      "y": 953,
+      "scale": 1,
+      "ignite": "section16",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E13",
+      "type": "fire",
+      "x": 910,
+      "y": 619,
+      "scale": 1,
+      "ignite": "section16",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E14",
+      "type": "fire",
+      "x": 746,
+      "y": 507,
+      "scale": 1,
+      "ignite": "section16",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E15",
+      "type": "fire",
+      "x": 459,
+      "y": 699,
+      "scale": 1,
+      "ignite": "section16",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E16",
+      "type": "fire",
+      "x": 379,
+      "y": 628,
+      "scale": 1,
+      "ignite": "section16",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E17",
+      "type": "fire",
+      "x": 547,
+      "y": 429,
+      "scale": 1,
+      "ignite": "section16",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E18",
+      "type": "spark",
+      "x": 414,
+      "y": 696,
+      "scale": 1,
+      "ignite": "boom",
+      "ignitedBy": "BOOM_01",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E19",
+      "type": "spark",
+      "x": 337,
+      "y": 644,
+      "scale": 1,
+      "ignite": "section16",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E20",
+      "type": "spark",
+      "x": 939,
+      "y": 779,
+      "scale": 1,
+      "ignite": "warp",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E21",
+      "type": "spark",
+      "x": 1307,
+      "y": 957,
+      "scale": 1,
+      "ignite": "warp",
+      "ignitedBy": "",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E22",
+      "type": "fire",
+      "x": 1113,
+      "y": 1116,
+      "scale": 1,
+      "ignite": "boom",
+      "ignitedBy": "BOOM_03",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E23",
+      "type": "fire",
+      "x": 418,
+      "y": 658,
+      "scale": 1,
+      "ignite": "boom",
+      "ignitedBy": "BOOM_01",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E24",
+      "type": "fire",
+      "x": 450,
+      "y": 665,
+      "scale": 1,
+      "ignite": "boom",
+      "ignitedBy": "BOOM_01",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E25",
+      "type": "fire",
+      "x": 975,
+      "y": 847,
+      "scale": 1,
+      "ignite": "boom",
+      "ignitedBy": "BOOM_02",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E26",
+      "type": "fire",
+      "x": 1000,
+      "y": 854,
+      "scale": 1,
+      "ignite": "boom",
+      "ignitedBy": "BOOM_02",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E27",
+      "type": "fire",
+      "x": 1058,
+      "y": 793,
+      "scale": 1,
+      "ignite": "boom",
+      "ignitedBy": "BOOM_02",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E28",
+      "type": "fire",
+      "x": 991,
+      "y": 737,
+      "scale": 1,
+      "ignite": "boom",
+      "ignitedBy": "BOOM_02",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E29",
+      "type": "fire",
+      "x": 1029,
+      "y": 718,
+      "scale": 1,
+      "ignite": "boom",
+      "ignitedBy": "BOOM_02",
+      "igniteLineId": ""
+    },
+    {
+      "id": "E30",
+      "type": "fire",
+      "x": 1280,
+      "y": 1061,
+      "scale": 1,
+      "ignite": "boom",
+      "ignitedBy": "BOOM_03",
+      "igniteLineId": ""
+    }
+  ],
+  "booms": [
+    {
+      "id": "BOOM_01",
+      "x": 413,
+      "y": 677,
+      "size": 1,
+      "igniteRadius": 120,
+      "trigger": "area",
+      "lineId": "",
+      "delayMs": 0,
+      "radius": 175,
+      "requireDialogue": "chapter02-section-16",
+      "requireQuestId": "",
+      "requireStageId": "",
+      "dialogueId": "",
+      "dialogueDelayMs": 800
+    },
+    {
+      "id": "BOOM_02",
+      "x": 1042,
+      "y": 769,
+      "size": 1.5,
+      "igniteRadius": 170,
+      "trigger": "area",
+      "lineId": "",
+      "delayMs": 0,
+      "radius": 190,
+      "requireDialogue": "chapter02-section-16",
+      "requireQuestId": "",
+      "requireStageId": "",
+      "dialogueId": "chapter02-section-16-2",
+      "dialogueDelayMs": 800
+    },
+    {
+      "id": "BOOM_03",
+      "x": 1190,
+      "y": 1055,
+      "size": 1.7,
+      "igniteRadius": 150,
+      "trigger": "line",
+      "lineId": "chapter02-section-16-line-002",
+      "delayMs": 1000,
+      "radius": 20,
+      "requireDialogue": "chapter02-section-16",
+      "requireQuestId": "",
+      "requireStageId": "",
+      "dialogueId": "",
+      "dialogueDelayMs": 800
+    }
+  ],
+  "blockers": [
+    {
+      "id": "K01",
+      "x": 1021,
+      "y": 793,
+      "radius": 80,
+      "ignite": "boom",
+      "ignitedBy": "BOOM_02",
+      "igniteLineId": ""
+    },
+    {
+      "id": "K02",
+      "x": 401,
+      "y": 711,
+      "radius": 80,
+      "ignite": "boom",
+      "ignitedBy": "BOOM_01",
+      "igniteLineId": ""
+    }
+  ]
+}
