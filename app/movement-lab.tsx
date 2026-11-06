@@ -248,6 +248,8 @@ import {
   CHAPTER02_CIRCUIT_BLACKOUT_LINE_ID,
   CHAPTER02_CIRCUIT_DIALOGUE,
   CHAPTER02_CIRCUIT_DIALOGUE_DELAY_MS,
+  CHAPTER02_FOLLOW_UP_BGM_DIALOGUE,
+  CHAPTER02_FOLLOW_UP_BGM_EVENT_ID,
   CHAPTER02_CIRCUIT_LINE_AUDIO_EVENTS,
   CHAPTER02_CIRCUIT_ITEM_ID,
   CHAPTER02_CIRCUIT_SHAKE_LINE_ID,
@@ -4205,6 +4207,8 @@ export function MovementLab() {
   const [chapter02CountdownView, setChapter02CountdownView] = useState<Chapter02CountdownView>("hidden");
   /** 目前畫面上的倒數狀態（每幀比對劇情進度用） */
   const chapter02CountdownViewRef = useRef<Chapter02CountdownView>("hidden");
+  /** 已告知 BGM 的 section-17 播完狀態（換了 BgmDirector 就重新告知） */
+  const chapter02FollowUpBgmSyncRef = useRef<{ director: BgmDirector | null; active: boolean }>({ director: null, active: false });
   const [chapter02CountdownIntroKey, setChapter02CountdownIntroKey] = useState(0);
   const chapter02CountdownRemainingRef = useRef(CHAPTER02_COUNTDOWN_START_MS);
   /** performance.now() 時間：刷出動畫定格前不倒數 */
@@ -8109,6 +8113,18 @@ export function MovementLab() {
     saveSurvivalState(next);
   };
   /** 每幀呼叫：對話、劇情演出、選單開啟或刷出動畫定格前不倒數；約每秒寫回存檔 */
+  // section-17 播完（第二章）後 BGM 換成 Cosmic Trajectory2；每幀比對對話紀錄，正常播完、讀檔、Debug 跳關都一致
+  const syncChapter02FollowUpBgm = () => {
+    const director = bgmDirectorRef.current;
+    if (!director) return;
+    const active = currentStoryChapterRef.current === 2 &&
+      (questRuntimeManagerRef.current?.hasDialogueCompleted(CHAPTER02_FOLLOW_UP_BGM_DIALOGUE) ?? false);
+    const sync = chapter02FollowUpBgmSyncRef.current;
+    if (sync.director === director && sync.active === active) return;
+    chapter02FollowUpBgmSyncRef.current = { director, active };
+    if (active) director.triggerEvent(CHAPTER02_FOLLOW_UP_BGM_EVENT_ID);
+    else director.clearEvent(CHAPTER02_FOLLOW_UP_BGM_EVENT_ID);
+  };
   const advanceChapter02Countdown = (paused: boolean, deltaSeconds: number) => {
     // 劇情進度被換掉（Quest 除錯跳回第二章開頭、換章等，不經過重新整理）而倒數已不存在時，收起倒數 UI
     if (
@@ -17846,6 +17862,7 @@ export function MovementLab() {
         debugItemSpawnerOpenRef.current ||
         Boolean(dialoguePlaybackRef.current);
       advanceChapter02Countdown(survivalPaused, survivalDeltaSeconds);
+      syncChapter02FollowUpBgm();
       if (!survivalPaused && !survivalStateRef.current.gameOverReason) {
         const ready = survivalTick.accumulate(
           survivalDeltaSeconds,

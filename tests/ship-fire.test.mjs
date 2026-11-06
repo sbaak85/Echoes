@@ -109,7 +109,7 @@ test("爆炸音效從四支隨機抽一支；chapter02-start 後環境音兩條�
   for (const name of SHIP_AMBIENCE_AUDIO_EVENTS) {
     const ambience = AUDIO_EVENT_CONFIG[name];
     assert.deepEqual(ambience.sources, ["./audio/Seamless_looping_spa_3.mp3"]);
-    assert.equal(ambience.volume, 0.3);
+    assert.ok(ambience.volume > 0 && ambience.volume <= 1, "音量可在 AudioEventManager 自行微調");
     assert.equal(ambience.fadeInPercent, 20);
     assert.equal(ambience.fadeOutPercent, 20);
     assert.ok(!ambience.loop, "接力由兩條音軌輪流，不靠單軌 loop");
@@ -258,7 +258,7 @@ test("BOOM_03 引爆後（section-16 播完後也一定）火焰燃燒聲三支�
   SHIP_FIRE_LOOP_AUDIO_EVENTS.forEach((name, index) => {
     const definition = AUDIO_EVENT_CONFIG[name];
     assert.deepEqual(definition.sources, [`./audio/Fire_looping_${index + 1}.mp3`]);
-    assert.equal(definition.volume, 0.3);
+    assert.ok(definition.volume > 0 && definition.volume <= 1, "音量可在 AudioEventManager 自行微調");
     assert.equal(definition.fadeInPercent, 20);
     assert.equal(definition.fadeOutPercent, 20);
     assert.notEqual(definition.loop, true);

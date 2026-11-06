@@ -33,6 +33,9 @@ export const CHAPTER02_CIRCUIT_HULL_BREACH_AUDIO_EVENTS = [
   "chapter02HullBreach2",
   "chapter02HullBreach4",
 ] as const;
+/** section-17 播完後（第二章）BGM 換成 Cosmic Trajectory2 循環：以 BGM 特殊事件表示，讀檔／跳關依對話紀錄恢復 */
+export const CHAPTER02_FOLLOW_UP_BGM_DIALOGUE = "chapter02-section-17";
+export const CHAPTER02_FOLLOW_UP_BGM_EVENT_ID = "chapter02-section-17-completed";
 /** section-16 各句開始時要播的音效（音量、延遲、淡入淡出寫在 AudioEventManager） */
 export const CHAPTER02_CIRCUIT_LINE_AUDIO_EVENTS: Readonly<Record<string, readonly string[]>> = {
   // agonizing_metal：音量 50、淡入淡出各 10%

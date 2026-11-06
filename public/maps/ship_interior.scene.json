@@ -2100,7 +2100,6 @@
         "x": 1509.1,
         "y": 1749.11
       },
-      "showOnMinimap": true,
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -2202,7 +2201,6 @@
         "x": 1741,
         "y": 1761.79
       },
-      "showOnMinimap": true,
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -2583,6 +2581,7 @@
         "x": 1128.75,
         "y": 723.5
       },
+      "showOnMinimap": true,
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,
@@ -2800,7 +2799,6 @@
         "x": 1371.8536,
         "y": 1474.2523
       },
-      "showOnMinimap": true,
       "activationDistance": 52,
       "dialogue": {
         "characterDelaySeconds": 0.02,

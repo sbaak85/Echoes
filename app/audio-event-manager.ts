@@ -1645,6 +1645,26 @@ export type BgmControlRuleDefinition = {
 export const BGM_TRACK_CONFIG = (
   /* BGM_TRACK_CONFIG_START */
   {
+    "chapter02-main": {
+      "label": "第二章常駐 BGM：Cosmic Void",
+      "sourceAssetPaths": [],
+      "sources": [
+        "./audio/Cosmic Void.mp3"
+      ],
+      "volume": 0.6,
+      "loop": true,
+      "rememberPosition": true
+    },
+    "chapter02-section-17": {
+      "label": "第二章 section-17 後 BGM：Cosmic Trajectory2",
+      "sourceAssetPaths": [],
+      "sources": [
+        "./audio/Cosmic Trajectory2.mp3"
+      ],
+      "volume": 0.7,
+      "loop": true,
+      "rememberPosition": true
+    },
     "chapter02-zero-hour": {
       "label": "第二章紅色警戒 BGM：Zero Hour",
       "sourceAssetPaths": [
@@ -1850,6 +1870,22 @@ export const BGM_CONTROL_RULES = (
       "restoreMode": "resume"
     },
     {
+      "id": "chapter02-main-bgm",
+      "label": "第二章（正常進入或 Debug 選單進入）：常駐 BGM 換成 Cosmic Void 循環；紅色警戒、小遊戲等較高優先的規則照常蓋過",
+      "enabled": true,
+      "triggerType": "chapter",
+      "targetId": "2",
+      "state": "active",
+      "action": "switch",
+      "trackId": "chapter02-main",
+      "targetVolume": 1,
+      "fadeOutSeconds": 0,
+      "fadeInSeconds": 0,
+      "priority": 50,
+      "durationSeconds": 0,
+      "restoreMode": "resume"
+    },
+    {
       "id": "chapter02-emergency-bgm-fadeout",
       "label": "第二章緊急事件：黑畫面淡入的同時地圖曲淡出",
       "enabled": true,
@@ -1892,6 +1928,22 @@ export const BGM_CONTROL_RULES = (
       "fadeOutSeconds": 2,
       "fadeInSeconds": 1.5,
       "priority": 600,
+      "durationSeconds": 0,
+      "restoreMode": "resume"
+    },
+    {
+      "id": "chapter02-section-17-bgm",
+      "label": "第二章 chapter02-section-17 播完後：循環播放 Cosmic Trajectory2（蓋過 section-16 line-012 的無 BGM；讀檔／跳關依對話紀錄恢復）",
+      "enabled": true,
+      "triggerType": "event",
+      "targetId": "chapter02-section-17-completed",
+      "state": "triggered",
+      "action": "switch",
+      "trackId": "chapter02-section-17",
+      "targetVolume": 1,
+      "fadeOutSeconds": 0,
+      "fadeInSeconds": 0,
+      "priority": 700,
       "durationSeconds": 0,
       "restoreMode": "resume"
     },
