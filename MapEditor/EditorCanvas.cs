@@ -2121,6 +2121,7 @@ public sealed partial class EditorCanvas : Control
             if (SkipLayer(SceneLayerKind.TeleportPoint, index)) continue;
             var point = _document.TeleportPoints[index];
             var selected = _selection == new LayerSelection(SceneLayerKind.TeleportPoint, index);
+            if (IsNpcTeleportPoint(point)) DrawNpcBlockerCircle(graphics, point.X, point.Y, true);
             var radius = (selected ? 11f : 9f) / _zoom;
             using var fill = new SolidBrush(selected
                 ? Color.FromArgb(245, 93, 242, 255)

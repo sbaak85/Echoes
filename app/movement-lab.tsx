@@ -1,5 +1,5 @@
 "use client";
-import { createChapter02StartFlow, CHAPTER02_START_FLOW_ID } from "./chapter02-start-flow";
+import { createChapter02StartFlow, CHAPTER02_BRIEFING_DONE_FLAG, CHAPTER02_START_DIALOGUE_ID, CHAPTER02_START_FLOW_ID, resolveChapter02BriefingDonePlacement } from "./chapter02-start-flow";
 import { Chapter02WhiteRift, CHAPTER02_WARP_EXIT_FADE_IN_AUDIO_EVENT, CHAPTER02_WARP_EXIT_FADE_OUT_AUDIO_EVENT, CHAPTER02_WHITE_RIFT_FLOW, CHAPTER02_WHITE_RIFT_PENDING_FLAG, CHAPTER02_WHITE_RIFT_TRIGGER, CHAPTER02_WARP_EXITED_FLAG, resolveChapter02Backdrop, resolveChapter02HullStreams, shouldResumeChapter02WhiteRift } from "./chapter02-white-rift";
 import { WhiteRiftOverlay, type WhiteRiftOverlayHandle } from "./white-rift-overlay";
 import { WarpExitSmearOverlay, type WarpExitSmearOverlayHandle } from "./warp-exit-smear-overlay";
@@ -26,7 +26,7 @@ import { Chapter02CountdownOverlay } from "./chapter02-countdown-overlay";
 import { getIdleSpriteSources, makeTransparentIdleSprite } from "./player-idle-sprites";
 import npcCatalogData from "../public/characters/npc-catalog.json";
 import {
-  collectSceneNpcs, facingToward, getBreathingScale, getSceneNpcRenderData, isPointOnNpcBody, isSceneNpcPresent,
+  collectSceneNpcs, facingToward, getBreathingScale, getNpcBlockerRadius, getSceneNpcRenderData, isPointOnNpcBody, isSceneNpcPresent,
   isSceneNpcVisible, normalizeNpcCatalog, stepFacing,
   type NpcDirection, type SceneNpc, type SceneNpcDefinition,
 } from "./scene-npcs";
@@ -94,6 +94,11 @@ import mapTest02Scene from "../public/maps/map_test02.scene.json";
 import mapScene06BScene from "../public/maps/map_scene_06B.scene.json";
 import shipInteriorScene from "../public/maps/ship_interior.scene.json";
 import shipInteriorEffects from "../public/effects/ship_interior.effects.json";
+import chapter02AtmosphereEntryParams from "../public/effects/chapter02_atmosphere_entry.json";
+import {
+  ATMOSPHERE_ENTRY_BASE_PARAMS, AtmosphereEntryTimeline, CHAPTER02_ATMOSPHERE_ENTRY_DIALOGUE_ID, CHAPTER02_ATMOSPHERE_ENTRY_END_SECONDS,
+  CHAPTER02_ATMOSPHERE_ENTRY_SEGMENTS, createAtmosphereBackdrop, createBowFlame, resolveAtmosphereEntryState, type AtmosphereEntryParams,
+} from "./atmosphere-entry";
 import questDocumentSource from "../public/quests/quest-data.json";
 import {
   AUDIO_EVENT_CONFIG,
@@ -228,7 +233,7 @@ import { BusCardPuzzle } from "./bus-card-puzzle.tsx";
 import { BUS_CARD_INTERACTION_ID } from "./bus-card-puzzle.ts";
 import { NavTerminalMinigame } from "./nav-terminal-minigame.tsx";
 import { RedAlertLighting, RED_ALERT_SCENE_ID, RED_ALERT_STORY_FLAG } from "./red-alert-lighting.ts";
-import { AudioRelayScheduler, SHIP_AMBIENCE_AUDIO_EVENTS, SHIP_AMBIENCE_FIRST_FADE_IN_SECONDS, SHIP_AMBIENCE_HANDOFF_RATIO, SHIP_AMBIENCE_START_DIALOGUE_ID, isBoomConditionMet, isShipEffectsScene, isShipFireActive, normalizeShipEffectsData, pickShipBoomAudioEvent, shipBoomFlag, SHIP_EFFECTS_UPDATED_EVENT, SHIP_FIRE_LOOP_AUDIO_EVENTS, SHIP_FIRE_LOOP_START_BOOM_ID, SHIP_FIRE_LOOP_START_DIALOGUE_ID, ShipFireEffect, shipFireLineFlag, ShipFireLoopScheduler } from "./ship-fire.ts";
+import { AudioRelayScheduler, SHIP_AMBIENCE_AUDIO_EVENTS, SHIP_AMBIENCE_FIRST_FADE_IN_SECONDS, SHIP_AMBIENCE_HANDOFF_RATIO, SHIP_AMBIENCE_START_DIALOGUE_ID, isBoomConditionMet, isShipEffectsScene, isShipFireActive, normalizeShipEffectsData, pickShipBoomAudioEvent, shipBoomFlag, SHIP_EFFECTS_UPDATED_EVENT, SHIP_FIRE_LOOP_AUDIO_EVENTS, SHIP_FIRE_LOOP_FADE_GAIN, SHIP_FIRE_LOOP_FADE_LINE_ID, SHIP_FIRE_LOOP_FADE_SECONDS, SHIP_FIRE_LOOP_START_BOOM_ID, SHIP_FIRE_LOOP_START_DIALOGUE_ID, ShipFireEffect, shipFireLineFlag, ShipFireLoopScheduler } from "./ship-fire.ts";
 
 // 船艙火焰／火星／爆炸配置（tools/effect-editor 編輯）
 let SHIP_EFFECTS_DATA = normalizeShipEffectsData(shipInteriorEffects);
@@ -419,6 +424,7 @@ import {
   validateQuestDebugConfiguration,
 } from "./quest-debug-scenario";
 import { createQuestSkipKeyController } from "./quest-debug-hotkey";
+import { CHAPTER02_ENDING_BLACKOUT, CHAPTER02_ENDING_DIALOGUE_ID, requestChapterAutoStart } from "./chapter02-ending";
 import {
   SAVE_DATA_FORMAT,
   SAVE_DATA_MANUAL_SLOT_COUNT,
@@ -866,6 +872,8 @@ type SceneFile = {
   interactables?: SceneInteractable[];
   /** 場景中的獨立 NPC（角色、腳底位置、面向、大小、出場條件）；格式見 docs/scene-format.md */
   npcs?: unknown[];
+  /** NPC 腳底阻擋圈半徑（所有 NPC 共用；沒寫用預設值，0＝不阻擋）。阻擋圈跟著 NPC 目前站的位置，NPC 離開就消失 */
+  npcBlockerRadius?: number;
   /** 牆面遮擋片段（MapEditor「遮擋片段」）：前景圖切出的一段牆＋牆腳線；格式見 docs/scene-format.md */
   occluders?: unknown[];
   movementGuides?: MovementGuide[];
@@ -1402,10 +1410,14 @@ let SCENE_COLLIDERS =
       points: collision.points ?? [],
     };
   }) ?? DEFAULT_SCENE_COLLIDERS;
-/** 地圖本身的碰撞；SCENE_COLLIDERS＝地圖碰撞＋動態阻擋（例：船艙起火後的阻擋圈） */
+/** 地圖本身的碰撞；SCENE_COLLIDERS＝地圖碰撞＋各來源的動態阻擋（例：船艙起火後的阻擋圈、NPC 腳底阻擋圈） */
 let STATIC_SCENE_COLLIDERS = SCENE_COLLIDERS;
-function setDynamicSceneColliders(dynamic: SceneCollider[]) {
-  SCENE_COLLIDERS = dynamic.length ? [...STATIC_SCENE_COLLIDERS, ...dynamic] : STATIC_SCENE_COLLIDERS;
+const DYNAMIC_SCENE_COLLIDER_SOURCES = new Map<string, SceneCollider[]>();
+function setDynamicSceneColliders(source: string, dynamic: SceneCollider[]) {
+  if (dynamic.length) DYNAMIC_SCENE_COLLIDER_SOURCES.set(source, dynamic);
+  else DYNAMIC_SCENE_COLLIDER_SOURCES.delete(source);
+  const all = [...DYNAMIC_SCENE_COLLIDER_SOURCES.values()].flat();
+  SCENE_COLLIDERS = all.length ? [...STATIC_SCENE_COLLIDERS, ...all] : STATIC_SCENE_COLLIDERS;
 }
 let MINI_MAP_GEOMETRY = buildMiniMapGeometry(
   WORLD,
@@ -1515,6 +1527,8 @@ function activateSceneRuntime(scene: SceneFile) {
       };
     }) ?? DEFAULT_SCENE_COLLIDERS;
   STATIC_SCENE_COLLIDERS = SCENE_COLLIDERS;
+  // 換地圖：動態阻擋全部清掉，各來源偵測到地圖碰撞換了會自己重新加
+  DYNAMIC_SCENE_COLLIDER_SOURCES.clear();
   const cachedMiniMapGeometry = MINI_MAP_GEOMETRY_CACHE.get(scene.sceneId);
   MINI_MAP_GEOMETRY =
     cachedMiniMapGeometry ??
@@ -3819,6 +3833,11 @@ function drawMiniMapGeometry(canvas: HTMLCanvasElement) {
 }
 
 const INITIAL_SURVIVAL_STATE = createInitialSurvivalState();
+/** 第二章迫降的大氣進入效果數值（預覽頁 /atmosphere-preview 調整後記在 JSON） */
+const CHAPTER02_ATMOSPHERE_PARAMS: AtmosphereEntryParams = {
+  ...ATMOSPHERE_ENTRY_BASE_PARAMS,
+  ...(chapter02AtmosphereEntryParams as Partial<AtmosphereEntryParams>),
+};
 
 if (PREVIEW_SCENE_ID) activateSceneRuntime(SCENE_REGISTRY.get(PREVIEW_SCENE_ID)!);
 
@@ -4218,6 +4237,10 @@ export function MovementLab() {
   // 拾取迴路模組後排定的 section-16，進行中不重複觸發（OBJ 失敗與 section-17 由任務資料的失敗設定處理）
   const chapter02CircuitPendingRef = useRef(false);
   const chapter02CountdownRetryInProgressRef = useRef(false);
+  const chapter02EndingStartedRef = useRef(false);
+  // section-18 迫降：大氣進入效果的時間軸（由台詞推進）
+  const chapter02AtmosphereRef = useRef<AtmosphereEntryTimeline | null>(null);
+  if (!chapter02AtmosphereRef.current) chapter02AtmosphereRef.current = new AtmosphereEntryTimeline(CHAPTER02_ATMOSPHERE_ENTRY_SEGMENTS);
   const storyReadyEmittedRef = useRef(false);
   const storyInputLockedRef = useRef(false);
   const storyFlowActiveRef = useRef(false);
@@ -7945,6 +7968,14 @@ export function MovementLab() {
       if (isShipEffectsScene(SHIP_EFFECTS_DATA, SCENE_DATA.sceneId, currentStoryChapterRef.current)) {
         shipFireRef.current?.triggerLine(lineId, (boomId) => storyProgressRef.current.storyFlags[shipBoomFlag(boomId)] === true);
       }
+      // section-18 迫降：指定台詞開始時推進大氣進入效果的時間軸（跳得快時會加速追上）
+      if (dialogueId === CHAPTER02_ATMOSPHERE_ENTRY_DIALOGUE_ID && currentStoryChapterRef.current === 2) {
+        chapter02AtmosphereRef.current?.lineStarted(lineId);
+        // 迫降中：火焰聲 3 支在 5 秒內從目前音量減掉 6 成
+        if (lineId === SHIP_FIRE_LOOP_FADE_LINE_ID) {
+          audioEventManagerRef.current?.fadeEventGain(SHIP_FIRE_LOOP_AUDIO_EVENTS, SHIP_FIRE_LOOP_FADE_GAIN, SHIP_FIRE_LOOP_FADE_SECONDS);
+        }
+      }
       if (dialogueId === CHAPTER02_CIRCUIT_DIALOGUE && lineId === CHAPTER02_CIRCUIT_SHAKE_LINE_ID) {
         circuitCameraShakeRef.current?.request();
         // 主震動（1.5 秒）結束後接著持續餘震
@@ -8204,6 +8235,34 @@ export function MovementLab() {
       window.location.reload();
     }
   };
+  /** 第二章結尾：section-18（迫降墜毀）播完 → 黑畫面淡入 2 秒、停 1 秒 → 以「選擇第三章」相同流程進入第三章 */
+  const runChapter02Ending = () => {
+    if (chapter02EndingStartedRef.current) return;
+    chapter02EndingStartedRef.current = true;
+    storyInputLockedRef.current = true;
+    setStoryInputLocked(true);
+    const handOff = async () => {
+      // 停掉之後的自動存檔：第三章以新遊戲狀態開始，舊的第二章自動存檔不會被讀回
+      portableSaveHydratedRef.current = false;
+      if (portableAutosaveTimerRef.current !== null) {
+        window.clearTimeout(portableAutosaveTimerRef.current);
+        portableAutosaveTimerRef.current = null;
+      }
+      try {
+        await portableSaveWriteRef.current;
+      } catch (error) {
+        console.error("[Chapter02 ending] 等待自動存檔完成時失敗：", error);
+      } finally {
+        requestChapterAutoStart(3);
+        window.location.reload();
+      }
+    };
+    // 大氣進入效果若還沒走完（快速跳過台詞），在黑畫面淡入期間走完
+    chapter02AtmosphereRef.current?.finish(CHAPTER02_ATMOSPHERE_ENTRY_END_SECONDS, CHAPTER02_ENDING_BLACKOUT.fadeInMs / 1000);
+    fadeBlackScreen(255, CHAPTER02_ENDING_BLACKOUT.fadeInMs, () => {
+      window.setTimeout(() => void handOff(), CHAPTER02_ENDING_BLACKOUT.holdMs);
+    });
+  };
   const confirmGameOverAction = () => {
     if (survivalStateRef.current.gameOverReason === CHAPTER02_CRASH_GAME_OVER_REASON) void retryChapter02Countdown();
     else void confirmRestartNewGame();
@@ -8213,6 +8272,7 @@ export function MovementLab() {
     const startsWhiteRift = request.id === CHAPTER02_WHITE_RIFT_TRIGGER && currentStoryChapterRef.current === 2;
     // Acquire the existing story input lock synchronously, before this completion returns.
     if (startsWhiteRift) startChapter02WhiteRift();
+    if (request.id === CHAPTER02_ENDING_DIALOGUE_ID && currentStoryChapterRef.current === 2) runChapter02Ending();
     if (request.id === CHAPTER02_COUNTDOWN_TRIGGER_DIALOGUE && currentStoryChapterRef.current === 2) {
       window.setTimeout(startChapter02Countdown, CHAPTER02_COUNTDOWN_DELAY_MS);
     }
@@ -10468,13 +10528,25 @@ export function MovementLab() {
         ? isSceneNpcVisible(requirements, npcStageQuery)
         : isSceneNpcPresent(requirements, npcStageQuery);
     };
+    // 第二章晨間簡報（chapter02-start）結束後的黑畫面全黑時，4 名 NPC 改站到 TeleportPoint（briefing-done-*）；
+    // 舊存檔或跳關（簡報已播完、開場流程沒在跑）也直接用簡報後的站位
+    const isChapter02BriefingDone = () =>
+      storyProgressRef.current.storyFlags[CHAPTER02_BRIEFING_DONE_FLAG] === true ||
+      ((questRuntimeManagerRef.current?.hasDialogueCompleted(CHAPTER02_START_DIALOGUE_ID) ?? false) &&
+        chapterFlowManagerRef.current?.getActiveFlowId() !== CHAPTER02_START_FLOW_ID);
     // 第二章緊急事件：紅色警戒旗標開啟後（黑畫面全黑時），4 名 NPC 改站到駕駛艙的 TeleportPoint
     const placeSceneNpc = (scene: SceneFile, npc: SceneNpcDefinition): SceneNpcDefinition => {
       if (
         scene.sceneId !== RED_ALERT_SCENE_ID || scene.sceneId !== SCENE_DATA.sceneId ||
-        currentStoryChapterRef.current !== 2 ||
-        storyProgressRef.current.storyFlags[RED_ALERT_STORY_FLAG] !== true
+        currentStoryChapterRef.current !== 2
       ) return npc;
+      if (storyProgressRef.current.storyFlags[RED_ALERT_STORY_FLAG] !== true) {
+        if (!isChapter02BriefingDone()) return npc;
+        const briefingPlacement = resolveChapter02BriefingDonePlacement(npc.id, SCENE_TELEPORT_POINTS);
+        return briefingPlacement
+          ? { ...npc, x: briefingPlacement.x, y: briefingPlacement.y, facing: briefingPlacement.facing as SceneNpcDefinition["facing"] }
+          : npc;
+      }
       const placement = resolveBridgeAssemblyPlacement(
         npc.id,
         SCENE_TELEPORT_POINTS,
@@ -14271,6 +14343,10 @@ export function MovementLab() {
     // 改由 drawSceneCharacters 依牆腳線和角色一起排序（見 app/scene-occluders.ts）
     const sceneStarfield = createSceneStarfield();
     const sceneHullStreams = createHullStreams();
+    // 第二章迫降：大氣天空／雲朵（畫面座標）與艦首燃燒噴焰（地圖座標）
+    const atmosphereBackdrop = createAtmosphereBackdrop();
+    const atmosphereBowFlame = createBowFlame();
+    let atmosphereLastTime: number | null = null;
     type ForegroundLayer = NonNullable<SceneFile["foregroundLayers"]>[number];
     const drawForegroundLayerImage = (layer: ForegroundLayer, clip?: (path: Path2D) => void, fillRule?: CanvasFillRule) => {
       if (layer.visible === false || !layer.file) return;
@@ -14545,7 +14621,11 @@ export function MovementLab() {
       if (key === shipBlockerKey && shipBlockerBase === STATIC_SCENE_COLLIDERS) return;
       shipBlockerKey = key;
       shipBlockerBase = STATIC_SCENE_COLLIDERS;
-      setDynamicSceneColliders(blockers.map((b) => ({ kind: "circle", label: `ship-blocker:${b.id}`, x: b.x, y: b.y, radius: b.radius })));
+      setDynamicSceneColliders("ship", blockers.map((b) => ({ kind: "circle", label: `ship-blocker:${b.id}`, x: b.x, y: b.y, radius: b.radius })));
+      pushPlayerOutOfBlockers(blockers);
+    };
+    // 阻擋圈剛成立時玩家若站在圈內，推到圈外最近可走的位置
+    const pushPlayerOutOfBlockers = (blockers: readonly { x: number; y: number; radius: number }[]) => {
       const radius = sizeRef.current * 0.14;
       for (const blocker of blockers) {
         const center = getCollisionCenter(player, radius);
@@ -14565,6 +14645,43 @@ export function MovementLab() {
           }
         }
       }
+    };
+    // NPC 腳底阻擋圈（虛線圈，MapEditor 設定半徑、所有 NPC 共用）：跟著 NPC 目前站的位置（含傳送點換位），
+    // NPC 不在場就沒有阻擋，原本站的空地不會留下碰撞
+    let npcBlockerKey = "";
+    let npcBlockerBase = STATIC_SCENE_COLLIDERS;
+    let npcBlockerCircles: { id: string; x: number; y: number; radius: number }[] = [];
+    const updateNpcBlockers = () => {
+      // 沒指定時跟主角的 Collision 一樣大
+      const radius = getNpcBlockerRadius(SCENE_DATA, sizeRef.current * 0.14);
+      const blockers = radius > 0
+        ? [...getSceneNpcs(SCENE_DATA).npcs.values()]
+          .filter((npc) => isSceneNpcOnStage(npc))
+          .map((npc) => placeSceneNpc(SCENE_DATA, npc))
+          // 腳底是圈的下緣（圓心在腳底上方一個半徑）
+          .map((npc) => ({ id: npc.id, x: npc.x, y: npc.y - radius, radius }))
+        : [];
+      npcBlockerCircles = blockers;
+      const key = `${SCENE_DATA.sceneId}|` + blockers.map((b) => `${b.id}:${b.x}:${b.y}:${b.radius}`).join("|");
+      if (key === npcBlockerKey && npcBlockerBase === STATIC_SCENE_COLLIDERS) return;
+      npcBlockerKey = key;
+      npcBlockerBase = STATIC_SCENE_COLLIDERS;
+      setDynamicSceneColliders("npc", blockers.map((b) => ({ kind: "circle", label: `npc-blocker:${b.id}`, x: b.x, y: b.y, radius: b.radius })));
+      pushPlayerOutOfBlockers(blockers);
+    };
+    // 進階系統選單「角色 Collision 描繪」開啟時，NPC 的阻擋圈也畫出來（橘色虛線，與主角的青色區分）
+    const drawNpcCollisionDebug = () => {
+      if (!showPlayerCollisionRef.current || npcBlockerCircles.length === 0) return;
+      context.save();
+      context.setLineDash([8, 6]);
+      context.strokeStyle = "#ffb062";
+      context.lineWidth = 2.5;
+      for (const circle of npcBlockerCircles) {
+        context.beginPath();
+        context.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2);
+        context.stroke();
+      }
+      context.restore();
     };
     const drawShipFire = (time: number) => {
       if (!isShipEffectsScene(SHIP_EFFECTS_DATA, SCENE_DATA.sceneId, currentStoryChapterRef.current)) {
@@ -18034,7 +18151,21 @@ export function MovementLab() {
       const sceneBackdrop = resolveChapter02Backdrop(
         SCENE_DATA.backdrop, storyProgressRef.current.storyFlags, currentStoryChapterRef.current, SCENE_DATA.sceneId,
       );
-      if (sceneBackdrop?.type === "starfield") {
+      // section-18 迫降：時間軸開始後，星空漸變成大氣天空、星空／星雲／光痕加速、艦首噴焰漸強
+      const atmosphereDt = atmosphereLastTime === null ? 0 : Math.min(0.1, Math.max(0, (time - atmosphereLastTime) / 1000));
+      atmosphereLastTime = time;
+      const atmosphereTimeline = chapter02AtmosphereRef.current!;
+      const atmosphereParams = atmosphereTimeline.active && currentStoryChapterRef.current === 2 && SCENE_DATA.sceneId === "ship_interior"
+        ? { ...CHAPTER02_ATMOSPHERE_PARAMS, flowAngle: sceneBackdrop?.angle ?? CHAPTER02_ATMOSPHERE_PARAMS.flowAngle }
+        : null;
+      const atmosphereState = atmosphereParams
+        ? resolveAtmosphereEntryState(atmosphereParams, atmosphereTimeline.advance(atmosphereDt))
+        : null;
+      if (sceneBackdrop?.type === "starfield" && atmosphereParams && atmosphereState) {
+        const acceleratedBackdrop = { ...sceneBackdrop, speed: atmosphereState.speed };
+        atmosphereBackdrop.draw(context, viewportWidth, viewportHeight, ratio, atmosphereDt, atmosphereParams, atmosphereState,
+          (starContext) => sceneStarfield.draw(starContext, viewportWidth, viewportHeight, time, acceleratedBackdrop));
+      } else if (sceneBackdrop?.type === "starfield") {
         sceneStarfield.draw(context, viewportWidth, viewportHeight, time, sceneBackdrop);
       } else {
         sceneStarfield.reset();
@@ -18085,18 +18216,33 @@ export function MovementLab() {
         context.translate(-camera.x + shake.x, -camera.y + shake.y);
         // 船身流動光痕：後層在底圖下（被船殼遮住一部分），前層在牆面等前景圖層之上
         // 第二章脫離曲速後與星空同比例減速
-        const hullStreams = resolveChapter02HullStreams(
-          SCENE_DATA.hullStreams, SCENE_DATA.backdrop, storyProgressRef.current.storyFlags, currentStoryChapterRef.current, SCENE_DATA.sceneId,
-        );
+        // 迫降時光痕跟星空同比例加速（星空倍率 ÷ 場景 backdrop.speed × 光痕額外倍率）
+        const hullStreams = atmosphereParams && atmosphereState
+          ? SCENE_DATA.hullStreams?.map((lane) => ({
+            ...lane,
+            speed: (lane.speed ?? 1) * (atmosphereState.speed / Math.max(0.01, SCENE_DATA.backdrop?.speed ?? 1)) * atmosphereParams.hullBoost,
+          }))
+          : resolveChapter02HullStreams(
+            SCENE_DATA.hullStreams, SCENE_DATA.backdrop, storyProgressRef.current.storyFlags, currentStoryChapterRef.current, SCENE_DATA.sceneId,
+          );
         sceneHullStreams.draw(context, hullStreams, "back", time, SCENE_DATA.backdrop?.mode);
+        // 艦首燃燒噴焰（預設畫在船底圖下方，被船殼遮住只露出外側）
+        if (atmosphereParams && atmosphereState && atmosphereParams.flameEnabled && atmosphereParams.flameLayer === "back") {
+          atmosphereBowFlame.draw(context, atmosphereDt, time, atmosphereParams, atmosphereState.flameIntensity);
+        }
         drawMap();
         drawWorldItemPickups(time);
         drawSceneCollision();
         drawSceneCharacters(SCENE_DATA);
         drawSceneForegroundLayers();
         drawRedAlertLighting(time);
+        updateNpcBlockers();
         drawShipFire(time);
+        drawNpcCollisionDebug();
         sceneHullStreams.draw(context, hullStreams, "front", time, SCENE_DATA.backdrop?.mode);
+        if (atmosphereParams && atmosphereState && atmosphereParams.flameEnabled && atmosphereParams.flameLayer === "front") {
+          atmosphereBowFlame.draw(context, atmosphereDt, time, atmosphereParams, atmosphereState.flameIntensity);
+        }
         drawWorldItemLabels();
         drawInteractionHintPoints(time);
         drawPlayerStatuses(time);

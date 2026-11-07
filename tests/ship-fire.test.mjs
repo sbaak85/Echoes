@@ -87,7 +87,7 @@ test("編輯工具的台詞清單取自第二章劇情對話", () => {
 
 test("火焰畫在紅色警戒光照之後；台詞開始時檢查爆炸；炸過記在劇情旗標", () => {
   const source = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
-  assert.match(source, /drawRedAlertLighting\(time\);\s*drawShipFire\(time\);/);
+  assert.match(source, /drawRedAlertLighting\(time\);\s*updateNpcBlockers\(\);\s*drawShipFire\(time\);/);
   assert.match(source, /shipFireRef\.current\?\.triggerLine\(lineId,/);
   assert.match(source, /setStoryFlag\(shipBoomFlag\(boom\.id\), true\)/);
   assert.match(source, /import shipInteriorEffects from "\.\.\/public\/effects\/ship_interior\.effects\.json"/);
@@ -224,8 +224,8 @@ test("阻擋圈：可放多個、位置自由，依啟用時機成立後才加�
 
   const source = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
   assert.match(source, /applyShipBlockers\(shipFire\.activeBlockers\(\)\);/);
-  assert.match(source, /SCENE_COLLIDERS = dynamic\.length \? \[\.\.\.STATIC_SCENE_COLLIDERS, \.\.\.dynamic\] : STATIC_SCENE_COLLIDERS;/);
-  assert.match(source, /STATIC_SCENE_COLLIDERS = SCENE_COLLIDERS;\s*const cachedMiniMapGeometry/);
+  assert.match(source, /SCENE_COLLIDERS = all\.length \? \[\.\.\.STATIC_SCENE_COLLIDERS, \.\.\.all\] : STATIC_SCENE_COLLIDERS;/);
+  assert.match(source, /STATIC_SCENE_COLLIDERS = SCENE_COLLIDERS;\s*\/\/[^\n]*\n\s*DYNAMIC_SCENE_COLLIDER_SOURCES\.clear\(\);\s*const cachedMiniMapGeometry/);
 });
 
 test("爆炸可指定炸開後播放的對話（劇情多邊形台詞等已登記的對話 ID）", async () => {

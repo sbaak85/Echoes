@@ -120,6 +120,10 @@ export const SHIP_FIRE_LOOP_START_BOOM_ID = "BOOM_03";
 export const SHIP_FIRE_LOOP_START_DIALOGUE_ID = "chapter02-section-16";
 /** 每支音檔播到這個比例（＝開始 FadeOut 20%）時就接下一支 */
 export const SHIP_FIRE_LOOP_HANDOFF_RATIO = 0.8;
+/** section-18 迫降：播到 line-005 時，3 支火焰聲在 5 秒內從目前音量減掉 6 成（剩 40%） */
+export const SHIP_FIRE_LOOP_FADE_LINE_ID = "chapter02-section-18-line-005";
+export const SHIP_FIRE_LOOP_FADE_SECONDS = 5;
+export const SHIP_FIRE_LOOP_FADE_GAIN = 0.4;
 
 export type ShipFireLoopPlayback = { currentTime: number; duration: number; paused: boolean; ended: boolean };
 

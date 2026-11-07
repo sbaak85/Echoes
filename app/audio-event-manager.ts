@@ -581,6 +581,20 @@ export const AUDIO_EVENT_CONFIG = (
       "fadeInPercent": 10,
       "fadeOutPercent": 10
     },
+    "shipEscapeExitSucceeded": {
+      "label": "逃生通道出口：互動成功船體斷裂聲",
+      "trigger": "shipinterior-interaction-024（逃生通道出口）成功結算時立即播放一次；互動條件不符或已使用時不播放。",
+      "sourceAssetPaths": [
+        "public/audio/Spaceship_breac_2.mp3"
+      ],
+      "sources": [
+        "./audio/Spaceship_breac_2.mp3"
+      ],
+      "volume": 0.6,
+      "delaySeconds": 0,
+      "fadeInPercent": 5,
+      "fadeOutPercent": 5
+    },
     "chapter02HullBreach2": {
       "label": "第二章船體破損金屬斷裂 2",
       "trigger": "chapter02-section-16-line-009（撕裂聲）開始時，四支同時觸發：Spaceship_hull_ruptu 立即播放，Spaceship_breac_1／2／4 依各自延遲（0.1／0.8／1.1 秒）接著播放；只播一次不循環（CHAPTER02_CIRCUIT_HULL_BREACH_AUDIO_EVENTS）。",
@@ -1651,7 +1665,7 @@ export const BGM_TRACK_CONFIG = (
       "sources": [
         "./audio/Cosmic Void.mp3"
       ],
-      "volume": 0.6,
+      "volume": 0.7,
       "loop": true,
       "rememberPosition": true
     },
@@ -2021,6 +2035,7 @@ const SUCCESSFUL_ITEM_USE_AUDIO_EVENT_BY_ITEM_ID = {
 } as const satisfies Readonly<Record<string, AudioEventName>>;
 
 const SUCCESSFUL_INTERACTION_AUDIO_EVENT_BY_INTERACTION_ID = {
+  "shipinterior-interaction-024": "shipEscapeExitSucceeded",
   "interaction-006": "crystalMiningSucceeded",
   "interaction-020": "generatorPanelOpened",
 } as const satisfies Readonly<Record<string, AudioEventName>>;
@@ -2112,6 +2127,8 @@ type AudioEventRuntime = {
   sourceIndex: number;
   /** 這次播放以 fadeInSeconds 覆寫的淡入毫秒數（分頁回到前景重新接上音量包絡時沿用） */
   fadeInOverrideMs?: number;
+  /** 額外音量倍率（fadeEventGain）：在 durationMs 內由 from 線性變到 to，之後維持 to；換下一支片段播放也沿用 */
+  gain?: { from: number; to: number; startedAt: number; durationMs: number };
 };
 
 type LineSeRuntime = {
@@ -2404,6 +2421,39 @@ export class AudioEventManager {
 
   getDefinition(eventName: AudioEventName) {
     return this.getRuntime(eventName).definition;
+  }
+
+  /**
+   * 額外音量倍率：從目前倍率在 seconds 秒內線性變到 targetGain（1＝原音量）。
+   * 套用在音量包絡之上，事件之後重新播放（例如循環接力的下一支）也維持這個倍率。
+   */
+  fadeEventGain(eventNames: readonly AudioEventName[], targetGain: number, seconds: number) {
+    const now = performance.now();
+    for (const eventName of eventNames) {
+      const runtime = this.getRuntime(eventName);
+      runtime.gain = {
+        from: this.resolveRuntimeGain(runtime, now),
+        to: Math.max(0, targetGain),
+        startedAt: now,
+        durationMs: Math.max(0, seconds * 1000),
+      };
+    }
+  }
+
+  /** 取消額外音量倍率（回到原音量） */
+  resetEventGain(eventNames: readonly AudioEventName[]) {
+    for (const eventName of eventNames) delete this.getRuntime(eventName).gain;
+  }
+
+  getEventGain(eventName: AudioEventName) {
+    return this.resolveRuntimeGain(this.getRuntime(eventName));
+  }
+
+  private resolveRuntimeGain(runtime: AudioEventRuntime, now = performance.now()) {
+    const gain = runtime.gain;
+    if (!gain) return 1;
+    const progress = gain.durationMs <= 0 ? 1 : Math.min(1, Math.max(0, (now - gain.startedAt) / gain.durationMs));
+    return gain.from + (gain.to - gain.from) * progress;
   }
 
   setVolume(eventName: AudioEventName, volume: number) {
@@ -2946,7 +2996,7 @@ export class AudioEventManager {
         ? Math.min(1, Math.max(0, remainingMilliseconds / fadeOutMilliseconds))
         : 1;
       runtime.audio.volume = clampVolume(
-        targetVolume * smoothstep(fadeInProgress) * smoothstep(fadeOutProgress),
+        targetVolume * smoothstep(fadeInProgress) * smoothstep(fadeOutProgress) * this.resolveRuntimeGain(runtime),
       );
       if (!runtime.audio.ended && !runtime.audio.paused) {
         runtime.fadeFrameId = window.requestAnimationFrame(updateVolume);

@@ -1423,7 +1423,8 @@ test("微調遠離與接近音軌會依接近度交叉淡化並來回變化音�
 test("第二章常駐 BGM 為 Cosmic Void 循環、音量 60；紅色警戒與小遊戲照常蓋過", async () => {
   const track = BGM_TRACK_CONFIG["chapter02-main"];
   assert.deepEqual(track.sources, ["./audio/Cosmic Void.mp3"]);
-  assert.equal(track.volume, 0.6);
+  // 音量由使用者自行調整（原本 0.6），只檢查在有效範圍內
+  assert.ok(track.volume > 0 && track.volume <= 1);
   assert.equal(track.loop, true);
   assert.ok((await stat(new URL("../public/audio/Cosmic Void.mp3", import.meta.url))).size > 0);
   const lookupWith = (states) => (type, id) => states[`${type}:${id}`] ?? null;

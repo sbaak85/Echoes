@@ -73,7 +73,13 @@ Version 1 fields:
     independent of any dialogue's own gates.
   - `facePlayer` (default true): during a bound dialogue the NPC turns toward the
     player one 45° step at a time, then turns back to `facing`. `breathing`
-    (default true): a subtle foot-anchored idle breathing scale (about ±0.6%).
+    (default true): a subtle foot-anchored idle breathing scale (about ±0.3%).
+  - Scene-level `npcBlockerRadius` (optional, scene pixels, shared by every NPC;
+    default = the player's Collision radius, player size × 0.14 = 21.28 at size 152; `0` disables): a circle whose bottom edge sits on each NPC's
+    current foot point blocks walking. It follows the NPC's runtime placement (TeleportPoint moves
+    included) and disappears when the NPC is off stage, so no collision is left
+    behind. MapEditor draws it as a dashed circle under NPCs and NPC TeleportPoints
+    (IDs ending in `-<npc id without npc->`) and edits it in the NPC sidebar.
   - Size: 100% equals the player's visible body height for the same direction
     (`playerSize × reference.bodyRatio[facing]`), so NPCs follow the player size
     option. The renderer scales the sprite by `bodyHeight_world / sprite.bodyHeight`

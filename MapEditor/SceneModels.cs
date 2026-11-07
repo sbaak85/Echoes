@@ -50,6 +50,20 @@ public sealed class SceneDocument
     /// <summary>編輯器使用的 NPC 清單（永遠不為 null）</summary>
     [JsonIgnore]
     public List<SceneNpc> NpcList => _npcs ??= new();
+    /// <summary>
+    /// NPC 腳底阻擋圈半徑（場景像素，所有 NPC 共用；0＝不阻擋）。沒設定時不寫出欄位，遊戲用預設值。
+    /// 遊戲中阻擋圈跟著 NPC 目前站的位置（含傳送點換位），NPC 離開就消失。
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public float? NpcBlockerRadius { get; set; }
+    /// <summary>
+    /// 與遊戲 app/scene-npcs.ts 的 DEFAULT_NPC_BLOCKER_RADIUS 一致：跟主角 Collision 一樣大（預設大小 152 × 0.14）。
+    /// 遊戲中沒指定時會跟著主角大小選項變動。
+    /// </summary>
+    public const float DefaultNpcBlockerRadius = 21.28f;
+    [JsonIgnore]
+    public float EffectiveNpcBlockerRadius => NpcBlockerRadius is { } radius && float.IsFinite(radius) && radius >= 0
+        ? radius : DefaultNpcBlockerRadius;
     public List<MovementGuide> MovementGuides { get; set; } = new();
     public List<StoryTriggerZone> StoryTriggers { get; set; } = new();
     public List<SceneItemPoint> ItemPoints { get; set; } = new();

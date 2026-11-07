@@ -345,8 +345,8 @@
       "requireDialogue": "chapter02-section-16",
       "requireQuestId": "",
       "requireStageId": "",
-      "dialogueId": "",
-      "dialogueDelayMs": 800
+      "dialogueId": "chapter02-section-16-3",
+      "dialogueDelayMs": 500
     },
     {
       "id": "BOOM_02",

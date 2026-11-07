@@ -343,6 +343,225 @@ export const AUDIO_EVENT_CONFIG = ({
         "fadeInPercent": 0,
         "fadeOutPercent": 0
     },
+    "chapter02WarpExitFadeIn": {
+        "label": "第二章曲速退出：白畫面淡入",
+        "trigger": "chapter02-section-12 播完後的白色裂縫轉場開始淡入後延遲 1.2 秒播放一次（筆刷拉痕由無拉到峰值、白畫面隨後淡入；app/chapter02-white-rift.ts 的 onFadeInStart）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/Sci-fi_warp_exit.mp3"
+        ],
+        "volume": 0.7,
+        "delaySeconds": 1.2,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "chapter02WarpExitFadeOut": {
+        "label": "第二章曲速退出：白畫面淡出",
+        "trigger": "chapter02-section-13 播到 line-002、白色裂縫開始淡出後延遲 0.75 秒播放一次（拉痕隨後收回；app/chapter02-white-rift.ts 的 onRevealStart）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/Sci-fi_warp_out.mp3"
+        ],
+        "volume": 0.7,
+        "delaySeconds": 0.75,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "chapter02ShipBoom1": {
+        "label": "第二章船艙爆炸 1",
+        "trigger": "船艙爆炸（public/effects/ship_interior.effects.json 的台詞爆炸或範圍爆炸）引爆時，從 chapter02ShipBoom1～4 隨機抽一支播放；可疊播（app/ship-fire.ts 的 SHIP_BOOM_AUDIO_EVENTS）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/star-cards-explosion-finish-1.mp3"
+        ],
+        "volume": 0.4,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "chapter02ShipBoom2": {
+        "label": "第二章船艙爆炸 2",
+        "trigger": "船艙爆炸（public/effects/ship_interior.effects.json 的台詞爆炸或範圍爆炸）引爆時，從 chapter02ShipBoom1～4 隨機抽一支播放；可疊播（app/ship-fire.ts 的 SHIP_BOOM_AUDIO_EVENTS）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/star-cards-explosion-finish-2.mp3"
+        ],
+        "volume": 0.4,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "chapter02ShipBoom3": {
+        "label": "第二章船艙爆炸 3",
+        "trigger": "船艙爆炸（public/effects/ship_interior.effects.json 的台詞爆炸或範圍爆炸）引爆時，從 chapter02ShipBoom1～4 隨機抽一支播放；可疊播（app/ship-fire.ts 的 SHIP_BOOM_AUDIO_EVENTS）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/star-cards-explosion-finish-3.mp3"
+        ],
+        "volume": 0.4,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "chapter02ShipBoom4": {
+        "label": "第二章船艙爆炸 4",
+        "trigger": "船艙爆炸（public/effects/ship_interior.effects.json 的台詞爆炸或範圍爆炸）引爆時，從 chapter02ShipBoom1～4 隨機抽一支播放；可疊播（app/ship-fire.ts 的 SHIP_BOOM_AUDIO_EVENTS）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/star-cards-explosion-heavy-finish.mp3"
+        ],
+        "volume": 0.4,
+        "delaySeconds": 0,
+        "fadeInPercent": 0,
+        "fadeOutPercent": 0
+    },
+    "chapter02ShipAmbienceA": {
+        "label": "第二章船艙常駐環境音（接力音軌 A）",
+        "trigger": "第二章船艙中 chapter02-start 播完後開始，chapter02ShipAmbienceA／B 兩條音軌輪流接力同一支音檔：每支頭尾各 20% 淡入淡出，播到 80%（開始淡出）就由另一條從頭淡入；只有剛開始的第一支改用 1.8 秒淡入。section-16 之後照常持續，離開船艙或第二章結束時停止（app/ship-fire.ts 的 SHIP_AMBIENCE_AUDIO_EVENTS）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/Seamless_looping_spa_3.mp3"
+        ],
+        "volume": 0.28,
+        "delaySeconds": 0,
+        "fadeInPercent": 20,
+        "fadeOutPercent": 20
+    },
+    "chapter02ShipAmbienceB": {
+        "label": "第二章船艙常駐環境音（接力音軌 B）",
+        "trigger": "第二章船艙中 chapter02-start 播完後開始，chapter02ShipAmbienceA／B 兩條音軌輪流接力同一支音檔：每支頭尾各 20% 淡入淡出，播到 80%（開始淡出）就由另一條從頭淡入；只有剛開始的第一支改用 1.8 秒淡入。section-16 之後照常持續，離開船艙或第二章結束時停止（app/ship-fire.ts 的 SHIP_AMBIENCE_AUDIO_EVENTS）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/Seamless_looping_spa_3.mp3"
+        ],
+        "volume": 0.28,
+        "delaySeconds": 0,
+        "fadeInPercent": 20,
+        "fadeOutPercent": 20
+    },
+    "chapter02ShipFireLoop1": {
+        "label": "第二章船艙火焰燃燒 1",
+        "trigger": "船艙爆炸 BOOM_03 引爆後，chapter02ShipFireLoop1～3 隨機接力播放：每支頭尾各 20% 淡入淡出，播到 80%（開始淡出）就淡入另一支；section-16 播完後也一定在播，持續循環，離開船艙或第二章結束時停止（app/ship-fire.ts 的 ShipFireLoopScheduler）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/Fire_looping_1.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 20,
+        "fadeOutPercent": 20
+    },
+    "chapter02ShipFireLoop2": {
+        "label": "第二章船艙火焰燃燒 2",
+        "trigger": "船艙爆炸 BOOM_03 引爆後，chapter02ShipFireLoop1～3 隨機接力播放：每支頭尾各 20% 淡入淡出，播到 80%（開始淡出）就淡入另一支；section-16 播完後也一定在播，持續循環，離開船艙或第二章結束時停止（app/ship-fire.ts 的 ShipFireLoopScheduler）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/Fire_looping_2.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 20,
+        "fadeOutPercent": 20
+    },
+    "chapter02ShipFireLoop3": {
+        "label": "第二章船艙火焰燃燒 3",
+        "trigger": "船艙爆炸 BOOM_03 引爆後，chapter02ShipFireLoop1～3 隨機接力播放：每支頭尾各 20% 淡入淡出，播到 80%（開始淡出）就淡入另一支；section-16 播完後也一定在播，持續循環，離開船艙或第二章結束時停止（app/ship-fire.ts 的 ShipFireLoopScheduler）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/Fire_looping_3.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "fadeInPercent": 20,
+        "fadeOutPercent": 20
+    },
+    "chapter02MetalGroan": {
+        "label": "第二章船體金屬哀鳴",
+        "trigger": "chapter02-section-16-line-005 開始時播放一次，不循環（CHAPTER02_CIRCUIT_LINE_AUDIO_EVENTS）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/agonizing_metal.mp3"
+        ],
+        "volume": 0.5,
+        "delaySeconds": 0,
+        "fadeInPercent": 10,
+        "fadeOutPercent": 10
+    },
+    "chapter02MetalGroanSlow": {
+        "label": "第二章船體金屬緩慢哀鳴",
+        "trigger": "chapter02-section-16-line-008 開始時播放一次，不循環（CHAPTER02_CIRCUIT_LINE_AUDIO_EVENTS）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/Slow_agonizing_metal.mp3"
+        ],
+        "volume": 0.9,
+        "delaySeconds": 0,
+        "fadeInPercent": 10,
+        "fadeOutPercent": 10
+    },
+    "chapter02HullRupture": {
+        "label": "第二章船體破裂撕裂聲",
+        "trigger": "chapter02-section-16-line-009（撕裂聲）開始時，四支同時觸發：Spaceship_hull_ruptu 立即播放，Spaceship_breac_1／2／4 依各自延遲（0.1／0.8／1.1 秒）接著播放；只播一次不循環（CHAPTER02_CIRCUIT_HULL_BREACH_AUDIO_EVENTS）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/Spaceship_hull_ruptu.mp3"
+        ],
+        "volume": 0.5,
+        "delaySeconds": 0,
+        "fadeInPercent": 20,
+        "fadeOutPercent": 10
+    },
+    "chapter02HullBreach1": {
+        "label": "第二章船體破損金屬斷裂 1",
+        "trigger": "chapter02-section-16-line-009（撕裂聲）開始時，四支同時觸發：Spaceship_hull_ruptu 立即播放，Spaceship_breac_1／2／4 依各自延遲（0.1／0.8／1.1 秒）接著播放；只播一次不循環（CHAPTER02_CIRCUIT_HULL_BREACH_AUDIO_EVENTS）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/Spaceship_breac_1.mp3"
+        ],
+        "volume": 0.3,
+        "delaySeconds": 0.1,
+        "fadeInPercent": 10,
+        "fadeOutPercent": 10
+    },
+    "shipEscapeExitSucceeded": {
+        "label": "逃生通道出口：互動成功船體斷裂聲",
+        "trigger": "shipinterior-interaction-024（逃生通道出口）成功結算時立即播放一次；互動條件不符或已使用時不播放。",
+        "sourceAssetPaths": [
+            "public/audio/Spaceship_breac_2.mp3"
+        ],
+        "sources": [
+            "./audio/Spaceship_breac_2.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0,
+        "loop": false,
+        "fadeInPercent": 10,
+        "fadeOutPercent": 10
+    },
+    "chapter02HullBreach2": {
+        "label": "第二章船體破損金屬斷裂 2",
+        "trigger": "chapter02-section-16-line-009（撕裂聲）開始時，四支同時觸發：Spaceship_hull_ruptu 立即播放，Spaceship_breac_1／2／4 依各自延遲（0.1／0.8／1.1 秒）接著播放；只播一次不循環（CHAPTER02_CIRCUIT_HULL_BREACH_AUDIO_EVENTS）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/Spaceship_breac_2.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 0.8,
+        "fadeInPercent": 10,
+        "fadeOutPercent": 10
+    },
+    "chapter02HullBreach4": {
+        "label": "第二章船體破損金屬斷裂 4",
+        "trigger": "chapter02-section-16-line-009（撕裂聲）開始時，四支同時觸發：Spaceship_hull_ruptu 立即播放，Spaceship_breac_1／2／4 依各自延遲（0.1／0.8／1.1 秒）接著播放；只播一次不循環（CHAPTER02_CIRCUIT_HULL_BREACH_AUDIO_EVENTS）。",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/Spaceship_breac_4.mp3"
+        ],
+        "volume": 0.2,
+        "delaySeconds": 1.1,
+        "fadeInPercent": 10,
+        "fadeOutPercent": 10
+    },
     "navTerminalMatrixScan": {
         "label": "航線監測終端：訊號矩陣刷動",
         "trigger": "訊號矩陣每輪數字刷動（SCAN 3 秒）開始時從頭播放一次，不循環：音檔約 2.78 秒，頭尾各 18%（約 0.5 秒）淡入淡出，播完後安靜等下一輪刷動再重播。三組都校對完成或離開小遊戲而刷動中途結束時，以 0.5 秒提前淡出（NAV_TERMINAL_MATRIX_SCAN_MIX）。",
@@ -1316,6 +1535,26 @@ export const LINE_SE_CONFIG = ([
 ]);
 export const DEFAULT_BGM_USER_VOLUME = 0.35;
 export const BGM_TRACK_CONFIG = ({
+    "chapter02-main": {
+        "label": "第二章常駐 BGM：Cosmic Void",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/Cosmic Void.mp3"
+        ],
+        "volume": 0.6,
+        "loop": true,
+        "rememberPosition": true
+    },
+    "chapter02-section-17": {
+        "label": "第二章 section-17 後 BGM：Cosmic Trajectory2",
+        "sourceAssetPaths": [],
+        "sources": [
+            "./audio/Cosmic Trajectory2.mp3"
+        ],
+        "volume": 0.7,
+        "loop": true,
+        "rememberPosition": true
+    },
     "chapter02-zero-hour": {
         "label": "第二章紅色警戒 BGM：Zero Hour",
         "sourceAssetPaths": [
@@ -1512,6 +1751,22 @@ export const BGM_CONTROL_RULES = ([
         "restoreMode": "resume"
     },
     {
+        "id": "chapter02-main-bgm",
+        "label": "第二章（正常進入或 Debug 選單進入）：常駐 BGM 換成 Cosmic Void 循環；紅色警戒、小遊戲等較高優先的規則照常蓋過",
+        "enabled": true,
+        "triggerType": "chapter",
+        "targetId": "2",
+        "state": "active",
+        "action": "switch",
+        "trackId": "chapter02-main",
+        "targetVolume": 1,
+        "fadeOutSeconds": 0,
+        "fadeInSeconds": 0,
+        "priority": 50,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    },
+    {
         "id": "chapter02-emergency-bgm-fadeout",
         "label": "第二章緊急事件：黑畫面淡入的同時地圖曲淡出",
         "enabled": true,
@@ -1554,6 +1809,22 @@ export const BGM_CONTROL_RULES = ([
         "fadeOutSeconds": 2,
         "fadeInSeconds": 1.5,
         "priority": 600,
+        "durationSeconds": 0,
+        "restoreMode": "resume"
+    },
+    {
+        "id": "chapter02-section-17-bgm",
+        "label": "第二章 chapter02-section-17 播完後：循環播放 Cosmic Trajectory2（蓋過 section-16 line-012 的無 BGM；讀檔／跳關依對話紀錄恢復）",
+        "enabled": true,
+        "triggerType": "event",
+        "targetId": "chapter02-section-17-completed",
+        "state": "triggered",
+        "action": "switch",
+        "trackId": "chapter02-section-17",
+        "targetVolume": 1,
+        "fadeOutSeconds": 0,
+        "fadeInSeconds": 0,
+        "priority": 700,
         "durationSeconds": 0,
         "restoreMode": "resume"
     },
@@ -1627,6 +1898,7 @@ const SUCCESSFUL_ITEM_USE_AUDIO_EVENT_BY_ITEM_ID = {
     R0017: "energySupplyDrinkConsumed",
 };
 const SUCCESSFUL_INTERACTION_AUDIO_EVENT_BY_INTERACTION_ID = {
+    "shipinterior-interaction-024": "shipEscapeExitSucceeded",
     "interaction-006": "crystalMiningSucceeded",
     "interaction-020": "generatorPanelOpened",
 };
@@ -1803,6 +2075,9 @@ export class AudioEventManager {
         return this.startPlayback(voice, ++voice.requestId).catch(error => { release(); throw error; });
     }
     disposed = false;
+    suspended = false;
+    suspendedRuntimes = new Set();
+    suspendedVoices = new Set();
     runtimes = new Map();
     recentPlayStarts = new Map();
     overlappingVoices = new Map();
@@ -1965,7 +2240,7 @@ export class AudioEventManager {
                 return runtime.pendingPlay;
         }
         const requestId = ++runtime.requestId;
-        const pendingPlay = this.startPlayback(runtime, requestId);
+        const pendingPlay = this.startPlayback(runtime, requestId, options.fadeInSeconds);
         runtime.pendingPlay = pendingPlay;
         const clearPendingPlay = () => {
             if (runtime.pendingPlay === pendingPlay)
@@ -1979,12 +2254,14 @@ export class AudioEventManager {
         if (!runtime || this.disposed)
             return;
         this.cancelPendingPlay(runtime);
+        this.suspendedRuntimes.delete(runtime);
         runtime.audio.pause();
         if (options.reset ?? true)
             runtime.audio.currentTime = 0;
         this.overlappingVoices.forEach((voiceRuntime, voice) => {
             if (voiceRuntime !== runtime)
                 return;
+            this.suspendedVoices.delete(voice);
             voice.pause();
             if (options.reset ?? true)
                 voice.currentTime = 0;
@@ -2010,9 +2287,59 @@ export class AudioEventManager {
         this.releaseActiveLineSe();
         this.currentDialogueLineId = null;
     }
+    setSuspended(suspended) {
+        if (this.disposed || suspended === this.suspended)
+            return;
+        this.suspended = suspended;
+        if (suspended) {
+            const suspendRuntime = (runtime) => {
+                if (runtime.audio.paused)
+                    return;
+                this.suspendedRuntimes.add(runtime);
+                runtime.audio.pause();
+            };
+            this.runtimes.forEach(suspendRuntime);
+            this.workbenchVoices.forEach(suspendRuntime);
+            this.overlappingVoices.forEach((_runtime, voice) => this.suspendVoice(voice));
+            this.lineSeRuntimes.forEach((runtime) => this.suspendVoice(runtime.audio));
+            return;
+        }
+        const runtimes = [...this.suspendedRuntimes];
+        const voices = [...this.suspendedVoices];
+        this.suspendedRuntimes.clear();
+        this.suspendedVoices.clear();
+        runtimes.forEach((runtime) => {
+            const requestId = runtime.requestId;
+            void runtime.audio.play().then(() => {
+                if (this.disposed || runtime.requestId !== requestId || runtime.audio.paused)
+                    return;
+                const fadeInPercent = runtime.fadeInOverrideMs !== undefined
+                    ? (runtime.fadeInOverrideMs > 0 ? 100 : 0)
+                    : clampPercent(runtime.definition.fadeInPercent);
+                const fadeOutPercent = clampPercent(runtime.definition.fadeOutPercent);
+                if (fadeInPercent <= 0 && fadeOutPercent <= 0)
+                    return;
+                if (runtime.fadeFrameId !== null)
+                    window.cancelAnimationFrame(runtime.fadeFrameId);
+                this.startVolumeEnvelope(runtime, requestId, clampVolume(runtime.definition.volume), fadeInPercent, fadeOutPercent, runtime.fadeInOverrideMs);
+            }).catch(() => {
+            });
+        });
+        voices.forEach((voice) => {
+            void voice.play().catch(() => { });
+        });
+    }
+    suspendVoice(voice) {
+        if (voice.paused)
+            return;
+        this.suspendedVoices.add(voice);
+        voice.pause();
+    }
     dispose() {
         if (this.disposed)
             return;
+        this.suspendedRuntimes.clear();
+        this.suspendedVoices.clear();
         this.stopPlantVines();
         this.workbenchVoices.forEach(voice => {
             voice.endedHandler();
@@ -2171,7 +2498,7 @@ export class AudioEventManager {
             runtime.fadeFrameId = null;
         }
     }
-    async startPlayback(runtime, requestId) {
+    async startPlayback(runtime, requestId, fadeInSecondsOverride) {
         const delayMilliseconds = Math.max(0, runtime.definition.delaySeconds * 1000);
         if (delayMilliseconds > 0) {
             await new Promise((resolve) => {
@@ -2185,16 +2512,27 @@ export class AudioEventManager {
         }
         if (this.disposed || runtime.requestId !== requestId)
             return;
-        const fadeInPercent = clampPercent(runtime.definition.fadeInPercent);
+        const fadeInOverrideMilliseconds = fadeInSecondsOverride !== undefined && Number.isFinite(fadeInSecondsOverride)
+            ? Math.max(0, fadeInSecondsOverride * 1000)
+            : undefined;
+        const fadeInPercent = fadeInOverrideMilliseconds !== undefined
+            ? (fadeInOverrideMilliseconds > 0 ? 100 : 0)
+            : clampPercent(runtime.definition.fadeInPercent);
         const fadeOutPercent = clampPercent(runtime.definition.fadeOutPercent);
         const targetVolume = clampVolume(runtime.definition.volume);
+        runtime.fadeInOverrideMs = fadeInOverrideMilliseconds;
         if (fadeInPercent > 0)
             runtime.audio.volume = 0;
         await runtime.audio.play();
+        if (this.suspended && !this.disposed && runtime.requestId === requestId && !runtime.audio.paused) {
+            this.suspendedRuntimes.add(runtime);
+            runtime.audio.pause();
+            return;
+        }
         if ((fadeInPercent > 0 || fadeOutPercent > 0) &&
             !this.disposed &&
             runtime.requestId === requestId) {
-            this.startVolumeEnvelope(runtime, requestId, targetVolume, fadeInPercent, fadeOutPercent);
+            this.startVolumeEnvelope(runtime, requestId, targetVolume, fadeInPercent, fadeOutPercent, fadeInOverrideMilliseconds);
         }
     }
     playOverlappingOneShot(runtime) {
@@ -2210,7 +2548,10 @@ export class AudioEventManager {
         };
         voice.addEventListener("ended", release);
         voice.addEventListener("error", release);
-        return voice.play().catch((error) => {
+        return voice.play().then(() => {
+            if (this.suspended && this.overlappingVoices.has(voice))
+                this.suspendVoice(voice);
+        }).catch((error) => {
             release();
             throw error;
         });
@@ -2242,13 +2583,13 @@ export class AudioEventManager {
         this.recentPlayStarts.set(eventName, recentStarts);
         return false;
     }
-    startVolumeEnvelope(runtime, requestId, targetVolume, fadeInPercent, fadeOutPercent) {
+    startVolumeEnvelope(runtime, requestId, targetVolume, fadeInPercent, fadeOutPercent, fadeInMillisecondsOverride) {
         const smoothstep = (progress) => progress * progress * (3 - 2 * progress);
         const updateVolume = () => {
             if (this.disposed || runtime.requestId !== requestId)
                 return;
             const playbackMilliseconds = runtime.audio.currentTime * 1000;
-            const fadeInMilliseconds = getAudioFadeDurationMilliseconds(runtime.audio.duration, fadeInPercent);
+            const fadeInMilliseconds = fadeInMillisecondsOverride ?? getAudioFadeDurationMilliseconds(runtime.audio.duration, fadeInPercent);
             const fadeOutMilliseconds = getAudioFadeDurationMilliseconds(runtime.audio.duration, fadeOutPercent);
             const fadeInProgress = fadeInPercent > 0
                 ? fadeInMilliseconds > 0

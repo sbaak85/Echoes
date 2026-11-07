@@ -249,6 +249,37 @@ public sealed partial class EditorCanvas
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>設定所有 NPC 共用的腳底阻擋圈半徑（場景像素）</summary>
+    public void SetNpcBlockerRadius(float radius)
+    {
+        if (!float.IsFinite(radius)) return;
+        radius = Math.Clamp(radius, 0f, 500f);
+        if (Math.Abs(_document.EffectiveNpcBlockerRadius - radius) < 0.001f && _document.NpcBlockerRadius is not null) return;
+        PerformMutation(() => _document.NpcBlockerRadius = radius);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>NPC 用的傳送點：ID 以「-」＋NPC ID 去掉 npc- 的部分結尾（例：bridge-captain 對應 npc-captain）</summary>
+    private bool IsNpcTeleportPoint(SceneTeleportPoint point) => _document.NpcList.Any(npc =>
+    {
+        var suffix = npc.Id.StartsWith("npc-", StringComparison.OrdinalIgnoreCase) ? npc.Id[4..] : npc.Id;
+        return suffix.Length > 0 && point.Id.EndsWith("-" + suffix, StringComparison.OrdinalIgnoreCase);
+    });
+
+    /// <summary>NPC 腳底的阻擋圈（虛線）：腳底（或傳送點）是圈的下緣，與遊戲一致</summary>
+    private void DrawNpcBlockerCircle(Graphics graphics, float x, float y, bool forTeleportPoint)
+    {
+        var radius = _document.EffectiveNpcBlockerRadius;
+        if (radius <= 0) return;
+        using var fill = new SolidBrush(forTeleportPoint ? Color.FromArgb(28, 95, 240, 255) : Color.FromArgb(36, 255, 120, 90));
+        using var pen = new Pen(forTeleportPoint ? Color.FromArgb(200, 95, 240, 255) : Color.FromArgb(220, 255, 140, 110), 1.5f / _zoom)
+        {
+            DashStyle = DashStyle.Dash,
+        };
+        graphics.FillEllipse(fill, x - radius, y - radius * 2, radius * 2, radius * 2);
+        graphics.DrawEllipse(pen, x - radius, y - radius * 2, radius * 2, radius * 2);
+    }
+
     public void SetSelectedNpcOptions(bool facePlayer, bool breathing)
     {
         if (SelectedNpc is not { } npc) return;
@@ -390,6 +421,10 @@ public sealed partial class EditorCanvas
     private void DrawNpcs(Graphics graphics)
     {
         var selectedInteraction = SelectedInteractable;
+        // 阻擋圈先畫，角色蓋在上面
+        for (var index = 0; index < _document.NpcList.Count; index++)
+            if (!SkipLayer(SceneLayerKind.Npc, index))
+                DrawNpcBlockerCircle(graphics, _document.NpcList[index].X, _document.NpcList[index].Y, false);
         foreach (var item in _document.NpcList.Select((npc, index) => (npc, index)).OrderBy(item => item.npc.Y))
         {
             if (SkipLayer(SceneLayerKind.Npc, item.index)) continue;

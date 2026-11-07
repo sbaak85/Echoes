@@ -5,6 +5,7 @@ import {
   NPC_DIRECTIONS, normalizeNpcCatalog, getSceneNpcRenderData,
   isSceneNpcVisible, sortSceneActors, collectSceneNpcs, isSceneNpcPresent,
   facingToward, stepFacing, getBreathingScale, isPointOnNpcBody, getNpcBodyHeight,
+  DEFAULT_NPC_BLOCKER_RADIUS, getNpcBlockerRadius,
 } from "../app/scene-npcs.ts";
 import { resolvePublicAssetUrl } from "../app/public-asset-url.ts";
 import { evaluateInteractionStageRequirement } from "../app/interaction-flow.ts";
@@ -197,9 +198,9 @@ test("idle breathing is subtle, foot-anchored and staggered per NPC", () => {
   for (let time = 0; time < 8000; time += 50) {
     const scale = getBreathingScale("npc-owen", time);
     minY = Math.min(minY, scale.y); maxY = Math.max(maxY, scale.y);
-    assert.ok(Math.abs(scale.x - 1) <= 0.0021);
+    assert.ok(Math.abs(scale.x - 1) <= 0.00101);
   }
-  assert.ok(maxY - minY > 0.01 && maxY <= 1.0061 && minY >= 0.9939);
+  assert.ok(maxY - minY > 0.005 && maxY <= 1.00301 && minY >= 0.99699);
   assert.notDeepEqual(getBreathingScale("npc-owen", 1000), getBreathingScale("npc-rena", 1000));
 });
 
@@ -212,4 +213,22 @@ test("ship_interior uses independent NPCs; Owen is shared by all of his dialogue
   assert.deepEqual(owenDialogues, ["011", "015", "017", "018"]);
   const raw = normalizeNpcCatalog(JSON.parse(readFileSync(new URL("../public/characters/npc-catalog.json", import.meta.url), "utf8")));
   for (const definition of npcs.values()) assert.ok(getSceneNpcRenderData(definition, raw), definition.id);
+});
+
+test("NPC blocker circle: shared radius per scene, follows the placed NPC and disappears when the NPC leaves", () => {
+  assert.equal(DEFAULT_NPC_BLOCKER_RADIUS, 152 * 0.14);
+  assert.equal(getNpcBlockerRadius({}), 152 * 0.14, "same as the default player Collision");
+  assert.equal(getNpcBlockerRadius({}, 200 * 0.14), 200 * 0.14, "follows the player size option");
+  assert.equal(getNpcBlockerRadius({ npcBlockerRadius: 18 }, 40), 18);
+  assert.equal(getNpcBlockerRadius({ npcBlockerRadius: 0 }), 0);
+  assert.equal(getNpcBlockerRadius({ npcBlockerRadius: -5 }, 25), 25);
+  const editor = readFileSync(new URL("../MapEditor/SceneModels.cs", import.meta.url), "utf8");
+  assert.match(editor, /public const float DefaultNpcBlockerRadius = 21\.28f;/, "MapEditor default matches the game");
+  const source = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(source, /\.filter\(\(npc\) => isSceneNpcOnStage\(npc\)\)\s*\.map\(\(npc\) => placeSceneNpc\(SCENE_DATA, npc\)\)/);
+  assert.match(source, /setDynamicSceneColliders\("npc", /);
+  assert.match(source, /\(\{ id: npc\.id, x: npc\.x, y: npc\.y - radius, radius \}\)/, "foot point is the bottom edge of the circle");
+  assert.match(source, /setDynamicSceneColliders\("ship", /);
+  assert.match(source, /updateNpcBlockers\(\);\s*drawShipFire\(time\);\s*drawNpcCollisionDebug\(\);/);
+  assert.match(source, /if \(!showPlayerCollisionRef\.current \|\| npcBlockerCircles\.length === 0\) return;/, "NPC collision drawn with the player Collision toggle");
 });

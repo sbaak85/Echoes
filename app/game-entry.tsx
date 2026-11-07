@@ -2,6 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import "./game-entry.css";
+import {
+  CHAPTER_AUTO_START_INLINE_SCRIPT,
+  hideChapterHandoffCover,
+  showChapterHandoffCover,
+  takeChapterAutoStart,
+} from "./chapter02-ending";
+
+const endChapterHandoff = () => hideChapterHandoffCover();
 
 export function GameEntry() {
   const [Game, setGame] = useState<ComponentType | null>(null);
@@ -11,6 +19,7 @@ export function GameEntry() {
   const [error, setError] = useState("");
   const busy = useRef(false);
   const selectedRef = useRef(0);
+  const autoStartChapterRef = useRef<2 | 3 | null | undefined>(undefined);
   const choose = useCallback(async (chapter: 2 | 3 | null) => {
     if (busy.current) return;
     busy.current = true;
@@ -21,7 +30,9 @@ export function GameEntry() {
       const gameModule = await import("./movement-lab");
       if (chapter !== null) await gameModule.prepareChapterStart(chapter);
       setGame(() => gameModule.MovementLab);
+      endChapterHandoff();
     } catch (cause) {
+      endChapterHandoff();
       setError(`載入失敗，請重新選擇章節。${cause instanceof Error ? cause.message : ""}`);
       busy.current = false;
       setLoading(false);
@@ -31,6 +42,17 @@ export function GameEntry() {
     selectedRef.current = (index + 2) % 2;
     setSelected(selectedRef.current);
   }, []);
+
+  useEffect(() => {
+    // 章節結尾交接（例：第二章墜毀後）：重新載入後不顯示選單，全黑直接開始下一章
+    // 標記只讀一次（StrictMode 重跑 effect 時沿用同一個結果）
+    if (autoStartChapterRef.current === undefined) autoStartChapterRef.current = takeChapterAutoStart();
+    const chapter = autoStartChapterRef.current;
+    if (chapter === null) { endChapterHandoff(); return; }
+    showChapterHandoffCover();
+    const frame = requestAnimationFrame(() => { void choose(chapter); });
+    return () => cancelAnimationFrame(frame);
+  }, [choose]);
 
   useEffect(() => {
     // Preserve the existing dedicated scene-preview URL contract.
@@ -85,6 +107,8 @@ export function GameEntry() {
   return <main className="chapter-entry" data-owner={owner} aria-busy={loading}
     onPointerMove={(event) => { if (event.pointerType === "mouse") setOwner("mouse"); }}
     onPointerDown={(event) => setOwner(event.pointerType === "touch" ? "touch" : "mouse")}>
+    {/* 在 HTML 解析時同步執行：有章節交接標記就先全黑，避免重新載入時閃出選單 */}
+    <script dangerouslySetInnerHTML={{ __html: CHAPTER_AUTO_START_INLINE_SCRIPT }} />
     <section aria-labelledby="chapter-entry-title">
       <p className="chapter-entry-kicker">遠星迴聲</p>
       <h1 id="chapter-entry-title">選擇起始章節</h1>

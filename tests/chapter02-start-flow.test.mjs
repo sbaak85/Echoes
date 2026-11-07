@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { createChapter02StartFlow } from "../app/chapter02-start-flow.ts";
+import { createChapter02StartFlow, CHAPTER02_BRIEFING_DONE_FLAG, CHAPTER02_BRIEFING_DONE_POINTS, resolveChapter02BriefingDonePlacement } from "../app/chapter02-start-flow.ts";
 import { ChapterFlowManager } from "../app/chapter-flow-manager.ts";
 import { QuestRuntimeManager } from "../app/quest-runtime-manager.ts";
 import { createNewGameProgress } from "../app/new-game-reset.ts";
@@ -65,10 +65,14 @@ test("chapter 2 uses editor subtitle timings followed by 1s fade and 1s settle",
     assert.equal(subtitles[index].fadeOnly, true);
   }
   assert.ok(STORY_DIALOGUES["chapter02-start"]);
-  assert.deepEqual(definition.actions.slice(-5), [
+  assert.deepEqual(definition.actions.slice(-9), [
     { type: "fadeFromBlack", durationMs: 1000 }, { type: "lockInput" },
     { type: "wait", durationMs: 1000 },
     { type: "playDialogue", dialogueId: "chapter02-start", requireCompleted: true },
+    { type: "fadeToBlack", durationMs: 800 },
+    { type: "setStoryFlag", flagId: CHAPTER02_BRIEFING_DONE_FLAG, value: true },
+    { type: "wait", durationMs: 300 },
+    { type: "fadeFromBlack", durationMs: 1000 },
     { type: "unlockInput" },
   ]);
 });
@@ -135,4 +139,18 @@ test("skip during a required dialogue reaches the skip handoff instead of throwi
   assert.equal(state.completed, true);
   assert.equal(state.black, false);
   assert.equal(state.locked, false);
+});
+
+test("briefing done: 4 NPCs move to the briefing-done TeleportPoints during the blackout hold", () => {
+  const scene = JSON.parse(readFileSync(new URL("../public/maps/ship_interior.scene.json", import.meta.url), "utf8"));
+  assert.equal(CHAPTER02_BRIEFING_DONE_FLAG, "chapter02-briefing-done");
+  for (const [npcId, pointId] of Object.entries(CHAPTER02_BRIEFING_DONE_POINTS)) {
+    assert.ok(scene.npcs.some(npc => npc.id === npcId), npcId);
+    const point = scene.teleportPoints.find(p => p.id === pointId);
+    assert.ok(point, pointId);
+    assert.deepEqual(resolveChapter02BriefingDonePlacement(npcId, scene.teleportPoints), { x: point.x, y: point.y, facing: point.facing });
+  }
+  assert.equal(resolveChapter02BriefingDonePlacement("npc-someone-else", scene.teleportPoints), null);
+  const source = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(source, /resolveChapter02BriefingDonePlacement\(npc\.id, SCENE_TELEPORT_POINTS\)/);
 });

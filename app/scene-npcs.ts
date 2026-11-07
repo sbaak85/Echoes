@@ -234,14 +234,26 @@ export function stepFacing(current: NpcDirection, target: NpcDirection): NpcDire
   return ring[(from + (clockwise <= 4 ? 1 : 7)) % 8];
 }
 
-/** 待機呼吸：垂直約 ±0.6%、水平反向微調，週期約 3.4 秒；每個角色用 ID 錯開節奏 */
+/** NPC 腳底的阻擋圈半徑預設值（場景 JSON 沒寫 npcBlockerRadius 時使用；0＝不阻擋） */
+export const DEFAULT_NPC_BLOCKER_RADIUS = 21.28;
+
+/**
+ * 場景的 NPC 阻擋圈半徑（所有 NPC 共用，MapEditor「阻擋圈半徑」）。
+ * 沒指定時跟主角的 Collision 一樣大（主角大小 × 0.14；預設大小 152 → 21.28），主角大小選項改了也會跟著變。
+ */
+export function getNpcBlockerRadius(scene: { npcBlockerRadius?: unknown }, playerCollisionRadius = DEFAULT_NPC_BLOCKER_RADIUS) {
+  const value = scene.npcBlockerRadius === undefined || scene.npcBlockerRadius === null ? NaN : Number(scene.npcBlockerRadius);
+  return Number.isFinite(value) && value >= 0 ? value : playerCollisionRadius;
+}
+
+/** 待機呼吸：垂直 ±0.3%、水平反向 ∓0.1%，週期約 3.4 秒；每個角色用 ID 錯開節奏 */
 export function getBreathingScale(id: string, timeMilliseconds: number) {
   let hash = 0;
   for (let index = 0; index < id.length; index++) hash = (hash * 31 + id.charCodeAt(index)) | 0;
   const phase = ((hash >>> 0) % 1000) / 1000 * Math.PI * 2;
   const period = 3200 + ((hash >>> 10) % 600);
   const wave = Math.sin(timeMilliseconds / period * Math.PI * 2 + phase);
-  return { x: 1 - wave * 0.002, y: 1 + wave * 0.006 };
+  return { x: 1 - wave * 0.001, y: 1 + wave * 0.003 };
 }
 
 /** Farther feet draw first. Keep equal-depth NPCs deterministic and the player on top. */

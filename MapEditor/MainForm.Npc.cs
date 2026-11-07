@@ -15,6 +15,9 @@ public sealed partial class MainForm
     private readonly CheckBox _npcFacePlayerCheck = new() { Text = "對話時轉向主角", AutoSize = true };
     private readonly CheckBox _npcBreathingCheck = new() { Text = "待機呼吸", AutoSize = true };
     private readonly Label _npcReferencesLabel = new() { ForeColor = Color.FromArgb(184, 194, 205) };
+    private readonly Label _npcBlockerLabel = new() { Text = "阻擋圈半徑（全 NPC 共用）", ForeColor = Color.FromArgb(184, 194, 205) };
+    private readonly NumericUpDown _npcBlockerInput = new() { Minimum = 0, Maximum = 500, DecimalPlaces = 2, Increment = 1, Value = 21.28m };
+    private readonly Button _npcApplyBlockerButton = CreateButton("套用", 275, 220, 60, 30);
     private readonly Label _npcBindLabel = new() { Text = "對話對象", ForeColor = Color.FromArgb(184, 194, 205) };
     private readonly ComboBox _npcBindCombo = new()
     {
@@ -45,6 +48,14 @@ public sealed partial class MainForm
         _npcFacePlayerCheck.CheckedChanged += (_, _) => ApplyNpcOptions();
         _npcBreathingCheck.CheckedChanged += (_, _) => ApplyNpcOptions();
         _npcReferencesLabel.SetBounds(10, 176, SidebarContentWidth, 40);
+        // 所有 NPC 共用的腳底阻擋圈（遊戲中跟著 NPC 目前站的位置；0＝不阻擋）
+        _npcBlockerLabel.SetBounds(10, 226, 180, 22);
+        _npcBlockerInput.SetBounds(192, 222, 77, 28);
+        _npcApplyBlockerButton.Click += (_, _) =>
+        {
+            _canvas.SetNpcBlockerRadius((float)_npcBlockerInput.Value);
+            _statusLabel.Text = $"NPC 阻擋圈半徑：{_npcBlockerInput.Value:0.##}（所有 NPC 共用）";
+        };
         // 選取互動區時只顯示「對話對象」
         _npcBindLabel.SetBounds(10, 28, 80, 22);
         _npcBindCombo.SetBounds(92, 24, SidebarContentWidth - 82, 28);
@@ -60,6 +71,7 @@ public sealed partial class MainForm
         {
             _npcSummaryLabel, percentLabel, _npcScaleInput, _npcApplyScaleButton, _npcEditButton,
             _npcPresenceButton, _npcClearPresenceButton, _npcFacePlayerCheck, _npcBreathingCheck, _npcReferencesLabel,
+            _npcBlockerLabel, _npcBlockerInput, _npcApplyBlockerButton,
             _npcBindLabel, _npcBindCombo,
         });
         _npcGroup.Visible = false;
@@ -88,7 +100,8 @@ public sealed partial class MainForm
             if (npc is not null)
             {
                 _npcGroup.Text = "NPC";
-                _npcGroup.Height = 222;
+                _npcGroup.Height = 260;
+                _npcBlockerInput.Value = (decimal)Math.Clamp(_canvas.Document.EffectiveNpcBlockerRadius, 0, 500);
                 _npcSummaryLabel.Text = $"{npc.Label} · {_canvas.NpcCharacterName(npc)} · {npc.Facing}";
                 _npcScaleInput.Value = (decimal)Math.Clamp(npc.Scale * 100, 10, 500);
                 _npcPresenceButton.Text = $"出場條件…（{EditorCanvas.DescribeNpcPresence(npc)}）";
