@@ -91,3 +91,11 @@ test("line-005 開始時 3 支火焰聲 5 秒內從目前音量減掉 6 成，�
   assert.match(manager, /smoothstep\(fadeOutProgress\) \* this\.resolveRuntimeGain\(runtime\)/);
   assert.match(manager, /from: this\.resolveRuntimeGain\(runtime, now\)/);
 });
+
+test("迫降前預先分批畫好雲貼圖，line-001 開始時不再一口氣繪製", () => {
+  const lab = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(lab, /atmosphereBackdrop\.prewarm\(/);
+  const entry = readFileSync(new URL("../app/atmosphere-entry.ts", import.meta.url), "utf8");
+  assert.match(entry, /function\* paintCloudVariantSteps/);
+  assert.match(entry, /return \{ draw, prewarm \};/);
+});

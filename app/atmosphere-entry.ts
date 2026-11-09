@@ -162,6 +162,12 @@ type Cloud = { x: number; y: number; z: number; scale: number; seed: number; age
 
 const CLOUD_UNIT = 128; // 雲貼圖基準高度（像素），實際大小 = cloudSize
 const CLOUD_VARIANTS = 8;
+/** 預先繪製雲貼圖時，每算這麼多列檢查一次時間預算 */
+const CLOUD_ROWS_PER_STEP = 6;
+
+function cloudVariantKey(p: AtmosphereEntryParams) {
+  return [p.cloudColor, p.cloudShadowColor, p.cloudShadowStrength, p.cloudShadowStart, p.cloudHighlight, p.cloudBaseShadow, p.cloudPuffs, p.cloudStretch, p.cloudIrregularity, p.cloudEdgeSoftness, p.flowAngle].join("|");
+}
 
 /** 可重現的隨機數（同一個 seed 每次產生相同的雲形） */
 function seededRandom(seed: number) {
@@ -202,6 +208,15 @@ function createNoise(random: () => number) {
  * 光影一律以畫面上方為受光方向，不隨流動方向旋轉。
  */
 function paintCloudVariant(p: AtmosphereEntryParams, seed: number) {
+  const steps = paintCloudVariantSteps(p, seed);
+  for (;;) {
+    const result = steps.next();
+    if (result.done) return result.value;
+  }
+}
+
+/** 同 paintCloudVariant，但每算完一批列就暫停（yield），讓預先繪製可以分散到多個畫格 */
+function* paintCloudVariantSteps(p: AtmosphereEntryParams, seed: number): Generator<void, HTMLCanvasElement, void> {
   const random = seededRandom(seed);
   const noise = createNoise(random);
   const radians = (p.flowAngle * Math.PI) / 180;
@@ -231,10 +246,12 @@ function paintCloudVariant(p: AtmosphereEntryParams, seed: number) {
   const blurred = document.createElement("canvas");
   blurred.width = width;
   blurred.height = height;
-  const blurContext = blurred.getContext("2d", { willReadFrequently: true })!;
+  const blurContext = blurred.getContext("2d")!;
   blurContext.filter = `blur(${Math.max(1, radius * (0.12 + p.cloudEdgeSoftness * 0.3))}px)`;
   blurContext.drawImage(mask, 0, 0);
+  yield;
   const shape = blurContext.getImageData(0, 0, width, height).data;
+  yield;
   const density = (x: number, y: number) => {
     const ix = Math.min(width - 1, Math.max(0, Math.round(x)));
     const iy = Math.min(height - 1, Math.max(0, Math.round(y)));
@@ -253,6 +270,7 @@ function paintCloudVariant(p: AtmosphereEntryParams, seed: number) {
   const reach = radius * (0.15 + p.cloudShadowStart * 0.9); // 陰影範圍：往下看多遠
   const edgeLow = 0.3, edgeWidth = 0.08 + p.cloudEdgeSoftness * 0.3;
   for (let y = 0; y < height; y++) {
+    if (y > 0 && y % CLOUD_ROWS_PER_STEP === 0) yield;
     for (let x = 0; x < width; x++) {
       const base = density(x, y);
       if (base <= 0.01) continue;
@@ -288,6 +306,37 @@ export function createAtmosphereClouds() {
   let variants: HTMLCanvasElement[] = [];
   let variantKey = "";
   let variantPaintedAt = -Infinity;
+  // 分批預先繪製中的雲貼圖（避免時間軸一開始、第一次出現雲時一口氣畫 8 張造成卡頓）
+  let pending: { key: string; params: AtmosphereEntryParams; done: HTMLCanvasElement[]; steps: Generator<void, HTMLCanvasElement, void> | null } | null = null;
+  const runPending = (budgetMs: number) => {
+    if (!pending) return;
+    const job = pending;
+    const deadline = performance.now() + budgetMs;
+    while (job.done.length < CLOUD_VARIANTS) {
+      job.steps ??= paintCloudVariantSteps(job.params, (job.done.length + 1) / (CLOUD_VARIANTS + 1));
+      const result = job.steps.next();
+      if (result.done) {
+        job.done.push(result.value);
+        job.steps = null;
+      }
+      if (performance.now() >= deadline && job.done.length < CLOUD_VARIANTS) return;
+    }
+    variants = job.done;
+    variantKey = job.key;
+    variantPaintedAt = performance.now();
+    pending = null;
+  };
+  /**
+   * 預先分批畫好雲貼圖：每次呼叫最多花 budgetMs 毫秒，畫完回傳 true。
+   * 參數相同就不重畫；之後 draw 用到同一組參數時直接沿用。
+   */
+  const prewarm = (p: AtmosphereEntryParams, budgetMs = 3) => {
+    const key = cloudVariantKey(p);
+    if (key === variantKey && variants.length === CLOUD_VARIANTS) return true;
+    if (!pending || pending.key !== key) pending = { key, params: { ...p }, done: [], steps: null };
+    runPending(budgetMs);
+    return pending === null;
+  };
   const spawn = (initial: boolean, angle: number): Cloud => {
     const radians = (angle * Math.PI) / 180;
     const cloud = { x: Math.random() * width, y: Math.random() * height, z: 0.35 + Math.random() * 0.65, scale: 0.6 + Math.random() * 0.8, seed: Math.random(), age: 0 };
@@ -308,10 +357,13 @@ export function createAtmosphereClouds() {
     const count = Math.max(0, Math.round(cloudCount));
     while (clouds.length < count) clouds.push(spawn(true, p.flowAngle));
     if (clouds.length > count) clouds.length = count;
-    const key = [p.cloudColor, p.cloudShadowColor, p.cloudShadowStrength, p.cloudShadowStart, p.cloudHighlight, p.cloudBaseShadow, p.cloudPuffs, p.cloudStretch, p.cloudIrregularity, p.cloudEdgeSoftness, p.flowAngle].join("|");
+    const key = cloudVariantKey(p);
+    // 預先繪製到一半：剩下的直接畫完（同一組參數）
+    if (key !== variantKey && pending?.key === key) runPending(Infinity);
     // 雲形重畫較耗時：拖動參數條時最多每 150ms 重畫一次
     const nowMs = performance.now();
     if (key !== variantKey && (variants.length === 0 || nowMs - variantPaintedAt > 150)) {
+      pending = null;
       variantKey = key;
       variantPaintedAt = nowMs;
       variants = Array.from({ length: CLOUD_VARIANTS }, (_, index) => paintCloudVariant(p, (index + 1) / (CLOUD_VARIANTS + 1)));
@@ -343,7 +395,7 @@ export function createAtmosphereClouds() {
     }
     context.restore();
   };
-  return { draw };
+  return { draw, prewarm };
 }
 
 type FlameParticle = { x: number; y: number; vx: number; vy: number; age: number; life: number; size: number; spin: number };
@@ -528,7 +580,9 @@ export function createAtmosphereBackdrop() {
       context.restore();
     }
   };
-  return { draw };
+  /** 預先分批畫好雲貼圖（見 createAtmosphereClouds 的 prewarm） */
+  const prewarm = (p: AtmosphereEntryParams, budgetMs?: number) => clouds.prewarm(p, budgetMs);
+  return { draw, prewarm };
 }
 
 /** 以台詞推進的時間軸區段：該句開始時，時間軸從 from 推進到 to */

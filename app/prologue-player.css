@@ -1,0 +1,59 @@
+/* 序章劇情畫面：全黑背景，沿用遊戲的 16:9 舞台（.game-shell）讓對話框、字幕、插圖位置與遊戲內一致 */
+.prologue-stage {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 系統游標一律隱藏，由遊戲游標（.prologue-pointer）代替；對話框上的手指游標沿用 globals.css 的 dialogue-cursor-active 規則 */
+.prologue-stage,
+.prologue-stage * {
+  cursor: none;
+}
+
+.prologue-stage .prologue-shell {
+  background: #000;
+  box-shadow: none;
+}
+
+/* 插圖背後本來就是黑畫面：不需要再模糊背景 */
+.prologue-illustration::before {
+  background: #000;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: none;
+}
+
+.prologue-illustration {
+  pointer-events: none;
+}
+
+.prologue-illustration > img {
+  animation-duration: 500ms;
+}
+
+.prologue-illustration.is-closing > img {
+  animation-duration: 500ms;
+}
+
+.prologue-pointer {
+  position: fixed;
+  z-index: 200;
+  margin: -24px 0 0 -24px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.prologue-pointer-pulse {
+  /* SVG 使用者座標的原點就是游標中心 */
+  transform-origin: 0 0;
+  animation: prologue-pointer-pulse 0.94s ease-in-out infinite alternate;
+}
+
+@keyframes prologue-pointer-pulse {
+  from { transform: scale(0.965); }
+  to { transform: scale(1.035); }
+}

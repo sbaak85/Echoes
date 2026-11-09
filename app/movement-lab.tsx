@@ -47,7 +47,7 @@ import { isQuestObjectiveVisible, isQuestObjectiveCheckmarkVisible } from "./que
 import { canShareMobileHudSpace, changeMobileHudMode, cycleMobileHudMode, type MobileHudPanelMode } from "./mobile-hud-layout";
 
 import { cursorOwnership, GamepadHandoffGate } from "./cursor-ownership.ts";
-import { CursorPresentationGuard, CURSOR_POSITION_STORAGE_KEY, parseCursorPosition } from "./cursor-presentation.ts";
+import { CursorPresentationGuard, CURSOR_HANDOFF_VISIBLE_STORAGE_KEY, CURSOR_POSITION_STORAGE_KEY, parseCursorPosition } from "./cursor-presentation.ts";
 
 import { InventoryHoverHint, useInventoryHoverHint } from "./inventory-hover-hint";
 import { InventorySurvivalFloat } from "./inventory-survival-float";
@@ -106,6 +106,7 @@ import {
   DEFAULT_BGM_USER_VOLUME,
   getFrequencyFineAudioMix,
   getSuccessfulInteractionAudioEvent,
+  getAcceptedInteractionAudioEvent,
   getSuccessfulItemUseAudioEvent,
   type AudioEventName,
 } from "./audio-event-manager";
@@ -258,6 +259,7 @@ import {
   CHAPTER02_CIRCUIT_LINE_AUDIO_EVENTS,
   CHAPTER02_CIRCUIT_ITEM_ID,
   CHAPTER02_CIRCUIT_SHAKE_LINE_ID,
+  capChapter02CountdownAfterCircuit,
   shouldPlayChapter02CircuitDialogue,
 } from "./chapter02-circuit-failure.ts";
 import { CHAPTER02_CIRCUIT_SHAKE, CHAPTER02_CIRCUIT_SHAKE_FADE_PORTION, CHAPTER02_SHAKE_AUDIO_EVENTS, CHAPTER02_SHAKE_FLAG, CHAPTER02_SHAKE_LEVELS, CHAPTER02_SHAKE_STRONG_FLAG, LoopingCameraShake, RepeatingCameraShake, ScriptedCameraShake } from "./camera-shake.ts";
@@ -424,7 +426,7 @@ import {
   validateQuestDebugConfiguration,
 } from "./quest-debug-scenario";
 import { createQuestSkipKeyController } from "./quest-debug-hotkey";
-import { CHAPTER02_ENDING_BLACKOUT, CHAPTER02_ENDING_DIALOGUE_ID, requestChapterAutoStart } from "./chapter02-ending";
+import { CHAPTER02_END_SUBTITLE_EVENT_ID, CHAPTER02_ENDING_BLACKOUT, CHAPTER02_ENDING_DIALOGUE_ID, requestChapterAutoStart } from "./chapter02-ending";
 import {
   SAVE_DATA_FORMAT,
   SAVE_DATA_MANUAL_SLOT_COUNT,
@@ -4238,6 +4240,8 @@ export function MovementLab() {
   const chapter02CircuitPendingRef = useRef(false);
   const chapter02CountdownRetryInProgressRef = useRef(false);
   const chapter02EndingStartedRef = useRef(false);
+  // 章節交接：在最後的滑鼠位置畫出遊戲游標（滑鼠操作時），並記下來讓重新載入後的下一章沿用
+  const holdPointerCursorForHandoffRef = useRef<(() => void) | null>(null);
   // section-18 迫降：大氣進入效果的時間軸（由台詞推進）
   const chapter02AtmosphereRef = useRef<AtmosphereEntryTimeline | null>(null);
   if (!chapter02AtmosphereRef.current) chapter02AtmosphereRef.current = new AtmosphereEntryTimeline(CHAPTER02_ATMOSPHERE_ENTRY_SEGMENTS);
@@ -8131,9 +8135,23 @@ export function MovementLab() {
       storyProgressRef.current.storyFlags[CHAPTER02_COUNTDOWN_FOLLOW_UP_DONE_FLAG] === true &&
       storyProgressRef.current.storyFlags[CHAPTER02_ESCAPE_ASSEMBLY_FLAG] !== true
     ) setStoryFlag(CHAPTER02_ESCAPE_ASSEMBLY_FLAG, true);
+    // section-16 已播完（黑畫面中讀檔、還沒來得及寫回）：倒數一樣壓到 02:00 以內
+    if (
+      isChapter02CountdownRunning(storyProgressRef.current) &&
+      questRuntimeManagerRef.current?.hasDialogueCompleted(CHAPTER02_CIRCUIT_DIALOGUE)
+    ) capChapter02CountdownAfterSection16();
     const story = storyProgressRef.current;
     chapter02CountdownRemainingRef.current = getChapter02CountdownRemaining(story);
     showChapter02Countdown(resolveChapter02CountdownView(story));
+  };
+  /** section-16 播完（黑畫面中）：倒數超過 02:00 直接跳到 02:00，不到 2 分鐘不動 */
+  const capChapter02CountdownAfterSection16 = () => {
+    if (!isChapter02CountdownRunning(storyProgressRef.current)) return;
+    const remaining = getChapter02CountdownRemaining(storyProgressRef.current);
+    const capped = capChapter02CountdownAfterCircuit(remaining);
+    if (capped === remaining) return;
+    chapter02CountdownRemainingRef.current = capped;
+    commitChapter02CountdownStory(withChapter02CountdownRemaining(storyProgressRef.current, capped), true);
   };
   const expireChapter02Countdown = () => {
     chapter02CountdownRemainingRef.current = 0;
@@ -8254,13 +8272,30 @@ export function MovementLab() {
         console.error("[Chapter02 ending] 等待自動存檔完成時失敗：", error);
       } finally {
         requestChapterAutoStart(3);
+        holdPointerCursorForHandoffRef.current?.();
         window.location.reload();
       }
     };
+    // 全黑停留後：「第二章結束」字幕（同 chapter03-End 的規格；黑畫面保持全黑），播完才進第三章
+    const playEndSubtitle = async () => {
+      const found = findStorySubtitleEventById(STORY_CHAPTERS, CHAPTER02_END_SUBTITLE_EVENT_ID);
+      if (!found) return;
+      try {
+        await chapterFlowManagerRef.current?.run(createStorySubtitleFlow(
+          found.chapterNumber,
+          { ...found.event, keepBlack: true },
+          1,
+          { blackAlreadyVisible: true },
+        ));
+      } catch (error) {
+        console.error("[Chapter02 ending] 第二章結束字幕播放失敗：", error);
+      }
+    };
+    holdPointerCursorForHandoffRef.current?.();
     // 大氣進入效果若還沒走完（快速跳過台詞），在黑畫面淡入期間走完
     chapter02AtmosphereRef.current?.finish(CHAPTER02_ATMOSPHERE_ENTRY_END_SECONDS, CHAPTER02_ENDING_BLACKOUT.fadeInMs / 1000);
     fadeBlackScreen(255, CHAPTER02_ENDING_BLACKOUT.fadeInMs, () => {
-      window.setTimeout(() => void handOff(), CHAPTER02_ENDING_BLACKOUT.holdMs);
+      window.setTimeout(() => void playEndSubtitle().then(handOff), CHAPTER02_ENDING_BLACKOUT.holdMs);
     });
   };
   const confirmGameOverAction = () => {
@@ -8273,6 +8308,7 @@ export function MovementLab() {
     // Acquire the existing story input lock synchronously, before this completion returns.
     if (startsWhiteRift) startChapter02WhiteRift();
     if (request.id === CHAPTER02_ENDING_DIALOGUE_ID && currentStoryChapterRef.current === 2) runChapter02Ending();
+    if (request.id === CHAPTER02_CIRCUIT_DIALOGUE && currentStoryChapterRef.current === 2) capChapter02CountdownAfterSection16();
     if (request.id === CHAPTER02_COUNTDOWN_TRIGGER_DIALOGUE && currentStoryChapterRef.current === 2) {
       window.setTimeout(startChapter02Countdown, CHAPTER02_COUNTDOWN_DELAY_MS);
     }
@@ -10666,6 +10702,16 @@ export function MovementLab() {
     try {
       const savedPoint = parseCursorPosition(sessionStorage.getItem(CURSOR_POSITION_STORAGE_KEY), window.innerWidth, window.innerHeight);
       if (!cursorOwnership.lastMouse && savedPoint) cursorOwnership.recordMouse(savedPoint.x, savedPoint.y);
+      // 章節交接重新載入：上一章結束時游標正顯示中 → 一開始就在同一位置畫出來
+      const handoffVisible = sessionStorage.getItem(CURSOR_HANDOFF_VISIBLE_STORAGE_KEY) === "1";
+      sessionStorage.removeItem(CURSOR_HANDOFF_VISIBLE_STORAGE_KEY);
+      if (handoffVisible && savedPoint && cursorOwnership.owner === "mouse") {
+        const bounds = canvas.getBoundingClientRect();
+        virtualCursor.x = clamp(savedPoint.x - bounds.left, 0, Math.max(0, bounds.width));
+        virtualCursor.y = clamp(savedPoint.y - bounds.top, 0, Math.max(0, bounds.height));
+        virtualCursorPositioned = true;
+        virtualCursorVisible = true;
+      }
     } catch { /* Private/restricted storage must not prevent input initialization. */ }
     const rememberMousePosition = () => {
       try {
@@ -10673,6 +10719,19 @@ export function MovementLab() {
       } catch { /* Coordinate persistence is optional. */ }
     };
     window.addEventListener("pagehide", rememberMousePosition);
+    holdPointerCursorForHandoffRef.current = () => {
+      // 只處理滑鼠操作；手把／方向鍵／觸控照原本的規則
+      if (cursorOwnership.owner !== "mouse" || !cursorOwnership.lastMouse) return;
+      const bounds = canvas.getBoundingClientRect();
+      virtualCursor.x = clamp(cursorOwnership.lastMouse.x - bounds.left, 0, viewportWidth);
+      virtualCursor.y = clamp(cursorOwnership.lastMouse.y - bounds.top, 0, viewportHeight);
+      virtualCursorPositioned = true;
+      virtualCursorVisible = true;
+      rememberMousePosition();
+      try {
+        sessionStorage.setItem(CURSOR_HANDOFF_VISIBLE_STORAGE_KEY, "1");
+      } catch { /* Coordinate persistence is optional. */ }
+    };
     const releaseCursorOwnership = cursorOwnership.subscribe((owner, previous) => {
       cursorPresentation.reconcile(owner, cursorOwnership.lastMouse);
       activeInputMode = owner === "mouse" ? "keyboard-mouse" : owner === "touch" ? "mobile" : "gamepad";
@@ -13390,6 +13449,13 @@ export function MovementLab() {
         return true;
       }
 
+      const acceptedInteractionAudioEvent = getAcceptedInteractionAudioEvent(interactable.id);
+      if (acceptedInteractionAudioEvent) {
+        void audioEvents.play(acceptedInteractionAudioEvent, { restart: true }).catch(() => {
+          // 音效失敗不阻擋成功對話；結算階段不再播放此事件。
+        });
+      }
+
       const completeTriggeredInteraction = () => completeInteraction(
         interactable,
         source,
@@ -14347,6 +14413,8 @@ export function MovementLab() {
     const atmosphereBackdrop = createAtmosphereBackdrop();
     const atmosphereBowFlame = createBowFlame();
     let atmosphereLastTime: number | null = null;
+    // 雲貼圖已在進入大氣前分批畫好
+    let atmospherePrewarmed = false;
     type ForegroundLayer = NonNullable<SceneFile["foregroundLayers"]>[number];
     const drawForegroundLayerImage = (layer: ForegroundLayer, clip?: (path: Path2D) => void, fillRule?: CanvasFillRule) => {
       if (layer.visible === false || !layer.file) return;
@@ -18161,6 +18229,15 @@ export function MovementLab() {
       const atmosphereState = atmosphereParams
         ? resolveAtmosphereEntryState(atmosphereParams, atmosphereTimeline.advance(atmosphereDt))
         : null;
+      // 第二章船艙中、迫降開始前：每幀花最多 3ms 預先畫好雲貼圖，line-001 開始時不再一口氣繪製而卡一下
+      if (
+        !atmospherePrewarmed && !atmosphereParams && currentStoryChapterRef.current === 2 &&
+        SCENE_DATA.sceneId === "ship_interior" && sceneBackdrop?.type === "starfield"
+      ) {
+        atmospherePrewarmed = atmosphereBackdrop.prewarm(
+          { ...CHAPTER02_ATMOSPHERE_PARAMS, flowAngle: sceneBackdrop.angle ?? CHAPTER02_ATMOSPHERE_PARAMS.flowAngle }, 3,
+        );
+      }
       if (sceneBackdrop?.type === "starfield" && atmosphereParams && atmosphereState) {
         const acceleratedBackdrop = { ...sceneBackdrop, speed: atmosphereState.speed };
         atmosphereBackdrop.draw(context, viewportWidth, viewportHeight, ratio, atmosphereDt, atmosphereParams, atmosphereState,

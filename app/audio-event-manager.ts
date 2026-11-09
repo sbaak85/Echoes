@@ -583,7 +583,7 @@ export const AUDIO_EVENT_CONFIG = (
     },
     "shipEscapeExitSucceeded": {
       "label": "逃生通道出口：互動成功船體斷裂聲",
-      "trigger": "shipinterior-interaction-024（逃生通道出口）成功結算時立即播放一次；互動條件不符或已使用時不播放。",
+      "trigger": "shipinterior-interaction-024（逃生通道出口）通過互動條件檢查後、成功對話開始前立即播放一次；不等待對話播完，結算時不重播；互動條件不符或已使用時不播放。",
       "sourceAssetPaths": [
         "public/audio/Spaceship_breac_2.mp3"
       ],
@@ -2035,10 +2035,18 @@ const SUCCESSFUL_ITEM_USE_AUDIO_EVENT_BY_ITEM_ID = {
 } as const satisfies Readonly<Record<string, AudioEventName>>;
 
 const SUCCESSFUL_INTERACTION_AUDIO_EVENT_BY_INTERACTION_ID = {
-  "shipinterior-interaction-024": "shipEscapeExitSucceeded",
   "interaction-006": "crystalMiningSucceeded",
   "interaction-020": "generatorPanelOpened",
 } as const satisfies Readonly<Record<string, AudioEventName>>;
+
+/** 通過互動條件後立即播放，不等待成功對話結束或獎勵結算。 */
+export function getAcceptedInteractionAudioEvent(
+  interactionId: string,
+): AudioEventName | null {
+  return interactionId === "shipinterior-interaction-024"
+    ? "shipEscapeExitSucceeded"
+    : null;
+}
 
 export function getSuccessfulItemUseAudioEvent(
   itemId: string,

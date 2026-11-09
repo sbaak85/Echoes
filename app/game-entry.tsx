@@ -8,11 +8,22 @@ import {
   showChapterHandoffCover,
   takeChapterAutoStart,
 } from "./chapter02-ending";
+import { cursorOwnership } from "./cursor-ownership";
+import { PROLOGUE_NEXT_CHAPTER } from "./prologue-flow";
 
 const endChapterHandoff = () => hideChapterHandoffCover();
 
+/** 章節選單（由上而下）：序章、第二章、第三章 */
+const ENTRY_OPTIONS = [
+  { id: "prologue", kicker: "PROLOGUE", title: "序章", subtitle: "人類的希望" },
+  { id: 2, kicker: "CHAPTER 02", title: "第二章", subtitle: "突如其來的意外" },
+  { id: 3, kicker: "CHAPTER 03", title: "第三章", subtitle: "存活的準備" },
+] as const;
+type EntryOptionId = (typeof ENTRY_OPTIONS)[number]["id"];
+
 export function GameEntry() {
   const [Game, setGame] = useState<ComponentType | null>(null);
+  const [ProloguePlayer, setProloguePlayer] = useState<ComponentType<{ onComplete: () => void }> | null>(null);
   const [selected, setSelected] = useState(0);
   const [owner, setOwner] = useState("directional");
   const [loading, setLoading] = useState(false);
@@ -39,9 +50,34 @@ export function GameEntry() {
     }
   }, []);
   const select = useCallback((index: number) => {
-    selectedRef.current = (index + 2) % 2;
+    selectedRef.current = (index + ENTRY_OPTIONS.length) % ENTRY_OPTIONS.length;
     setSelected(selectedRef.current);
   }, []);
+  // 序章：不載入地圖，直接播放序章劇情畫面；播完（序章結束字幕之後）照「選擇第二章」的流程進入第二章
+  const startPrologue = useCallback(async () => {
+    if (busy.current) return;
+    busy.current = true;
+    setLoading(true);
+    setError("");
+    try {
+      const prologueModule = await import("./prologue-player");
+      setProloguePlayer(() => prologueModule.ProloguePlayer);
+      // 序章播放期間先在背景載入遊戲模組，序章結束後能直接接上第二章
+      void import("./movement-lab").catch(() => {});
+    } catch (cause) {
+      setError(`載入失敗，請重新選擇章節。${cause instanceof Error ? cause.message : ""}`);
+      busy.current = false;
+      setLoading(false);
+    }
+  }, []);
+  const chooseOption = useCallback((id: EntryOptionId) => {
+    if (id === "prologue") void startPrologue();
+    else void choose(id);
+  }, [choose, startPrologue]);
+  const finishPrologue = useCallback(() => {
+    busy.current = false;
+    void choose(PROLOGUE_NEXT_CHAPTER);
+  }, [choose]);
 
   useEffect(() => {
     // 章節結尾交接（例：第二章墜毀後）：重新載入後不顯示選單，全黑直接開始下一章
@@ -62,7 +98,7 @@ export function GameEntry() {
   }, [choose]);
 
   useEffect(() => {
-    if (Game) return;
+    if (Game || ProloguePlayer) return;
     let frame = 0, armed = false, nextMove = 0, lastDirection = 0;
     const tick = (time: number) => {
       const pad = Array.from(navigator.getGamepads?.() ?? []).find((entry) => entry?.connected);
@@ -80,7 +116,7 @@ export function GameEntry() {
         if (confirm) {
           armed = false;
           setOwner("directional");
-          void choose(selectedRef.current === 0 ? 2 : 3);
+          chooseOption(ENTRY_OPTIONS[selectedRef.current].id);
         }
       }
       lastDirection = direction;
@@ -94,31 +130,40 @@ export function GameEntry() {
         select(selectedRef.current + (event.key === "ArrowUp" || event.key === "ArrowLeft" || event.shiftKey ? -1 : 1));
       } else if (event.key === "Enter" || event.key === " ") {
         event.preventDefault(); setOwner("directional");
-        void choose(selectedRef.current === 0 ? 2 : 3);
+        chooseOption(ENTRY_OPTIONS[selectedRef.current].id);
       }
     };
     window.addEventListener("keydown", key);
     window.addEventListener("blur", blur);
     frame = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(frame); window.removeEventListener("keydown", key); window.removeEventListener("blur", blur); };
-  }, [Game, choose, select]);
+  }, [Game, ProloguePlayer, chooseOption, select]);
 
   if (Game) return <Game />;
+  if (ProloguePlayer) return <ProloguePlayer onComplete={finishPrologue} />;
   return <main className="chapter-entry" data-owner={owner} aria-busy={loading}
-    onPointerMove={(event) => { if (event.pointerType === "mouse") setOwner("mouse"); }}
-    onPointerDown={(event) => setOwner(event.pointerType === "touch" ? "touch" : "mouse")}>
+    onPointerMove={(event) => {
+      if (event.pointerType !== "mouse") return;
+      setOwner("mouse");
+      // 記下滑鼠位置：進入序章或遊戲後，遊戲游標從同一位置開始
+      cursorOwnership.recordMouse(event.clientX, event.clientY);
+    }}
+    onPointerDown={(event) => {
+      setOwner(event.pointerType === "touch" ? "touch" : "mouse");
+      if (event.pointerType === "mouse") cursorOwnership.recordMouse(event.clientX, event.clientY, true);
+    }}>
     {/* 在 HTML 解析時同步執行：有章節交接標記就先全黑，避免重新載入時閃出選單 */}
     <script dangerouslySetInnerHTML={{ __html: CHAPTER_AUTO_START_INLINE_SCRIPT }} />
     <section aria-labelledby="chapter-entry-title">
       <p className="chapter-entry-kicker">遠星迴聲</p>
       <h1 id="chapter-entry-title">選擇起始章節</h1>
       <div className="chapter-entry-options">
-        {([2, 3] as const).map((chapter, index) => <button key={chapter} type="button"
+        {ENTRY_OPTIONS.map((option, index) => <button key={option.id} type="button"
           disabled={loading} data-selected={selected === index}
-          onFocus={() => select(index)} onClick={() => void choose(chapter)}>
-          <span>CHAPTER {String(chapter).padStart(2, "0")}</span>
-          <strong>{chapter === 2 ? "第二章" : "第三章"}</strong>
-          <small>{chapter === 2 ? "突如其來的意外" : "存活的準備"}</small>
+          onFocus={() => select(index)} onClick={() => chooseOption(option.id)}>
+          <span>{option.kicker}</span>
+          <strong>{option.title}</strong>
+          <small>{option.subtitle}</small>
         </button>)}
       </div>
       <p className="chapter-entry-note" role="status">{loading ? "正在載入場景…" : "選擇章節開始新遊戲。可使用滑鼠、觸控、方向鍵或手把操作。"}</p>

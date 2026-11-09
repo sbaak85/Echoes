@@ -14,6 +14,8 @@ import {
   ScriptedCameraShake,
 } from "../app/camera-shake.ts";
 import {
+  CHAPTER02_CIRCUIT_COUNTDOWN_CAP_MS,
+  capChapter02CountdownAfterCircuit,
   CHAPTER02_CIRCUIT_BLACKOUT_FLOW,
   CHAPTER02_CIRCUIT_BLACKOUT_LINE_ID,
   CHAPTER02_CIRCUIT_COLLECT_OBJECTIVE_ID,
@@ -495,4 +497,13 @@ test("line-005 / line-008 metal groans: volume 50, 10% fades, played once", () =
   for (const eventNames of Object.values(CHAPTER02_CIRCUIT_LINE_AUDIO_EVENTS)) {
     for (const eventName of eventNames) assert.ok(AUDIO_EVENT_CONFIG[eventName], eventName);
   }
+});
+
+test("section-16 播完時倒數超過 02:00 跳到 02:00，不到 2 分鐘不動", () => {
+  assert.equal(CHAPTER02_CIRCUIT_COUNTDOWN_CAP_MS, 120000);
+  assert.equal(capChapter02CountdownAfterCircuit(5 * 60 * 1000), 120000);
+  assert.equal(capChapter02CountdownAfterCircuit(120000), 120000);
+  assert.equal(capChapter02CountdownAfterCircuit(95000), 95000);
+  const lab = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  assert.match(lab, /request\.id === CHAPTER02_CIRCUIT_DIALOGUE && currentStoryChapterRef\.current === 2\) capChapter02CountdownAfterSection16\(\)/);
 });

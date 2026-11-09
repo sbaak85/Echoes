@@ -525,18 +525,17 @@ export const AUDIO_EVENT_CONFIG = ({
     },
     "shipEscapeExitSucceeded": {
         "label": "逃生通道出口：互動成功船體斷裂聲",
-        "trigger": "shipinterior-interaction-024（逃生通道出口）成功結算時立即播放一次；互動條件不符或已使用時不播放。",
+        "trigger": "shipinterior-interaction-024（逃生通道出口）通過互動條件檢查後、成功對話開始前立即播放一次；不等待對話播完，結算時不重播；互動條件不符或已使用時不播放。",
         "sourceAssetPaths": [
             "public/audio/Spaceship_breac_2.mp3"
         ],
         "sources": [
             "./audio/Spaceship_breac_2.mp3"
         ],
-        "volume": 0.2,
+        "volume": 0.6,
         "delaySeconds": 0,
-        "loop": false,
-        "fadeInPercent": 10,
-        "fadeOutPercent": 10
+        "fadeInPercent": 5,
+        "fadeOutPercent": 5
     },
     "chapter02HullBreach2": {
         "label": "第二章船體破損金屬斷裂 2",
@@ -1541,7 +1540,7 @@ export const BGM_TRACK_CONFIG = ({
         "sources": [
             "./audio/Cosmic Void.mp3"
         ],
-        "volume": 0.6,
+        "volume": 0.7,
         "loop": true,
         "rememberPosition": true
     },
@@ -1898,10 +1897,14 @@ const SUCCESSFUL_ITEM_USE_AUDIO_EVENT_BY_ITEM_ID = {
     R0017: "energySupplyDrinkConsumed",
 };
 const SUCCESSFUL_INTERACTION_AUDIO_EVENT_BY_INTERACTION_ID = {
-    "shipinterior-interaction-024": "shipEscapeExitSucceeded",
     "interaction-006": "crystalMiningSucceeded",
     "interaction-020": "generatorPanelOpened",
 };
+export function getAcceptedInteractionAudioEvent(interactionId) {
+    return interactionId === "shipinterior-interaction-024"
+        ? "shipEscapeExitSucceeded"
+        : null;
+}
 export function getSuccessfulItemUseAudioEvent(itemId) {
     return SUCCESSFUL_ITEM_USE_AUDIO_EVENT_BY_ITEM_ID[itemId] ?? null;
 }
@@ -2168,6 +2171,32 @@ export class AudioEventManager {
     }
     getDefinition(eventName) {
         return this.getRuntime(eventName).definition;
+    }
+    fadeEventGain(eventNames, targetGain, seconds) {
+        const now = performance.now();
+        for (const eventName of eventNames) {
+            const runtime = this.getRuntime(eventName);
+            runtime.gain = {
+                from: this.resolveRuntimeGain(runtime, now),
+                to: Math.max(0, targetGain),
+                startedAt: now,
+                durationMs: Math.max(0, seconds * 1000),
+            };
+        }
+    }
+    resetEventGain(eventNames) {
+        for (const eventName of eventNames)
+            delete this.getRuntime(eventName).gain;
+    }
+    getEventGain(eventName) {
+        return this.resolveRuntimeGain(this.getRuntime(eventName));
+    }
+    resolveRuntimeGain(runtime, now = performance.now()) {
+        const gain = runtime.gain;
+        if (!gain)
+            return 1;
+        const progress = gain.durationMs <= 0 ? 1 : Math.min(1, Math.max(0, (now - gain.startedAt) / gain.durationMs));
+        return gain.from + (gain.to - gain.from) * progress;
     }
     setVolume(eventName, volume) {
         const runtime = this.getRuntime(eventName);
@@ -2602,7 +2631,7 @@ export class AudioEventManager {
             const fadeOutProgress = fadeOutPercent > 0 && fadeOutMilliseconds > 0
                 ? Math.min(1, Math.max(0, remainingMilliseconds / fadeOutMilliseconds))
                 : 1;
-            runtime.audio.volume = clampVolume(targetVolume * smoothstep(fadeInProgress) * smoothstep(fadeOutProgress));
+            runtime.audio.volume = clampVolume(targetVolume * smoothstep(fadeInProgress) * smoothstep(fadeOutProgress) * this.resolveRuntimeGain(runtime));
             if (!runtime.audio.ended && !runtime.audio.paused) {
                 runtime.fadeFrameId = window.requestAnimationFrame(updateVolume);
             }

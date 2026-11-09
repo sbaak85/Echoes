@@ -14,6 +14,7 @@ import {
   getFrequencyFineAudioMix,
   getLineSeNextLineBehavior,
   getSuccessfulInteractionAudioEvent,
+  getAcceptedInteractionAudioEvent,
   getSuccessfulItemUseAudioEvent,
 } from "../app/audio-event-manager.ts";
 import {
@@ -568,6 +569,24 @@ test("採礦、拆面板與五種生存道具成功音效集中登記並綁定�
 
   assert.equal(getSuccessfulInteractionAudioEvent("interaction-999"), null);
   assert.equal(getSuccessfulItemUseAudioEvent("R9999"), null);
+});
+
+test("逃生通道音效在成功對話前播放且結算不重播", async () => {
+  assert.equal(getAcceptedInteractionAudioEvent("shipinterior-interaction-024"), "shipEscapeExitSucceeded");
+  assert.equal(getSuccessfulInteractionAudioEvent("shipinterior-interaction-024"), null);
+  assert.equal(getAcceptedInteractionAudioEvent("interaction-006"), null);
+  assert.equal(getAcceptedInteractionAudioEvent("shipinterior-interaction-025"), null);
+  const source = await readFile(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  const trigger = source.slice(source.indexOf("const triggerInteraction ="), source.indexOf("const findPathFromLimitedCandidates ="));
+  const play = trigger.indexOf("audioEvents.play(acceptedInteractionAudioEvent");
+  for (const guard of ["isInteractableRetired", "isNpcPresent", "isInteractableLocked", "isInteractableConditionActive", "getInteractionUseRequirementFailure", "hasInteractionRequirementFailures"]) {
+    assert.ok(trigger.indexOf(guard) >= 0 && trigger.indexOf(guard) < play, guard);
+  }
+  assert.ok(play >= 0 && play < trigger.indexOf("const completeTriggeredInteraction"));
+  const normalDialogue = trigger.slice(trigger.indexOf("const completeTriggeredInteraction"));
+  assert.match(normalDialogue, /dialogueManager\.playRegistered/);
+  assert.match(normalDialogue, /openDialogue\(interactable, completeTriggeredInteraction\)/);
+  assert.doesNotMatch(normalDialogue, /acceptedInteractionAudioEvent/);
 });
 
 test("七種新音效只接在成功的互動與道具結算路徑", async () => {

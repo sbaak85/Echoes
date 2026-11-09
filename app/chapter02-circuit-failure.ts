@@ -55,6 +55,13 @@ export const CHAPTER02_CIRCUIT_BLACKOUT_FLOW: ChapterFlowDefinition = {
   ],
 };
 
+/** section-16 播完（黑畫面中）時，墜落倒數超過 02:00 就直接跳到 02:00 繼續倒數；不到 2 分鐘則不動 */
+export const CHAPTER02_CIRCUIT_COUNTDOWN_CAP_MS = 2 * 60 * 1000;
+
+export function capChapter02CountdownAfterCircuit(remainingMs: number) {
+  return Math.min(remainingMs, CHAPTER02_CIRCUIT_COUNTDOWN_CAP_MS);
+}
+
 type CircuitQuestState = {
   isQuestAtStage(questId: string, stageId: string): boolean;
   hasDialogueCompleted(dialogueId: string): boolean;

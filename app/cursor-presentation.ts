@@ -49,6 +49,11 @@ export class CursorPresentationGuard {
 }
 
 export const CURSOR_POSITION_STORAGE_KEY = "echoes:cursor-last-mouse";
+/**
+ * 章節交接（重新載入進下一章）前游標正顯示中：新頁面一開始就在同一位置畫出游標，
+ * 不必等滑鼠移動，避免游標消失後又在別處冒出一個新的。只生效一次。
+ */
+export const CURSOR_HANDOFF_VISIBLE_STORAGE_KEY = "echoes:cursor-handoff-visible";
 
 export function parseCursorPosition(serialized: string | null, width: number, height: number): CursorClientPoint | null {
   if (!serialized) return null;

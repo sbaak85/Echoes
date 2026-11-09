@@ -4,6 +4,8 @@
 
 export const CHAPTER02_ENDING_DIALOGUE_ID = "chapter02-section-18";
 export const CHAPTER02_ENDING_BLACKOUT = { fadeInMs: 2000, holdMs: 1000 } as const;
+/** 全黑停留後播放的「第二章結束」字幕（規格同 chapter03-End：字幕淡入 0.5 秒、停 4 秒、淡出 2 秒，黑畫面保持） */
+export const CHAPTER02_END_SUBTITLE_EVENT_ID = "chapter02-End";
 
 /** 重新載入後由章節選單（game-entry）讀取一次：直接開始指定章節，不顯示選單 */
 export const CHAPTER_AUTO_START_STORAGE_KEY = "echoes:auto-start-chapter";
