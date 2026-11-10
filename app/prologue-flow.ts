@@ -18,10 +18,11 @@ export const PROLOGUE_SCENE_GAP_MS = 400;
 
 /** 插圖與對話段落的對應（public 底下的路徑）。段落沒列在這裡時沿用前一張插圖 */
 export const PROLOGUE_ILLUSTRATIONS: readonly { imagePath: string; sectionIds: readonly string[] }[] = [
-  { imagePath: "ui/interaction-illustrations/序章_地球與星海.png", sectionIds: ["prologue-section-1", "prologue-section-2"] },
-  { imagePath: "ui/interaction-illustrations/序章_伊薩卡號.png", sectionIds: ["prologue-section-3", "prologue-section-4"] },
-  { imagePath: "ui/interaction-illustrations/序章_曲速航程.png", sectionIds: ["prologue-section-5", "prologue-section-6"] },
-  { imagePath: "ui/interaction-illustrations/序章_殖民地.png", sectionIds: ["prologue-section-7", "prologue-section-8"] },
+  { imagePath: "ui/interaction-illustrations/序章_地球赤道極光_v1.png", sectionIds: ["prologue-section-1", "prologue-section-2"] },
+  { imagePath: "ui/interaction-illustrations/序章_高維航道_3D插圖_v1.png", sectionIds: ["prologue-section-3", "prologue-section-4"] },
+  { imagePath: "ui/interaction-illustrations/序章_伊薩卡號_整備啟航_v1.png", sectionIds: ["prologue-section-5", "prologue-section-6"] },
+  { imagePath: "ui/interaction-illustrations/序章_曲速航程_重新設計_v2.png", sectionIds: ["prologue-section-7", "prologue-section-8"] },
+  { imagePath: "ui/interaction-illustrations/序章_殖民地_重新設計_v2.png", sectionIds: ["prologue-section-9", "prologue-section-10"] },
 ];
 
 type PrologueChapterData = {

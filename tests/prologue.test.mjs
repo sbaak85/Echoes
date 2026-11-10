@@ -12,7 +12,7 @@ import {
 
 const prologue = STORY_CHAPTERS.find((chapter) => chapter.id === "prologue");
 
-test("序章腳本：開場黑畫面字幕、8 段對話、序章結束字幕", () => {
+test("序章腳本：開場黑畫面字幕、10 段對話、序章結束字幕", () => {
   assert.ok(prologue);
   assert.equal(prologue.chapterNumber, 0);
   assert.deepEqual(prologue.subtitleEvents.map((event) => [event.id, event.triggerType]), [
@@ -21,7 +21,12 @@ test("序章腳本：開場黑畫面字幕、8 段對話、序章結束字幕", 
     ["prologue-End", "manual"],
   ]);
   assert.deepEqual(prologue.dialogueSections.map((section) => section.id),
-    Array.from({ length: 8 }, (_, index) => `prologue-section-${index + 1}`));
+    Array.from({ length: 10 }, (_, index) => `prologue-section-${index + 1}`));
+  // 前 4 段是畫外旁白（世界觀），之後切換到 Sbaak 的視角
+  for (const section of prologue.dialogueSections.slice(0, 4)) {
+    assert.ok(section.dialogue.lines.every((line) => line.speaker === ""), section.id);
+  }
+  assert.ok(prologue.dialogueSections.slice(4).every((section) => section.dialogue.lines.some((line) => line.speaker === "Sbaak")));
   for (const section of prologue.dialogueSections) {
     assert.deepEqual(STORY_DIALOGUES[section.id], section.dialogue, section.id);
     for (const line of section.dialogue.lines) {
@@ -49,7 +54,8 @@ test("ChapterScriptEditor 的原始資料與遊戲資料同步", () => {
   assert.deepEqual(document.chapters[0], JSON.parse(JSON.stringify(prologue)));
 });
 
-test("播放順序：開場字幕 → 4 張插圖（每張 2 段對話）→ 序章結束 → 第二章", () => {
+test("播放順序：開場字幕 → 5 張插圖（每張 2 段對話）→ 序章結束 → 第二章", () => {
+  assert.equal(PROLOGUE_ILLUSTRATIONS.length, 5);
   const { steps, end } = resolvePrologueSequence(STORY_CHAPTERS);
   assert.deepEqual(steps.map((step) => step.kind === "subtitle" ? step.event.id : [step.imagePath, step.dialogues.map((item) => item.id)]), [
     "prologue-Open",
