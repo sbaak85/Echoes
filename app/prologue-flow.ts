@@ -16,12 +16,18 @@ export const PROLOGUE_ILLUSTRATION_FADE_OUT_MS = 500;
 /** 換插圖之間、以及最後一張插圖淡出到「序章結束」字幕之間的全黑停頓 */
 export const PROLOGUE_SCENE_GAP_MS = 400;
 
+/** 序章 BGM：序章一開始就循環播放；「序章結束」字幕出現時淡出 */
+export const PROLOGUE_BGM_SOURCE = "audio/Prologue1.mp3";
+/** 素材基礎音量（與第二章常駐 BGM 相同 0.7），再乘上預設的玩家 BGM 音量 */
+export const PROLOGUE_BGM_TRACK_VOLUME = 0.7;
+export const PROLOGUE_BGM_FADE_OUT_MS = 2500;
+
 /** 插圖與對話段落的對應（public 底下的路徑）。段落沒列在這裡時沿用前一張插圖 */
 export const PROLOGUE_ILLUSTRATIONS: readonly { imagePath: string; sectionIds: readonly string[] }[] = [
   { imagePath: "ui/interaction-illustrations/序章_地球赤道極光_v1.png", sectionIds: ["prologue-section-1", "prologue-section-2"] },
-  { imagePath: "ui/interaction-illustrations/序章_高維航道_3D插圖_v1.png", sectionIds: ["prologue-section-3", "prologue-section-4"] },
-  { imagePath: "ui/interaction-illustrations/序章_伊薩卡號_整備啟航_v1.png", sectionIds: ["prologue-section-5", "prologue-section-6"] },
-  { imagePath: "ui/interaction-illustrations/序章_曲速航程_重新設計_v2.png", sectionIds: ["prologue-section-7", "prologue-section-8"] },
+  { imagePath: "ui/interaction-illustrations/序章_高維航道_3D插圖_v2.png", sectionIds: ["prologue-section-3", "prologue-section-4"] },
+  { imagePath: "ui/interaction-illustrations/序章_伊薩卡號_整備啟航_v2.png", sectionIds: ["prologue-section-5", "prologue-section-6"] },
+  { imagePath: "ui/interaction-illustrations/序章_曲速航程_重新設計_v3.png", sectionIds: ["prologue-section-7", "prologue-section-8"] },
   { imagePath: "ui/interaction-illustrations/序章_殖民地_重新設計_v2.png", sectionIds: ["prologue-section-9"] },
   // 伊薩卡號面向鏡頭駛離地球軌道，身後是地球與軌道設施
   { imagePath: "ui/interaction-illustrations/序章_伊薩卡號_駛離地球軌道_v1.png", sectionIds: ["prologue-section-10"] },

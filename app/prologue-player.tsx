@@ -2,7 +2,7 @@
 // 序章劇情畫面：全黑背景，不載入地圖。黑畫面白字幕 → 對話框＋插圖 → 「序章結束」字幕 → onComplete（進入第二章）。
 // 對話框與訊息回顧沿用遊戲內同一套 DialoguePlayerView／createDialoguePlayer；插圖沿用互動插圖的版面與淡入規格。
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
-import { AudioEventManager, type AudioEventName } from "./audio-event-manager";
+import { AudioEventManager, DEFAULT_BGM_USER_VOLUME, type AudioEventName } from "./audio-event-manager";
 import { cursorOwnership } from "./cursor-ownership";
 import { CURSOR_HANDOFF_VISIBLE_STORAGE_KEY, CURSOR_POSITION_STORAGE_KEY } from "./cursor-presentation";
 import { hasDialogueHistoryScrollbar, type DialogueHistoryView } from "./dialogue-history";
@@ -11,6 +11,9 @@ import { DialoguePlayerView } from "./dialogue-player-view";
 import type { InteractionDialogueScript } from "./interaction-flow";
 import {
   getPrologueSubtitleTiming,
+  PROLOGUE_BGM_FADE_OUT_MS,
+  PROLOGUE_BGM_SOURCE,
+  PROLOGUE_BGM_TRACK_VOLUME,
   PROLOGUE_ILLUSTRATION_FADE_IN_MS,
   PROLOGUE_ILLUSTRATION_FADE_OUT_MS,
   PROLOGUE_SCENE_GAP_MS,
@@ -119,6 +122,34 @@ export function ProloguePlayer({ onComplete }: { onComplete: () => void }) {
     const playDialogue = (id: string, dialogue: InteractionDialogueScript) => new Promise<void>((resolve) => {
       player.present(id, { dialogue }, () => resolve(), dialogue);
     });
+    // 序章 BGM：一開始就循環播放，直到「序章結束」字幕出現時淡出
+    const bgmVolume = PROLOGUE_BGM_TRACK_VOLUME * DEFAULT_BGM_USER_VOLUME;
+    const bgm = new Audio(resolveRuntimePublicAssetUrl(PROLOGUE_BGM_SOURCE));
+    bgm.loop = true;
+    bgm.preload = "auto";
+    bgm.volume = bgmVolume;
+    let bgmFadeFrame = 0;
+    void bgm.play().catch(() => {
+      // 瀏覽器封鎖自動播放時，等玩家下一次操作再開始
+      const resume = () => {
+        window.removeEventListener("pointerdown", resume, true);
+        window.removeEventListener("keydown", resume, true);
+        if (!cancelled && bgmFadeFrame === 0) void bgm.play().catch(() => undefined);
+      };
+      window.addEventListener("pointerdown", resume, true);
+      window.addEventListener("keydown", resume, true);
+    });
+    const fadeOutBgm = () => {
+      const startedAt = performance.now();
+      const startVolume = bgm.volume;
+      const step = (now: number) => {
+        const progress = Math.min(1, (now - startedAt) / PROLOGUE_BGM_FADE_OUT_MS);
+        bgm.volume = startVolume * (1 - progress);
+        if (progress < 1) { bgmFadeFrame = window.requestAnimationFrame(step); return; }
+        bgm.pause();
+      };
+      bgmFadeFrame = window.requestAnimationFrame(step);
+    };
     const handOffPointer = () => {
       // 第二章一開始就在同一位置畫出遊戲游標（滑鼠操作時），不會消失後又冒出一個新的
       try {
@@ -151,6 +182,7 @@ export function ProloguePlayer({ onComplete }: { onComplete: () => void }) {
         await wait(PROLOGUE_SCENE_GAP_MS);
       }
       if (cancelled) return;
+      fadeOutBgm();
       if (end) await showSubtitle(end);
       if (cancelled) return;
       handOffPointer();
@@ -161,6 +193,10 @@ export function ProloguePlayer({ onComplete }: { onComplete: () => void }) {
       cancelled = true;
       timers.forEach((timer) => window.clearTimeout(timer));
       timers.clear();
+      window.cancelAnimationFrame(bgmFadeFrame);
+      bgm.pause();
+      bgm.removeAttribute("src");
+      bgm.load();
       player.close();
       audio.dispose();
       if (audioRef.current === audio) audioRef.current = null;

@@ -4,6 +4,8 @@ import test from "node:test";
 
 import { STORY_CHAPTERS, STORY_DIALOGUES } from "../app/story-content.ts";
 import {
+  PROLOGUE_BGM_FADE_OUT_MS,
+  PROLOGUE_BGM_SOURCE,
   PROLOGUE_END_SUBTITLE_EVENT_ID,
   PROLOGUE_ILLUSTRATIONS,
   PROLOGUE_NEXT_CHAPTER,
@@ -106,4 +108,13 @@ test("章節選單：序章在第二章、第三章之上；序章結束後交�
   const player = readFileSync(new URL("../app/prologue-player.tsx", import.meta.url), "utf8");
   assert.match(player, /CURSOR_HANDOFF_VISIBLE_STORAGE_KEY, "1"/);
   assert.match(player, /<DialoguePlayerView /);
+});
+
+test("序章 BGM：開場循環播放 Prologue1.mp3，「序章結束」字幕出現時 2.5 秒淡出", () => {
+  assert.equal(PROLOGUE_BGM_SOURCE, "audio/Prologue1.mp3");
+  assert.ok(existsSync(new URL(`../public/${PROLOGUE_BGM_SOURCE}`, import.meta.url)));
+  assert.equal(PROLOGUE_BGM_FADE_OUT_MS, 2500);
+  const player = readFileSync(new URL("../app/prologue-player.tsx", import.meta.url), "utf8");
+  assert.match(player, /bgm\.loop = true;/);
+  assert.match(player, /fadeOutBgm\(\);\s*if \(end\) await showSubtitle\(end\);/);
 });
