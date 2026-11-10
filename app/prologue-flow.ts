@@ -1,6 +1,6 @@
 // 序章：章節選單選「序章」後播放的純劇情畫面（不載入地圖）。
 //   1. 黑畫面白字幕：序章資料中 triggerType = chapterStart 的字幕依序播放（prologue-Open、prologue-opening-card）
-//   2. 對話框＋插圖：序章的對話段落依序播放；每張插圖對應 2～3 段對話（PROLOGUE_ILLUSTRATIONS）
+//   2. 對話框＋插圖：序章的對話段落依序播放；每張插圖對應 1～2 段對話（PROLOGUE_ILLUSTRATIONS）
 //   3. 「序章結束」字幕（prologue-End，規格同 chapter02-End，黑畫面保持）→ 進入第二章
 // 文案在 ChapterScriptEditor 的【序章】分頁編輯；插圖換圖時直接覆蓋同名 PNG。
 import type { InteractionDialogueScript } from "./interaction-flow";
@@ -22,7 +22,9 @@ export const PROLOGUE_ILLUSTRATIONS: readonly { imagePath: string; sectionIds: r
   { imagePath: "ui/interaction-illustrations/序章_高維航道_3D插圖_v1.png", sectionIds: ["prologue-section-3", "prologue-section-4"] },
   { imagePath: "ui/interaction-illustrations/序章_伊薩卡號_整備啟航_v1.png", sectionIds: ["prologue-section-5", "prologue-section-6"] },
   { imagePath: "ui/interaction-illustrations/序章_曲速航程_重新設計_v2.png", sectionIds: ["prologue-section-7", "prologue-section-8"] },
-  { imagePath: "ui/interaction-illustrations/序章_殖民地_重新設計_v2.png", sectionIds: ["prologue-section-9", "prologue-section-10"] },
+  { imagePath: "ui/interaction-illustrations/序章_殖民地_重新設計_v2.png", sectionIds: ["prologue-section-9"] },
+  // 伊薩卡號面向鏡頭駛離地球軌道，身後是地球與軌道設施
+  { imagePath: "ui/interaction-illustrations/序章_伊薩卡號_駛離地球軌道_v1.png", sectionIds: ["prologue-section-10"] },
 ];
 
 type PrologueChapterData = {

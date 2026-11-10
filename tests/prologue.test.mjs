@@ -54,8 +54,8 @@ test("ChapterScriptEditor 的原始資料與遊戲資料同步", () => {
   assert.deepEqual(document.chapters[0], JSON.parse(JSON.stringify(prologue)));
 });
 
-test("播放順序：開場字幕 → 5 張插圖（每張 2 段對話）→ 序章結束 → 第二章", () => {
-  assert.equal(PROLOGUE_ILLUSTRATIONS.length, 5);
+test("播放順序：開場字幕 → 6 張插圖（前 4 張各 2 段、後 2 張各 1 段對話）→ 序章結束 → 第二章", () => {
+  assert.deepEqual(PROLOGUE_ILLUSTRATIONS.map((item) => item.sectionIds.length), [2, 2, 2, 2, 1, 1]);
   const { steps, end } = resolvePrologueSequence(STORY_CHAPTERS);
   assert.deepEqual(steps.map((step) => step.kind === "subtitle" ? step.event.id : [step.imagePath, step.dialogues.map((item) => item.id)]), [
     "prologue-Open",
@@ -67,6 +67,18 @@ test("播放順序：開場字幕 → 5 張插圖（每張 2 段對話）→ 序
   for (const item of PROLOGUE_ILLUSTRATIONS) {
     assert.ok(existsSync(new URL(`../public/${item.imagePath}`, import.meta.url)), item.imagePath);
   }
+});
+
+test("section-10：駛離地球軌道的新插圖，船員對話接在原本的開頭與結尾之間", () => {
+  const lines = STORY_DIALOGUES["prologue-section-10"].lines;
+  assert.equal(lines[0].lineId, "prologue-section-10-line-001");
+  assert.deepEqual(lines.slice(-2).map((line) => line.lineId), ["prologue-section-10-line-002", "prologue-section-10-line-003"]);
+  assert.ok(lines.length > 3);
+  for (const speaker of ["米拉", "歐文", "蕾娜", "飛航電腦AI"]) {
+    assert.ok(lines.some((line) => line.speaker === speaker), speaker);
+  }
+  for (const line of lines) assert.ok(line.text.replace(/\n/g, "").length <= 96, `${line.lineId} 超過單頁 96 字`);
+  assert.equal(PROLOGUE_ILLUSTRATIONS.at(-1).imagePath, "ui/interaction-illustrations/序章_伊薩卡號_駛離地球軌道_v1.png");
 });
 
 test("沒有對應插圖的新段落沿用前一張插圖", () => {
