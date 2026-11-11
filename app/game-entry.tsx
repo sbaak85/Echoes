@@ -23,9 +23,13 @@ type EntryOptionId = (typeof ENTRY_OPTIONS)[number]["id"];
 
 export function GameEntry() {
   const [Game, setGame] = useState<ComponentType | null>(null);
-  const [ProloguePlayer, setProloguePlayer] = useState<ComponentType<{ onComplete: () => void }> | null>(null);
+  const [ProloguePlayer, setProloguePlayer] = useState<ComponentType<{ onComplete: () => void; initialGamepadMode?: boolean }> | null>(null);
   const [selected, setSelected] = useState(0);
   const [owner, setOwner] = useState("directional");
+  const [gamepadMode, setGamepadMode] = useState(false);
+  const takeDirectional = useCallback((gamepad = false) => {
+    cursorOwnership.take("directional"); setOwner("directional"); setGamepadMode(gamepad);
+  }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const busy = useRef(false);
@@ -109,13 +113,13 @@ export function GameEntry() {
       if (!confirm && !direction) armed = true;
       if (armed && !busy.current) {
         if (direction && (!lastDirection || direction !== lastDirection || time >= nextMove)) {
-          setOwner("directional");
+          takeDirectional(true);
           select(selectedRef.current + direction);
           nextMove = time + (lastDirection === direction ? 180 : 350);
         }
         if (confirm) {
           armed = false;
-          setOwner("directional");
+          takeDirectional(true);
           chooseOption(ENTRY_OPTIONS[selectedRef.current].id);
         }
       }
@@ -126,10 +130,10 @@ export function GameEntry() {
     const key = (event: KeyboardEvent) => {
       if (busy.current || event.repeat) return;
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Tab"].includes(event.key)) {
-        event.preventDefault(); setOwner("directional");
+        event.preventDefault(); takeDirectional();
         select(selectedRef.current + (event.key === "ArrowUp" || event.key === "ArrowLeft" || event.shiftKey ? -1 : 1));
       } else if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault(); setOwner("directional");
+        event.preventDefault(); takeDirectional();
         chooseOption(ENTRY_OPTIONS[selectedRef.current].id);
       }
     };
@@ -137,18 +141,21 @@ export function GameEntry() {
     window.addEventListener("blur", blur);
     frame = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(frame); window.removeEventListener("keydown", key); window.removeEventListener("blur", blur); };
-  }, [Game, ProloguePlayer, chooseOption, select]);
+  }, [Game, ProloguePlayer, chooseOption, select, takeDirectional]);
 
   if (Game) return <Game />;
-  if (ProloguePlayer) return <ProloguePlayer onComplete={finishPrologue} />;
+  if (ProloguePlayer) return <ProloguePlayer onComplete={finishPrologue} initialGamepadMode={gamepadMode} />;
   return <main className="chapter-entry" data-owner={owner} aria-busy={loading}
     onPointerMove={(event) => {
       if (event.pointerType !== "mouse") return;
+      setGamepadMode(false);
       setOwner("mouse");
       // 記下滑鼠位置：進入序章或遊戲後，遊戲游標從同一位置開始
       cursorOwnership.recordMouse(event.clientX, event.clientY);
     }}
     onPointerDown={(event) => {
+      setGamepadMode(false);
+      if (event.pointerType !== "mouse") cursorOwnership.take("touch");
       setOwner(event.pointerType === "touch" ? "touch" : "mouse");
       if (event.pointerType === "mouse") cursorOwnership.recordMouse(event.clientX, event.clientY, true);
     }}>

@@ -3,9 +3,10 @@
 // 對話框與訊息回顧沿用遊戲內同一套 DialoguePlayerView／createDialoguePlayer；插圖沿用互動插圖的版面與淡入規格。
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { AudioEventManager, DEFAULT_BGM_USER_VOLUME, type AudioEventName } from "./audio-event-manager";
-import { cursorOwnership } from "./cursor-ownership";
+import { cursorOwnership, type CursorOwner } from "./cursor-ownership";
+import { PrologueGamepadInput } from "./prologue-gamepad";
 import { CURSOR_HANDOFF_VISIBLE_STORAGE_KEY, CURSOR_POSITION_STORAGE_KEY } from "./cursor-presentation";
-import { hasDialogueHistoryScrollbar, type DialogueHistoryView } from "./dialogue-history";
+import { getDialogueHistoryRightStickScrollDelta, hasDialogueHistoryScrollbar, type DialogueHistoryView } from "./dialogue-history";
 import { createDialoguePlayer, type DialoguePlayback, type DialogueTyping, type DialogueView } from "./dialogue-player";
 import { DialoguePlayerView } from "./dialogue-player-view";
 import type { InteractionDialogueScript } from "./interaction-flow";
@@ -34,16 +35,17 @@ type Context = { dialogue?: InteractionDialogueScript | null };
 const PROLOGUE_AUDIO_EVENTS: readonly AudioEventName[] = ["dialogueTyping", "dialogueOpened", "uiInput"];
 const DIALOGUE_UI_SELECTOR = ".dialogue-box, .dialogue-history-trigger, .dialogue-history-overlay";
 
-export function ProloguePlayer({ onComplete }: { onComplete: () => void }) {
+export function ProloguePlayer({ onComplete, initialGamepadMode = false }: { onComplete: () => void; initialGamepadMode?: boolean }) {
   const [centered, setCentered] = useState<CenteredText | null>(null);
   const [illustration, setIllustration] = useState<Illustration | null>(null);
   const [view, setView] = useState<DialogueView>(null);
   const [history, setHistory] = useState<DialogueHistoryView | null>(null);
   const [historyScrollable, setHistoryScrollable] = useState(false);
-  const [gamepadMode, setGamepadMode] = useState(false);
-  // 遊戲游標（滑鼠操作時跟著滑鼠）：從章節選單沿用最後的滑鼠位置；鍵盤／手把操作時隱藏
+  const [gamepadMode, setGamepadMode] = useState(initialGamepadMode);
+  const [inputOwner, setInputOwner] = useState<CursorOwner>(() => cursorOwnership.owner);
+  // 滑鼠／右搖桿共用同一個游標；鍵盤、左搖桿與方向鍵操作時隱藏。
   const [pointer, setPointer] = useState(() => cursorOwnership.owner === "mouse" ? cursorOwnership.lastMouse : null);
-  const [pointerHidden, setPointerHidden] = useState(false);
+  const [pointerHidden, setPointerHidden] = useState(() => cursorOwnership.owner !== "mouse");
   const [pointerOverDialogue, setPointerOverDialogue] = useState(false);
   const [textSize] = useState<"small" | "large">(() =>
     typeof window !== "undefined" && window.matchMedia("(max-width: 680px), (pointer: coarse)").matches ? "large" : "small");
@@ -52,7 +54,7 @@ export function ProloguePlayer({ onComplete }: { onComplete: () => void }) {
   const historyScrollRef = useRef<HTMLDivElement | null>(null);
   const historyCloseRef = useRef<HTMLButtonElement | null>(null);
   const audioRef = useRef<AudioEventManager | null>(null);
-  const pointerHiddenRef = useRef(false);
+  const pointerHiddenRef = useRef(cursorOwnership.owner !== "mouse");
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
@@ -226,33 +228,48 @@ export function ProloguePlayer({ onComplete }: { onComplete: () => void }) {
 
   // 輸入：鍵盤 Enter／Space／E、滑鼠點擊、手把 A 前進；滑鼠右鍵／手把 LT 開關訊息回顧
   useEffect(() => {
+    const input = new PrologueGamepadInput();
+    let virtualPoint = cursorOwnership.lastMouse;
+    const applyOwner = (owner: CursorOwner) => {
+      const hidden = owner === "directional" || owner === "touch";
+      pointerHiddenRef.current = hidden;
+      setPointerHidden(hidden);
+      setInputOwner(owner);
+      document.documentElement.classList.toggle("gamepad-input-active", owner !== "mouse");
+      document.documentElement.classList.toggle("gamepad-cursor-active", owner === "gamepad");
+      document.documentElement.dataset.cursorOwner = owner;
+    };
+    applyOwner(cursorOwnership.owner);
+    const unsubscribe = cursorOwnership.subscribe(applyOwner);
     const takeDirectional = (gamepad: boolean) => {
-      pointerHiddenRef.current = true;
-      setPointerHidden(true);
+      if (!gamepad) input.reset();
+      cursorOwnership.take("directional");
       setGamepadMode(gamepad);
-      document.documentElement.classList.add("gamepad-input-active");
     };
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
       if (key === "enter" || key === " " || key === "e") {
         event.preventDefault();
         takeDirectional(false);
-        if (!event.repeat) player.advance();
+        if (!event.repeat && !player.closeHistory()) player.advance();
       } else if (key === "escape" || key === "backspace") {
+        takeDirectional(false);
         if (player.closeHistory()) event.preventDefault();
       }
     };
     const onPointerMove = (event: PointerEvent) => {
       if (event.pointerType !== "mouse") {
-        pointerHiddenRef.current = true;
-        setPointerHidden(true);
+        input.reset();
+        cursorOwnership.take("touch");
+        setGamepadMode(false);
         return;
       }
+      const previousOwner = cursorOwnership.owner;
       if (!cursorOwnership.recordMouse(event.clientX, event.clientY, event.type === "pointerdown")) return;
-      pointerHiddenRef.current = false;
-      setPointerHidden(false);
+      if (previousOwner !== "mouse") input.reset();
       setGamepadMode(false);
-      document.documentElement.classList.remove("gamepad-input-active");
+      applyOwner("mouse");
+      virtualPoint = { x: event.clientX, y: event.clientY };
       setPointer({ x: event.clientX, y: event.clientY });
       setPointerOverDialogue(event.target instanceof Element && event.target.closest(DIALOGUE_UI_SELECTOR) !== null);
     };
@@ -261,36 +278,65 @@ export function ProloguePlayer({ onComplete }: { onComplete: () => void }) {
       player.toggleHistory();
     };
     let frame = 0;
-    let previous: boolean[] | null = null;
-    const poll = () => {
+    let previousTime = 0;
+    const poll = (time: number) => {
+      const delta = Math.min(0.05, Math.max(0, (time - (previousTime || time)) / 1000));
+      previousTime = time;
       const pad = Array.from(navigator.getGamepads?.() ?? []).find((entry) => entry?.connected);
-      if (pad) {
-        const pressed = pad.buttons.map((button) => button.pressed);
-        // 第一次讀到時只記錄狀態：章節選單按下的 A 不會直接跳過第一句
-        if (previous) {
-          const edge = (index: number) => pressed[index] && !previous![index];
-          const moved = pad.axes.some((axis) => Math.abs(axis) > 0.55);
-          if (pressed.some((value, index) => value && !previous![index]) || moved) takeDirectional(true);
-          if (edge(0)) player.advance();
-          if (edge(6)) player.toggleHistory();
-          if (edge(1)) player.closeHistory();
+      const controls = input.sample(document.hidden ? null : pad ?? null);
+      const historyList = historyScrollRef.current;
+      if (controls.directional) takeDirectional(true);
+      else if (controls.x || controls.y) {
+        setGamepadMode(true);
+        if (historyList) {
+          takeDirectional(true);
+          historyList.scrollTop += getDialogueHistoryRightStickScrollDelta(controls.y, delta);
+        } else {
+          const point = virtualPoint ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+          virtualPoint = {
+            x: Math.max(0, Math.min(window.innerWidth - 1, point.x + controls.x * 700 * delta)),
+            y: Math.max(0, Math.min(window.innerHeight - 1, point.y + controls.y * 700 * delta)),
+          };
+          cursorOwnership.take("gamepad");
+          setPointer(virtualPoint);
         }
-        previous = pressed;
-      } else {
-        previous = null;
       }
+      if (controls.history || controls.back) {
+        takeDirectional(true);
+        if (controls.history) player.toggleHistory();
+        else player.closeHistory();
+        input.reset();
+      } else if (controls.confirm) {
+        setGamepadMode(true);
+        if (historyList) { takeDirectional(true); player.closeHistory(); input.reset(); }
+        else if (cursorOwnership.owner === "gamepad" && virtualPoint) {
+          const target = document.elementFromPoint(virtualPoint.x, virtualPoint.y);
+          const button = target?.closest<HTMLButtonElement>(".prologue-stage button");
+          if (button && !button.disabled) button.click();
+          else if (target?.closest(".prologue-stage") && !target.closest(DIALOGUE_UI_SELECTOR)) player.advance();
+        } else { takeDirectional(true); player.advance(); }
+      }
+      if (!pad && cursorOwnership.owner === "gamepad") takeDirectional(false);
       frame = window.requestAnimationFrame(poll);
     };
+    const rearm = () => {
+      input.reset(); previousTime = 0;
+      if (cursorOwnership.owner === "gamepad") takeDirectional(true);
+    };
     window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerdown", onPointerMove);
+    window.addEventListener("pointermove", onPointerMove, true);
+    window.addEventListener("pointerdown", onPointerMove, true);
+    window.addEventListener("blur", rearm);
     window.addEventListener("contextmenu", onContextMenu);
     frame = window.requestAnimationFrame(poll);
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerdown", onPointerMove);
+      window.removeEventListener("pointermove", onPointerMove, true);
+      window.removeEventListener("pointerdown", onPointerMove, true);
+      window.removeEventListener("blur", rearm);
+      unsubscribe();
+      document.documentElement.classList.remove("gamepad-input-active", "gamepad-cursor-active");
       window.removeEventListener("contextmenu", onContextMenu);
     };
   }, [player]);
@@ -302,8 +348,8 @@ export function ProloguePlayer({ onComplete }: { onComplete: () => void }) {
     player.advance();
   };
 
-  const showPointer = Boolean(pointer) && !pointerHidden && !pointerOverDialogue && !history;
-  return <main className="prologue-stage" aria-label="序章" onClick={onStageClick}>
+  const showPointer = Boolean(pointer) && !pointerHidden && !history && (inputOwner === "gamepad" || !pointerOverDialogue);
+  return <main className="prologue-stage" data-input-owner={inputOwner} aria-label="序章" onClick={onStageClick}>
     <div ref={shellRef} className="game-shell prologue-shell" data-interaction-illustration={illustration ? "open" : undefined}>
       {illustration && <div key={illustration.sequence}
         className={`interaction-illustration-overlay is-with-dialogue prologue-illustration${illustration.closing ? " is-closing" : ""}`}
