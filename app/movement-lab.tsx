@@ -1,5 +1,5 @@
 "use client";
-import { createChapter02StartFlow, CHAPTER02_BRIEFING_DONE_FLAG, CHAPTER02_START_DIALOGUE_ID, CHAPTER02_START_FLOW_ID, resolveChapter02BriefingDonePlacement } from "./chapter02-start-flow";
+import { createChapter02StartFlow, CHAPTER02_BGM_START_DELAY_MS, CHAPTER02_BRIEFING_DONE_FLAG, CHAPTER02_START_DIALOGUE_ID, CHAPTER02_START_FLOW_ID, resolveChapter02BriefingDonePlacement } from "./chapter02-start-flow";
 import { Chapter02WhiteRift, CHAPTER02_WARP_EXIT_FADE_IN_AUDIO_EVENT, CHAPTER02_WARP_EXIT_FADE_OUT_AUDIO_EVENT, CHAPTER02_WHITE_RIFT_FLOW, CHAPTER02_WHITE_RIFT_PENDING_FLAG, CHAPTER02_WHITE_RIFT_TRIGGER, CHAPTER02_WARP_EXITED_FLAG, resolveChapter02Backdrop, resolveChapter02HullStreams, shouldResumeChapter02WhiteRift } from "./chapter02-white-rift";
 import { WhiteRiftOverlay, type WhiteRiftOverlayHandle } from "./white-rift-overlay";
 import { WarpExitSmearOverlay, type WarpExitSmearOverlayHandle } from "./warp-exit-smear-overlay";
@@ -45,6 +45,7 @@ import { completePhototropicQuestObjective } from "./phototropic-quest-flow";
 import { getStarshipMenuFeatureLocks } from "./starship-menu-availability";
 import { isQuestObjectiveVisible, isQuestObjectiveCheckmarkVisible } from "./quest-hud-timing";
 import { canShareMobileHudSpace, changeMobileHudMode, cycleMobileHudMode, type MobileHudPanelMode } from "./mobile-hud-layout";
+import { detectStageFullscreen, subscribeStageFullscreenChanges } from "./stage-fullscreen";
 
 import { cursorOwnership, GamepadHandoffGate } from "./cursor-ownership.ts";
 import { CursorPresentationGuard, CURSOR_HANDOFF_VISIBLE_STORAGE_KEY, CURSOR_POSITION_STORAGE_KEY, parseCursorPosition } from "./cursor-presentation.ts";
@@ -2315,6 +2316,9 @@ function getDefaultDialogueTextSize(): DialogueTextSize {
     : "small";
 }
 
+/** 讀檔遲遲未完成時，BGM 最多等這麼久就照常開始 */
+const BGM_HYDRATION_WAIT_MS = 3000;
+
 const MOBILE_HUD_MEDIA_QUERY =
   "(max-width: 680px), (hover: none) and (pointer: coarse)";
 /** 手機版（直向與橫向）整體 UI 縮放比例；文字隨元件一起縮放 */
@@ -4190,6 +4194,8 @@ export function MovementLab() {
     createInteractionUsageState(INITIAL_SURVIVAL_STATE.gameMinutes),
   );
   const currentStoryChapterRef = useRef(3);
+  /** BGM 最早可開始播放的時間（performance.now）；讀檔確定章節前為 Infinity */
+  const bgmStartHoldUntilRef = useRef(Number.POSITIVE_INFINITY);
   const storyProgressRef = useRef<StoryProgress>(createInitialStoryProgress());
   const questRuntimeManagerRef = useRef<QuestRuntimeManager | null>(null);
   const dialogueManagerRef = useRef<DialogueManager<SceneInteractable> | null>(null);
@@ -6182,6 +6188,11 @@ export function MovementLab() {
       interactionUsageRef.current = loadedInteractionUsage;
       currentStoryChapterRef.current = loadedStoryProgress.currentChapter;
       storyProgressRef.current = loadedStoryProgress;
+      // 章節確定後才開放 BGM：第二章延後 2 秒再開始
+      bgmStartHoldUntilRef.current = loadedStoryProgress.currentChapter === 2
+        ? performance.now() + CHAPTER02_BGM_START_DELAY_MS
+        : 0;
+      requestBgmPlaybackRef.current();
       questRuntimeManagerRef.current = new QuestRuntimeManager(
         QUEST_DOCUMENT,
         {
@@ -6617,42 +6628,17 @@ export function MovementLab() {
   }, [itemPointRespawnCycle]);
 
   useEffect(() => {
-    const fullscreenDocument = document as Document & {
-      webkitFullscreenElement?: Element | null;
-    };
+    // 手機版只認瀏覽器真正的全螢幕或撐滿視窗的替代模式（iPhone）；
+    // 「畫面等於螢幕大小」的判斷只用來偵測 PC 的 F11（與序章畫面共用 stage-fullscreen.ts）
     const updateFullscreenState = () => {
-      const browserToolbarHidden =
-        Math.abs(window.outerHeight - window.innerHeight) <= 48;
-      const viewportMatchesScreen =
-        browserToolbarHidden &&
-        window.innerWidth >= Math.min(window.screen.width, window.screen.availWidth) - 20 &&
-        (
-          window.innerHeight >= window.screen.height - 20 ||
-          window.innerHeight >= window.screen.availHeight - 20
-        );
-      // 手機版只認瀏覽器真正的全螢幕或撐滿視窗的替代模式（iPhone）；
-      // 「畫面等於螢幕大小」的判斷只用來偵測 PC 的 F11，手機套用會誤判（例如加到主畫面時）
-      setStageFullscreen(Boolean(
-        document.fullscreenElement ||
-        fullscreenDocument.webkitFullscreenElement ||
-        stageFullscreenFallbackRef.current ||
-        (!isMobileHudLayout() && viewportMatchesScreen)
-      ));
+      setStageFullscreen(detectStageFullscreen({
+        fallback: stageFullscreenFallbackRef.current,
+        mobileLayout: isMobileHudLayout(),
+      }));
     };
 
     updateFullscreenState();
-    window.addEventListener("resize", updateFullscreenState);
-    window.addEventListener("orientationchange", updateFullscreenState);
-    window.visualViewport?.addEventListener("resize", updateFullscreenState);
-    document.addEventListener("fullscreenchange", updateFullscreenState);
-    document.addEventListener("webkitfullscreenchange", updateFullscreenState);
-    return () => {
-      window.removeEventListener("resize", updateFullscreenState);
-      window.removeEventListener("orientationchange", updateFullscreenState);
-      window.visualViewport?.removeEventListener("resize", updateFullscreenState);
-      document.removeEventListener("fullscreenchange", updateFullscreenState);
-      document.removeEventListener("webkitfullscreenchange", updateFullscreenState);
-    };
+    return subscribeStageFullscreenChanges(updateFullscreenState);
   }, []);
 
   const toggleStageFullscreen = async () => {
@@ -10331,6 +10317,10 @@ export function MovementLab() {
     let bgmPlayPending = false;
     let bgmPlayBlocked = false;
     let bgmDisposed = false;
+    // BGM 開播閘門：讀檔確定章節前先不播（最多等 BGM_HYDRATION_WAIT_MS）；
+    // 讀檔後若是第二章，再延後 CHAPTER02_BGM_START_DELAY_MS 才開始（之後照常 2 秒淡入）
+    const bgmEffectStartedAt = performance.now();
+    let bgmStartGateTimer = 0;
     let lastMovementGuideSign = 1;
     let lockedAutoMovementGuideId: string | null = null;
     let bypassedAutoMovementGuideId: string | null = null;
@@ -10959,6 +10949,19 @@ export function MovementLab() {
     };
 
     const requestBgmPlayback = () => {
+      const holdUntil = Number.isFinite(bgmStartHoldUntilRef.current)
+        ? bgmStartHoldUntilRef.current
+        : bgmEffectStartedAt + BGM_HYDRATION_WAIT_MS;
+      const gateRemainingMs = holdUntil - performance.now();
+      if (!bgmDisposed && gateRemainingMs > 0) {
+        // 閘門時間可能在讀檔後改變：每次都依最新的剩餘時間重新排程
+        window.clearTimeout(bgmStartGateTimer);
+        bgmStartGateTimer = window.setTimeout(() => {
+          bgmStartGateTimer = 0;
+          requestBgmPlayback();
+        }, gateRemainingMs);
+        return;
+      }
       if (
         bgmDisposed ||
         !bgmEnabledRef.current ||
@@ -18401,6 +18404,7 @@ export function MovementLab() {
       canvas.removeEventListener("pointercancel", onPointerCancel);
       canvas.removeEventListener("lostpointercapture", onPointerCancel);
       bgmDisposed = true;
+      window.clearTimeout(bgmStartGateTimer);
       requestBgmPlaybackRef.current = () => {};
       debugItemSpawnHandlerRef.current = () => false;
       mobileInteractionActionRef.current = () => {};

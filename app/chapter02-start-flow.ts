@@ -2,6 +2,9 @@ import type { ChapterFlowAction, ChapterFlowDefinition } from "./chapter-flow-ma
 import { STORY_CHAPTERS } from "./story-content.ts";
 
 export const CHAPTER02_START_FLOW_ID = "chapter02-start-flow";
+
+/** 進入第二章時，BGM 延後這麼久才開始播放（之後照常數 2 秒淡入） */
+export const CHAPTER02_BGM_START_DELAY_MS = 2000;
 export const CHAPTER02_START_DIALOGUE_ID = "chapter02-start";
 
 /**

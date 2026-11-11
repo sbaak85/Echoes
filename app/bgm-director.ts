@@ -181,6 +181,11 @@ export class BgmDirector {
   private loopEnvelopeFrameId: number | null = null;
   private initialResidentStartedAt: number | null = null;
   private canReuseInitialResidentStart = true;
+  /**
+   * 外部第一次呼叫 play() 之前，規則切換曲目只換好曲子、不自行開播。
+   * 讓呼叫端能控制首次開播的時機（例：進入第二章延後 2 秒才開始）。
+   */
+  private playbackRequested = false;
   /** 小遊戲狀態改變時通知外部（例如預先載入該小遊戲專用音效）。 */
   onMinigameStateChange: ((minigameId: string, state: string | null) => void) | null = null;
 
@@ -227,7 +232,9 @@ export class BgmDirector {
   }
 
   play() {
-    if (this.disposed || !this.enabled || this.activePlan.pausePlayback) return Promise.resolve();
+    if (this.disposed || !this.enabled) return Promise.resolve();
+    this.playbackRequested = true;
+    if (this.activePlan.pausePlayback) return Promise.resolve();
     const currentDeck = this.decks[this.activeDeckIndex];
     if (currentDeck.trackId === this.activePlan.trackId) {
       // Input/focus retries must not skip an in-progress FadeIn.
@@ -652,7 +659,7 @@ export class BgmDirector {
         plan.trackTransition,
       );
     };
-    if (!this.enabled || document.hidden) {
+    if (!this.enabled || document.hidden || !this.playbackRequested) {
       currentDeck.audio.pause();
       this.activeDeckIndex = nextDeckIndex;
       return;

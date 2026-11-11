@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { createChapter02StartFlow, CHAPTER02_BRIEFING_DONE_FLAG, CHAPTER02_BRIEFING_DONE_POINTS, resolveChapter02BriefingDonePlacement } from "../app/chapter02-start-flow.ts";
+import { createChapter02StartFlow, CHAPTER02_BGM_START_DELAY_MS, CHAPTER02_BRIEFING_DONE_FLAG, CHAPTER02_BRIEFING_DONE_POINTS, resolveChapter02BriefingDonePlacement } from "../app/chapter02-start-flow.ts";
 import { ChapterFlowManager } from "../app/chapter-flow-manager.ts";
 import { QuestRuntimeManager } from "../app/quest-runtime-manager.ts";
 import { createNewGameProgress } from "../app/new-game-reset.ts";
@@ -153,4 +153,14 @@ test("briefing done: 4 NPCs move to the briefing-done TeleportPoints during the 
   assert.equal(resolveChapter02BriefingDonePlacement("npc-someone-else", scene.teleportPoints), null);
   const source = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
   assert.match(source, /resolveChapter02BriefingDonePlacement\(npc\.id, SCENE_TELEPORT_POINTS\)/);
+});
+
+test("進入第二章時 BGM 延後 2 秒才開始播放（之後照常 2 秒淡入）", () => {
+  assert.equal(CHAPTER02_BGM_START_DELAY_MS, 2000);
+  const lab = readFileSync(new URL("../app/movement-lab.tsx", import.meta.url), "utf8");
+  // 讀檔確定章節後才開放 BGM；第二章再延後 2 秒
+  assert.match(lab, /bgmStartHoldUntilRef\.current = loadedStoryProgress\.currentChapter === 2\s*\? performance\.now\(\) \+ CHAPTER02_BGM_START_DELAY_MS\s*: 0;\s*requestBgmPlaybackRef\.current\(\);/);
+  // 所有播放請求（包含第一次操作後的重試）都先經過閘門
+  assert.match(lab, /const requestBgmPlayback = \(\) => \{\s*const holdUntil = Number\.isFinite\(bgmStartHoldUntilRef\.current\)/);
+  assert.match(lab, /window\.clearTimeout\(bgmStartGateTimer\);/);
 });

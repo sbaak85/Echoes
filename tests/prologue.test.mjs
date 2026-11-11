@@ -4,7 +4,8 @@ import test from "node:test";
 
 import { STORY_CHAPTERS, STORY_DIALOGUES } from "../app/story-content.ts";
 import {
-  PROLOGUE_BGM_FADE_OUT_MS,
+  getPrologueBgmFadeOutMs,
+  PROLOGUE_BGM_FALLBACK_FADE_OUT_MS,
   PROLOGUE_BGM_SOURCE,
   PROLOGUE_END_SUBTITLE_EVENT_ID,
   PROLOGUE_ILLUSTRATIONS,
@@ -14,7 +15,7 @@ import {
 
 const prologue = STORY_CHAPTERS.find((chapter) => chapter.id === "prologue");
 
-test("序章腳本：開場黑畫面字幕、10 段對話、序章結束字幕", () => {
+test("序章腳本：開場黑畫面字幕、10 組對話、序章結束字幕", () => {
   assert.ok(prologue);
   assert.equal(prologue.chapterNumber, 0);
   assert.deepEqual(prologue.subtitleEvents.map((event) => [event.id, event.triggerType]), [
@@ -22,9 +23,16 @@ test("序章腳本：開場黑畫面字幕、10 段對話、序章結束字幕",
     ["prologue-opening-card", "chapterStart"],
     ["prologue-End", "manual"],
   ]);
+  // section-1 併入原本的 section-2；原 section-3 從 line-008 起成為 section-4；
+  // 原 section-4 的 line-001～006 獨立成 section-4-2（台詞 ID 不變）
   assert.deepEqual(prologue.dialogueSections.map((section) => section.id),
-    Array.from({ length: 10 }, (_, index) => `prologue-section-${index + 1}`));
-  // 前 4 段是畫外旁白（世界觀），之後切換到 Sbaak 的視角
+    ["1", "3", "4", "4-2", "5", "6", "7", "8", "9", "10"].map((index) => `prologue-section-${index}`));
+  const lineIds = (id) => STORY_DIALOGUES[id].lines.map((line) => line.lineId);
+  assert.deepEqual([lineIds("prologue-section-1")[0], lineIds("prologue-section-1").at(-1)], ["prologue-section-1-line-001", "prologue-section-2-line-006"]);
+  assert.deepEqual([lineIds("prologue-section-3")[0], lineIds("prologue-section-3").at(-1)], ["prologue-section-3-line-001", "prologue-section-3-line-007"]);
+  assert.deepEqual([lineIds("prologue-section-4")[0], lineIds("prologue-section-4").at(-1)], ["prologue-section-3-line-008", "prologue-section-3-line-009"]);
+  assert.deepEqual([lineIds("prologue-section-4-2")[0], lineIds("prologue-section-4-2").at(-1)], ["prologue-section-4-line-001", "prologue-section-4-line-006"]);
+  // 前 4 組是畫外旁白（世界觀），之後切換到 Sbaak 的視角
   for (const section of prologue.dialogueSections.slice(0, 4)) {
     assert.ok(section.dialogue.lines.every((line) => line.speaker === ""), section.id);
   }
@@ -56,8 +64,10 @@ test("ChapterScriptEditor 的原始資料與遊戲資料同步", () => {
   assert.deepEqual(document.chapters[0], JSON.parse(JSON.stringify(prologue)));
 });
 
-test("播放順序：開場字幕 → 6 張插圖（前 4 張各 2 段、後 2 張各 1 段對話）→ 序章結束 → 第二章", () => {
-  assert.deepEqual(PROLOGUE_ILLUSTRATIONS.map((item) => item.sectionIds.length), [2, 2, 2, 2, 1, 1]);
+test("播放順序：開場字幕 → 8 張插圖 → 序章結束 → 第二章", () => {
+  assert.deepEqual(PROLOGUE_ILLUSTRATIONS.map((item) => item.sectionIds.length), [1, 1, 1, 1, 2, 2, 1, 1]);
+  assert.deepEqual(PROLOGUE_ILLUSTRATIONS.slice(0, 4).map((item) => item.imagePath.split("/").at(-1)),
+    ["序章_地球赤道極光_v1.png", "序章_高維航道_3D插圖_v2.png", "序章_高維航道_3D插圖_v3.png", "序章_高維隧道探勘_3D插圖_v2.png"]);
   const { steps, end } = resolvePrologueSequence(STORY_CHAPTERS);
   assert.deepEqual(steps.map((step) => step.kind === "subtitle" ? step.event.id : [step.imagePath, step.dialogues.map((item) => item.id)]), [
     "prologue-Open",
@@ -110,11 +120,23 @@ test("章節選單：序章在第二章、第三章之上；序章結束後交�
   assert.match(player, /<DialoguePlayerView /);
 });
 
-test("序章 BGM：開場循環播放 Prologue1.mp3，「序章結束」字幕出現時 2.5 秒淡出", () => {
+test("序章 BGM：開場循環播放 Prologue1.mp3，「序章結束」字幕出現時開始淡出，與字幕一起淡出結束", () => {
   assert.equal(PROLOGUE_BGM_SOURCE, "audio/Prologue1.mp3");
   assert.ok(existsSync(new URL(`../public/${PROLOGUE_BGM_SOURCE}`, import.meta.url)));
-  assert.equal(PROLOGUE_BGM_FADE_OUT_MS, 2500);
+  const end = prologue.subtitleEvents.find((event) => event.id === PROLOGUE_END_SUBTITLE_EVENT_ID);
+  assert.equal(getPrologueBgmFadeOutMs(end), end.fadeInMs + end.holdMs + end.fadeOutMs);
+  assert.equal(getPrologueBgmFadeOutMs(null), PROLOGUE_BGM_FALLBACK_FADE_OUT_MS);
   const player = readFileSync(new URL("../app/prologue-player.tsx", import.meta.url), "utf8");
   assert.match(player, /bgm\.loop = true;/);
-  assert.match(player, /fadeOutBgm\(\);\s*if \(end\) await showSubtitle\(end\);/);
+  assert.match(player, /if \(end\) await showSubtitle\(end, \(\) => fadeOutBgm\(bgmFadeOutMs\)\);/);
+  // 字幕出現（onShown）的那一刻才開始淡出，不是在 delayBeforeMs 之前
+  assert.match(player, /onShown\?\.\(\);\s*setCentered\(/);
+});
+
+test("序章 BGM 與音效：分頁進背景時暫停，回到前景從原位置繼續（與遊戲本體相同）", () => {
+  const player = readFileSync(new URL("../app/prologue-player.tsx", import.meta.url), "utf8");
+  assert.match(player, /document\.addEventListener\("visibilitychange", onVisibilityChange\)/);
+  assert.match(player, /if \(document\.hidden\) \{\s*bgm\.pause\(\);[\s\S]*?audio\.setSuspended\(true\);\s*\} else \{\s*audio\.setSuspended\(false\);\s*startBgm\(\);/);
+  assert.match(player, /if \(cancelled \|\| bgmFinished \|\| document\.hidden\) return;/);
+  assert.match(player, /document\.removeEventListener\("visibilitychange", onVisibilityChange\)/);
 });

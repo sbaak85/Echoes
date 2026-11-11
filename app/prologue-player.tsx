@@ -12,7 +12,7 @@ import { DialoguePlayerView } from "./dialogue-player-view";
 import type { InteractionDialogueScript } from "./interaction-flow";
 import {
   getPrologueSubtitleTiming,
-  PROLOGUE_BGM_FADE_OUT_MS,
+  getPrologueBgmFadeOutMs,
   PROLOGUE_BGM_SOURCE,
   PROLOGUE_BGM_TRACK_VOLUME,
   PROLOGUE_ILLUSTRATION_FADE_IN_MS,
@@ -21,6 +21,7 @@ import {
   resolvePrologueSequence,
 } from "./prologue-flow";
 import { resolveRuntimePublicAssetUrl } from "./public-asset-url";
+import { detectStageFullscreen, subscribeStageFullscreenChanges } from "./stage-fullscreen";
 import { STORY_CHAPTERS } from "./story-content";
 import type { StorySubtitleEventDefinition } from "./story-subtitle-flow";
 import "./prologue-player.css";
@@ -41,6 +42,8 @@ export function ProloguePlayer({ onComplete, initialGamepadMode = false }: { onC
   const [view, setView] = useState<DialogueView>(null);
   const [history, setHistory] = useState<DialogueHistoryView | null>(null);
   const [historyScrollable, setHistoryScrollable] = useState(false);
+  // F11／瀏覽器全螢幕時舞台撐滿整個畫面（與第二章以後的遊戲相同）
+  const [stageFullscreen, setStageFullscreen] = useState(() => detectStageFullscreen());
   const [gamepadMode, setGamepadMode] = useState(initialGamepadMode);
   const [inputOwner, setInputOwner] = useState<CursorOwner>(() => cursorOwnership.owner);
   // 滑鼠／右搖桿共用同一個游標；鍵盤、左搖桿與方向鍵操作時隱藏。
@@ -111,10 +114,11 @@ export function ProloguePlayer({ onComplete, initialGamepadMode = false }: { onC
       const timer = window.setTimeout(() => { timers.delete(timer); resolve(); }, ms);
       timers.add(timer);
     });
-    const showSubtitle = async (event: StorySubtitleEventDefinition) => {
+    const showSubtitle = async (event: StorySubtitleEventDefinition, onShown?: () => void) => {
       const timing = getPrologueSubtitleTiming(event);
       await wait(timing.delayBeforeMs);
       if (cancelled) return;
+      onShown?.();
       setCentered({ lines: timing.lines, fadeInMs: timing.fadeInMs, holdMs: timing.holdMs, fadeOutMs: timing.fadeOutMs, sequence: Date.now() });
       await wait(timing.fadeInMs + timing.holdMs + timing.fadeOutMs);
       if (cancelled) return;
@@ -131,27 +135,47 @@ export function ProloguePlayer({ onComplete, initialGamepadMode = false }: { onC
     bgm.preload = "auto";
     bgm.volume = bgmVolume;
     let bgmFadeFrame = 0;
-    void bgm.play().catch(() => {
-      // 瀏覽器封鎖自動播放時，等玩家下一次操作再開始
-      const resume = () => {
-        window.removeEventListener("pointerdown", resume, true);
-        window.removeEventListener("keydown", resume, true);
-        if (!cancelled && bgmFadeFrame === 0) void bgm.play().catch(() => undefined);
-      };
-      window.addEventListener("pointerdown", resume, true);
-      window.addEventListener("keydown", resume, true);
-    });
-    const fadeOutBgm = () => {
+    /** 「序章結束」淡出完成後不再恢復播放 */
+    let bgmFinished = false;
+    const resumeAfterInput = () => {
+      window.removeEventListener("pointerdown", resumeAfterInput, true);
+      window.removeEventListener("keydown", resumeAfterInput, true);
+      startBgm();
+    };
+    // 分頁在背景（切換分頁、視窗最小化）時不播；與遊戲本體相同，回到前景才從原位置繼續
+    function startBgm() {
+      if (cancelled || bgmFinished || document.hidden) return;
+      void bgm.play().catch(() => {
+        // 瀏覽器封鎖自動播放時，等玩家下一次操作再開始
+        window.addEventListener("pointerdown", resumeAfterInput, true);
+        window.addEventListener("keydown", resumeAfterInput, true);
+      });
+    }
+    startBgm();
+    const fadeOutBgm = (durationMs: number) => {
       const startedAt = performance.now();
       const startVolume = bgm.volume;
       const step = (now: number) => {
-        const progress = Math.min(1, (now - startedAt) / PROLOGUE_BGM_FADE_OUT_MS);
+        const progress = durationMs <= 0 ? 1 : Math.min(1, (now - startedAt) / durationMs);
         bgm.volume = startVolume * (1 - progress);
         if (progress < 1) { bgmFadeFrame = window.requestAnimationFrame(step); return; }
+        bgmFinished = true;
         bgm.pause();
       };
       bgmFadeFrame = window.requestAnimationFrame(step);
     };
+    // 與遊戲本體（movement-lab 的 onVisibilityChange）相同：分頁進背景時暫停 BGM 與所有音效，回到前景從原位置繼續
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        bgm.pause();
+        audio.stop("dialogueTyping", { reset: false });
+        audio.setSuspended(true);
+      } else {
+        audio.setSuspended(false);
+        startBgm();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
     const handOffPointer = () => {
       // 第二章一開始就在同一位置畫出遊戲游標（滑鼠操作時），不會消失後又冒出一個新的
       try {
@@ -184,8 +208,10 @@ export function ProloguePlayer({ onComplete, initialGamepadMode = false }: { onC
         await wait(PROLOGUE_SCENE_GAP_MS);
       }
       if (cancelled) return;
-      fadeOutBgm();
-      if (end) await showSubtitle(end);
+      // 「序章結束」字幕出現的同時開始淡出 BGM，與字幕一起淡出結束
+      const bgmFadeOutMs = getPrologueBgmFadeOutMs(end);
+      if (end) await showSubtitle(end, () => fadeOutBgm(bgmFadeOutMs));
+      else fadeOutBgm(bgmFadeOutMs);
       if (cancelled) return;
       handOffPointer();
       onCompleteRef.current();
@@ -196,6 +222,9 @@ export function ProloguePlayer({ onComplete, initialGamepadMode = false }: { onC
       timers.forEach((timer) => window.clearTimeout(timer));
       timers.clear();
       window.cancelAnimationFrame(bgmFadeFrame);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pointerdown", resumeAfterInput, true);
+      window.removeEventListener("keydown", resumeAfterInput, true);
       bgm.pause();
       bgm.removeAttribute("src");
       bgm.load();
@@ -205,6 +234,12 @@ export function ProloguePlayer({ onComplete, initialGamepadMode = false }: { onC
       document.documentElement.classList.remove("dialogue-cursor-active", "gamepad-input-active");
     };
   }, [player]);
+
+  useEffect(() => {
+    const update = () => setStageFullscreen(detectStageFullscreen());
+    update();
+    return subscribeStageFullscreenChanges(update);
+  }, []);
 
   // UI 縮放：與遊戲相同，舞台小於 1024×576 時依比例縮小（下限 0.6）
   useLayoutEffect(() => {
@@ -350,7 +385,7 @@ export function ProloguePlayer({ onComplete, initialGamepadMode = false }: { onC
 
   const showPointer = Boolean(pointer) && !pointerHidden && !history && (inputOwner === "gamepad" || !pointerOverDialogue);
   return <main className="prologue-stage" data-input-owner={inputOwner} aria-label="序章" onClick={onStageClick}>
-    <div ref={shellRef} className="game-shell prologue-shell" data-interaction-illustration={illustration ? "open" : undefined}>
+    <div ref={shellRef} className={`game-shell prologue-shell${stageFullscreen ? " is-fullscreen" : ""}`} data-interaction-illustration={illustration ? "open" : undefined}>
       {illustration && <div key={illustration.sequence}
         className={`interaction-illustration-overlay is-with-dialogue prologue-illustration${illustration.closing ? " is-closing" : ""}`}
         aria-hidden="true">
