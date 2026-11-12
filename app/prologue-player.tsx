@@ -20,6 +20,7 @@ import {
   PROLOGUE_SCENE_GAP_MS,
   resolvePrologueSequence,
 } from "./prologue-flow";
+import { loadPrologueIllustration, preloadPrologueIllustrations, PROLOGUE_ILLUSTRATION_LOAD_TIMEOUT_MS } from "./prologue-preload";
 import { resolveRuntimePublicAssetUrl } from "./public-asset-url";
 import { detectStageFullscreen, subscribeStageFullscreenChanges } from "./stage-fullscreen";
 import { STORY_CHAPTERS } from "./story-content";
@@ -35,6 +36,15 @@ type Context = { dialogue?: InteractionDialogueScript | null };
 
 const PROLOGUE_AUDIO_EVENTS: readonly AudioEventName[] = ["dialogueTyping", "dialogueOpened", "uiInput"];
 const DIALOGUE_UI_SELECTOR = ".dialogue-box, .dialogue-history-trigger, .dialogue-history-overlay";
+
+/** 插圖 <img> 掛上後等它解碼完成再開始淡入（載入失敗也照常顯示，不會一直是黑的） */
+function markIllustrationReady(image: HTMLImageElement | null) {
+  if (!image) return;
+  const ready = () => image.classList.add("is-ready");
+  if (typeof image.decode === "function") void image.decode().then(ready, ready);
+  else if (image.complete) ready();
+  else { image.addEventListener("load", ready, { once: true }); image.addEventListener("error", ready, { once: true }); }
+}
 
 export function ProloguePlayer({ onComplete, initialGamepadMode = false }: { onComplete: () => void; initialGamepadMode?: boolean }) {
   const [centered, setCentered] = useState<CenteredText | null>(null);
@@ -185,6 +195,8 @@ export function ProloguePlayer({ onComplete, initialGamepadMode = false }: { onC
       } catch { /* 游標位置只是體驗上的延續，存不了也不影響流程 */ }
     };
 
+    // 章節選單已經開始預載；直接進序章（或預載被中斷）時在這裡補上
+    preloadPrologueIllustrations();
     void (async () => {
       const { steps, end } = resolvePrologueSequence(STORY_CHAPTERS as unknown as Parameters<typeof resolvePrologueSequence>[0]);
       for (const step of steps) {
@@ -193,8 +205,12 @@ export function ProloguePlayer({ onComplete, initialGamepadMode = false }: { onC
           await showSubtitle(step.event);
           continue;
         }
+        // 插圖還沒下載／解碼好時先停在黑畫面等它（最多 10 秒），載好才淡入，不會淡入一半才冒出圖
+        const src = resolveRuntimePublicAssetUrl(step.imagePath);
+        await Promise.race([loadPrologueIllustration(src), wait(PROLOGUE_ILLUSTRATION_LOAD_TIMEOUT_MS)]);
+        if (cancelled) return;
         illustrationSequence += 1;
-        setIllustration({ src: resolveRuntimePublicAssetUrl(step.imagePath), closing: false, sequence: illustrationSequence });
+        setIllustration({ src, closing: false, sequence: illustrationSequence });
         await wait(PROLOGUE_ILLUSTRATION_FADE_IN_MS);
         for (const section of step.dialogues) {
           if (cancelled) return;
@@ -388,8 +404,13 @@ export function ProloguePlayer({ onComplete, initialGamepadMode = false }: { onC
     <div ref={shellRef} className={`game-shell prologue-shell${stageFullscreen ? " is-fullscreen" : ""}`} data-interaction-illustration={illustration ? "open" : undefined}>
       {illustration && <div key={illustration.sequence}
         className={`interaction-illustration-overlay is-with-dialogue prologue-illustration${illustration.closing ? " is-closing" : ""}`}
-        aria-hidden="true">
-        <img src={illustration.src} alt="" draggable={false} />
+        aria-hidden="true"
+        style={{
+          "--prologue-illustration-fade-in": `${PROLOGUE_ILLUSTRATION_FADE_IN_MS}ms`,
+          "--prologue-illustration-fade-out": `${PROLOGUE_ILLUSTRATION_FADE_OUT_MS}ms`,
+        } as CSSProperties}>
+        {/* 解碼完成才加 is-ready 開始淡入：圖還沒畫出來時不先把淡入時間用掉 */}
+        <img ref={markIllustrationReady} src={illustration.src} alt="" draggable={false} />
       </div>}
       {centered && <section key={centered.sequence} className="story-centered-text is-fade-only"
         style={{

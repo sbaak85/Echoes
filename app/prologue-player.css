@@ -37,12 +37,20 @@ html body .prologue-stage:not([data-input-owner="mouse"]) * {
   pointer-events: none;
 }
 
+/* 淡入：解碼完成（is-ready）才開始，ease-in 從黑畫面慢慢亮起；時間由 prologue-flow.ts 的常數帶入 */
 .prologue-illustration > img {
-  animation-duration: 500ms;
+  opacity: 0;
+  animation: none;
 }
 
-.prologue-illustration.is-closing > img {
-  animation-duration: 500ms;
+.prologue-illustration > img.is-ready {
+  animation: inventory-item-inspect-fade-in var(--prologue-illustration-fade-in, 800ms) ease-in both;
+}
+
+/* 淡出：ease-in，時間由 prologue-flow.ts 的常數帶入 */
+.prologue-illustration.is-closing > img,
+.prologue-illustration.is-closing > img.is-ready {
+  animation: inventory-item-inspect-fade-out var(--prologue-illustration-fade-out, 500ms) ease-in both;
 }
 
 .prologue-pointer {

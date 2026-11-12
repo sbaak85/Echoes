@@ -10,8 +10,12 @@ export const PROLOGUE_CHAPTER_ID = "prologue";
 export const PROLOGUE_END_SUBTITLE_EVENT_ID = "prologue-End";
 /** 序章結束後進入的章節 */
 export const PROLOGUE_NEXT_CHAPTER = 2;
-/** 插圖淡入／淡出（毫秒）：淡入沿用互動插圖的 500ms 進場 */
-export const PROLOGUE_ILLUSTRATION_FADE_IN_MS = 500;
+/**
+ * 插圖淡入／淡出（毫秒）。淡入用 ease-in（從黑畫面慢慢亮起）：
+ * 原本沿用互動插圖的 500ms ease-out，前 0.1 秒就亮到六成，看起來像直接跳出來。
+ * prologue-player.css 透過 CSS 變數讀這兩個值。
+ */
+export const PROLOGUE_ILLUSTRATION_FADE_IN_MS = 800;
 export const PROLOGUE_ILLUSTRATION_FADE_OUT_MS = 500;
 /** 換插圖之間、以及最後一張插圖淡出到「序章結束」字幕之間的全黑停頓 */
 export const PROLOGUE_SCENE_GAP_MS = 400;

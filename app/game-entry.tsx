@@ -10,6 +10,7 @@ import {
 } from "./chapter02-ending";
 import { cursorOwnership } from "./cursor-ownership";
 import { PROLOGUE_NEXT_CHAPTER } from "./prologue-flow";
+import { preloadPrologueIllustrations, stopPrologueIllustrationPreload } from "./prologue-preload";
 
 const endChapterHandoff = () => hideChapterHandoffCover();
 
@@ -40,6 +41,8 @@ export function GameEntry() {
     busy.current = true;
     setLoading(true);
     setError("");
+    // 不播序章（或序章已播完）：停止還沒下載的序章插圖，頻寬讓給地圖與遊戲模組
+    stopPrologueIllustrationPreload();
     try {
       // No game/scene/story module is requested before a chapter is selected.
       const gameModule = await import("./movement-lab");
@@ -100,6 +103,12 @@ export function GameEntry() {
     const frame = requestAnimationFrame(() => { void choose(null); });
     return () => cancelAnimationFrame(frame);
   }, [choose]);
+
+  useEffect(() => {
+    // 章節選單一出現就依播放順序預載序章插圖（章節交接自動開始、場景預覽網址不會停在選單，不預載）
+    if (autoStartChapterRef.current || new URLSearchParams(location.search).has("scene")) return;
+    preloadPrologueIllustrations();
+  }, []);
 
   useEffect(() => {
     if (Game || ProloguePlayer) return;
